@@ -30,7 +30,12 @@ export const ASSESSMENTS: { value: Assessment; label: string; className: string;
 ];
 
 export const assessmentMeta = (a: Assessment) =>
-  ASSESSMENTS.find((x) => x.value === a) ?? ASSESSMENTS[0];
+  ASSESSMENTS.find((x) => x.value === a) ?? {
+    value: "must_fix" as Assessment,
+    label: "Must fix",
+    className: "bg-mustfix text-mustfix-foreground",
+    dot: "bg-mustfix",
+  };
 
 export const STATUS_LABEL: Record<Status, string> = {
   open: "Open",
