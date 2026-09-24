@@ -1,3 +1,4 @@
+import { AiSummary } from "@/components/AiSummary";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -137,6 +138,7 @@ function DashboardPage() {
       </div>
 
       <div className="space-y-6 p-4 md:p-6">
+        <AiSummary />
         <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
           <Stat label="Total" value={stats.total} />
           <Stat label="Acceptable" value={stats.acceptable} tone="bg-acceptable/15" />
