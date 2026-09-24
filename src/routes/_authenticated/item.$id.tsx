@@ -325,6 +325,8 @@ function describeEvent(type: string, from: string | null, to: string | null) {
       return "Assigned person changed";
     case "trade_assignment":
       return `Trade ${from ?? "—"} → ${to ?? "—"}`;
+    case "responsible_change":
+      return `Responsible party ${respLabel(from)} → ${respLabel(to)}`;
     case "comment":
       return "Comment";
     default:
