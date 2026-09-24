@@ -175,7 +175,7 @@ function ListPage() {
               ]}
             />
           )}
-          <FilterSelect
+          {canAssign && (<FilterSelect
             value="none"
             placeholder="Assign"
             onChange={(v) => void bulkUpdate({ assigned_to: v === "unassign" ? null : v })}
@@ -184,7 +184,7 @@ function ListPage() {
               { value: "unassign", label: "Unassigned" },
               ...profiles.map((p) => ({ value: p.id, label: p.full_name ?? p.email ?? p.id })),
             ]}
-          />
+          />)}
           <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
             Clear
           </Button>
