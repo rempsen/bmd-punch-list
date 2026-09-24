@@ -83,7 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "application-name", content: "BMD Deficiency Tracker" },
       { name: "apple-mobile-web-app-title", content: "BMD Deficiency Tracker" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "theme-color", content: "#1b2a4a" },
+      { name: "theme-color", content: "#F9FAFA" },
       {
         name: "description",
         content: "Flooring and tile punch list tracking for BMD Materials.",

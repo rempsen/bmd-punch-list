@@ -68,10 +68,10 @@ function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-primary px-4 py-10">
-      <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-lg">
-        <p className="text-sm font-bold tracking-[0.2em] text-primary uppercase">BMD Materials</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Deficiency Tracker</h1>
+    <div className="flex min-h-screen items-center justify-center bg-logo-bg px-4 py-10">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-logo-bg p-6 shadow-lg">
+        <img src="/bmd-logo.png" alt="BMD Materials" className="mx-auto w-[220px]" />
+        <h1 className="mt-2 text-center text-lg font-semibold tracking-tight">Deficiency Tracker</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {mode === "signin" ? "Sign in to continue." : "Create your account."}
         </p>
