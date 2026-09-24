@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/auth";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -31,6 +32,7 @@ const toneClass: Record<Tone, string> = {
 };
 
 function FloorsPage() {
+  const { isAdmin } = useAuth();
   const { data: project } = useProject();
   const { data: floors = [] } = useFloors(project?.id);
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);
