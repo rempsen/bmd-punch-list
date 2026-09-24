@@ -77,31 +77,43 @@ export async function exportPdf(
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 40;
   let y = margin;
+  const logo = await toDataUrl("/bmd-logo.png");
+  const reportDate = new Date().toLocaleDateString();
+
+  const drawHeader = () => {
+    const logoW = 80;
+    const logoH = 40;
+    if (logo) doc.addImage(logo, "PNG", margin, margin - 8, logoW, logoH);
+    const tx = margin + (logo ? logoW + 12 : 0);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.setTextColor(20, 20, 20);
+    doc.text(`${project.name} — Deficiency report`, tx, margin + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+    doc.text(reportDate, tx, margin + 22);
+    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(232, 196, 184);
+    doc.line(margin, margin + 38, pageWidth - margin, margin + 38);
+    y = margin + 56;
+  };
 
   const ensureSpace = (needed: number) => {
     if (y + needed > pageHeight - margin) {
       doc.addPage();
-      y = margin;
+      drawHeader();
     }
   };
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text("BMD MATERIALS", margin, y);
-  y += 22;
-  doc.setFontSize(14);
-  doc.text(`${project.name} — Deficiency report`, margin, y);
-  y += 18;
+  drawHeader();
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text(
-    [project.client_name, project.address, new Date().toLocaleDateString()]
-      .filter(Boolean)
-      .join("  ·  "),
-    margin,
-    y,
-  );
-  y += 24;
+  const sub = [project.client_name, project.address].filter(Boolean).join("  ·  ");
+  if (sub) {
+    doc.text(sub, margin, y);
+    y += 18;
+  }
 
   const counts = {
     total: rows.length,
