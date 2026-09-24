@@ -22,11 +22,11 @@ import {
   useFloors,
   useLocations,
   usePickLists,
-  useProfiles,
   useProject,
-  useUserRoles,
 } from "@/lib/data";
-import type { AppRole } from "@/lib/auth";
+import { useAuth } from "@/lib/auth";
+import { UsersPanel } from "@/components/settings/UsersPanel";
+import { RolesPanel } from "@/components/settings/RolesPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -57,8 +57,9 @@ function SettingsPage() {
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);
   const { data: locations = [] } = useLocations(floorIds);
   const { data: picks } = usePickLists();
-  const { data: profiles = [] } = useProfiles();
-  const { data: roles = [] } = useUserRoles();
+  const { can, isSuperAdmin } = useAuth();
+  const canSettings = can("manage_settings");
+  const canUsers = can("manage_users");
   const { data: items = [] } = useDeficiencies(project?.id);
 
   const refresh = () => {
@@ -73,7 +74,6 @@ function SettingsPage() {
   const [roomPaste, setRoomPaste] = useState("");
   const [commonName, setCommonName] = useState("");
   const [newPick, setNewPick] = useState<Record<string, string>>({});
-  const [inviteEmail, setInviteEmail] = useState("");
 
   const activeFloor = selectedFloor || floors[0]?.id || "";
   const sampleCount = items.filter((i) => i.is_sample).length;
@@ -167,16 +167,6 @@ function SettingsPage() {
     else refresh();
   };
 
-  const setRole = async (userId: string, role: AppRole) => {
-    await supabase.from("user_roles").delete().eq("user_id", userId);
-    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Access updated");
-      refresh();
-    }
-  };
-
   const clearSamples = async () => {
     const { error } = await supabase.from("deficiencies").delete().eq("is_sample", true);
     if (error) toast.error(error.message);
@@ -192,12 +182,13 @@ function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle={project?.name ?? undefined} />
       <div className="p-4 md:p-6">
-        <Tabs defaultValue="structure">
-          <TabsList>
-            <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>
-            <TabsTrigger value="lists">Pick lists</TabsTrigger>
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="project">Project</TabsTrigger>
+        <Tabs defaultValue={canSettings ? "structure" : "users"}>
+          <TabsList className="flex-wrap">
+            {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
+            {canSettings && <TabsTrigger value="lists">Pick lists</TabsTrigger>}
+            {canUsers && <TabsTrigger value="users">Users</TabsTrigger>}
+            {isSuperAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
+            {canSettings && <TabsTrigger value="project">Project</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="structure" className="space-y-4">
@@ -274,7 +265,7 @@ function SettingsPage() {
               </div>
             </Card>
 
-            <Card title="Sample data">
+            {can("delete_item") && (<Card title="Sample data">
               <p className="text-sm text-muted-foreground">
                 {sampleCount} sample items are in this project.
               </p>
@@ -286,7 +277,7 @@ function SettingsPage() {
               >
                 Clear sample data
               </Button>
-            </Card>
+            </Card>)}
           </TabsContent>
 
           <TabsContent value="lists" className="space-y-4">
@@ -330,60 +321,16 @@ function SettingsPage() {
             ))}
           </TabsContent>
 
-          <TabsContent value="users" className="space-y-4">
-            <Card title="Invite a user">
-              <p className="text-sm text-muted-foreground">
-                Send the sign-up link to the person, then set their access below once they have
-                created an account.
-              </p>
-              <div className="mt-2 flex gap-2">
-                <Input
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="name@company.com"
-                  className="h-11"
-                />
-                <Button
-                  className="h-11"
-                  onClick={() => {
-                    const link = `${window.location.origin}/auth`;
-                    void navigator.clipboard.writeText(
-                      `Join the BMD Deficiency Tracker: ${link} (sign up with ${inviteEmail || "your email"})`,
-                    );
-                    toast.success("Invite text copied");
-                  }}
-                >
-                  Copy invite
-                </Button>
-              </div>
-            </Card>
-
-            <Card title="People and access">
-              <ul className="divide-y divide-border">
-                {profiles.map((p) => {
-                  const role = roles.find((r) => r.user_id === p.id)?.role ?? "";
-                  return (
-                    <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{p.full_name ?? p.email}</p>
-                        <p className="truncate text-xs text-muted-foreground">{p.email}</p>
-                      </div>
-                      <Select value={role} onValueChange={(v) => setRole(p.id, v as AppRole)}>
-                        <SelectTrigger className="h-11 w-48">
-                          <SelectValue placeholder="No access" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bmd_admin">BMD admin</SelectItem>
-                          <SelectItem value="bmd_field">BMD field</SelectItem>
-                          <SelectItem value="client">Client</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          </TabsContent>
+          {canUsers && (
+            <TabsContent value="users">
+              <UsersPanel />
+            </TabsContent>
+          )}
+          {isSuperAdmin && (
+            <TabsContent value="roles">
+              <RolesPanel />
+            </TabsContent>
+          )}
 
           <TabsContent value="project" className="space-y-4">
             <Card title="Project details">
