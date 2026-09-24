@@ -152,7 +152,7 @@ export const updateStatus = defineTool({
     const sb = supabaseForUser(ctx);
     const id = await findId(sb, item);
     const patch: Record<string, string> = { status };
-    if (note) patch.client_decision_note = note;
+    if (note) patch["client_decision_note"] = note;
     const { error } = await sb.from("deficiencies").update(patch as never).eq("id", id);
     if (error) throw new ToolError(error.message);
     return { content: [{ type: "text", text: `${item} is now ${status}.` }] };
