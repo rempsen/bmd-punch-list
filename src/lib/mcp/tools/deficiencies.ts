@@ -128,7 +128,8 @@ export const getDeficiency = defineTool({
       note: e.note,
       created_at: e.created_at,
     }));
-    const deficiency = toJson(d as unknown as Row);
+    const { data: notes } = await sb.rpc("decision_notes", { _ids: [id] });
+    const deficiency = toJson({ ...(d as unknown as Row), client_decision_note: notes?.[0]?.note ?? null });
     return {
       content: [{ type: "text", text: JSON.stringify({ deficiency, events }) }],
       structuredContent: { deficiency, events },
