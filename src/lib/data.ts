@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Assessment, Status } from "./bmd";
@@ -64,15 +65,12 @@ const unwrap = <T,>(res: { data: T | null; error: { message: string } | null }):
 };
 
 export function useProject() {
+  const { projectId } = useAuth();
   return useQuery({
-    queryKey: ["project"],
+    queryKey: ["project", projectId],
+    enabled: !!projectId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at")
-        .limit(1)
-        .maybeSingle();
+      const { data, error } = await supabase.from("projects").select("*").eq("id", projectId!).maybeSingle();
       if (error) throw new Error(error.message);
       return data as { id: string; name: string; client_name: string | null; address: string | null } | null;
     },
@@ -111,11 +109,13 @@ export function useLocations(floorIds: string[]) {
 }
 
 export function usePickLists() {
+  const { projectId } = useAuth();
   return useQuery({
-    queryKey: ["pick_lists"],
+    queryKey: ["pick_lists", projectId],
+    enabled: !!projectId,
     queryFn: async () => {
       const rows = unwrap<{ id: string; kind: string; value: string; sort_order: number; active: boolean }[]>(
-        await supabase.from("pick_lists").select("*").order("sort_order"),
+        await supabase.from("pick_lists").select("*").eq("project_id", projectId!).order("sort_order"),
       );
       return {
         all: rows,
