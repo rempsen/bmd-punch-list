@@ -13,6 +13,7 @@ import {
   type Person,
 } from "@/lib/assign";
 import { cn } from "@/lib/utils";
+import { respLabel, RESPONSIBLE } from "@/lib/responsible";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -41,7 +42,7 @@ import {
   type DefRow,
 } from "@/lib/data";
 
-const SORT_KEYS = ["item_number", "floor", "location", "area", "material", "issue", "assessment", "status", "assigned", "created_at"] as const;
+const SORT_KEYS = ["item_number", "floor", "location", "area", "material", "issue", "assessment", "status", "assigned", "responsible", "created_at"] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 type ListSearch = {
   q?: string | undefined;
@@ -49,6 +50,7 @@ type ListSearch = {
   assess?: string | undefined;
   status?: string | undefined;
   assign?: string | undefined;
+  resp?: string | undefined;
   open?: boolean | undefined;
   sort?: SortKey | undefined;
   dir?: "asc" | "desc" | undefined;
@@ -62,6 +64,7 @@ export const Route = createFileRoute("/_authenticated/list")({
     assess: str(s["assess"]),
     status: str(s["status"]),
     assign: str(s["assign"]),
+    resp: str(s["resp"]),
     open: s["open"] === true || s["open"] === "1" || s["open"] === 1 ? true : undefined,
     sort: SORT_KEYS.includes(s["sort"] as SortKey) ? (s["sort"] as SortKey) : undefined,
     dir: s["dir"] === "asc" || s["dir"] === "desc" ? s["dir"] : undefined,
@@ -101,6 +104,7 @@ function ListPage() {
   const assessment = sp.assess ?? "all";
   const status = sp.status ?? "all";
   const assign = sp.assign ?? "all";
+  const resp = sp.resp ?? "all";
   const openOnly = !!sp.open;
   const sort: SortKey = sp.sort ?? "item_number";
   const asc = sp.dir ? sp.dir === "asc" : false;
@@ -119,6 +123,7 @@ function ListPage() {
       if (status !== "all" && d.status !== status) return false;
       if (openOnly && isClosed(d.status)) return false;
       if (!matchesAssign(d, assign, pmap)) return false;
+      if (resp !== "all" && d.responsible_party !== resp) return false;
       if (!q) return true;
       return [
         itemNo(d.item_number),
@@ -154,6 +159,8 @@ function ListPage() {
           const a = assigneeText(d, pmap);
           return a.person || a.trade ? a.label.toLowerCase() : "\uffff";
         }
+        case "responsible":
+          return RESPONSIBLE.findIndex((r) => r.value === d.responsible_party);
         case "created_at":
           return d.created_at;
         default:
@@ -169,9 +176,9 @@ function ListPage() {
           : String(av).localeCompare(String(bv), undefined, { numeric: true });
       return (asc ? cmp : -cmp) || b.item_number - a.item_number;
     });
-  }, [items, search, floor, assessment, status, openOnly, assign, pmap, sort, asc]);
+  }, [items, search, floor, assessment, status, openOnly, assign, resp, pmap, sort, asc]);
 
-  const anyFilter = !!(sp.q || sp.floor || sp.assess || sp.status || sp.assign || sp.open);
+  const anyFilter = !!(sp.q || sp.floor || sp.assess || sp.status || sp.assign || sp.resp || sp.open);
 
   const bulkUpdate = async (patch: Record<string, unknown>) => {
     let failures = 0;
@@ -229,6 +236,12 @@ function ListPage() {
           ]}
         />
         <AssignFilter value={assign} options={assignOptions} onChange={(v) => setSp({ assign: v === "all" ? undefined : v })} />
+        <FilterSelect
+          value={resp}
+          onChange={(v) => setSp({ resp: v === "all" ? undefined : v })}
+          placeholder="Responsible"
+          options={[{ value: "all", label: "Any responsible party" }, ...RESPONSIBLE.map((r) => ({ value: r.value, label: r.short }))]}
+        />
         <label className="flex h-11 items-center gap-2 rounded-md border border-border px-3 text-sm">
           <Checkbox checked={openOnly} onCheckedChange={(c) => setSp({ open: c ? true : undefined })} />
           Open only
@@ -285,7 +298,7 @@ function ListPage() {
 
       <div className="overflow-x-auto p-4 md:p-6">
         <AssignDialog open={assignOpen} onOpenChange={setAssignOpen} ids={selected} onDone={() => setSelected([])} />
-        <table className="w-full min-w-[960px] border-collapse text-sm">
+        <table className="w-full min-w-[1080px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase">
               {canCapture && <th className="w-8 py-2" />}
@@ -297,6 +310,7 @@ function ListPage() {
               {th("Issue", "issue")}
               {th("Assessment", "assessment")}
               {th("Status", "status")}
+              {th("Responsible", "responsible")}
               {th("Assigned to", "assigned")}
               {th("Created", "created_at")}
             </tr>
@@ -330,6 +344,7 @@ function ListPage() {
                 <td className="py-2 pr-3">
                   <StatusBadge value={d.status} />
                 </td>
+                <td className="py-2 pr-3 whitespace-nowrap">{respLabel(d.responsible_party)}</td>
                 <td className="py-2 pr-3">
                   <AssigneeCell d={d} pmap={pmap} />
                 </td>

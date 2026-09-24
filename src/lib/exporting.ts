@@ -290,7 +290,7 @@ export async function exportPdf(
         );
         y += 12;
         {
-          const a = assigneeText(r, people);
+          const a = assigneeText(r, opts.people ?? new Map<string, Person>());
           const who = a.person || a.trade;
           if (r.responsible_party !== "unassigned" || who) {
             doc.setTextColor(100);
