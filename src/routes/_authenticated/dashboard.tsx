@@ -116,7 +116,7 @@ function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle={project?.name ?? undefined} />
+      <PageHeader title={project?.name ?? "Dashboard"} subtitle={[project?.address, project?.client_name && `Client: ${project.client_name}`].filter(Boolean).join(" · ") || undefined} />
 
       <div className="flex flex-wrap gap-2 border-b border-border bg-card px-4 py-3 md:px-6">
         <Filter
