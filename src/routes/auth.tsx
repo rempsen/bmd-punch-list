@@ -24,10 +24,15 @@ export const Route = createFileRoute("/auth")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" && s.next.startsWith("/") && !s.next.startsWith("//") ? s.next : undefined,
+  }),
   component: AuthPage,
 });
 
 function AuthPage() {
+  const { next } = Route.useSearch();
+  const go = () => (next ? window.location.assign(next) : void navigate({ to: "/floors" }));
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -42,19 +47,19 @@ function AuthPage() {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        void navigate({ to: "/floors" });
+        go();
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: window.location.origin,
+            emailRedirectTo: window.location.origin + (next ?? ""),
             data: { full_name: fullName },
           },
         });
         if (error) throw error;
         if (data.session) {
-          void navigate({ to: "/floors" });
+          go();
         } else {
           toast.success("Check your email to confirm your account, then sign in.");
           setMode("signin");
