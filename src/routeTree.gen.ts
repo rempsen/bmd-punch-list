@@ -14,8 +14,10 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/board'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
+import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
 
@@ -43,6 +45,11 @@ const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
   path: '/capture',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDecisionsRoute = AuthenticatedDecisionsRouteImport.update({
   id: '/decisions',
   path: '/decisions',
@@ -51,6 +58,11 @@ const AuthenticatedDecisionsRoute = AuthenticatedDecisionsRouteImport.update({
 const AuthenticatedFloorsRoute = AuthenticatedFloorsRouteImport.update({
   id: '/floors',
   path: '/floors',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedListRoute = AuthenticatedListRouteImport.update({
+  id: '/list',
+  path: '/list',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMoreRoute = AuthenticatedMoreRouteImport.update({
@@ -69,8 +81,10 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/floors': typeof AuthenticatedFloorsRoute
+  '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
 }
@@ -79,8 +93,10 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/floors': typeof AuthenticatedFloorsRoute
+  '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
 }
@@ -91,8 +107,10 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/board': typeof AuthenticatedBoardRoute
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
+  '/_authenticated/list': typeof AuthenticatedListRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
 }
@@ -103,8 +121,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/board'
     | '/capture'
+    | '/dashboard'
     | '/decisions'
     | '/floors'
+    | '/list'
     | '/more'
     | '/item/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -113,8 +133,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/board'
     | '/capture'
+    | '/dashboard'
     | '/decisions'
     | '/floors'
+    | '/list'
     | '/more'
     | '/item/$id'
   id:
@@ -124,8 +146,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/board'
     | '/_authenticated/capture'
+    | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
     | '/_authenticated/floors'
+    | '/_authenticated/list'
     | '/_authenticated/more'
     | '/_authenticated/item/$id'
   fileRoutesById: FileRoutesById
@@ -173,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCaptureRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/decisions': {
       id: '/_authenticated/decisions'
       path: '/decisions'
@@ -185,6 +216,13 @@ declare module '@tanstack/react-router' {
       path: '/floors'
       fullPath: '/floors'
       preLoaderRoute: typeof AuthenticatedFloorsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/list': {
+      id: '/_authenticated/list'
+      path: '/list'
+      fullPath: '/list'
+      preLoaderRoute: typeof AuthenticatedListRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/more': {
@@ -207,8 +245,10 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedBoardRoute: typeof AuthenticatedBoardRoute
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
+  AuthenticatedListRoute: typeof AuthenticatedListRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
 }
@@ -216,8 +256,10 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBoardRoute: AuthenticatedBoardRoute,
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
+  AuthenticatedListRoute: AuthenticatedListRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
 }
