@@ -20,6 +20,7 @@ import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
 import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -76,6 +77,11 @@ const AuthenticatedMoreRoute = AuthenticatedMoreRouteImport.update({
   path: '/more',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedItemIdRoute = AuthenticatedItemIdRouteImport.update({
   id: '/item/$id',
   path: '/item/$id',
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/floors': typeof AuthenticatedFloorsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
 }
 export interface FileRoutesByTo {
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/floors': typeof AuthenticatedFloorsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
 }
 export interface FileRoutesById {
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
   '/_authenticated/list': typeof AuthenticatedListRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
 }
 export interface FileRouteTypes {
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/floors'
     | '/list'
     | '/more'
+    | '/settings'
     | '/item/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/floors'
     | '/list'
     | '/more'
+    | '/settings'
     | '/item/$id'
   id:
     | '__root__'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/_authenticated/floors'
     | '/_authenticated/list'
     | '/_authenticated/more'
+    | '/_authenticated/settings'
     | '/_authenticated/item/$id'
   fileRoutesById: FileRoutesById
 }
@@ -251,6 +263,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMoreRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/item/$id': {
       id: '/_authenticated/item/$id'
       path: '/item/$id'
@@ -270,6 +289,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
   AuthenticatedListRoute: typeof AuthenticatedListRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
 }
 
@@ -282,6 +302,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
   AuthenticatedListRoute: AuthenticatedListRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
 }
 
