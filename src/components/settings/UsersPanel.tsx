@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Trash2 } from "lucide-react";
+import { Send, Trash2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { sendInvite, notifyAddedToJob } from "@/lib/invites.functions";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +43,7 @@ function useInvites(projectId: string | null) {
     queryKey: ["invites", projectId],
     enabled: !!projectId,
     queryFn: async () => {
+      await supabase.rpc("expire_old_invites");
       const { data, error } = await supabase
         .from("user_invites")
         .select("*")
@@ -73,8 +76,23 @@ export function UsersPanel() {
     void qc.invalidateQueries({ queryKey: ["profiles"] });
   };
 
-  const inviteText = (to: string) =>
-    `You're invited to the ${currentJob?.name ?? ""} job on the BMD Deficiency Tracker. Sign up at ${window.location.origin}/auth using ${to}.`;
+  const sendInviteFn = useServerFn(sendInvite);
+  const notifyFn = useServerFn(notifyAddedToJob);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const deliver = async (inviteId: string, to: string) => {
+    setSendingId(inviteId);
+    try {
+      const res = await sendInviteFn({ data: { inviteId } });
+      if (res.ok) toast.success(`Invitation sent to ${to}`);
+      else toast.error(`Invitation to ${to} was not sent: ${res.error}`, { duration: 10000 });
+    } catch (e) {
+      toast.error(`Invitation to ${to} was not sent: ${e instanceof Error ? e.message : String(e)}`, { duration: 10000 });
+    } finally {
+      setSendingId(null);
+      refresh();
+    }
+  };
 
   const invite = async () => {
     const clean = email.trim().toLowerCase();
@@ -83,24 +101,23 @@ export function UsersPanel() {
       return;
     }
     setSaving(true);
-    const { error } = await supabase.from("user_invites").insert({
+    const { data: row, error } = await supabase.from("user_invites").insert({
       email: clean,
       full_name: name.trim() || null,
       role,
       company: company.trim() || null,
       project_id: projectId!,
-    });
+    }).select("id").single();
     setSaving(false);
     if (error) {
       toast.error(error.message.includes("duplicate") ? "That email already has an open invite" : error.message);
       return;
     }
-    void navigator.clipboard?.writeText(inviteText(clean)).catch(() => undefined);
-    toast.success("Invite saved — sign-up message copied to clipboard");
     setEmail("");
     setName("");
     setCompany("");
     refresh();
+    await deliver(row.id, clean);
   };
 
   const changeRole = async (id: string, next: AppRole, comp?: string) => {
@@ -120,12 +137,19 @@ export function UsersPanel() {
   const addExisting = async () => {
     const clean = addEmail.trim().toLowerCase();
     if (!clean) return;
-    const { error } = await supabase.rpc("add_member_by_email", { _project: projectId!, _email: clean, _role: addRole });
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Added to this job");
-      setAddEmail("");
-      refresh();
+    const { data: uid, error } = await supabase.rpc("add_member_by_email", { _project: projectId!, _email: clean, _role: addRole });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setAddEmail("");
+    refresh();
+    try {
+      const res = await notifyFn({ data: { projectId: projectId!, userId: uid as string } });
+      if (res.ok) toast.success(`Added to this job — email sent to ${clean}`);
+      else toast.error(`Added to this job, but the email to ${clean} failed: ${res.error}`, { duration: 10000 });
+    } catch (e) {
+      toast.error(`Added to this job, but the email failed: ${e instanceof Error ? e.message : String(e)}`, { duration: 10000 });
     }
   };
 
@@ -150,8 +174,7 @@ export function UsersPanel() {
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="mb-1 text-sm font-semibold text-muted-foreground uppercase">Invite a user</h2>
         <p className="mb-3 text-sm text-muted-foreground">
-          Invites are for <strong>{currentJob?.name}</strong>. Save the invite, then send them the copied
-          sign-up message. When they sign up with this email they join this job with the role you choose.
+          Invites are for <strong>{currentJob?.name}</strong>. We email them a sign-up link. When they sign up with this email they join this job with the role you choose.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input className="h-11" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -177,12 +200,12 @@ export function UsersPanel() {
           />
         </div>
         <Button className="mt-3 h-11" disabled={saving} onClick={invite}>
-          Save invite &amp; copy message
+          {saving ? "Sending…" : "Send invite"}
         </Button>
 
         {invites.length > 0 && (
           <div className="mt-4">
-            <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase">Pending invites</p>
+            <p className="mb-2 text-xs font-semibold text-muted-foreground uppercase">Invites not yet accepted</p>
             <ul className="divide-y divide-border">
               {invites.map((i) => (
                 <li key={i.id} className="flex flex-wrap items-center gap-2 py-2 text-sm">
@@ -191,15 +214,23 @@ export function UsersPanel() {
                     {i.email} · {roleLabel(i.role)}
                     {i.company ? ` · ${i.company}` : ""}
                   </span>
+                  <span className="text-xs text-muted-foreground">
+                    {i.status === "expired"
+                      ? "Expired"
+                      : i.sent_at
+                        ? `Sent ${new Date(i.sent_at).toLocaleDateString()}`
+                        : "Not sent"}
+                  </span>
+                  {i.last_error && (
+                    <span className="w-full text-xs text-destructive">Last send failed: {i.last_error}</span>
+                  )}
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(inviteText(i.email));
-                      toast.success("Message copied");
-                    }}
+                    disabled={sendingId === i.id}
+                    onClick={() => void deliver(i.id, i.email)}
                   >
-                    <Copy className="h-4 w-4" />
+                    <Send className="h-4 w-4" /> {sendingId === i.id ? "Sending…" : "Resend"}
                   </Button>
                   <Button variant="ghost" size="sm" aria-label="Cancel invite" onClick={() => void removeInvite(i.id)}>
                     <Trash2 className="h-4 w-4" />

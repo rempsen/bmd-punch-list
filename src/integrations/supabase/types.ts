@@ -389,33 +389,48 @@ export type Database = {
           company: string | null
           created_at: string
           email: string
+          expires_at: string
           full_name: string | null
           id: string
+          invite_token: string
           invited_by: string | null
+          last_error: string | null
           project_id: string | null
           role: Database["public"]["Enums"]["app_role"]
+          sent_at: string | null
+          status: string
         }
         Insert: {
           accepted_at?: string | null
           company?: string | null
           created_at?: string
           email: string
+          expires_at?: string
           full_name?: string | null
           id?: string
+          invite_token?: string
           invited_by?: string | null
+          last_error?: string | null
           project_id?: string | null
           role: Database["public"]["Enums"]["app_role"]
+          sent_at?: string | null
+          status?: string
         }
         Update: {
           accepted_at?: string | null
           company?: string | null
           created_at?: string
           email?: string
+          expires_at?: string
           full_name?: string | null
           id?: string
+          invite_token?: string
           invited_by?: string | null
+          last_error?: string | null
           project_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          sent_at?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -477,6 +492,7 @@ export type Database = {
         }[]
       }
       deficiency_project: { Args: { _def: string }; Returns: string }
+      expire_old_invites: { Args: never; Returns: undefined }
       floor_project: { Args: { _floor: string }; Returns: string }
       has_capability:
         | { Args: { _capability: string }; Returns: boolean }
