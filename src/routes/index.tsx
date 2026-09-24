@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
-import { homeFor, useAuth } from "@/lib/auth";
+import { resolveHome, useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -29,11 +29,12 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
-  const { loading, jobsLoaded, currentJob, role } = useAuth();
+  const { loading, jobsLoaded, currentJob, role, projectId } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
     if (loading || !jobsLoaded) return;
-    void navigate({ to: currentJob ? homeFor(role) : "/jobs", replace: true });
-  }, [loading, jobsLoaded, currentJob, role, navigate]);
+    if (!currentJob) return void navigate({ to: "/jobs", replace: true });
+    void resolveHome(role, projectId).then((to) => navigate({ to, replace: true }));
+  }, [loading, jobsLoaded, currentJob, role, projectId, navigate]);
   return null;
 }

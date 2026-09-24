@@ -153,7 +153,10 @@ export function DesktopCaptureForm() {
       invalidate();
       toast.success(`${itemNo(data.item_number)} saved`);
       if (then === "open") void navigate({ to: "/item/$id", params: { id: data.id } });
-      else clearItem();
+      else {
+        clearItem();
+        if (then === "stay") setLocationId(null);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save");
     } finally {

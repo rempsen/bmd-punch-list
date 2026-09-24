@@ -139,7 +139,7 @@ function DashboardPage() {
             {[
               { to: "/settings" as const, search: { tab: "users" }, label: "Invite users", hint: "Settings → Users" },
               { to: "/settings" as const, search: { tab: "lists" }, label: "Review pick lists", hint: "Settings → Pick lists" },
-              { to: "/capture" as const, search: undefined, label: "Start capturing", hint: "Log the first deficiency" },
+              { to: "/capture" as const, search: undefined, label: "Add a deficiency", hint: "Log the first deficiency" },
             ].map((c) => (
               <li key={c.label}>
                 <Link to={c.to} search={c.search as never} className="flex min-h-14 items-center gap-2 rounded-md border border-border px-3 py-2 hover:bg-muted">
