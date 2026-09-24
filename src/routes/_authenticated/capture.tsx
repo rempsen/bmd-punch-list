@@ -94,7 +94,8 @@ function CapturePage() {
       setFloorId(null);
       setLocationId(null);
     }
-  }, [floors]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floors.map((f) => f.id).join("|")]);
 
   const floorLocations = locations.filter((l) => l.floor_id === floorId);
   const rooms = floorLocations.filter((l) => l.type === "room");
