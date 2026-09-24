@@ -142,6 +142,9 @@ function Card({
   const { data: people = [] } = useProjectPeople(projectId);
   const a = assigneeText(d, peopleMap(people));
   const assignee = a.person || a.trade;
+  const assigned = isAssigned(d);
+  const chipParty =
+    d.responsible_party === "bmd" ? "BMD" : d.responsible_party === "trade" ? "Trade" : d.responsible_party === "client" ? "Client" : "Assigned";
   return (
     <div
       draggable
@@ -169,16 +172,19 @@ function Card({
             <p className="truncate text-xs text-muted-foreground">
               {d.material} · {d.issue_type}
             </p>
-            {(d.responsible_party !== "unassigned" || d.assigned_to || d.assigned_trade) && (
-              <p className="truncate text-xs text-muted-foreground">
-                {respLabel(d.responsible_party)}
-                {assignee ? ` · ${assignee}` : ""}
-              </p>
-            )}
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <AssessmentBadge value={d.assessment} />
+          {assigned && (
+            <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
+              <UserCheck className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">
+                {chipParty}
+                {assignee ? ` · ${assignee}` : ""}
+              </span>
+            </span>
+          )}
         </div>
       </Link>
       <div className="mt-2 flex flex-wrap items-start gap-2">
