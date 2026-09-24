@@ -1,3 +1,4 @@
+import { floorLabel, floorShort } from "@/lib/data";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import { itemNo, STATUS_LABEL, assessmentMeta } from "./bmd";

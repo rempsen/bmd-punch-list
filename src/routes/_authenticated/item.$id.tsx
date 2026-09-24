@@ -1,3 +1,4 @@
+import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Camera, Trash2 } from "lucide-react";

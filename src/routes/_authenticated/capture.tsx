@@ -1,3 +1,4 @@
+import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Camera, Check, Plus, X } from "lucide-react";
@@ -61,7 +62,7 @@ function BigOption({
 }
 
 function CapturePage() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: project } = useProject();
   const { data: floors = [] } = useFloors(project?.id);
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);
