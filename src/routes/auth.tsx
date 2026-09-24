@@ -1,0 +1,136 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+export const Route = createFileRoute("/auth")({
+  head: () => ({
+    meta: [
+      { title: "Sign in · BMD Deficiency Tracker" },
+      {
+        name: "description",
+        content:
+          "Sign in to the BMD Materials deficiency tracker for flooring and tile punch list work.",
+      },
+      { property: "og:title", content: "Sign in · BMD Deficiency Tracker" },
+      {
+        property: "og:description",
+        content: "Field and office access to BMD Materials punch list tracking.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
+  component: AuthPage,
+});
+
+function AuthPage() {
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      if (mode === "signin") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        void navigate({ to: "/floors" });
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: { full_name: fullName },
+          },
+        });
+        if (error) throw error;
+        if (data.session) {
+          void navigate({ to: "/floors" });
+        } else {
+          toast.success("Check your email to confirm your account, then sign in.");
+          setMode("signin");
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-primary px-4 py-10">
+      <div className="w-full max-w-sm rounded-xl bg-card p-6 shadow-lg">
+        <p className="text-sm font-bold tracking-[0.2em] text-primary uppercase">BMD Materials</p>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Deficiency Tracker</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {mode === "signin" ? "Sign in to continue." : "Create your account."}
+        </p>
+
+        <form onSubmit={submit} className="mt-6 space-y-4">
+          {mode === "signup" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="name">Full name</Label>
+              <Input
+                id="name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="h-12"
+                autoComplete="name"
+              />
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="h-12"
+              autoComplete="email"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="h-12"
+              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            />
+          </div>
+          <Button type="submit" disabled={busy} className="h-12 w-full text-base">
+            {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+          </Button>
+        </form>
+
+        <button
+          type="button"
+          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          className="mt-4 w-full text-sm text-muted-foreground underline-offset-4 hover:underline"
+        >
+          {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+        </button>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          The first account created becomes the BMD admin. Additional users are given field access
+          and can be changed in Settings.
+        </p>
+      </div>
+    </div>
+  );
+}
