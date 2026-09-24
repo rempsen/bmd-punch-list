@@ -10,33 +10,178 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/board'
+import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
+import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
+import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
+import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
+import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedBoardRoute = AuthenticatedBoardRouteImport.update({
+  id: '/board',
+  path: '/board',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
+  id: '/capture',
+  path: '/capture',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDecisionsRoute = AuthenticatedDecisionsRouteImport.update({
+  id: '/decisions',
+  path: '/decisions',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedExportsRoute = AuthenticatedExportsRouteImport.update({
+  id: '/exports',
+  path: '/exports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFloorsRoute = AuthenticatedFloorsRouteImport.update({
+  id: '/floors',
+  path: '/floors',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedListRoute = AuthenticatedListRouteImport.update({
+  id: '/list',
+  path: '/list',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMoreRoute = AuthenticatedMoreRouteImport.update({
+  id: '/more',
+  path: '/more',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedItemIdRoute = AuthenticatedItemIdRouteImport.update({
+  id: '/item/$id',
+  path: '/item/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/board': typeof AuthenticatedBoardRoute
+  '/capture': typeof AuthenticatedCaptureRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/decisions': typeof AuthenticatedDecisionsRoute
+  '/exports': typeof AuthenticatedExportsRoute
+  '/floors': typeof AuthenticatedFloorsRoute
+  '/list': typeof AuthenticatedListRoute
+  '/more': typeof AuthenticatedMoreRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/item/$id': typeof AuthenticatedItemIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/board': typeof AuthenticatedBoardRoute
+  '/capture': typeof AuthenticatedCaptureRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/decisions': typeof AuthenticatedDecisionsRoute
+  '/exports': typeof AuthenticatedExportsRoute
+  '/floors': typeof AuthenticatedFloorsRoute
+  '/list': typeof AuthenticatedListRoute
+  '/more': typeof AuthenticatedMoreRoute
+  '/settings': typeof AuthenticatedSettingsRoute
+  '/item/$id': typeof AuthenticatedItemIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/board': typeof AuthenticatedBoardRoute
+  '/_authenticated/capture': typeof AuthenticatedCaptureRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
+  '/_authenticated/exports': typeof AuthenticatedExportsRoute
+  '/_authenticated/floors': typeof AuthenticatedFloorsRoute
+  '/_authenticated/list': typeof AuthenticatedListRoute
+  '/_authenticated/more': typeof AuthenticatedMoreRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/board'
+    | '/capture'
+    | '/dashboard'
+    | '/decisions'
+    | '/exports'
+    | '/floors'
+    | '/list'
+    | '/more'
+    | '/settings'
+    | '/item/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/board'
+    | '/capture'
+    | '/dashboard'
+    | '/decisions'
+    | '/exports'
+    | '/floors'
+    | '/list'
+    | '/more'
+    | '/settings'
+    | '/item/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/board'
+    | '/_authenticated/capture'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/decisions'
+    | '/_authenticated/exports'
+    | '/_authenticated/floors'
+    | '/_authenticated/list'
+    | '/_authenticated/more'
+    | '/_authenticated/settings'
+    | '/_authenticated/item/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +193,126 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/board': {
+      id: '/_authenticated/board'
+      path: '/board'
+      fullPath: '/board'
+      preLoaderRoute: typeof AuthenticatedBoardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/capture': {
+      id: '/_authenticated/capture'
+      path: '/capture'
+      fullPath: '/capture'
+      preLoaderRoute: typeof AuthenticatedCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/decisions': {
+      id: '/_authenticated/decisions'
+      path: '/decisions'
+      fullPath: '/decisions'
+      preLoaderRoute: typeof AuthenticatedDecisionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/exports': {
+      id: '/_authenticated/exports'
+      path: '/exports'
+      fullPath: '/exports'
+      preLoaderRoute: typeof AuthenticatedExportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/floors': {
+      id: '/_authenticated/floors'
+      path: '/floors'
+      fullPath: '/floors'
+      preLoaderRoute: typeof AuthenticatedFloorsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/list': {
+      id: '/_authenticated/list'
+      path: '/list'
+      fullPath: '/list'
+      preLoaderRoute: typeof AuthenticatedListRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/more': {
+      id: '/_authenticated/more'
+      path: '/more'
+      fullPath: '/more'
+      preLoaderRoute: typeof AuthenticatedMoreRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/item/$id': {
+      id: '/_authenticated/item/$id'
+      path: '/item/$id'
+      fullPath: '/item/$id'
+      preLoaderRoute: typeof AuthenticatedItemIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedBoardRoute: typeof AuthenticatedBoardRoute
+  AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
+  AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
+  AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
+  AuthenticatedListRoute: typeof AuthenticatedListRoute
+  AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedBoardRoute: AuthenticatedBoardRoute,
+  AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
+  AuthenticatedExportsRoute: AuthenticatedExportsRoute,
+  AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
+  AuthenticatedListRoute: AuthenticatedListRoute,
+  AuthenticatedMoreRoute: AuthenticatedMoreRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

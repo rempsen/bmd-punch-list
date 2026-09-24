@@ -1,0 +1,57 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { LogOut } from "lucide-react";
+import { PageHeader, useNavItems } from "@/components/AppShell";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
+import { useProject } from "@/lib/data";
+
+export const Route = createFileRoute("/_authenticated/more")({
+  component: MorePage,
+});
+
+function MorePage() {
+  const nav = useNavItems();
+  const { user, roles } = useAuth();
+  const { data: project } = useProject();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const signOut = async () => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    void navigate({ to: "/auth", replace: true });
+  };
+
+  return (
+    <div>
+      <PageHeader title="More" subtitle={project?.name ?? undefined} />
+      <div className="space-y-6 p-4 md:p-6">
+        <div className="grid gap-2 sm:grid-cols-2">
+          {nav.map((item) => (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="flex min-h-[60px] items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium"
+            >
+              <item.icon className="h-5 w-5 text-primary" />
+              {item.label}
+            </Link>
+          ))}
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-4">
+          <p className="text-sm font-medium">{user?.email}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Access: {roles.join(", ") || "no role assigned yet"}
+          </p>
+          <Button variant="outline" className="mt-4 h-11" onClick={signOut}>
+            <LogOut className="mr-2 h-4 w-4" /> Sign out
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
