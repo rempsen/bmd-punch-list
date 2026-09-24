@@ -32,7 +32,7 @@ export type Capability =
   | "manage_settings";
 
 export const CAPABILITIES: { value: Capability; label: string }[] = [
-  { value: "capture_items", label: "Capture items" },
+  { value: "capture_items", label: "Add deficiencies" },
   { value: "edit_any_item", label: "Edit any item" },
   { value: "edit_own_item", label: "Edit own items" },
   { value: "delete_item", label: "Delete items" },
