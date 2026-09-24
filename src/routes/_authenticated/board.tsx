@@ -1,15 +1,22 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BoardFilterBar, type BoardFilters } from "@/components/BoardFilterBar";
+import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AssessmentBadge } from "@/components/badges";
 import { StatusActions } from "@/components/StatusActions";
 import { PhotoThumb } from "@/components/PhotoThumb";
 import { BOARD_COLUMNS, itemNo, type Status } from "@/lib/bmd";
-import { useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
+import { useFloors, useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/board")({
+  validateSearch: (s: Record<string, unknown>): BoardFilters => ({
+    floor: typeof s["floor"] === "string" || typeof s["floor"] === "number" ? String(s["floor"]) : undefined,
+    assess: typeof s["assess"] === "string" ? s["assess"] : undefined,
+    q: typeof s["q"] === "string" || typeof s["q"] === "number" ? String(s["q"]) : undefined,
+  }),
   component: BoardPage,
 });
 
@@ -20,6 +27,40 @@ function BoardPage() {
   const { data: photos = [] } = usePhotos(ids);
   const update = useUpdateDeficiency();
   const [dragging, setDragging] = useState<string | null>(null);
+  const { data: floors = [] } = useFloors(project?.id);
+  const { projectId } = useAuth();
+  const search = Route.useSearch();
+  const navigate = useNavigate({ from: "/board" });
+  const lsKey = projectId ? `bmd:board-filters:${projectId}` : null;
+  const restored = useRef<string | null>(null);
+
+  // Restore saved filters for this job when the URL has none
+  useEffect(() => {
+    if (!lsKey || restored.current === lsKey) return;
+    restored.current = lsKey;
+    if (search.floor || search.assess || search.q) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(lsKey) ?? "null") as BoardFilters | null;
+      if (saved && (saved.floor || saved.assess || saved.q)) void navigate({ search: saved, replace: true });
+    } catch {
+      /* ignore */
+    }
+  }, [lsKey, search, navigate]);
+
+  const setFilters = (f: BoardFilters) => {
+    if (lsKey) localStorage.setItem(lsKey, JSON.stringify(f));
+    void navigate({ search: f, replace: true });
+  };
+
+  const visible = useMemo(() => {
+    const q = (search.q ?? "").trim().toLowerCase();
+    return items.filter((d) => {
+      if (search.floor && String(d.locations?.floors?.number ?? "") !== search.floor) return false;
+      if (search.assess && d.assessment !== search.assess) return false;
+      if (q && !`${itemNo(d.item_number)} ${d.locations?.name ?? ""}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [items, search]);
 
   const firstPhoto = useMemo(() => {
     const map = new Map<string, string>();
@@ -40,9 +81,16 @@ function BoardPage() {
   return (
     <div>
       <PageHeader title="Board" subtitle={project?.name ?? undefined} />
+      <BoardFilterBar
+        filters={search}
+        onChange={setFilters}
+        floors={floors}
+        shown={visible.length}
+        total={items.length}
+      />
       <div className="flex gap-3 overflow-x-auto p-4 md:p-6">
         {BOARD_COLUMNS.map((col) => {
-          const cards = items.filter((i) => col.statuses.includes(i.status));
+          const cards = visible.filter((i) => col.statuses.includes(i.status));
           return (
             <div
               key={col.key}
