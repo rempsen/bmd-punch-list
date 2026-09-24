@@ -246,6 +246,7 @@ export type Database = {
           active: boolean
           id: string
           kind: Database["public"]["Enums"]["pick_kind"]
+          project_id: string | null
           sort_order: number
           value: string
         }
@@ -253,6 +254,7 @@ export type Database = {
           active?: boolean
           id?: string
           kind: Database["public"]["Enums"]["pick_kind"]
+          project_id?: string | null
           sort_order?: number
           value: string
         }
@@ -260,10 +262,19 @@ export type Database = {
           active?: boolean
           id?: string
           kind?: Database["public"]["Enums"]["pick_kind"]
+          project_id?: string | null
           sort_order?: number
           value?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pick_lists_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -289,9 +300,45 @@ export type Database = {
         }
         Relationships: []
       }
+      project_members: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          project_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_members_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           address: string | null
+          archived_at: string | null
           client_name: string | null
           created_at: string
           id: string
@@ -299,6 +346,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          archived_at?: string | null
           client_name?: string | null
           created_at?: string
           id?: string
@@ -306,6 +354,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          archived_at?: string | null
           client_name?: string | null
           created_at?: string
           id?: string
@@ -343,6 +392,7 @@ export type Database = {
           full_name: string | null
           id: string
           invited_by: string | null
+          project_id: string | null
           role: Database["public"]["Enums"]["app_role"]
         }
         Insert: {
@@ -353,6 +403,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           invited_by?: string | null
+          project_id?: string | null
           role: Database["public"]["Enums"]["app_role"]
         }
         Update: {
@@ -363,9 +414,18 @@ export type Database = {
           full_name?: string | null
           id?: string
           invited_by?: string | null
+          project_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_invites_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -393,6 +453,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_member_by_email: {
+        Args: {
+          _email: string
+          _project: string
+          _role: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
+      }
+      create_project: {
+        Args: { _address: string; _client: string; _name: string }
+        Returns: string
+      }
       decision_note: {
         Args: { d: Database["public"]["Tables"]["deficiencies"]["Row"] }
         Returns: string
@@ -404,7 +476,11 @@ export type Database = {
           note: string
         }[]
       }
-      has_capability: { Args: { _capability: string }; Returns: boolean }
+      deficiency_project: { Args: { _def: string }; Returns: string }
+      floor_project: { Args: { _floor: string }; Returns: string }
+      has_capability:
+        | { Args: { _capability: string }; Returns: boolean }
+        | { Args: { _capability: string; _project: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -412,19 +488,48 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_project_member: { Args: { _project: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       list_users: {
-        Args: never
+        Args: { _project: string }
         Returns: {
           company: string
           email: string
           full_name: string
           id: string
+          is_super: boolean
           last_sign_in_at: string
           role: Database["public"]["Enums"]["app_role"]
         }[]
       }
+      location_project: { Args: { _loc: string }; Returns: string }
+      my_projects: {
+        Args: never
+        Returns: {
+          address: string
+          archived_at: string
+          client_name: string
+          id: string
+          name: string
+          open_count: number
+          role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
+      photo_path_project: { Args: { _name: string }; Returns: string }
+      remove_member: {
+        Args: { _project: string; _user_id: string }
+        Returns: undefined
+      }
       reset_role_permissions: { Args: never; Returns: undefined }
+      set_member_role: {
+        Args: {
+          _company?: string
+          _project: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
       set_user_role: {
         Args: {
           _company?: string
