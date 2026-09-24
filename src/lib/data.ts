@@ -235,7 +235,10 @@ export function useUpdateDeficiency() {
   const invalidate = useInvalidateDeficiencies();
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Record<string, unknown> }) => {
-      const { error } = await supabase.from("deficiencies").update(patch).eq("id", id);
+      const { error } = await supabase
+        .from("deficiencies")
+        .update(patch as never)
+        .eq("id", id);
       if (error) throw new Error(error.message);
     },
     onSuccess: invalidate,
