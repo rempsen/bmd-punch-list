@@ -34,6 +34,7 @@ export type Database = {
           location_id: string
           material: string
           project_id: string
+          responsible_party: Database["public"]["Enums"]["responsible_party"]
           status: Database["public"]["Enums"]["deficiency_status"]
           updated_at: string
         }
@@ -56,6 +57,7 @@ export type Database = {
           location_id: string
           material: string
           project_id: string
+          responsible_party?: Database["public"]["Enums"]["responsible_party"]
           status?: Database["public"]["Enums"]["deficiency_status"]
           updated_at?: string
         }
@@ -78,6 +80,7 @@ export type Database = {
           location_id?: string
           material?: string
           project_id?: string
+          responsible_party?: Database["public"]["Enums"]["responsible_party"]
           status?: Database["public"]["Enums"]["deficiency_status"]
           updated_at?: string
         }
@@ -732,6 +735,7 @@ export type Database = {
       location_type: "room" | "common_area"
       photo_kind: "before" | "after"
       pick_kind: "area" | "material" | "issue_type"
+      responsible_party: "bmd" | "trade" | "client" | "unassigned"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -881,6 +885,7 @@ export const Constants = {
       location_type: ["room", "common_area"],
       photo_kind: ["before", "after"],
       pick_kind: ["area", "material", "issue_type"],
+      responsible_party: ["bmd", "trade", "client", "unassigned"],
     },
   },
 } as const

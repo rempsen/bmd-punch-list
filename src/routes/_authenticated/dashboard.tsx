@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ASSESSMENTS, isClosed } from "@/lib/bmd";
+import { RESPONSIBLE } from "@/lib/responsible";
+import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
 import { clientLine, useContacts, useAllEvents, useDeficiencies, useFloors, usePickLists, useProject } from "@/lib/data";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -38,6 +40,7 @@ function DashboardPage() {
   const { can } = useAuth();
   const { data: project } = useProject();
   const { data: items = [] } = useDeficiencies(project?.id);
+  const { data: people = [] } = useProjectPeople(project?.id);
   const { data: floors = [] } = useFloors(project?.id);
   const { data: picks } = usePickLists();
   const { data: events = [] } = useAllEvents(project?.id);
@@ -83,6 +86,26 @@ function DashboardPage() {
     name: m,
     open: filtered.filter((d) => d.material === m && !isClosed(d.status)).length,
   }));
+
+  const openRows = filtered.filter((d) => !isClosed(d.status));
+  const byResp = RESPONSIBLE.map((r) => ({
+    label: r.short,
+    count: openRows.filter((d) => d.responsible_party === r.value).length,
+  }));
+  const byAssignee = (() => {
+    const pm = peopleMap(people);
+    const map = new Map<string, { name: string; sub: string; count: number; mustFix: number }>();
+    for (const d of openRows) {
+      const a = assigneeText(d, pm);
+      const name = a.person || a.trade || "Unassigned";
+      const k = name.toLowerCase();
+      const row = map.get(k) ?? { name, sub: a.person && a.trade ? a.trade : "", count: 0, mustFix: 0 };
+      row.count += 1;
+      if (d.assessment === "must_fix") row.mustFix += 1;
+      map.set(k, row);
+    }
+    return [...map.values()].sort((x, y) => (x.name === "Unassigned" ? 1 : y.name === "Unassigned" ? -1 : y.count - x.count));
+  })();
 
   const byIssue = useMemo(() => {
     const map = new Map<string, number>();
@@ -248,6 +271,51 @@ function DashboardPage() {
               ))}
               {byIssue.length === 0 && <p className="text-sm text-muted-foreground">No items.</p>}
             </ul>
+          </Panel>
+
+          <Panel title="Open items by responsible party">
+            <ul className="space-y-2">
+              {byResp.map((r) => (
+                <li key={r.label} className="flex items-center gap-3 text-sm">
+                  <span className="w-40 shrink-0 truncate">{r.label}</span>
+                  <span className="h-2 flex-1 rounded bg-muted">
+                    <span
+                      className="block h-2 rounded bg-primary"
+                      style={{ width: `${(r.count / Math.max(1, openRows.length)) * 100}%` }}
+                    />
+                  </span>
+                  <span className="w-6 text-right font-medium">{r.count}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+
+          <Panel title="Open items by assignee / trade">
+            {byAssignee.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No open items.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase">
+                    <th className="py-1.5">Assignee / trade</th>
+                    <th className="py-1.5 text-right">Open</th>
+                    <th className="py-1.5 text-right">Must fix</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {byAssignee.map((r) => (
+                    <tr key={r.name} className="border-b border-border/60">
+                      <td className="py-1.5">
+                        {r.name}
+                        {r.sub && <span className="block text-xs text-muted-foreground">{r.sub}</span>}
+                      </td>
+                      <td className="py-1.5 text-right font-medium">{r.count}</td>
+                      <td className="py-1.5 text-right">{r.mustFix}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </Panel>
         </div>
       </div>

@@ -20,6 +20,9 @@ import {
 import { uploadDeficiencyPhoto } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 import { DesktopCaptureForm } from "@/components/DesktopCaptureForm";
+import { assigneePatch, ResponsibleFields } from "@/components/ResponsibleFields";
+import { useProjectPeople } from "@/lib/assign";
+import { loadLastResp, saveLastResp, type Responsible } from "@/lib/responsible";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   head: () => ({ meta: [{ title: "Add a deficiency — BMD Deficiency Tracker" }] }),
@@ -94,6 +97,21 @@ function MobileCapture() {
   const [saving, setSaving] = useState(false);
   const [savedNumber, setSavedNumber] = useState<number | null>(null);
   const [newRoom, setNewRoom] = useState("");
+  const { data: people = [] } = useProjectPeople(project?.id);
+  const [responsible, setResponsible] = useState<Responsible>("unassigned");
+  const [assignee, setAssignee] = useState<string | null>(null);
+  const [lastHint, setLastHint] = useState<string | null>(null);
+  useEffect(() => {
+    if (step !== "assessment") return;
+    const last = loadLastResp(project?.id);
+    if (last && (last.responsible !== "unassigned" || last.assignee)) {
+      setResponsible(last.responsible);
+      setAssignee(last.assignee);
+      setLastHint("Same as last item — change if this one is for someone else.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step === "assessment", project?.id, savedNumber]);
+
 
   useEffect(() => {
     const lastFloor = localStorage.getItem("bmd:lastFloor");
@@ -151,6 +169,8 @@ function MobileCapture() {
           issue_type: issue,
           description: note.trim() || null,
           assessment,
+          responsible_party: responsible,
+          ...assigneePatch(assignee, people),
           created_by: user?.id ?? null,
         })
         .select("id,item_number")
@@ -163,6 +183,7 @@ function MobileCapture() {
       }
       localStorage.setItem("bmd:lastFloor", floorId ?? "");
       localStorage.setItem("bmd:lastLocation", locationId);
+      saveLastResp(project.id, { responsible, assignee });
       setSavedNumber(data.item_number);
       setStep("done");
       invalidate();
@@ -341,10 +362,7 @@ function MobileCapture() {
                 <button
                   key={a.value}
                   type="button"
-                  onClick={() => {
-                    setAssessment(a.value);
-                    setStep("details");
-                  }}
+                  onClick={() => setAssessment(a.value)}
                   className={cn(
                     "min-h-[72px] rounded-xl px-5 text-left text-lg font-semibold",
                     a.className,
@@ -355,6 +373,27 @@ function MobileCapture() {
                 </button>
               ))}
             </div>
+            <div className="mt-6 space-y-3 border-t border-border pt-5">
+              <h3 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                Responsible party <span className="font-normal normal-case">(optional)</span>
+              </h3>
+              <ResponsibleFields
+                large
+                projectId={project?.id}
+                responsible={responsible}
+                onResponsible={setResponsible}
+                assignee={assignee}
+                onAssignee={setAssignee}
+                hint={lastHint}
+              />
+            </div>
+            <Button
+              className="mt-6 h-14 w-full text-base"
+              disabled={!assessment}
+              onClick={() => setStep("details")}
+            >
+              Next: photos
+            </Button>
           </Section>
         )}
 

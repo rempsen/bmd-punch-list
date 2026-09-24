@@ -173,6 +173,7 @@ function ExportsPage() {
                 <SelectItem value="floor">Floor</SelectItem>
                 <SelectItem value="person">Assigned person</SelectItem>
                 <SelectItem value="trade">Trade / company</SelectItem>
+                <SelectItem value="responsible">Responsible party</SelectItem>
               </SelectContent>
             </Select>
           </div>

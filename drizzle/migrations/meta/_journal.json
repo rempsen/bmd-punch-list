@@ -64,6 +64,13 @@
       "when": 1790267340746,
       "tag": "0008_assignment_trade",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790268477455,
+      "tag": "0009_responsible_party",
+      "breakpoints": true
     }
   ]
 }

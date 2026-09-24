@@ -11,7 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { ASSESSMENTS, itemNo, type Assessment } from "@/lib/bmd";
 import { floorLabel, useFloors, useInvalidateDeficiencies, useLocations, usePickLists, useProject } from "@/lib/data";
-import { personName, useProjectPeople } from "@/lib/assign";
+import { useProjectPeople } from "@/lib/assign";
+import { assigneePatch, ResponsibleFields } from "@/components/ResponsibleFields";
+import { loadLastResp, saveLastResp, type Responsible } from "@/lib/responsible";
 import { uploadDeficiencyPhoto } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 
@@ -36,8 +38,17 @@ export function DesktopCaptureForm() {
   const [material, setMaterial] = useState<string | null>(null);
   const [issue, setIssue] = useState<string | null>(null);
   const [assessment, setAssessment] = useState<Assessment | null>(null);
-  const [person, setPerson] = useState<string>("none");
-  const [trade, setTrade] = useState("");
+  const [responsible, setResponsible] = useState<Responsible>("unassigned");
+  const [assignee, setAssignee] = useState<string | null>(null);
+  const [lastHint, setLastHint] = useState<string | null>(null);
+  useEffect(() => {
+    const last = loadLastResp(projectId);
+    if (last && (last.responsible !== "unassigned" || last.assignee)) {
+      setResponsible(last.responsible);
+      setAssignee(last.assignee);
+      setLastHint("Same as last item — change if this one is for someone else.");
+    }
+  }, [projectId]);
   const [due, setDue] = useState("");
   const [note, setNote] = useState("");
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -113,8 +124,6 @@ export function DesktopCaptureForm() {
     setMaterial(null);
     setIssue(null);
     setAssessment(null);
-    setPerson("none");
-    setTrade("");
     setDue("");
     setNote("");
     setPhotos([]);
@@ -125,8 +134,6 @@ export function DesktopCaptureForm() {
     if (!project || !validate()) return;
     setSaving(true);
     try {
-      const assignedTo = person === "none" ? null : person;
-      const assignedTrade = trade.trim() || null;
       const { data, error } = await supabase
         .from("deficiencies")
         .insert({
@@ -138,9 +145,8 @@ export function DesktopCaptureForm() {
           description: note.trim() || null,
           assessment: assessment!,
           created_by: user?.id ?? null,
-          assigned_to: assignedTo,
-          assigned_trade: assignedTrade,
-          assigned_at: assignedTo || assignedTrade ? new Date().toISOString() : null,
+          responsible_party: responsible,
+          ...assigneePatch(assignee, people),
           due_date: due || null,
         })
         .select("id,item_number")
@@ -150,6 +156,8 @@ export function DesktopCaptureForm() {
       for (const p of photos) await uploadDeficiencyPhoto(data.id, p.file, p.kind, user?.id);
       localStorage.setItem("bmd:lastFloor", floorId ?? "");
       localStorage.setItem("bmd:lastLocation", locationId!);
+      saveLastResp(project.id, { responsible, assignee });
+      if (responsible !== "unassigned" || assignee) setLastHint("Same as last item — change if this one is for someone else.");
       invalidate();
       toast.success(`${itemNo(data.item_number)} saved`);
       if (then === "open") void navigate({ to: "/item/$id", params: { id: data.id } });
@@ -233,21 +241,19 @@ export function DesktopCaptureForm() {
               ))}
             </div>
           </F>
-          <F label="Assign to person (optional)" id="f-person">
-            <SearchSelect
-              id="f-person"
-              value={person}
-              onChange={(v) => {
-                setPerson(v);
-                const co = people.find((p) => p.id === v)?.company;
-                if (co && !trade.trim()) setTrade(co);
+          <div className="md:col-span-2">
+            <ResponsibleFields
+              projectId={project?.id}
+              responsible={responsible}
+              onResponsible={setResponsible}
+              assignee={assignee}
+              onAssignee={(v) => {
+                setAssignee(v);
+                setLastHint(null);
               }}
-              options={[{ value: "none", label: "No one" }, ...people.map((p) => ({ value: p.id, label: personName(p) + (p.company ? ` · ${p.company}` : "") }))]}
+              hint={lastHint}
             />
-          </F>
-          <F label="Trade / company (optional)" id="f-trade">
-            <Input id="f-trade" value={trade} onChange={(e) => setTrade(e.target.value)} className="h-11" placeholder="e.g. ABC Tile" />
-          </F>
+          </div>
           <F label="Due date (optional)" id="f-due">
             <Input id="f-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} className="h-11" />
           </F>
