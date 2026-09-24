@@ -397,6 +397,13 @@ export type Database = {
         Args: { d: Database["public"]["Tables"]["deficiencies"]["Row"] }
         Returns: string
       }
+      decision_notes: {
+        Args: { _ids: string[] }
+        Returns: {
+          id: string
+          note: string
+        }[]
+      }
       has_capability: { Args: { _capability: string }; Returns: boolean }
       has_role: {
         Args: {

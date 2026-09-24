@@ -29,6 +29,13 @@
       "when": 1790264563715,
       "tag": "0003_capability_based_permissions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790264895059,
+      "tag": "0004_decision_notes_rpc",
+      "breakpoints": true
     }
   ]
 }
