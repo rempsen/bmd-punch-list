@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
 
 const IndexRoute = IndexRouteImport.update({
@@ -28,6 +30,16 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
+  id: '/capture',
+  path: '/capture',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedFloorsRoute = AuthenticatedFloorsRouteImport.update({
+  id: '/floors',
+  path: '/floors',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMoreRoute = AuthenticatedMoreRouteImport.update({
   id: '/more',
   path: '/more',
@@ -37,11 +49,15 @@ const AuthenticatedMoreRoute = AuthenticatedMoreRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/capture': typeof AuthenticatedCaptureRoute
+  '/floors': typeof AuthenticatedFloorsRoute
   '/more': typeof AuthenticatedMoreRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/capture': typeof AuthenticatedCaptureRoute
+  '/floors': typeof AuthenticatedFloorsRoute
   '/more': typeof AuthenticatedMoreRoute
 }
 export interface FileRoutesById {
@@ -49,14 +65,23 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/capture': typeof AuthenticatedCaptureRoute
+  '/_authenticated/floors': typeof AuthenticatedFloorsRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/more'
+  fullPaths: '/' | '/auth' | '/capture' | '/floors' | '/more'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/more'
-  id: '__root__' | '/' | '/_authenticated' | '/auth' | '/_authenticated/more'
+  to: '/' | '/auth' | '/capture' | '/floors' | '/more'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/capture'
+    | '/_authenticated/floors'
+    | '/_authenticated/more'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -88,6 +113,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/capture': {
+      id: '/_authenticated/capture'
+      path: '/capture'
+      fullPath: '/capture'
+      preLoaderRoute: typeof AuthenticatedCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/floors': {
+      id: '/_authenticated/floors'
+      path: '/floors'
+      fullPath: '/floors'
+      preLoaderRoute: typeof AuthenticatedFloorsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/more': {
       id: '/_authenticated/more'
       path: '/more'
@@ -99,10 +138,14 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
+  AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
+  AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
 }
 
