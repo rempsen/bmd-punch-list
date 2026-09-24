@@ -129,7 +129,14 @@ export function usePickLists() {
 
 /** client_decision_note is served through a permission-aware computed field. */
 export const DEF_SELECT =
-  "id,project_id,item_number,location_id,area,material,issue_type,description,assessment,status,assigned_to,due_date,is_sample,created_by,created_at,updated_at,closed_at,client_decision_note:decision_note,locations(id,name,type,floor_id,floors(number,label))";
+  "id,project_id,item_number,location_id,area,material,issue_type,description,assessment,status,assigned_to,due_date,is_sample,created_by,created_at,updated_at,closed_at,locations(id,name,type,floor_id,floors(number,label))";
+
+async function withNotes<T extends { id: string; client_decision_note?: string | null }>(rows: T[]): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const { data } = await supabase.rpc("decision_notes", { _ids: rows.map((r) => r.id) });
+  const map = new Map((data ?? []).map((n: { id: string; note: string | null }) => [n.id, n.note]));
+  return rows.map((r) => ({ ...r, client_decision_note: map.get(r.id) ?? null }));
+}
 
 export function useDeficiencies(projectId?: string) {
   return useQuery({
