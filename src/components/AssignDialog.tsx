@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useProjectPeople } from "@/lib/assign";
 import { assigneePatch, assigneeValue, ResponsibleFields } from "@/components/ResponsibleFields";
-import type { Responsible } from "@/lib/responsible";
+import { normResp, type Responsible } from "@/lib/responsible";
 import { useInvalidateDeficiencies } from "@/lib/data";
 
 export function AssignDialog({
@@ -35,7 +35,7 @@ export function AssignDialog({
 
   useEffect(() => {
     if (open) {
-      setResponsible((initialResponsible as Responsible) ?? "unassigned");
+      setResponsible(normResp(initialResponsible));
       setAssignee(assigneeValue({ assigned_to: initialPerson ?? null, assigned_trade: initialTrade ?? null }));
     }
   }, [open, initialPerson, initialTrade, initialResponsible]);
@@ -44,7 +44,7 @@ export function AssignDialog({
     setBusy(true);
     const patch = clear
       ? { assigned_to: null, assigned_trade: null, responsible_party: "unassigned" }
-      : { ...assigneePatch(assignee, people), responsible_party: responsible };
+      : { ...assigneePatch(assignee, people), responsible_party: normResp(responsible) };
     let failed = 0;
     let msg = "";
     for (const id of ids) {

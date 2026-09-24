@@ -5,19 +5,19 @@ import { SearchSelect, type SearchOption } from "@/components/SearchSelect";
 import { personName, useProjectPeople, type Person } from "@/lib/assign";
 import { useContacts, useDeficiencies } from "@/lib/data";
 import { roleLabel } from "@/lib/roles";
-import { RESPONSIBLE, type Responsible } from "@/lib/responsible";
+import { normResp, normText, RESPONSIBLE, type Responsible } from "@/lib/responsible";
 import { cn } from "@/lib/utils";
 
 const BMD_ROLES = ["super_admin", "bmd_admin", "bmd_manager", "bmd_field"];
 
 /** Assignee value: "u:<id>", "t:<trade>" or null. */
 export function assigneePatch(value: string | null, people: Person[]) {
-  if (!value) return { assigned_to: null, assigned_trade: null };
+  if (!value || value.length < 3) return { assigned_to: null, assigned_trade: null };
   if (value.startsWith("u:")) {
     const id = value.slice(2);
-    return { assigned_to: id, assigned_trade: people.find((p) => p.id === id)?.company?.trim() || null };
+    return { assigned_to: id, assigned_trade: normText(people.find((p) => p.id === id)?.company) };
   }
-  return { assigned_to: null, assigned_trade: value.slice(2).trim() || null };
+  return { assigned_to: null, assigned_trade: normText(value.slice(2)) };
 }
 
 export function assigneeValue(d: { assigned_to: string | null; assigned_trade: string | null }) {
@@ -85,9 +85,9 @@ export function ResponsibleFields({
     <div className={cn("grid gap-3", !large && "md:grid-cols-2")}>
       <div className="space-y-1.5">
         <Label htmlFor="resp-party">Responsible party</Label>
-        <Select value={responsible} onValueChange={(v) => onResponsible(v as Responsible)}>
+        <Select value={normResp(responsible)} onValueChange={(v) => { if (v) onResponsible(normResp(v)); }}>
           <SelectTrigger id="resp-party" className={h}>
-            <SelectValue />
+            <SelectValue placeholder="Not yet assigned">{RESPONSIBLE.find((r) => r.value === normResp(responsible))?.label}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {RESPONSIBLE.map((r) => (

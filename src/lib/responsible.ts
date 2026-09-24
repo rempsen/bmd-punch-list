@@ -7,6 +7,10 @@ export const RESPONSIBLE: { value: Responsible; label: string; short: string }[]
   { value: "client", label: "Client / other", short: "Client / other" },
 ];
 
+export const normResp = (v: unknown): Responsible =>
+  RESPONSIBLE.some((r) => r.value === v) ? (v as Responsible) : "unassigned";
+export const normText = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+
 export const respLabel = (r?: string | null) => RESPONSIBLE.find((x) => x.value === r)?.short ?? "Not yet assigned";
 
 /** Session memory of the last responsible party + assignee, per job. */
@@ -16,7 +20,10 @@ export function loadLastResp(projectId?: string | null): Last | null {
   if (!projectId || typeof window === "undefined") return null;
   try {
     const v = sessionStorage.getItem(key(projectId));
-    return v ? (JSON.parse(v) as Last) : null;
+    if (!v) return null;
+    const p = JSON.parse(v) as Partial<Last>;
+    const assignee = typeof p.assignee === "string" && /^[ut]:.+/.test(p.assignee) ? p.assignee : null;
+    return { responsible: normResp(p.responsible), assignee };
   } catch {
     return null;
   }
@@ -24,7 +31,7 @@ export function loadLastResp(projectId?: string | null): Last | null {
 export function saveLastResp(projectId: string | null | undefined, v: Last) {
   if (!projectId) return;
   try {
-    sessionStorage.setItem(key(projectId), JSON.stringify(v));
+    sessionStorage.setItem(key(projectId), JSON.stringify({ responsible: normResp(v.responsible), assignee: v.assignee || null }));
   } catch {
     /* ignore */
   }
