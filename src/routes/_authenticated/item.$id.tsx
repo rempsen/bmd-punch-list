@@ -37,7 +37,7 @@ export const Route = createFileRoute("/_authenticated/item/$id")({
 
 function ItemDetail() {
   const { id } = Route.useParams();
-  const { user, isAdmin, isClient, canCapture } = useAuth();
+  const { user, can } = useAuth();
   const { data: item, isLoading } = useDeficiency(id);
   const { data: photos = [] } = usePhotos([id]);
   const { data: events = [] } = useEvents(id);
@@ -54,7 +54,10 @@ function ItemDetail() {
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   if (!item) return <div className="p-6 text-sm text-muted-foreground">Item not found.</div>;
 
-  const editable = canCapture;
+  const own = !!user && item.created_by === user.id;
+  const editable = can("edit_any_item") || (own && can("edit_own_item"));
+  const decided = events.some((e) => e.event_type === "status_change" && e.from_value === "awaiting_client");
+  const canAssess = can("change_assessment") && (can("edit_any_item") || (editable && !decided));
   const patch = (p: Record<string, unknown>) =>
     update.mutate({ id, patch: p }, { onError: (e) => toast.error(e.message) });
 
@@ -119,9 +122,9 @@ function ItemDetail() {
               <StatusBadge value={item.status} />
             </div>
             <div className="mt-4">
-              <StatusActions id={item.id} status={item.status} />
+              <StatusActions id={item.id} status={item.status} createdBy={item.created_by} />
             </div>
-            {(isClient || isAdmin) && item.status === "awaiting_client" && (
+            {can("decide_client_items") && item.status === "awaiting_client" && (
               <div className="mt-4">
                 <Textarea
                   placeholder="Client decision note"
@@ -130,6 +133,11 @@ function ItemDetail() {
                   className="min-h-[80px]"
                 />
               </div>
+            )}
+            {item.status !== "awaiting_client" && item.client_decision_note && (
+              <p className="mt-4 rounded-md bg-muted p-3 text-sm">
+                <span className="font-medium">Client note:</span> {item.client_decision_note}
+              </p>
             )}
           </section>
 
@@ -164,9 +172,9 @@ function ItemDetail() {
                 </div>
               );
             })}
-            {editable && (
+            {can("add_photos") && (
               <div className="mt-4 flex flex-wrap gap-2">
-                {(["before", "after"] as const).map((kind) => (
+                {(editable ? (["before", "after"] as const) : (["after"] as const)).map((kind) => (
                   <label
                     key={kind}
                     className="flex min-h-[48px] cursor-pointer items-center gap-2 rounded-md border border-border px-4 text-sm font-medium"
@@ -217,7 +225,7 @@ function ItemDetail() {
               <Field label="Assessment">
                 <Select
                   value={item.assessment}
-                  disabled={!isAdmin}
+                  disabled={!canAssess}
                   onValueChange={(v) => patch({ assessment: v as Assessment })}
                 >
                   <SelectTrigger className="h-11">
@@ -235,7 +243,7 @@ function ItemDetail() {
               <Field label="Assigned to">
                 <Select
                   value={item.assigned_to ?? "none"}
-                  disabled={!editable}
+                  disabled={!can("assign_items")}
                   onValueChange={(v) => patch({ assigned_to: v === "none" ? null : v })}
                 >
                   <SelectTrigger className="h-11">
@@ -271,7 +279,7 @@ function ItemDetail() {
                 />
               </Field>
             </div>
-            {isAdmin && (
+            {can("delete_item") && (
               <Button variant="destructive" className="mt-4 h-11" onClick={removeItem}>
                 <Trash2 className="mr-2 h-4 w-4" /> Delete item
               </Button>
@@ -280,6 +288,7 @@ function ItemDetail() {
         </div>
 
         <div className="space-y-6">
+          {can("comment") && (
           <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase">Comments</h2>
             <Textarea
@@ -292,6 +301,7 @@ function ItemDetail() {
               Post comment
             </Button>
           </section>
+          )}
 
           <section className="rounded-lg border border-border bg-card p-4">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase">Activity</h2>

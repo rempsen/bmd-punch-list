@@ -28,8 +28,10 @@ export const Route = createFileRoute("/")({
       .select("role")
       .eq("user_id", data.user.id);
     const list = (roles ?? []).map((r) => r.role);
+    if (list.includes("trade")) throw redirect({ to: "/my-work" });
     if (list.includes("client")) throw redirect({ to: "/decisions" });
-    if (list.includes("bmd_field") || list.includes("bmd_admin")) throw redirect({ to: "/capture" });
+    if (list.some((r) => ["super_admin", "bmd_admin", "bmd_manager", "bmd_field"].includes(r)))
+      throw redirect({ to: "/capture" });
     throw redirect({ to: "/floors" });
   },
   component: () => null,

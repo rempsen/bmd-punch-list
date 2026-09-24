@@ -1,18 +1,25 @@
 import { toast } from "sonner";
 import { ALLOWED_TRANSITIONS, STATUS_LABEL, type Status } from "@/lib/bmd";
 import { useAuth } from "@/lib/auth";
+import type { Capability } from "@/lib/roles";
 import { useUpdateDeficiency } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 
 export function allowedNextStatuses(
   current: Status,
-  opts: { isAdmin: boolean; isClient: boolean; isField: boolean },
+  can: (c: Capability) => boolean,
+  own = false,
 ): Status[] {
+  const editor = can("edit_any_item") || (own && can("edit_own_item"));
   return (ALLOWED_TRANSITIONS[current] ?? []).filter((next) => {
-    if (next === "verified") return opts.isAdmin || opts.isClient;
-    if (next === "accepted_as_is") return opts.isAdmin || opts.isClient;
-    if (opts.isClient && !opts.isAdmin) return next === "fix_required";
-    return true;
+    if (next === "verified") return can("verify_items");
+    if (current === "awaiting_client" && (next === "accepted_as_is" || next === "fix_required"))
+      return can("decide_client_items");
+    if (next === "accepted_as_is") return editor || can("decide_client_items");
+    if (next === "in_progress" || next === "fixed") return editor || can("add_photos");
+    if (next === "fix_required")
+      return editor || can("verify_items") || can("decide_client_items");
+    return editor;
   });
 }
 
@@ -20,14 +27,16 @@ export function StatusActions({
   id,
   status,
   size = "default",
+  createdBy,
 }: {
   id: string;
   status: Status;
   size?: "sm" | "default";
+  createdBy?: string | null;
 }) {
-  const { isAdmin, isClient, isField } = useAuth();
+  const { can, user } = useAuth();
   const update = useUpdateDeficiency();
-  const options = allowedNextStatuses(status, { isAdmin, isClient, isField });
+  const options = allowedNextStatuses(status, can, !!user && createdBy === user.id);
 
   if (options.length === 0) return null;
 

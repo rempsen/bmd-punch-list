@@ -14,7 +14,7 @@ const STATUSES = [
 const ASSESSMENTS = ["acceptable", "client_review", "must_fix"] as const;
 
 const SELECT =
-  "id,item_number,area,material,issue_type,description,assessment,status,due_date,client_decision_note,created_at,updated_at,closed_at,locations(name,type,floors(number,label))";
+  "id,item_number,area,material,issue_type,description,assessment,status,due_date,created_at,updated_at,closed_at,locations(name,type,floors(number,label))";
 
 type Row = {
   id: string;
@@ -26,7 +26,7 @@ type Row = {
   assessment: string;
   status: string;
   due_date: string | null;
-  client_decision_note: string | null;
+  client_decision_note?: string | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
@@ -45,7 +45,7 @@ const toJson = (r: Row) => ({
   assessment: r.assessment,
   status: r.status,
   due_date: r.due_date,
-  client_decision_note: r.client_decision_note,
+  client_decision_note: r.client_decision_note ?? null,
   created_at: r.created_at,
   updated_at: r.updated_at,
   closed_at: r.closed_at,
@@ -128,7 +128,8 @@ export const getDeficiency = defineTool({
       note: e.note,
       created_at: e.created_at,
     }));
-    const deficiency = toJson(d as unknown as Row);
+    const { data: notes } = await sb.rpc("decision_notes", { _ids: [id] });
+    const deficiency = toJson({ ...(d as unknown as Row), client_decision_note: notes?.[0]?.note ?? null });
     return {
       content: [{ type: "text", text: JSON.stringify({ deficiency, events }) }],
       structuredContent: { deficiency, events },

@@ -267,18 +267,21 @@ export type Database = {
       }
       profiles: {
         Row: {
+          company: string | null
           created_at: string
           email: string | null
           full_name: string | null
           id: string
         }
         Insert: {
+          company?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
           id: string
         }
         Update: {
+          company?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -310,6 +313,60 @@ export type Database = {
         }
         Relationships: []
       }
+      role_permissions: {
+        Row: {
+          allowed: boolean
+          capability: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        Insert: {
+          allowed?: boolean
+          capability: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Update: {
+          allowed?: boolean
+          capability?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_invites: {
+        Row: {
+          accepted_at: string | null
+          company: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          accepted_at?: string | null
+          company?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          invited_by?: string | null
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          accepted_at?: string | null
+          company?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -336,6 +393,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      decision_note: {
+        Args: { d: Database["public"]["Tables"]["deficiencies"]["Row"] }
+        Returns: string
+      }
+      decision_notes: {
+        Args: { _ids: string[] }
+        Returns: {
+          id: string
+          note: string
+        }[]
+      }
+      has_capability: { Args: { _capability: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -343,9 +412,37 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      list_users: {
+        Args: never
+        Returns: {
+          company: string
+          email: string
+          full_name: string
+          id: string
+          last_sign_in_at: string
+          role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
+      reset_role_permissions: { Args: never; Returns: undefined }
+      set_user_role: {
+        Args: {
+          _company?: string
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
-      app_role: "bmd_admin" | "bmd_field" | "client"
+      app_role:
+        | "bmd_admin"
+        | "bmd_field"
+        | "client"
+        | "super_admin"
+        | "bmd_manager"
+        | "trade"
+        | "viewer"
       assessment_level: "acceptable" | "client_review" | "must_fix"
       deficiency_status:
         | "open"
@@ -485,7 +582,15 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["bmd_admin", "bmd_field", "client"],
+      app_role: [
+        "bmd_admin",
+        "bmd_field",
+        "client",
+        "super_admin",
+        "bmd_manager",
+        "trade",
+        "viewer",
+      ],
       assessment_level: ["acceptable", "client_review", "must_fix"],
       deficiency_status: [
         "open",

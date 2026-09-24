@@ -9,7 +9,9 @@ import {
   MoreHorizontal,
   Settings,
   ShieldCheck,
+  Wrench,
 } from "lucide-react";
+import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { useProject } from "@/lib/data";
@@ -18,16 +20,22 @@ import { cn } from "@/lib/utils";
 type NavItem = { to: string; label: string; icon: typeof Camera };
 
 export function useNavItems() {
-  const { canCapture, isClient, isAdmin } = useAuth();
+  const { can, role } = useAuth();
   const items: NavItem[] = [];
-  if (isClient) items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
-  if (canCapture) items.push({ to: "/capture", label: "Capture", icon: Camera });
+  const isTrade = role === "trade";
+  if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench });
+  if (can("decide_client_items") && !can("capture_items"))
+    items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
+  if (can("capture_items")) items.push({ to: "/capture", label: "Capture", icon: Camera });
   items.push({ to: "/floors", label: "Floors", icon: Grid3x3 });
-  if (canCapture) items.push({ to: "/board", label: "Board", icon: KanbanSquare });
-  items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
+  if (can("capture_items") || can("edit_any_item"))
+    items.push({ to: "/board", label: "Board", icon: KanbanSquare });
+  if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
   items.push({ to: "/list", label: "List", icon: ClipboardList });
-  items.push({ to: "/exports", label: "Exports", icon: FileDown });
-  if (isAdmin) items.push({ to: "/settings", label: "Settings", icon: Settings });
+  if (can("export_pdf") || can("export_excel"))
+    items.push({ to: "/exports", label: "Exports", icon: FileDown });
+  if (can("manage_settings") || can("manage_users"))
+    items.push({ to: "/settings", label: "Settings", icon: Settings });
   return items;
 }
 
@@ -69,7 +77,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             to="/more"
             className="mt-2 rounded-md px-3 py-2 text-xs opacity-70 hover:bg-sidebar-accent/60"
           >
-            {project?.name ?? "Project"} · {roles.join(", ") || "no role"}
+            {project?.name ?? "Project"} · {roles.map(roleLabel).join(", ") || "no role"}
           </Link>
         </aside>
 
