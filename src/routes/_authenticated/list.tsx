@@ -1,5 +1,18 @@
 import { floorLabel, floorShort } from "@/lib/data";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
+import { AssignDialog } from "@/components/AssignDialog";
+import { AssignFilter } from "@/components/AssignFilter";
+import {
+  assigneeText,
+  assignFilterOptions,
+  matchesAssign,
+  peopleMap,
+  useProjectPeople,
+  type AssignOption,
+  type Person,
+} from "@/lib/assign";
+import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -10,13 +23,15 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { ASSESSMENTS, itemNo, STATUS_LABEL, type Assessment, type Status } from "@/lib/bmd";
+import { ASSESSMENTS, isClosed, itemNo, STATUS_LABEL, type Assessment, type Status } from "@/lib/bmd";
 import {
   useDeficiencies,
   useFloors,
@@ -26,11 +41,45 @@ import {
   type DefRow,
 } from "@/lib/data";
 
+const SORT_KEYS = ["item_number", "floor", "location", "area", "material", "issue", "assessment", "status", "assigned", "created_at"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+type ListSearch = {
+  q?: string | undefined;
+  floor?: string | undefined;
+  assess?: string | undefined;
+  status?: string | undefined;
+  assign?: string | undefined;
+  open?: boolean | undefined;
+  sort?: SortKey | undefined;
+  dir?: "asc" | "desc" | undefined;
+};
+const str = (v: unknown) => (typeof v === "string" || typeof v === "number" ? String(v) : undefined);
+
 export const Route = createFileRoute("/_authenticated/list")({
+  validateSearch: (s: Record<string, unknown>): ListSearch => ({
+    q: str(s["q"]),
+    floor: str(s["floor"]),
+    assess: str(s["assess"]),
+    status: str(s["status"]),
+    assign: str(s["assign"]),
+    open: s["open"] === true || s["open"] === "1" || s["open"] === 1 ? true : undefined,
+    sort: SORT_KEYS.includes(s["sort"] as SortKey) ? (s["sort"] as SortKey) : undefined,
+    dir: s["dir"] === "asc" || s["dir"] === "desc" ? s["dir"] : undefined,
+  }),
+  head: () => ({
+    meta: [
+      { title: "All items — BMD Deficiency Tracker" },
+      { name: "description", content: "Search, filter, sort and assign every deficiency on the job." },
+      { property: "og:title", content: "All items — BMD Deficiency Tracker" },
+      { property: "og:description", content: "Search, filter, sort and assign every deficiency on the job." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
   component: ListPage,
 });
 
-type SortKey = "item_number" | "floor" | "material" | "assessment" | "status" | "created_at";
+const STATUS_ORDER = Object.keys(STATUS_LABEL);
 
 function ListPage() {
   const { data: project } = useProject();
@@ -43,13 +92,24 @@ function ListPage() {
   const canAssign = can("assign_items");
   const invalidate = useInvalidateDeficiencies();
 
-  const [search, setSearch] = useState("");
-  const [floor, setFloor] = useState("all");
-  const [assessment, setAssessment] = useState("all");
-  const [status, setStatus] = useState("all");
-  const [sort, setSort] = useState<SortKey>("item_number");
-  const [asc, setAsc] = useState(false);
+  const sp = Route.useSearch();
+  const navigate = useNavigate({ from: "/list" });
+  const setSp = (patch: Partial<ListSearch>) =>
+    void navigate({ search: (prev: ListSearch) => ({ ...prev, ...patch }), replace: true });
+  const search = sp.q ?? "";
+  const floor = sp.floor ?? "all";
+  const assessment = sp.assess ?? "all";
+  const status = sp.status ?? "all";
+  const assign = sp.assign ?? "all";
+  const openOnly = !!sp.open;
+  const sort: SortKey = sp.sort ?? "item_number";
+  const asc = sp.dir ? sp.dir === "asc" : false;
   const [selected, setSelected] = useState<string[]>([]);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const { projectId } = useAuth();
+  const { data: people = [] } = useProjectPeople(projectId);
+  const pmap = useMemo(() => peopleMap(people), [people]);
+  const assignOptions = useMemo(() => assignFilterOptions(items, pmap), [items, pmap]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -57,6 +117,8 @@ function ListPage() {
       if (floor !== "all" && String(d.locations?.floors?.number ?? "") !== floor) return false;
       if (assessment !== "all" && d.assessment !== assessment) return false;
       if (status !== "all" && d.status !== status) return false;
+      if (openOnly && isClosed(d.status)) return false;
+      if (!matchesAssign(d, assign, pmap)) return false;
       if (!q) return true;
       return [
         itemNo(d.item_number),
@@ -65,22 +127,33 @@ function ListPage() {
         d.material,
         d.issue_type,
         d.description,
+        assigneeText(d, pmap).label,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(q);
     });
-    const value = (d: DefRow) => {
+    const value = (d: DefRow): string | number => {
       switch (sort) {
         case "floor":
           return d.locations?.floors?.number ?? 0;
+        case "location":
+          return d.locations?.name ?? "";
+        case "area":
+          return d.area;
         case "material":
           return d.material;
+        case "issue":
+          return d.issue_type;
         case "assessment":
           return d.assessment;
         case "status":
-          return d.status;
+          return STATUS_ORDER.indexOf(d.status);
+        case "assigned": {
+          const a = assigneeText(d, pmap);
+          return a.person || a.trade ? a.label.toLowerCase() : "\uffff";
+        }
         case "created_at":
           return d.created_at;
         default:
@@ -90,10 +163,15 @@ function ListPage() {
     return [...rows].sort((a, b) => {
       const av = value(a);
       const bv = value(b);
-      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
-      return asc ? cmp : -cmp;
+      const cmp =
+        typeof av === "number" && typeof bv === "number"
+          ? av - bv
+          : String(av).localeCompare(String(bv), undefined, { numeric: true });
+      return (asc ? cmp : -cmp) || b.item_number - a.item_number;
     });
-  }, [items, search, floor, assessment, status, sort, asc]);
+  }, [items, search, floor, assessment, status, openOnly, assign, pmap, sort, asc]);
+
+  const anyFilter = !!(sp.q || sp.floor || sp.assess || sp.status || sp.assign || sp.open);
 
   const bulkUpdate = async (patch: Record<string, unknown>) => {
     let failures = 0;
@@ -111,12 +189,12 @@ function ListPage() {
   };
 
   const toggleSort = (key: SortKey) => {
-    if (sort === key) setAsc(!asc);
-    else {
-      setSort(key);
-      setAsc(true);
-    }
+    if (sort === key) setSp({ sort: key, dir: asc ? "desc" : "asc" });
+    else setSp({ sort: key, dir: "asc" });
   };
+  const th = (label: string, key: SortKey) => (
+    <SortableTh label={label} active={sort === key} asc={asc} onClick={() => toggleSort(key)} />
+  );
 
   return (
     <div>
@@ -125,31 +203,50 @@ function ListPage() {
       <div className="flex flex-wrap gap-2 border-b border-border bg-card px-4 py-3 md:px-6">
         <Input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => setSp({ q: e.target.value || undefined })}
           placeholder="Search room, issue, note…"
           className="h-11 w-full sm:w-64"
         />
         <FilterSelect
           value={floor}
-          onChange={setFloor}
+          onChange={(v) => setSp({ floor: v === "all" ? undefined : v })}
           placeholder="Floor"
           options={[{ value: "all", label: "All floors" }, ...floors.map((f) => ({ value: String(f.number), label: floorLabel(f) }))]}
         />
         <FilterSelect
           value={assessment}
-          onChange={setAssessment}
+          onChange={(v) => setSp({ assess: v === "all" ? undefined : v })}
           placeholder="Assessment"
           options={[{ value: "all", label: "All assessments" }, ...ASSESSMENTS.map((a) => ({ value: a.value, label: a.label }))]}
         />
         <FilterSelect
           value={status}
-          onChange={setStatus}
+          onChange={(v) => setSp({ status: v === "all" ? undefined : v })}
           placeholder="Status"
           options={[
             { value: "all", label: "All statuses" },
             ...Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label })),
           ]}
         />
+        <AssignFilter value={assign} options={assignOptions} onChange={(v) => setSp({ assign: v === "all" ? undefined : v })} />
+        <label className="flex h-11 items-center gap-2 rounded-md border border-border px-3 text-sm">
+          <Checkbox checked={openOnly} onCheckedChange={(c) => setSp({ open: c ? true : undefined })} />
+          Open only
+        </label>
+        <div className="flex w-full items-center gap-3 text-sm text-muted-foreground sm:ml-auto sm:w-auto">
+          <span>
+            {filtered.length} of {items.length} items
+          </span>
+          {anyFilter && (
+            <button
+              type="button"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              onClick={() => void navigate({ search: sort !== "item_number" || sp.dir ? { sort: sp.sort, dir: sp.dir } : {}, replace: true })}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
       </div>
 
       {canCapture && selected.length > 0 && (
@@ -175,16 +272,11 @@ function ListPage() {
               ]}
             />
           )}
-          {canAssign && (<FilterSelect
-            value="none"
-            placeholder="Assign"
-            onChange={(v) => void bulkUpdate({ assigned_to: v === "unassign" ? null : v })}
-            options={[
-              { value: "none", label: "Assign to…" },
-              { value: "unassign", label: "Unassigned" },
-              ...profiles.map((p) => ({ value: p.id, label: p.full_name ?? p.email ?? p.id })),
-            ]}
-          />)}
+          {canAssign && (
+            <Button variant="secondary" className="h-11" onClick={() => setAssignOpen(true)}>
+              Assign selected…
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => setSelected([])}>
             Clear
           </Button>
@@ -192,18 +284,21 @@ function ListPage() {
       )}
 
       <div className="overflow-x-auto p-4 md:p-6">
-        <table className="w-full min-w-[820px] border-collapse text-sm">
+        <AssignDialog open={assignOpen} onOpenChange={setAssignOpen} ids={selected} onDone={() => setSelected([])} />
+        <table className="w-full min-w-[960px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase">
               {canCapture && <th className="w-8 py-2" />}
-              <SortableTh label="Item" onClick={() => toggleSort("item_number")} />
-              <SortableTh label="Floor" onClick={() => toggleSort("floor")} />
-              <th className="py-2 pr-3">Location</th>
-              <th className="py-2 pr-3">Area</th>
-              <SortableTh label="Material" onClick={() => toggleSort("material")} />
-              <th className="py-2 pr-3">Issue</th>
-              <SortableTh label="Assessment" onClick={() => toggleSort("assessment")} />
-              <SortableTh label="Status" onClick={() => toggleSort("status")} />
+              {th("Item", "item_number")}
+              {th("Floor", "floor")}
+              {th("Location", "location")}
+              {th("Area", "area")}
+              {th("Material", "material")}
+              {th("Issue", "issue")}
+              {th("Assessment", "assessment")}
+              {th("Status", "status")}
+              {th("Assigned to", "assigned")}
+              {th("Created", "created_at")}
             </tr>
           </thead>
           <tbody>
@@ -235,6 +330,12 @@ function ListPage() {
                 <td className="py-2 pr-3">
                   <StatusBadge value={d.status} />
                 </td>
+                <td className="py-2 pr-3">
+                  <AssigneeCell d={d} pmap={pmap} />
+                </td>
+                <td className="py-2 pr-3 whitespace-nowrap text-muted-foreground">
+                  {new Date(d.created_at).toLocaleDateString()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -244,13 +345,30 @@ function ListPage() {
   );
 }
 
-function SortableTh({ label, onClick }: { label: string; onClick: () => void }) {
+function SortableTh({ label, active, asc, onClick }: { label: string; active: boolean; asc: boolean; onClick: () => void }) {
+  const Icon = !active ? ArrowUpDown : asc ? ArrowUp : ArrowDown;
   return (
-    <th className="py-2 pr-3">
-      <button type="button" onClick={onClick} className="uppercase hover:text-foreground">
+    <th className="py-2 pr-3" aria-sort={active ? (asc ? "ascending" : "descending") : "none"}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", active && "text-foreground")}
+      >
         {label}
+        <Icon className={cn("h-3 w-3", !active && "opacity-40")} />
       </button>
     </th>
+  );
+}
+
+function AssigneeCell({ d, pmap }: { d: DefRow; pmap: Map<string, Person> }) {
+  const a = assigneeText(d, pmap);
+  if (!a.person && !a.trade) return <span className="text-muted-foreground">Unassigned</span>;
+  return (
+    <span>
+      {a.person || a.trade}
+      {a.person && a.trade && <span className="block text-xs text-muted-foreground">{a.trade}</span>}
+    </span>
   );
 }
 

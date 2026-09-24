@@ -2,7 +2,97 @@ import { floorLabel, floorShort } from "@/lib/data";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import { itemNo, STATUS_LABEL, assessmentMeta } from "./bmd";
-import type { DefRow, PhotoRow } from "./data";
+import type { DefRow, PhotoRow, ProjectContact } from "./data";
+import { assigneeText, personName, tradeOf, type Person } from "./assign";
+
+export type GroupBy = "none" | "floor" | "person" | "trade";
+export type PdfOptions = {
+  groupBy?: GroupBy;
+  people?: Map<string, Person>;
+  contacts?: ProjectContact[];
+  title?: string;
+  asBlob?: boolean;
+  fileName?: string;
+};
+type Section = { title: string; lines: string[]; rows: ExportRow[] };
+
+const byFloorRoom = (a: DefRow, b: DefRow) =>
+  (a.locations?.floors?.number ?? 0) - (b.locations?.floors?.number ?? 0) ||
+  (a.locations?.name ?? "").localeCompare(b.locations?.name ?? "", undefined, { numeric: true }) ||
+  a.item_number - b.item_number;
+
+const locKey = (r: DefRow, withFloor: boolean) => {
+  const name = r.locations?.name ?? "—";
+  return withFloor ? `${floorLabel(r.locations?.floors)} · ${name}` : name;
+};
+
+function contactLines(match: (c: ProjectContact) => boolean, contacts: ProjectContact[], extra: string[] = []) {
+  const c = contacts.find(match);
+  const parts = [...extra];
+  if (c) {
+    if (c.name) parts.push(c.name);
+    if (c.phone_mobile || c.phone_office) parts.push(c.phone_mobile || c.phone_office || "");
+    if (c.email && !parts.includes(c.email)) parts.push(c.email);
+  }
+  return parts.length ? [parts.filter(Boolean).join("  ·  ")] : [];
+}
+
+export function buildSections(rows: ExportRow[], opts: PdfOptions): Section[] {
+  const sorted = [...rows].sort(byFloorRoom);
+  const people = opts.people ?? new Map<string, Person>();
+  const contacts = opts.contacts ?? [];
+  const mode = opts.groupBy ?? "floor";
+  if (mode === "none") return [{ title: "All items", lines: [], rows: sorted }];
+  const map = new Map<string, Section>();
+  const unassigned: ExportRow[] = [];
+  for (const r of sorted) {
+    let key: string;
+    let make: () => Section;
+    if (mode === "floor") {
+      const f = r.locations?.floors;
+      key = String(f?.number ?? 0);
+      make = () => ({ title: floorLabel(f), lines: [], rows: [] });
+    } else if (mode === "person") {
+      if (!r.assigned_to) {
+        unassigned.push(r);
+        continue;
+      }
+      const p = people.get(r.assigned_to);
+      key = r.assigned_to;
+      make = () => {
+        const email = (p?.email ?? "").toLowerCase();
+        return {
+          title: personName(p),
+          lines: contactLines(
+            (c) => !!email && c.email?.toLowerCase() === email,
+            contacts,
+            [p?.company ?? "", p?.email ?? ""].filter(Boolean),
+          ),
+          rows: [],
+        };
+      };
+    } else {
+      const t = tradeOf(r, people);
+      if (!t) {
+        unassigned.push(r);
+        continue;
+      }
+      key = t.toLowerCase();
+      make = () => {
+        const emails = [...people.values()].filter((p) => p.company?.trim().toLowerCase() === key && p.email).map((p) => p.email!);
+        const lines = contactLines((c) => c.company?.trim().toLowerCase() === key, contacts);
+        return { title: t, lines: lines.length ? lines : emails.length ? [emails.join(", ")] : [], rows: [] };
+      };
+    }
+    if (!map.has(key)) map.set(key, make());
+    map.get(key)!.rows.push(r);
+  }
+  const out = [...map.values()];
+  if (mode === "floor") out.sort((a, b) => (a.rows[0]?.locations?.floors?.number ?? 0) - (b.rows[0]?.locations?.floors?.number ?? 0));
+  else out.sort((a, b) => a.title.localeCompare(b.title));
+  if (unassigned.length) out.push({ title: "Unassigned", lines: [], rows: unassigned });
+  return out;
+}
 import { signPaths } from "./photos";
 
 export type ExportRow = DefRow & { photoPaths: string[] };
@@ -14,7 +104,7 @@ export function buildRows(items: DefRow[], photos: PhotoRow[]): ExportRow[] {
   }));
 }
 
-const flat = async (rows: ExportRow[]) => {
+const flat = async (rows: ExportRow[], people: Map<string, Person> = new Map()) => {
   const allPaths = rows.flatMap((r) => r.photoPaths);
   const urls = allPaths.length > 0 ? await signPaths(allPaths) : {};
   return rows.map((r) => ({
@@ -26,6 +116,9 @@ const flat = async (rows: ExportRow[]) => {
     Issue: r.issue_type,
     Assessment: assessmentMeta(r.assessment).label,
     Status: STATUS_LABEL[r.status],
+    "Assigned person": assigneeText(r, people).person,
+    "Trade / company": tradeOf(r, people),
+    Assigned: r.assigned_at ? new Date(r.assigned_at).toLocaleDateString() : "",
     Description: r.description ?? "",
     "Due date": r.due_date ?? "",
     Created: new Date(r.created_at).toLocaleDateString(),
@@ -34,16 +127,16 @@ const flat = async (rows: ExportRow[]) => {
   }));
 };
 
-export async function exportExcel(rows: ExportRow[], projectName: string) {
-  const data = await flat(rows);
+export async function exportExcel(rows: ExportRow[], projectName: string, people?: Map<string, Person>) {
+  const data = await flat(rows, people);
   const sheet = XLSX.utils.json_to_sheet(data);
   const book = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(book, sheet, "Deficiencies");
   XLSX.writeFile(book, `${projectName.replace(/\s+/g, "-")}-deficiencies.xlsx`);
 }
 
-export async function exportCsv(rows: ExportRow[], projectName: string) {
-  const data = await flat(rows);
+export async function exportCsv(rows: ExportRow[], projectName: string, people?: Map<string, Person>) {
+  const data = await flat(rows, people);
   const sheet = XLSX.utils.json_to_sheet(data);
   const csv = XLSX.utils.sheet_to_csv(sheet);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -73,7 +166,8 @@ export async function exportPdf(
   rows: ExportRow[],
   project: { name: string; client_name: string | null; address: string | null },
   clientText?: string,
-) {
+  opts: PdfOptions = {},
+): Promise<Blob | void> {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -90,7 +184,7 @@ export async function exportPdf(
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(20, 20, 20);
-    doc.text(`${project.name} — Deficiency report`, tx, margin + 8);
+    doc.text(`${project.name} — ${opts.title ?? "Deficiency report"}`, tx, margin + 8);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(90, 90, 90);
@@ -134,35 +228,31 @@ export async function exportPdf(
 
   const urls = await signPaths(rows.flatMap((r) => r.photoPaths).slice(0, 120));
 
-  const floorNames = new Map<number, string>();
-  for (const r of rows) {
-    const f = r.locations?.floors;
-    if (f) floorNames.set(f.number, floorLabel(f));
-  }
-  const byFloor = new Map<number, ExportRow[]>();
-  for (const r of rows) {
-    const f = r.locations?.floors?.number ?? 0;
-    byFloor.set(f, [...(byFloor.get(f) ?? []), r]);
-  }
+  const sections = buildSections(rows, opts);
 
-  for (const floorNumber of [...byFloor.keys()].sort((a, b) => a - b)) {
-    const floorRows = byFloor.get(floorNumber) ?? [];
-    ensureSpace(40);
+  for (const section of sections) {
+    ensureSpace(60);
+    const headerH = 20 + section.lines.length * 11;
     doc.setFillColor(35, 45, 70);
-    doc.rect(margin, y - 12, pageWidth - margin * 2, 20, "F");
+    doc.rect(margin, y - 12, pageWidth - margin * 2, headerH, "F");
     doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text(floorNames.get(floorNumber) ?? `Floor ${floorNumber}`, margin + 6, y + 2);
+    doc.text(section.title, margin + 6, y + 2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`${section.rows.length} item${section.rows.length === 1 ? "" : "s"}`, pageWidth - margin - 6, y + 2, { align: "right" });
+    section.lines.forEach((l, i) => doc.text(l, margin + 6, y + 14 + i * 11));
     doc.setTextColor(20);
-    y += 24;
+    y += headerH + 4;
 
     const byLocation = new Map<string, ExportRow[]>();
-    for (const r of floorRows) {
-      const name = r.locations?.name ?? "—";
+    for (const r of section.rows) {
+      const name = locKey(r, opts.groupBy !== "floor");
       byLocation.set(name, [...(byLocation.get(name) ?? []), r]);
     }
 
-    for (const name of [...byLocation.keys()].sort()) {
+    for (const name of byLocation.keys()) {
       ensureSpace(92);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
@@ -219,5 +309,6 @@ export async function exportPdf(
     }
   }
 
-  doc.save(`${project.name.replace(/\s+/g, "-")}-deficiency-report.pdf`);
+  if (opts.asBlob) return doc.output("blob");
+  doc.save(opts.fileName ?? `${project.name.replace(/\s+/g, "-")}-deficiency-report.pdf`);
 }

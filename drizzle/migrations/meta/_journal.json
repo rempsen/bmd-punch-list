@@ -57,6 +57,13 @@
       "when": 1790266390550,
       "tag": "0007_job_intake_wizard",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790267340746,
+      "tag": "0008_assignment_trade",
+      "breakpoints": true
     }
   ]
 }
