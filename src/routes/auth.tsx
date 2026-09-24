@@ -127,8 +127,8 @@ function AuthPage() {
           {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
         </button>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          The first account created becomes the BMD admin. Additional users are given field access
-          and can be changed in Settings.
+          New accounts get BMD field access. Ask your BMD admin to change your access in Settings →
+          Users.
         </p>
       </div>
     </div>
