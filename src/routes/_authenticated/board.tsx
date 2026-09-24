@@ -10,11 +10,10 @@ import { PhotoThumb } from "@/components/PhotoThumb";
 import { BOARD_COLUMNS, itemNo, type Status } from "@/lib/bmd";
 import { useFloors, useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { UserPlus } from "lucide-react";
+import { UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssignDialog } from "@/components/AssignDialog";
-import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
-import { respLabel } from "@/lib/responsible";
+import { assigneeText, isAssigned, peopleMap, useProjectPeople } from "@/lib/assign";
 
 export const Route = createFileRoute("/_authenticated/board")({
   validateSearch: (s: Record<string, unknown>): BoardFilters => ({
@@ -191,7 +190,7 @@ function Card({
         <StatusActions id={d.id} status={d.status} size="sm" />
         {canAssign && (
           <Button size="sm" variant="outline" draggable={false} onClick={() => setOpen(true)}>
-            <UserPlus className="mr-1 h-3.5 w-3.5" /> Assign
+            <UserPlus className="mr-1 h-3.5 w-3.5" /> {assigned ? "Reassign" : "Assign"}
           </Button>
         )}
       </div>
