@@ -18,7 +18,9 @@ export type Database = {
         Row: {
           area: string
           assessment: Database["public"]["Enums"]["assessment_level"]
+          assigned_at: string | null
           assigned_to: string | null
+          assigned_trade: string | null
           client_decision_note: string | null
           closed_at: string | null
           created_at: string
@@ -38,7 +40,9 @@ export type Database = {
         Insert: {
           area: string
           assessment?: Database["public"]["Enums"]["assessment_level"]
+          assigned_at?: string | null
           assigned_to?: string | null
+          assigned_trade?: string | null
           client_decision_note?: string | null
           closed_at?: string | null
           created_at?: string
@@ -58,7 +62,9 @@ export type Database = {
         Update: {
           area?: string
           assessment?: Database["public"]["Enums"]["assessment_level"]
+          assigned_at?: string | null
           assigned_to?: string | null
+          assigned_trade?: string | null
           client_decision_note?: string | null
           closed_at?: string | null
           created_at?: string
@@ -672,6 +678,16 @@ export type Database = {
         }[]
       }
       photo_path_project: { Args: { _name: string }; Returns: string }
+      project_people: {
+        Args: { _project: string }
+        Returns: {
+          company: string
+          email: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+        }[]
+      }
       remove_member: {
         Args: { _project: string; _user_id: string }
         Returns: undefined
