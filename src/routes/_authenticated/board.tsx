@@ -10,11 +10,10 @@ import { PhotoThumb } from "@/components/PhotoThumb";
 import { BOARD_COLUMNS, itemNo, type Status } from "@/lib/bmd";
 import { useFloors, useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { UserPlus } from "lucide-react";
+import { UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssignDialog } from "@/components/AssignDialog";
-import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
-import { respLabel } from "@/lib/responsible";
+import { assigneeText, isAssigned, peopleMap, useProjectPeople } from "@/lib/assign";
 
 export const Route = createFileRoute("/_authenticated/board")({
   validateSearch: (s: Record<string, unknown>): BoardFilters => ({
@@ -142,6 +141,9 @@ function Card({
   const { data: people = [] } = useProjectPeople(projectId);
   const a = assigneeText(d, peopleMap(people));
   const assignee = a.person || a.trade;
+  const assigned = isAssigned(d);
+  const chipParty =
+    d.responsible_party === "bmd" ? "BMD" : d.responsible_party === "trade" ? "Trade" : d.responsible_party === "client" ? "Client" : "Assigned";
   return (
     <div
       draggable
@@ -169,23 +171,26 @@ function Card({
             <p className="truncate text-xs text-muted-foreground">
               {d.material} · {d.issue_type}
             </p>
-            {(d.responsible_party !== "unassigned" || d.assigned_to || d.assigned_trade) && (
-              <p className="truncate text-xs text-muted-foreground">
-                {respLabel(d.responsible_party)}
-                {assignee ? ` · ${assignee}` : ""}
-              </p>
-            )}
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <AssessmentBadge value={d.assessment} />
+          {assigned && (
+            <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
+              <UserCheck className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">
+                {chipParty}
+                {assignee ? ` · ${assignee}` : ""}
+              </span>
+            </span>
+          )}
         </div>
       </Link>
       <div className="mt-2 flex flex-wrap items-start gap-2">
         <StatusActions id={d.id} status={d.status} size="sm" />
         {canAssign && (
           <Button size="sm" variant="outline" draggable={false} onClick={() => setOpen(true)}>
-            <UserPlus className="mr-1 h-3.5 w-3.5" /> Assign
+            <UserPlus className="mr-1 h-3.5 w-3.5" /> {assigned ? "Reassign" : "Assign"}
           </Button>
         )}
       </div>

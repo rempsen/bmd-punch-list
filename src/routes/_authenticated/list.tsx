@@ -7,6 +7,7 @@ import {
   assigneeText,
   assignFilterOptions,
   matchesAssign,
+  isAssigned,
   peopleMap,
   useProjectPeople,
   type AssignOption,
@@ -287,7 +288,7 @@ function ListPage() {
           )}
           {canAssign && (
             <Button variant="secondary" className="h-11" onClick={() => setAssignOpen(true)}>
-              Assign selected…
+              {selected.length > 0 && selected.every((id) => { const d = items.find((x) => x.id === id); return !!d && isAssigned(d); }) ? "Reassign selected…" : "Assign selected…"}
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={() => setSelected([])}>

@@ -67,3 +67,7 @@ export function matchesAssign(d: DefRow, filter: string | undefined, people: Map
   if (filter.startsWith("t:")) return tradeOf(d, people).toLowerCase() === filter.slice(2);
   return true;
 }
+
+/** True when an item has a person, trade, or a responsible party set. */
+export const isAssigned = (d: Pick<DefRow, "assigned_to" | "assigned_trade"> & { responsible_party?: string | null }) =>
+  !!d.assigned_to || !!d.assigned_trade?.trim() || (!!d.responsible_party && d.responsible_party !== "unassigned");

@@ -1,7 +1,7 @@
 import type { DefRow } from "@/lib/data";
 import { AssignDialog } from "@/components/AssignDialog";
 import { respLabel } from "@/lib/responsible";
-import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
+import { assigneeText, peopleMap, useProjectPeople, isAssigned } from "@/lib/assign";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -387,7 +387,7 @@ function ItemAssign({ item }: { item: DefRow }) {
       {can("assign_items") && (
         <>
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
-            Assign
+            {isAssigned(item) ? "Reassign" : "Assign"}
           </Button>
           <AssignDialog
             open={open}
