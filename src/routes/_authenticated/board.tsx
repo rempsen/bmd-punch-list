@@ -10,6 +10,9 @@ import { PhotoThumb } from "@/components/PhotoThumb";
 import { BOARD_COLUMNS, itemNo, type Status } from "@/lib/bmd";
 import { useFloors, useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AssignDialog } from "@/components/AssignDialog";
 
 export const Route = createFileRoute("/_authenticated/board")({
   validateSearch: (s: Record<string, unknown>): BoardFilters => ({
@@ -131,6 +134,9 @@ function Card({
   photo?: string | undefined;
   onDragStart: () => void;
 }) {
+  const { can } = useAuth();
+  const canAssign = can("assign_items");
+  const [open, setOpen] = useState(false);
   return (
     <div
       draggable
@@ -164,9 +170,23 @@ function Card({
           <AssessmentBadge value={d.assessment} />
         </div>
       </Link>
-      <div className="mt-2">
+      <div className="mt-2 flex flex-wrap items-start gap-2">
         <StatusActions id={d.id} status={d.status} size="sm" />
+        {canAssign && (
+          <Button size="sm" variant="outline" draggable={false} onClick={() => setOpen(true)}>
+            <UserPlus className="mr-1 h-3.5 w-3.5" /> Assign
+          </Button>
+        )}
       </div>
+      {canAssign && (
+        <AssignDialog
+          open={open}
+          onOpenChange={setOpen}
+          ids={[d.id]}
+          initialPerson={d.assigned_to}
+          initialTrade={d.assigned_trade}
+        />
+      )}
     </div>
   );
 }
