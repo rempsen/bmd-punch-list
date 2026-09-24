@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { DesktopCaptureForm } from "@/components/DesktopCaptureForm";
 import { assigneePatch, ResponsibleFields } from "@/components/ResponsibleFields";
 import { useProjectPeople } from "@/lib/assign";
-import { loadLastResp, saveLastResp, type Responsible } from "@/lib/responsible";
+import { loadLastResp, saveLastResp, normResp, normText, type Responsible } from "@/lib/responsible";
 
 export const Route = createFileRoute("/_authenticated/capture")({
   head: () => ({ meta: [{ title: "Add a deficiency — BMD Deficiency Tracker" }] }),
@@ -105,7 +105,7 @@ function MobileCapture() {
     if (step !== "assessment") return;
     const last = loadLastResp(project?.id);
     if (last && (last.responsible !== "unassigned" || last.assignee)) {
-      setResponsible(last.responsible);
+      setResponsible(normResp(last.responsible));
       setAssignee(last.assignee);
       setLastHint("Same as last item — change if this one is for someone else.");
     }
@@ -169,7 +169,7 @@ function MobileCapture() {
           issue_type: issue,
           description: note.trim() || null,
           assessment,
-          responsible_party: responsible,
+          responsible_party: normResp(responsible),
           ...assigneePatch(assignee, people),
           created_by: user?.id ?? null,
         })
@@ -189,7 +189,7 @@ function MobileCapture() {
       invalidate();
       toast.success(`${itemNo(data.item_number)} saved`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save");
+      toast.error(`Could not save: ${(err as { message?: string })?.message ?? String(err)}`);
     } finally {
       setSaving(false);
     }

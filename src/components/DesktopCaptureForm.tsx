@@ -13,7 +13,7 @@ import { ASSESSMENTS, itemNo, type Assessment } from "@/lib/bmd";
 import { floorLabel, useFloors, useInvalidateDeficiencies, useLocations, usePickLists, useProject } from "@/lib/data";
 import { useProjectPeople } from "@/lib/assign";
 import { assigneePatch, ResponsibleFields } from "@/components/ResponsibleFields";
-import { loadLastResp, saveLastResp, type Responsible } from "@/lib/responsible";
+import { loadLastResp, saveLastResp, normResp, normText, type Responsible } from "@/lib/responsible";
 import { uploadDeficiencyPhoto } from "@/lib/photos";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +44,7 @@ export function DesktopCaptureForm() {
   useEffect(() => {
     const last = loadLastResp(projectId);
     if (last && (last.responsible !== "unassigned" || last.assignee)) {
-      setResponsible(last.responsible);
+      setResponsible(normResp(last.responsible));
       setAssignee(last.assignee);
       setLastHint("Same as last item — change if this one is for someone else.");
     }
@@ -145,9 +145,9 @@ export function DesktopCaptureForm() {
           description: note.trim() || null,
           assessment: assessment!,
           created_by: user?.id ?? null,
-          responsible_party: responsible,
+          responsible_party: normResp(responsible),
           ...assigneePatch(assignee, people),
-          due_date: due || null,
+          due_date: normText(due),
         })
         .select("id,item_number")
         .maybeSingle();
@@ -166,7 +166,7 @@ export function DesktopCaptureForm() {
         if (then === "stay") setLocationId(null);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save");
+      toast.error(`Could not save: ${(err as { message?: string })?.message ?? String(err)}`);
     } finally {
       setSaving(false);
     }
