@@ -1,6 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { Building2, Check, MapPin } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Building2, Check, FileClock, MapPin, Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/AppShell";
 import { homeFor, useAuth } from "@/lib/auth";
 import { roleLabel } from "@/lib/roles";
@@ -21,7 +23,15 @@ export const Route = createFileRoute("/_authenticated/jobs")({
 });
 
 function JobsPage() {
-  const { jobs, jobsLoaded, projectId, setProjectId } = useAuth();
+  const { jobs, jobsLoaded, projectId, setProjectId, canCreateJobs, user } = useAuth();
+  const { data: drafts = [], refetch } = useQuery({
+    queryKey: ["job-drafts", user?.id],
+    enabled: canCreateJobs && !!user,
+    queryFn: async () => {
+      const { data } = await supabase.from("job_drafts").select("id,name,step,updated_at").order("updated_at", { ascending: false });
+      return data ?? [];
+    },
+  });
   const navigate = useNavigate();
   const qc = useQueryClient();
   const active = jobs.filter((j) => !j.archived_at);
@@ -36,8 +46,50 @@ function JobsPage() {
 
   return (
     <div>
-      <PageHeader title="Choose a job" subtitle="Everything you see is for one job at a time." />
+      <PageHeader
+        title="Choose a job"
+        subtitle="Everything you see is for one job at a time."
+        actions={
+          canCreateJobs ? (
+            <Button asChild className="h-11">
+              <Link to="/new-job">
+                <Plus className="mr-1 h-4 w-4" /> Add new job
+              </Link>
+            </Button>
+          ) : undefined
+        }
+      />
       <div className="p-4 md:p-6">
+        {drafts.length > 0 && (
+          <div className="mb-6 rounded-lg border border-dashed border-border bg-card p-4">
+            <h2 className="mb-2 text-sm font-semibold text-muted-foreground">Unfinished new jobs</h2>
+            <ul className="divide-y divide-border">
+              {drafts.map((dr) => (
+                <li key={dr.id} className="flex items-center gap-2 py-2 text-sm">
+                  <FileClock className="h-4 w-4 text-muted-foreground" />
+                  <span className="flex-1 truncate">
+                    {dr.name} · step {dr.step} of 5 · saved {new Date(dr.updated_at).toLocaleDateString()}
+                  </span>
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/new-job" search={{ draft: dr.id }}>Continue</Link>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    aria-label="Delete draft"
+                    onClick={async () => {
+                      if (!confirm("Delete this draft?")) return;
+                      await supabase.from("job_drafts").delete().eq("id", dr.id);
+                      void refetch();
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {!jobsLoaded ? (
           <p className="text-sm text-muted-foreground">Loading jobs…</p>
         ) : jobs.length === 0 ? (

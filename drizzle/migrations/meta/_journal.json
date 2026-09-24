@@ -50,6 +50,13 @@
       "when": 1790265958439,
       "tag": "0006_invite_email_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790266390550,
+      "tag": "0007_job_intake_wizard",
+      "breakpoints": true
     }
   ]
 }

@@ -28,8 +28,12 @@ import { useAuth } from "@/lib/auth";
 import { AllUsersPanel, UsersPanel } from "@/components/settings/UsersPanel";
 import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
+import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
+  validateSearch: (s: Record<string, unknown>): { tab?: string | undefined } => ({
+    tab: typeof s["tab"] === "string" ? s["tab"] : undefined,
+  }),
   component: SettingsPage,
 });
 
@@ -184,14 +188,14 @@ function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle={project?.name ?? undefined} />
       <div className="p-4 md:p-6">
-        <Tabs defaultValue={canSettings ? "structure" : "users"}>
+        <Tabs defaultValue={Route.useSearch().tab ?? (canSettings ? "structure" : "users")}>
           <TabsList className="flex-wrap">
             {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
             {canSettings && <TabsTrigger value="lists">Pick lists</TabsTrigger>}
             {canUsers && <TabsTrigger value="users">Users</TabsTrigger>}
             {isSuperAdmin && <TabsTrigger value="allusers">All users</TabsTrigger>}
             {isSuperAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
-            {canSettings && <TabsTrigger value="project">This job</TabsTrigger>}
+            {canSettings && <TabsTrigger value="project">Job details</TabsTrigger>}
             {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
           </TabsList>
 
@@ -342,31 +346,7 @@ function SettingsPage() {
           )}
 
           <TabsContent value="project" className="space-y-4">
-            <Card title="Project details">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Input
-                  className="h-11"
-                  placeholder="Project name"
-                  defaultValue={project?.name ?? ""}
-                  onChange={(e) => setProjectName(e.target.value)}
-                />
-                <Input
-                  className="h-11"
-                  placeholder="Client"
-                  defaultValue={project?.client_name ?? ""}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
-                <Input
-                  className="h-11"
-                  placeholder="Address"
-                  defaultValue={project?.address ?? ""}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-              <Button className="mt-3 h-11" onClick={saveProject}>
-                Save project
-              </Button>
-            </Card>
+            <JobDetailsPanel />
           </TabsContent>
 
           {canSettings && (

@@ -1,7 +1,7 @@
 import { roleLabel } from "@/lib/roles";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut } from "lucide-react";
+import { LogOut, Plus } from "lucide-react";
 import { PageHeader, useNavItems } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -14,7 +14,7 @@ export const Route = createFileRoute("/_authenticated/more")({
 
 function MorePage() {
   const nav = useNavItems();
-  const { user, roles } = useAuth();
+  const { user, roles, canCreateJobs } = useAuth();
   const { data: project } = useProject();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -30,6 +30,14 @@ function MorePage() {
     <div>
       <PageHeader title="More" subtitle={project?.name ?? undefined} />
       <div className="space-y-6 p-4 md:p-6">
+        {canCreateJobs && (
+          <Link
+            to="/new-job"
+            className="flex min-h-[60px] items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-primary-foreground"
+          >
+            <Plus className="h-5 w-5" /> Add new job
+          </Link>
+        )}
         <div className="grid gap-2 sm:grid-cols-2">
           {nav.map((item) => (
             <Link

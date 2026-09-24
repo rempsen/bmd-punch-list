@@ -203,6 +203,33 @@ export type Database = {
           },
         ]
       }
+      job_drafts: {
+        Row: {
+          data: Json
+          id: string
+          name: string | null
+          step: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          data?: Json
+          id?: string
+          name?: string | null
+          step?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          data?: Json
+          id?: string
+          name?: string | null
+          step?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       locations: {
         Row: {
           created_at: string
@@ -300,6 +327,59 @@ export type Database = {
         }
         Relationships: []
       }
+      project_contacts: {
+        Row: {
+          company: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_primary: boolean
+          kind: string
+          name: string | null
+          phone_mobile: string | null
+          phone_office: string | null
+          project_id: string
+          sort_order: number
+          title: string | null
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          kind?: string
+          name?: string | null
+          phone_mobile?: string | null
+          phone_office?: string | null
+          project_id: string
+          sort_order?: number
+          title?: string | null
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          kind?: string
+          name?: string | null
+          phone_mobile?: string | null
+          phone_office?: string | null
+          project_id?: string
+          sort_order?: number
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_contacts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_members: {
         Row: {
           added_by: string | null
@@ -335,30 +415,89 @@ export type Database = {
           },
         ]
       }
+      project_scopes: {
+        Row: {
+          created_at: string
+          id: string
+          other_text: string | null
+          project_id: string
+          scope: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          other_text?: string | null
+          project_id: string
+          scope: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          other_text?: string | null
+          project_id?: string
+          scope?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_scopes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           address: string | null
           archived_at: string | null
+          building_type: string | null
+          city: string | null
           client_name: string | null
           created_at: string
           id: string
           name: string
+          notes: string | null
+          po_number: string | null
+          postal_code: string | null
+          province: string | null
+          start_date: string | null
+          street: string | null
+          target_date: string | null
         }
         Insert: {
           address?: string | null
           archived_at?: string | null
+          building_type?: string | null
+          city?: string | null
           client_name?: string | null
           created_at?: string
           id?: string
           name: string
+          notes?: string | null
+          po_number?: string | null
+          postal_code?: string | null
+          province?: string | null
+          start_date?: string | null
+          street?: string | null
+          target_date?: string | null
         }
         Update: {
           address?: string | null
           archived_at?: string | null
+          building_type?: string | null
+          city?: string | null
           client_name?: string | null
           created_at?: string
           id?: string
           name?: string
+          notes?: string | null
+          po_number?: string | null
+          postal_code?: string | null
+          province?: string | null
+          start_date?: string | null
+          street?: string | null
+          target_date?: string | null
         }
         Relationships: []
       }
@@ -476,6 +615,7 @@ export type Database = {
         }
         Returns: string
       }
+      create_job: { Args: { _job: Json }; Returns: string }
       create_project: {
         Args: { _address: string; _client: string; _name: string }
         Returns: string

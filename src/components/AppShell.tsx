@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Wrench,
   ArrowLeftRight,
+  Plus,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
@@ -41,9 +42,9 @@ export function useNavItems() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const nav = useNavItems();
-  const { roles, currentJob, jobsLoaded, loading } = useAuth();
+  const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const onJobs = pathname.startsWith("/jobs");
+  const onJobs = pathname.startsWith("/jobs") || pathname.startsWith("/new-job");
   if (!loading && jobsLoaded && !currentJob && !onJobs) return <Navigate to="/jobs" replace />;
 
   const mobileTabs = nav.slice(0, 3);
@@ -57,6 +58,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <img src="/bmd-logo.png" alt="BMD Materials" className="w-[120px]" />
             <p className="mt-1 text-xs text-muted-foreground">Deficiency Tracker</p>
             <JobBadge />
+            {canCreateJobs && (
+              <Link
+                to="/new-job"
+                className="mt-2 flex h-10 items-center justify-center gap-1.5 rounded-md bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+              >
+                <Plus className="h-4 w-4" /> Add new job
+              </Link>
+            )}
           </div>
           <nav className="flex flex-1 flex-col gap-1">
             {nav.map((item) => (
