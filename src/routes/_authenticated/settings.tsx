@@ -25,7 +25,7 @@ import {
   useProject,
 } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
-import { UsersPanel } from "@/components/settings/UsersPanel";
+import { AllUsersPanel, UsersPanel } from "@/components/settings/UsersPanel";
 import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 
@@ -189,6 +189,7 @@ function SettingsPage() {
             {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
             {canSettings && <TabsTrigger value="lists">Pick lists</TabsTrigger>}
             {canUsers && <TabsTrigger value="users">Users</TabsTrigger>}
+            {isSuperAdmin && <TabsTrigger value="allusers">All users</TabsTrigger>}
             {isSuperAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
             {canSettings && <TabsTrigger value="project">This job</TabsTrigger>}
             {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
@@ -327,6 +328,11 @@ function SettingsPage() {
           {canUsers && (
             <TabsContent value="users">
               <UsersPanel />
+            </TabsContent>
+          )}
+          {isSuperAdmin && (
+            <TabsContent value="allusers">
+              <AllUsersPanel />
             </TabsContent>
           )}
           {isSuperAdmin && (
