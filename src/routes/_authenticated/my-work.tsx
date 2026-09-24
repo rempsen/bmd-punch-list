@@ -123,27 +123,31 @@ function WorkCard({ item, beforeUrl, hasAfter }: { item: DefRow; beforeUrl?: str
   };
 
   return (
-    <li className="rounded-lg border border-border bg-card p-3">
-      <div className="flex gap-3">
-        <Link to="/item/$id" params={{ id: item.id }} className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
+    <li className="rounded-lg border border-border bg-card p-3 transition has-[.card-link:hover]:-translate-y-0.5 has-[.card-link:hover]:border-primary has-[.card-link:hover]:shadow-md has-[.card-link:focus-visible]:border-primary has-[.card-link:focus-visible]:ring-2 has-[.card-link:focus-visible]:ring-ring">
+      <Link
+        to="/item/$id"
+        params={{ id: item.id }}
+        className="card-link group flex cursor-pointer gap-3 rounded-md outline-none"
+      >
+        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
           {beforeUrl ? (
             <img src={beforeUrl} alt="Before" className="h-full w-full object-cover" />
           ) : (
             <div className="grid h-full place-items-center text-xs text-muted-foreground">No photo</div>
           )}
-        </Link>
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Link to="/item/$id" params={{ id: item.id }} className="font-semibold">
+            <span className="font-semibold underline-offset-2 group-hover:underline group-focus-visible:underline">
               {itemNo(item.item_number)} · {item.locations?.name}
-            </Link>
+            </span>
             <StatusBadge value={item.status} />
           </div>
           <p className="truncate text-sm">{item.material} — {item.issue_type}</p>
           <p className="truncate text-xs text-muted-foreground">{item.area}</p>
           {item.description && <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.description}</p>}
         </div>
-      </div>
+      </Link>
       <div className="mt-3 grid grid-cols-2 gap-2">
         {item.status === "fix_required" ? (
           <Button className="h-12" variant="secondary" onClick={() => move("in_progress")}>
