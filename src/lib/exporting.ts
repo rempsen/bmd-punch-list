@@ -144,7 +144,7 @@ export async function exportPdf(
     }
 
     for (const name of [...byLocation.keys()].sort()) {
-      ensureSpace(34);
+      ensureSpace(92);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.text(name, margin, y);
