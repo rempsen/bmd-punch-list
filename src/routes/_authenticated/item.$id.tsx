@@ -354,7 +354,7 @@ function PickSelect({
   const isDisabled = disabled ?? false;
   const list = options.includes(value) ? options : [value, ...options];
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
+    <Select value={value} onValueChange={onChange} disabled={isDisabled}>
       <SelectTrigger className="h-11">
         <SelectValue />
       </SelectTrigger>
