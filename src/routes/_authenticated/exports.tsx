@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/auth";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -22,6 +23,9 @@ export const Route = createFileRoute("/_authenticated/exports")({
 });
 
 function ExportsPage() {
+  const { can } = useAuth();
+  const pdfOk = can("export_pdf");
+  const xlsOk = can("export_excel");
   const { data: project } = useProject();
   const { data: items = [] } = useDeficiencies(project?.id);
   const { data: floors = [] } = useFloors(project?.id);
@@ -97,13 +101,13 @@ function ExportsPage() {
         </section>
 
         <section className="grid gap-3 sm:grid-cols-3">
-          <Button className="h-14 text-base" disabled={busy !== null} onClick={() => void run("pdf")}>
+          <Button className="h-14 text-base" disabled={busy !== null || !pdfOk} onClick={() => void run("pdf")}>
             <FileText className="mr-2 h-5 w-5" /> {busy === "pdf" ? "Building…" : "PDF report"}
           </Button>
           <Button
             variant="secondary"
             className="h-14 text-base"
-            disabled={busy !== null}
+            disabled={busy !== null || !xlsOk}
             onClick={() => void run("xlsx")}
           >
             <FileSpreadsheet className="mr-2 h-5 w-5" /> Excel (.xlsx)
@@ -111,7 +115,7 @@ function ExportsPage() {
           <Button
             variant="outline"
             className="h-14 text-base"
-            disabled={busy !== null}
+            disabled={busy !== null || !xlsOk}
             onClick={() => void run("csv")}
           >
             <FileDown className="mr-2 h-5 w-5" /> CSV

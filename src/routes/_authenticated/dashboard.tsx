@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/auth";
 import { AiSummary } from "@/components/AiSummary";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute } from "@tanstack/react-router";
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
+  const { can } = useAuth();
   const { data: project } = useProject();
   const { data: items = [] } = useDeficiencies(project?.id);
   const { data: floors = [] } = useFloors(project?.id);
@@ -103,6 +105,14 @@ function DashboardPage() {
     }
     return [...perDay.entries()].map(([date, value]) => ({ date, open: value }));
   }, [events, filtered]);
+
+  if (!can("view_dashboard"))
+    return (
+      <div>
+        <PageHeader title="Dashboard" />
+        <p className="p-6 text-sm text-muted-foreground">You don't have access to the dashboard.</p>
+      </div>
+    );
 
   return (
     <div>
