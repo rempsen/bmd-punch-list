@@ -32,7 +32,8 @@ const toneClass: Record<Tone, string> = {
 };
 
 function FloorsPage() {
-  const { isAdmin } = useAuth();
+  const { can } = useAuth();
+  const isAdmin = can("manage_settings");
   const { data: project } = useProject();
   const { data: floors = [] } = useFloors(project?.id);
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);

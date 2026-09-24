@@ -62,7 +62,8 @@ function BigOption({
 }
 
 function CapturePage() {
-  const { user, isAdmin } = useAuth();
+  const { user, can } = useAuth();
+  const isAdmin = can("manage_settings");
   const { data: project } = useProject();
   const { data: floors = [] } = useFloors(project?.id);
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);

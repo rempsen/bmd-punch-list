@@ -37,7 +37,10 @@ function ListPage() {
   const { data: items = [] } = useDeficiencies(project?.id);
   const { data: floors = [] } = useFloors(project?.id);
   const { data: profiles = [] } = useProfiles();
-  const { canCapture, isAdmin } = useAuth();
+  const { can } = useAuth();
+  const canCapture = can("edit_any_item") || can("add_photos");
+  const isAdmin = can("change_assessment") && can("edit_any_item");
+  const canAssign = can("assign_items");
   const invalidate = useInvalidateDeficiencies();
 
   const [search, setSearch] = useState("");
