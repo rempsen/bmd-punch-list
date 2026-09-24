@@ -16,6 +16,7 @@ import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
+import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
 import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
@@ -55,6 +56,11 @@ const AuthenticatedDecisionsRoute = AuthenticatedDecisionsRouteImport.update({
   path: '/decisions',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedExportsRoute = AuthenticatedExportsRouteImport.update({
+  id: '/exports',
+  path: '/exports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedFloorsRoute = AuthenticatedFloorsRouteImport.update({
   id: '/floors',
   path: '/floors',
@@ -83,6 +89,7 @@ export interface FileRoutesByFullPath {
   '/capture': typeof AuthenticatedCaptureRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/capture': typeof AuthenticatedCaptureRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
+  '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
   '/_authenticated/list': typeof AuthenticatedListRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/capture'
     | '/dashboard'
     | '/decisions'
+    | '/exports'
     | '/floors'
     | '/list'
     | '/more'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
     | '/capture'
     | '/dashboard'
     | '/decisions'
+    | '/exports'
     | '/floors'
     | '/list'
     | '/more'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '/_authenticated/capture'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
+    | '/_authenticated/exports'
     | '/_authenticated/floors'
     | '/_authenticated/list'
     | '/_authenticated/more'
@@ -211,6 +223,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDecisionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/exports': {
+      id: '/_authenticated/exports'
+      path: '/exports'
+      fullPath: '/exports'
+      preLoaderRoute: typeof AuthenticatedExportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/floors': {
       id: '/_authenticated/floors'
       path: '/floors'
@@ -247,6 +266,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
+  AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
   AuthenticatedListRoute: typeof AuthenticatedListRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
@@ -258,6 +278,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
+  AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
   AuthenticatedListRoute: AuthenticatedListRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
