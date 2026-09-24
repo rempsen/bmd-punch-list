@@ -129,7 +129,7 @@ function ListPage() {
           value={floor}
           onChange={setFloor}
           placeholder="Floor"
-          options={[{ value: "all", label: "All floors" }, ...floors.map((f) => ({ value: String(f.number), label: `Floor ${f.number}` }))]}
+          options={[{ value: "all", label: "All floors" }, ...floors.map((f) => ({ value: String(f.number), label: floorLabel(f) }))]}
         />
         <FilterSelect
           value={assessment}
@@ -220,7 +220,7 @@ function ListPage() {
                     {itemNo(d.item_number)}
                   </Link>
                 </td>
-                <td className="py-2 pr-3">{d.locations?.floors?.number ?? "—"}</td>
+                <td className="py-2 pr-3">{floorShort(d.locations?.floors)}</td>
                 <td className="py-2 pr-3">{d.locations?.name}</td>
                 <td className="py-2 pr-3 text-muted-foreground">{d.area}</td>
                 <td className="py-2 pr-3">{d.material}</td>

@@ -168,7 +168,7 @@ function CapturePage() {
   };
 
   const crumb = [
-    floor ? `Floor ${floor.number}` : null,
+    floor ? floorLabel(floor) : null,
     location?.name,
     area,
     material,
@@ -198,7 +198,7 @@ function CapturePage() {
               {floors.map((f) => (
                 <BigOption
                   key={f.id}
-                  label={String(f.number)}
+                  label={floorShort(f)}
                   selected={f.id === floorId}
                   onClick={() => {
                     setFloorId(f.id);
@@ -212,7 +212,13 @@ function CapturePage() {
 
         {step === "location" && (
           <Section title="Which room or area?">
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-8">
+            {rooms.length === 0 && (
+              <p className="mb-2 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
+                No guest rooms on this floor — pick a common area below
+                {isAdmin ? ", or add a room number." : "."}
+              </p>
+            )}
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
               {rooms.map((l) => (
                 <BigOption
                   key={l.id}

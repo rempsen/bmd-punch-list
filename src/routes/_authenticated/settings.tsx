@@ -213,7 +213,7 @@ function SettingsPage() {
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {f.number}
+                    {floorShort(f)}
                   </button>
                 ))}
               </div>

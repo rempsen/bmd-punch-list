@@ -63,7 +63,7 @@ function DashboardPage() {
   };
 
   const byFloor = floors.map((f) => ({
-    name: `F${f.number}`,
+    name: floorShort(f) === f.label ? f.label : `F${f.number}`,
     open: filtered.filter((d) => d.locations?.floors?.number === f.number && !isClosed(d.status))
       .length,
   }));

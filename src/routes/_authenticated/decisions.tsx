@@ -60,7 +60,7 @@ function DecisionsPage() {
                   {itemNo(d.item_number)}
                 </Link>
                 <span className="text-sm font-medium">
-                  Floor {d.locations?.floors?.number} · {d.locations?.name}
+                  {floorLabel(d.locations?.floors)} · {d.locations?.name}
                 </span>
                 <AssessmentBadge value={d.assessment} />
               </div>
