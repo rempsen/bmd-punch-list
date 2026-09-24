@@ -1,3 +1,4 @@
+import type { DefRow } from "@/lib/data";
 import { AssignDialog } from "@/components/AssignDialog";
 import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
 import { floorLabel, floorShort } from "@/lib/data";
