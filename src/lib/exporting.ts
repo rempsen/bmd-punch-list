@@ -3,9 +3,10 @@ import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import { itemNo, STATUS_LABEL, assessmentMeta } from "./bmd";
 import type { DefRow, PhotoRow, ProjectContact } from "./data";
+import { respLabel, RESPONSIBLE } from "./responsible";
 import { assigneeText, personName, tradeOf, type Person } from "./assign";
 
-export type GroupBy = "none" | "floor" | "person" | "trade";
+export type GroupBy = "none" | "floor" | "person" | "trade" | "responsible";
 export type PdfOptions = {
   groupBy?: GroupBy;
   people?: Map<string, Person>;
@@ -48,7 +49,14 @@ export function buildSections(rows: ExportRow[], opts: PdfOptions): Section[] {
   for (const r of sorted) {
     let key: string;
     let make: () => Section;
-    if (mode === "floor") {
+    if (mode === "responsible") {
+      if (r.responsible_party === "unassigned") {
+        unassigned.push(r);
+        continue;
+      }
+      key = r.responsible_party;
+      make = () => ({ title: respLabel(r.responsible_party), lines: [], rows: [] });
+    } else if (mode === "floor") {
       const f = r.locations?.floors;
       key = String(f?.number ?? 0);
       make = () => ({ title: floorLabel(f), lines: [], rows: [] });
@@ -89,8 +97,10 @@ export function buildSections(rows: ExportRow[], opts: PdfOptions): Section[] {
   }
   const out = [...map.values()];
   if (mode === "floor") out.sort((a, b) => (a.rows[0]?.locations?.floors?.number ?? 0) - (b.rows[0]?.locations?.floors?.number ?? 0));
+  else if (mode === "responsible")
+    out.sort((a, b) => RESPONSIBLE.findIndex((x) => x.value === a.rows[0]?.responsible_party) - RESPONSIBLE.findIndex((x) => x.value === b.rows[0]?.responsible_party));
   else out.sort((a, b) => a.title.localeCompare(b.title));
-  if (unassigned.length) out.push({ title: "Unassigned", lines: [], rows: unassigned });
+  if (unassigned.length) out.push({ title: mode === "responsible" ? "Not yet assigned" : "Unassigned", lines: [], rows: unassigned });
   return out;
 }
 import { signPaths } from "./photos";
@@ -116,6 +126,7 @@ const flat = async (rows: ExportRow[], people: Map<string, Person> = new Map()) 
     Issue: r.issue_type,
     Assessment: assessmentMeta(r.assessment).label,
     Status: STATUS_LABEL[r.status],
+    "Responsible party": respLabel(r.responsible_party),
     "Assigned person": assigneeText(r, people).person,
     "Trade / company": tradeOf(r, people),
     Assigned: r.assigned_at ? new Date(r.assigned_at).toLocaleDateString() : "",
@@ -278,6 +289,16 @@ export async function exportPdf(
           y,
         );
         y += 12;
+        {
+          const a = assigneeText(r, people);
+          const who = a.person || a.trade;
+          if (r.responsible_party !== "unassigned" || who) {
+            doc.setTextColor(100);
+            doc.text(`Responsible: ${respLabel(r.responsible_party)}${who ? ` · ${who}` : ""}`, margin + 55, y);
+            doc.setTextColor(20);
+            y += 11;
+          }
+        }
         if (r.description) {
           const lines = doc.splitTextToSize(r.description, pageWidth - margin * 2 - 60) as string[];
           doc.setTextColor(100);
