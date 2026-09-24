@@ -14,7 +14,7 @@ const STATUSES = [
 const ASSESSMENTS = ["acceptable", "client_review", "must_fix"] as const;
 
 const SELECT =
-  "id,item_number,area,material,issue_type,description,assessment,status,due_date,client_decision_note:decision_note,created_at,updated_at,closed_at,locations(name,type,floors(number,label))";
+  "id,item_number,area,material,issue_type,description,assessment,status,due_date,created_at,updated_at,closed_at,locations(name,type,floors(number,label))";
 
 type Row = {
   id: string;

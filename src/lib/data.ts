@@ -143,12 +143,14 @@ export function useDeficiencies(projectId?: string) {
     queryKey: ["deficiencies", projectId],
     enabled: !!projectId,
     queryFn: async () =>
-      unwrap<DefRow[]>(
-        await supabase
-          .from("deficiencies")
-          .select(DEF_SELECT as "*")
-          .eq("project_id", projectId!)
-          .order("item_number", { ascending: false }),
+      withNotes(
+        unwrap<DefRow[]>(
+          await supabase
+            .from("deficiencies")
+            .select(DEF_SELECT as "*")
+            .eq("project_id", projectId!)
+            .order("item_number", { ascending: false }),
+        ),
       ),
   });
 }
@@ -163,7 +165,9 @@ export function useDeficiency(id: string) {
         .eq("id", id)
         .maybeSingle();
       if (error) throw new Error(error.message);
-      return data as DefRow | null;
+      if (!data) return null;
+      const [row] = await withNotes([data as unknown as DefRow]);
+      return row ?? null;
     },
   });
 }
