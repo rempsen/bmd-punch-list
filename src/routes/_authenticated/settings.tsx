@@ -25,8 +25,9 @@ import {
   useProject,
 } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
-import { UsersPanel } from "@/components/settings/UsersPanel";
+import { AllUsersPanel, UsersPanel } from "@/components/settings/UsersPanel";
 import { RolesPanel } from "@/components/settings/RolesPanel";
+import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -57,7 +58,7 @@ function SettingsPage() {
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);
   const { data: locations = [] } = useLocations(floorIds);
   const { data: picks } = usePickLists();
-  const { can, isSuperAdmin } = useAuth();
+  const { can, isSuperAdmin, refreshPermissions } = useAuth();
   const canSettings = can("manage_settings");
   const canUsers = can("manage_users");
   const { data: items = [] } = useDeficiencies(project?.id);
@@ -90,8 +91,9 @@ function SettingsPage() {
       .eq("id", project.id);
     if (error) toast.error(error.message);
     else {
-      toast.success("Project updated");
+      toast.success("Job updated");
       refresh();
+      void refreshPermissions();
     }
   };
 
@@ -153,7 +155,7 @@ function SettingsPage() {
   const addPick = async (kind: "area" | "material" | "issue_type") => {
     const value = (newPick[kind] ?? "").trim();
     if (!value) return;
-    const { error } = await supabase.from("pick_lists").insert({ kind, value, sort_order: 999 });
+    const { error } = await supabase.from("pick_lists").insert({ kind, value, sort_order: 999, project_id: project!.id });
     if (error) toast.error(error.message);
     else {
       setNewPick({ ...newPick, [kind]: "" });
@@ -168,7 +170,7 @@ function SettingsPage() {
   };
 
   const clearSamples = async () => {
-    const { error } = await supabase.from("deficiencies").delete().eq("is_sample", true);
+    const { error } = await supabase.from("deficiencies").delete().eq("is_sample", true).eq("project_id", project!.id);
     if (error) toast.error(error.message);
     else {
       toast.success("Sample data removed");
@@ -187,8 +189,10 @@ function SettingsPage() {
             {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
             {canSettings && <TabsTrigger value="lists">Pick lists</TabsTrigger>}
             {canUsers && <TabsTrigger value="users">Users</TabsTrigger>}
+            {isSuperAdmin && <TabsTrigger value="allusers">All users</TabsTrigger>}
             {isSuperAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
-            {canSettings && <TabsTrigger value="project">Project</TabsTrigger>}
+            {canSettings && <TabsTrigger value="project">This job</TabsTrigger>}
+            {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="structure" className="space-y-4">
@@ -327,6 +331,11 @@ function SettingsPage() {
             </TabsContent>
           )}
           {isSuperAdmin && (
+            <TabsContent value="allusers">
+              <AllUsersPanel />
+            </TabsContent>
+          )}
+          {isSuperAdmin && (
             <TabsContent value="roles">
               <RolesPanel />
             </TabsContent>
@@ -359,6 +368,12 @@ function SettingsPage() {
               </Button>
             </Card>
           </TabsContent>
+
+          {canSettings && (
+            <TabsContent value="projects">
+              <ProjectsPanel />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import ReactMarkdown from "react-markdown";
@@ -8,13 +9,15 @@ import { summarisePunchList } from "@/lib/summary.functions";
 
 export function AiSummary() {
   const run = useServerFn(summarisePunchList);
+  const { projectId } = useAuth();
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const go = async () => {
     setBusy(true);
     try {
-      const r = await run();
+      if (!projectId) return;
+      const r = await run({ data: { projectId } });
       setText(r.summary);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't create the summary.");

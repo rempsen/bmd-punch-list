@@ -1,4 +1,4 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, Navigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   Camera,
@@ -10,11 +10,11 @@ import {
   Settings,
   ShieldCheck,
   Wrench,
+  ArrowLeftRight,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
-import { useProject } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 type NavItem = { to: string; label: string; icon: typeof Camera };
@@ -41,9 +41,10 @@ export function useNavItems() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const nav = useNavItems();
-  const { data: project } = useProject();
-  const { roles } = useAuth();
+  const { roles, currentJob, jobsLoaded, loading } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const onJobs = pathname.startsWith("/jobs");
+  if (!loading && jobsLoaded && !currentJob && !onJobs) return <Navigate to="/jobs" replace />;
 
   const mobileTabs = nav.slice(0, 3);
 
@@ -55,6 +56,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="border-b border-sidebar-border px-2 pb-4 mb-4">
             <img src="/bmd-logo.png" alt="BMD Materials" className="w-[120px]" />
             <p className="mt-1 text-xs text-muted-foreground">Deficiency Tracker</p>
+            <JobBadge />
           </div>
           <nav className="flex flex-1 flex-col gap-1">
             {nav.map((item) => (
@@ -77,16 +79,28 @@ export function AppShell({ children }: { children: ReactNode }) {
             to="/more"
             className="mt-2 rounded-md px-3 py-2 text-xs opacity-70 hover:bg-sidebar-accent/60"
           >
-            {project?.name ?? "Project"} · {roles.map(roleLabel).join(", ") || "no role"}
+            {currentJob?.name ?? "No job selected"} · {roles.map(roleLabel).join(", ") || "no role"}
           </Link>
         </aside>
 
         <div className="flex min-h-screen w-full min-w-0 flex-col">
           {/* Mobile header */}
           <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-logo-bg px-4 py-2 text-foreground md:hidden">
-            <div className="flex items-center gap-3">
-              <img src="/bmd-logo.png" alt="BMD Materials" className="w-[90px]" />
-              <p className="text-[11px] text-muted-foreground">{project?.name ?? "Deficiency Tracker"}</p>
+            <div className="flex min-w-0 items-center gap-3">
+              <img src="/bmd-logo.png" alt="BMD Materials" className="w-[90px] shrink-0" />
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold">{currentJob?.name ?? "Choose a job"}</p>
+                {currentJob?.address && (
+                  <p className="truncate text-[11px] text-muted-foreground">{currentJob.address}</p>
+                )}
+              </div>
+              <Link
+                to="/jobs"
+                className="shrink-0 rounded-md border border-border p-2 hover:bg-muted"
+                aria-label="Switch job"
+              >
+                <ArrowLeftRight className="h-4 w-4" />
+              </Link>
             </div>
             <Link to="/more" className="rounded-md p-2 hover:bg-muted" aria-label="More">
               <MoreHorizontal className="h-5 w-5" />
@@ -123,6 +137,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       </div>
+    </div>
+  );
+}
+
+function JobBadge() {
+  const { currentJob } = useAuth();
+  return (
+    <div className="mt-3 rounded-md border border-sidebar-border bg-card px-2.5 py-2">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Current job</p>
+      <p className="text-sm font-semibold leading-tight">{currentJob?.name ?? "None selected"}</p>
+      {currentJob?.address && <p className="text-xs text-muted-foreground">{currentJob.address}</p>}
+      <Link to="/jobs" className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+        <ArrowLeftRight className="h-3 w-3" /> Switch job
+      </Link>
     </div>
   );
 }

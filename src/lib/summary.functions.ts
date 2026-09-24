@@ -18,14 +18,20 @@ const ASSESS: Record<string, string> = {
 
 export const summarisePunchList = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((d: { projectId: string }) => {
+    if (!d || typeof d.projectId !== "string" || !/^[0-9a-f-]{36}$/.test(d.projectId)) throw new Error("Invalid job");
+    return d;
+  })
+  .handler(async ({ context, data }) => {
     const key = process.env["LOVABLE_API_KEY"];
     if (!key) throw new Error("AI is not configured for this project.");
 
-    const { data: project } = await context.supabase.from("projects").select("*").limit(1).maybeSingle();
+    const { data: project } = await context.supabase.from("projects").select("*").eq("id", data.projectId).maybeSingle();
+    if (!project) throw new Error("Job not found");
     const { data: items, error } = await context.supabase
       .from("deficiencies")
       .select("item_number,area,material,issue_type,description,assessment,status,due_date,created_at,locations(name,floors(number,label))")
+      .eq("project_id", data.projectId)
       .order("item_number");
     if (error) throw new Error(error.message);
 

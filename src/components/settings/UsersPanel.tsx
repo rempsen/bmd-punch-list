@@ -21,27 +21,30 @@ type UserRow = {
   full_name: string | null;
   company: string | null;
   role: string | null;
+  is_super: boolean | null;
   last_sign_in_at: string | null;
 };
 
-function useUsers() {
+function useUsers(projectId: string | null) {
   return useQuery({
-    queryKey: ["admin-users"],
+    queryKey: ["admin-users", projectId ?? "all"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_users");
+      const { data, error } = await supabase.rpc("list_users", { _project: projectId as string });
       if (error) throw new Error(error.message);
       return (data ?? []) as UserRow[];
     },
   });
 }
 
-function useInvites() {
+function useInvites(projectId: string | null) {
   return useQuery({
-    queryKey: ["invites"],
+    queryKey: ["invites", projectId],
+    enabled: !!projectId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("user_invites")
         .select("*")
+        .eq("project_id", projectId!)
         .is("accepted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
@@ -52,9 +55,11 @@ function useInvites() {
 
 export function UsersPanel() {
   const qc = useQueryClient();
-  const { isSuperAdmin, user } = useAuth();
-  const { data: users = [] } = useUsers();
-  const { data: invites = [] } = useInvites();
+  const { isSuperAdmin, user, projectId, currentJob } = useAuth();
+  const { data: users = [] } = useUsers(projectId);
+  const { data: invites = [] } = useInvites(projectId);
+  const [addEmail, setAddEmail] = useState("");
+  const [addRole, setAddRole] = useState<AppRole>("bmd_field");
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState<AppRole>("bmd_field");
@@ -69,7 +74,7 @@ export function UsersPanel() {
   };
 
   const inviteText = (to: string) =>
-    `You're invited to the BMD Deficiency Tracker. Sign up at ${window.location.origin}/auth using ${to}.`;
+    `You're invited to the ${currentJob?.name ?? ""} job on the BMD Deficiency Tracker. Sign up at ${window.location.origin}/auth using ${to}.`;
 
   const invite = async () => {
     const clean = email.trim().toLowerCase();
@@ -83,6 +88,7 @@ export function UsersPanel() {
       full_name: name.trim() || null,
       role,
       company: company.trim() || null,
+      project_id: projectId!,
     });
     setSaving(false);
     if (error) {
@@ -98,7 +104,8 @@ export function UsersPanel() {
   };
 
   const changeRole = async (id: string, next: AppRole, comp?: string) => {
-    const { error } = await supabase.rpc("set_user_role", {
+    const { error } = await supabase.rpc("set_member_role", {
+      _project: projectId!,
       _user_id: id,
       _role: next,
       ...(comp !== undefined ? { _company: comp } : {}),
@@ -106,6 +113,28 @@ export function UsersPanel() {
     if (error) toast.error(error.message);
     else {
       toast.success("Access updated");
+      refresh();
+    }
+  };
+
+  const addExisting = async () => {
+    const clean = addEmail.trim().toLowerCase();
+    if (!clean) return;
+    const { error } = await supabase.rpc("add_member_by_email", { _project: projectId!, _email: clean, _role: addRole });
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Added to this job");
+      setAddEmail("");
+      refresh();
+    }
+  };
+
+  const removeMember = async (id: string) => {
+    if (!confirm("Remove this person from this job?")) return;
+    const { error } = await supabase.rpc("remove_member", { _project: projectId!, _user_id: id });
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Removed from this job");
       refresh();
     }
   };
@@ -121,8 +150,8 @@ export function UsersPanel() {
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="mb-1 text-sm font-semibold text-muted-foreground uppercase">Invite a user</h2>
         <p className="mb-3 text-sm text-muted-foreground">
-          Save the invite, then send them the copied sign-up message. When they sign up with this
-          email they get the role you choose here.
+          Invites are for <strong>{currentJob?.name}</strong>. Save the invite, then send them the copied
+          sign-up message. When they sign up with this email they join this job with the role you choose.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Input className="h-11" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -183,7 +212,24 @@ export function UsersPanel() {
       </section>
 
       <section className="rounded-lg border border-border bg-card p-4">
-        <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase">People and access</h2>
+        <h2 className="mb-1 text-sm font-semibold text-muted-foreground uppercase">Add an existing user to this job</h2>
+        <p className="mb-3 text-sm text-muted-foreground">For people who already have an account on another job.</p>
+        <div className="grid gap-3 sm:grid-cols-[1fr_12rem_auto]">
+          <Input className="h-11" type="email" placeholder="Their email" value={addEmail} onChange={(e) => setAddEmail(e.target.value)} />
+          <Select value={addRole} onValueChange={(v) => setAddRole(v as AppRole)}>
+            <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {selectable.map((r) => (
+                <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button className="h-11" onClick={() => void addExisting()}>Add to job</Button>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4">
+        <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase">People on this job</h2>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
@@ -191,12 +237,13 @@ export function UsersPanel() {
                 <th className="py-2 pr-3">Person</th>
                 <th className="py-2 pr-3">Role</th>
                 <th className="py-2 pr-3">Company</th>
-                <th className="py-2">Last sign-in</th>
+                <th className="py-2 pr-3">Last sign-in</th>
+                <th className="py-2" />
               </tr>
             </thead>
             <tbody>
               {users.map((u) => {
-                const current = (u.role === "bmd_admin" ? "super_admin" : u.role) as AppRole | null;
+                const current = (u.is_super ? "super_admin" : u.role === "bmd_admin" ? "super_admin" : u.role) as AppRole | null;
                 const locked = !isSuperAdmin && current === "super_admin";
                 return (
                   <tr key={u.id} className="border-b border-border">
@@ -237,9 +284,16 @@ export function UsersPanel() {
                         }}
                       />
                     </td>
-                    <td className="py-2 text-muted-foreground">
+                    <td className="py-2 pr-3 text-muted-foreground">
                       {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : "Never"}
                       {u.id === user?.id ? " (you)" : ""}
+                    </td>
+                    <td className="py-2">
+                      {!locked && u.id !== user?.id && (
+                        <Button variant="ghost" size="sm" aria-label="Remove from job" onClick={() => void removeMember(u.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -249,5 +303,60 @@ export function UsersPanel() {
         </div>
       </section>
     </div>
+  );
+}
+
+/** Super admin only: everyone in the system, and the global super admin flag. */
+export function AllUsersPanel() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: users = [] } = useUsers(null);
+  const toggle = async (id: string, makeSuper: boolean) => {
+    const { error } = await supabase.rpc("set_user_role", { _user_id: id, _role: makeSuper ? "super_admin" : "viewer" });
+    if (error) toast.error(error.message);
+    else {
+      toast.success(makeSuper ? "Now a super admin (all jobs)" : "Super admin removed");
+      void qc.invalidateQueries({ queryKey: ["admin-users"] });
+    }
+  };
+  return (
+    <section className="rounded-lg border border-border bg-card p-4">
+      <h2 className="mb-1 text-sm font-semibold text-muted-foreground uppercase">All users</h2>
+      <p className="mb-3 text-sm text-muted-foreground">
+        Everyone with an account. Super admins see every job; everyone else only sees jobs they were added to.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase">
+              <th className="py-2 pr-3">Person</th>
+              <th className="py-2 pr-3">Company</th>
+              <th className="py-2 pr-3">Last sign-in</th>
+              <th className="py-2">Super admin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id} className="border-b border-border">
+                <td className="py-2 pr-3">
+                  <p className="font-medium">{u.full_name ?? u.email}</p>
+                  <p className="text-xs text-muted-foreground">{u.email}</p>
+                </td>
+                <td className="py-2 pr-3">{u.company ?? "—"}</td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : "Never"}
+                  {u.id === user?.id ? " (you)" : ""}
+                </td>
+                <td className="py-2">
+                  <Button variant={u.is_super ? "default" : "outline"} size="sm" onClick={() => void toggle(u.id, !u.is_super)}>
+                    {u.is_super ? "Yes — remove" : "Make super admin"}
+                  </Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

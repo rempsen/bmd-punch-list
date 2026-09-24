@@ -87,9 +87,15 @@ function CapturePage() {
   useEffect(() => {
     const lastFloor = localStorage.getItem("bmd:lastFloor");
     const lastLocation = localStorage.getItem("bmd:lastLocation");
-    if (lastFloor) setFloorId(lastFloor);
-    if (lastLocation) setLocationId(lastLocation);
-  }, []);
+    if (lastFloor && floors.some((f) => f.id === lastFloor)) {
+      setFloorId(lastFloor);
+      if (lastLocation) setLocationId(lastLocation);
+    } else {
+      setFloorId(null);
+      setLocationId(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [floors.map((f) => f.id).join("|")]);
 
   const floorLocations = locations.filter((l) => l.floor_id === floorId);
   const rooms = floorLocations.filter((l) => l.type === "room");

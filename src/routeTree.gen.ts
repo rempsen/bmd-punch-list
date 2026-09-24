@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
+import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
 import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
 import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated/my-work'
@@ -82,6 +83,11 @@ const AuthenticatedFloorsRoute = AuthenticatedFloorsRouteImport.update({
   path: '/floors',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedJobsRoute = AuthenticatedJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedListRoute = AuthenticatedListRouteImport.update({
   id: '/list',
   path: '/list',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
+  '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
+  '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
+  '/_authenticated/jobs': typeof AuthenticatedJobsRoute
   '/_authenticated/list': typeof AuthenticatedListRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
   '/_authenticated/my-work': typeof AuthenticatedMyWorkRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/exports'
     | '/floors'
+    | '/jobs'
     | '/list'
     | '/more'
     | '/my-work'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/exports'
     | '/floors'
+    | '/jobs'
     | '/list'
     | '/more'
     | '/my-work'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/_authenticated/decisions'
     | '/_authenticated/exports'
     | '/_authenticated/floors'
+    | '/_authenticated/jobs'
     | '/_authenticated/list'
     | '/_authenticated/more'
     | '/_authenticated/my-work'
@@ -315,6 +327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFloorsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/jobs': {
+      id: '/_authenticated/jobs'
+      path: '/jobs'
+      fullPath: '/jobs'
+      preLoaderRoute: typeof AuthenticatedJobsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/list': {
       id: '/_authenticated/list'
       path: '/list'
@@ -367,6 +386,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
+  AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
   AuthenticatedListRoute: typeof AuthenticatedListRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
   AuthenticatedMyWorkRoute: typeof AuthenticatedMyWorkRoute
@@ -381,6 +401,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
+  AuthenticatedJobsRoute: AuthenticatedJobsRoute,
   AuthenticatedListRoute: AuthenticatedListRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
   AuthenticatedMyWorkRoute: AuthenticatedMyWorkRoute,
