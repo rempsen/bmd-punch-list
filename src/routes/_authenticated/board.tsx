@@ -164,6 +164,12 @@ function Card({
             <p className="truncate text-xs text-muted-foreground">
               {d.material} · {d.issue_type}
             </p>
+            {(d.responsible_party !== "unassigned" || d.assigned_to || d.assigned_trade) && (
+              <p className="truncate text-xs text-muted-foreground">
+                {respLabel(d.responsible_party)}
+                {assignee ? ` · ${assignee}` : ""}
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -185,6 +191,7 @@ function Card({
           ids={[d.id]}
           initialPerson={d.assigned_to}
           initialTrade={d.assigned_trade}
+          initialResponsible={d.responsible_party}
         />
       )}
     </div>

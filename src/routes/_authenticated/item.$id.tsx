@@ -1,5 +1,6 @@
 import type { DefRow } from "@/lib/data";
 import { AssignDialog } from "@/components/AssignDialog";
+import { respLabel } from "@/lib/responsible";
 import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -377,6 +378,7 @@ function ItemAssign({ item }: { item: DefRow }) {
   return (
     <div className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-input px-3 py-1.5">
       <div className="min-w-0 text-sm">
+        <div className="truncate text-xs text-muted-foreground">Responsible: {respLabel(item.responsible_party)}</div>
         <div className="truncate font-medium">{a.person || a.trade || "Unassigned"}</div>
         {a.person && a.trade && <div className="truncate text-xs text-muted-foreground">{a.trade}</div>}
       </div>
@@ -391,6 +393,7 @@ function ItemAssign({ item }: { item: DefRow }) {
             ids={[item.id]}
             initialPerson={item.assigned_to}
             initialTrade={item.assigned_trade}
+            initialResponsible={item.responsible_party}
           />
         </>
       )}
