@@ -1,5 +1,7 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { homeFor, useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   ssr: false,
@@ -8,8 +10,7 @@ export const Route = createFileRoute("/")({
       { title: "BMD Deficiency Tracker" },
       {
         name: "description",
-        content:
-          "Punch list and deficiency tracking for BMD Materials flooring and tile work at the Hyatt Centric.",
+        content: "Punch list and deficiency tracking for BMD Materials flooring and tile jobs.",
       },
       { property: "og:title", content: "BMD Deficiency Tracker" },
       {
@@ -23,16 +24,16 @@ export const Route = createFileRoute("/")({
   beforeLoad: async () => {
     const { data } = await supabase.auth.getUser();
     if (!data.user) throw redirect({ to: "/auth" });
-    const { data: roles } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id);
-    const list = (roles ?? []).map((r) => r.role);
-    if (list.includes("trade")) throw redirect({ to: "/my-work" });
-    if (list.includes("client")) throw redirect({ to: "/decisions" });
-    if (list.some((r) => ["super_admin", "bmd_admin", "bmd_manager", "bmd_field"].includes(r)))
-      throw redirect({ to: "/capture" });
-    throw redirect({ to: "/floors" });
   },
-  component: () => null,
+  component: Landing,
 });
+
+function Landing() {
+  const { loading, jobsLoaded, currentJob, role } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (loading || !jobsLoaded) return;
+    void navigate({ to: currentJob ? homeFor(role) : "/jobs", replace: true });
+  }, [loading, jobsLoaded, currentJob, role, navigate]);
+  return null;
+}
