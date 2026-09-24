@@ -1,3 +1,4 @@
+import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { FileDown, FileSpreadsheet, FileText } from "lucide-react";
@@ -69,7 +70,7 @@ function ExportsPage() {
               onChange={setFloor}
               options={[
                 { value: "all", label: "All floors" },
-                ...floors.map((f) => ({ value: String(f.number), label: `Floor ${f.number}` })),
+                ...floors.map((f) => ({ value: String(f.number), label: floorLabel(f) })),
               ]}
             />
             <Pick

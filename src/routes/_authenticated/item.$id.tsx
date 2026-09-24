@@ -1,3 +1,4 @@
+import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Camera, Trash2 } from "lucide-react";
@@ -99,7 +100,7 @@ function ItemDetail() {
       <PageHeader
         title={`${itemNo(item.item_number)} · ${item.locations?.name ?? ""}`}
         subtitle={
-          item.locations?.floors ? `Floor ${item.locations.floors.number} · ${item.area}` : item.area
+          item.locations?.floors ? `${floorLabel(item.locations.floors)} · ${item.area}` : item.area
         }
         actions={
           <Button variant="ghost" className="h-11" asChild>

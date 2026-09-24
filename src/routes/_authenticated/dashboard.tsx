@@ -1,3 +1,4 @@
+import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
@@ -63,7 +64,7 @@ function DashboardPage() {
   };
 
   const byFloor = floors.map((f) => ({
-    name: `F${f.number}`,
+    name: floorShort(f),
     open: filtered.filter((d) => d.locations?.floors?.number === f.number && !isClosed(d.status))
       .length,
   }));

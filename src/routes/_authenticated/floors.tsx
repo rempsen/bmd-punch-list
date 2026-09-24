@@ -1,3 +1,5 @@
+import { useAuth } from "@/lib/auth";
+import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
@@ -30,6 +32,7 @@ const toneClass: Record<Tone, string> = {
 };
 
 function FloorsPage() {
+  const { isAdmin } = useAuth();
   const { data: project } = useProject();
   const { data: floors = [] } = useFloors(project?.id);
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);
@@ -96,7 +99,7 @@ function FloorsPage() {
                 : "bg-muted text-muted-foreground",
             )}
           >
-            {f.number}
+            {floorShort(f)}
           </button>
         ))}
       </div>
@@ -123,11 +126,24 @@ function FloorsPage() {
 
         <section>
           <h2 className="mb-2 text-sm font-semibold text-muted-foreground uppercase">Rooms</h2>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-10">
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7 xl:grid-cols-14">
             {rooms.map((l) => (
               <Tile key={l.id} id={l.id} name={l.name} />
             ))}
           </div>
+          {rooms.length === 0 && (
+            <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+              No guest rooms on this floor.
+              {isAdmin && (
+                <>
+                  {" "}
+                  <Link to="/settings" className="font-medium text-primary underline-offset-4 hover:underline">
+                    Add rooms in Settings
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
         </section>
 
         {selected && (

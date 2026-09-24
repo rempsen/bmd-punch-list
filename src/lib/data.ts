@@ -255,5 +255,15 @@ export async function addComment(deficiencyId: string, userId: string | null, no
   if (error) throw new Error(error.message);
 }
 
+type FloorLike = { number: number; label?: string | null } | null | undefined;
+/** Full floor name, e.g. "Basement" or "Floor 3". */
+export const floorLabel = (f: FloorLike) =>
+  f ? (f.label?.trim() || `Floor ${f.number}`) : "—";
+/** Compact name for tabs/buttons: "Basement", "1", "2"… */
+export const floorShort = (f: FloorLike) => {
+  if (!f) return "—";
+  const l = f.label?.trim();
+  return !l || /^floor\s+\d+$/i.test(l) ? String(f.number) : l;
+};
 export const floorOf = (d: DefRow) => d.locations?.floors?.number ?? 0;
 export const locationName = (d: DefRow) => d.locations?.name ?? "—";

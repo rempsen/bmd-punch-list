@@ -1,3 +1,4 @@
+import { floorLabel, floorShort } from "@/lib/data";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import { itemNo, STATUS_LABEL, assessmentMeta } from "./bmd";
@@ -18,7 +19,7 @@ const flat = async (rows: ExportRow[]) => {
   const urls = allPaths.length > 0 ? await signPaths(allPaths) : {};
   return rows.map((r) => ({
     Item: itemNo(r.item_number),
-    Floor: r.locations?.floors?.number ?? "",
+    Floor: floorLabel(r.locations?.floors),
     Location: r.locations?.name ?? "",
     Area: r.area,
     Material: r.material,
@@ -132,6 +133,11 @@ export async function exportPdf(
 
   const urls = await signPaths(rows.flatMap((r) => r.photoPaths).slice(0, 120));
 
+  const floorNames = new Map<number, string>();
+  for (const r of rows) {
+    const f = r.locations?.floors;
+    if (f) floorNames.set(f.number, floorLabel(f));
+  }
   const byFloor = new Map<number, ExportRow[]>();
   for (const r of rows) {
     const f = r.locations?.floors?.number ?? 0;
@@ -145,7 +151,7 @@ export async function exportPdf(
     doc.rect(margin, y - 12, pageWidth - margin * 2, 20, "F");
     doc.setTextColor(255);
     doc.setFontSize(11);
-    doc.text(`Floor ${floorNumber}`, margin + 6, y + 2);
+    doc.text(floorNames.get(floorNumber) ?? `Floor ${floorNumber}`, margin + 6, y + 2);
     doc.setTextColor(20);
     y += 24;
 
