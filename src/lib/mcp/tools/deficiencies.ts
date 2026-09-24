@@ -26,7 +26,7 @@ type Row = {
   assessment: string;
   status: string;
   due_date: string | null;
-  client_decision_note: string | null;
+  client_decision_note?: string | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;
@@ -45,7 +45,7 @@ const toJson = (r: Row) => ({
   assessment: r.assessment,
   status: r.status,
   due_date: r.due_date,
-  client_decision_note: r.client_decision_note,
+  client_decision_note: r.client_decision_note ?? null,
   created_at: r.created_at,
   updated_at: r.updated_at,
   closed_at: r.closed_at,
