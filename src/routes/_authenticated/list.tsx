@@ -2,6 +2,7 @@ import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { AssignDialog } from "@/components/AssignDialog";
+import { AssignFilter } from "@/components/AssignFilter";
 import {
   assigneeText,
   assignFilterOptions,
@@ -368,42 +369,6 @@ function AssigneeCell({ d, pmap }: { d: DefRow; pmap: Map<string, Person> }) {
       {a.person || a.trade}
       {a.person && a.trade && <span className="block text-xs text-muted-foreground">{a.trade}</span>}
     </span>
-  );
-}
-
-export function AssignFilter({
-  value,
-  options,
-  onChange,
-}: {
-  value: string;
-  options: AssignOption[];
-  onChange: (v: string) => void;
-}) {
-  const groups: ("" | "People" | "Trades")[] = ["", "People", "Trades"];
-  return (
-    <Select value={options.some((o) => o.value === value) ? value : "all"} onValueChange={onChange}>
-      <SelectTrigger className="h-11 w-full sm:w-52">
-        <span className="mr-1 text-muted-foreground">Assigned:</span>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {groups.map((g) => {
-          const opts = options.filter((o) => o.group === g);
-          if (opts.length === 0) return null;
-          return (
-            <SelectGroup key={g || "base"}>
-              {g && <SelectLabel>{g}</SelectLabel>}
-              {opts.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          );
-        })}
-      </SelectContent>
-    </Select>
   );
 }
 
