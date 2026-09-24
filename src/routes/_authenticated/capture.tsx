@@ -19,10 +19,21 @@ import {
 } from "@/lib/data";
 import { uploadDeficiencyPhoto } from "@/lib/photos";
 import { cn } from "@/lib/utils";
+import { DesktopCaptureForm } from "@/components/DesktopCaptureForm";
 
 export const Route = createFileRoute("/_authenticated/capture")({
+  head: () => ({ meta: [{ title: "Add a deficiency — BMD Deficiency Tracker" }] }),
   component: CapturePage,
 });
+
+function CapturePage() {
+  return (
+    <>
+      <div className="md:hidden"><MobileCapture /></div>
+      <div className="hidden md:block"><DesktopCaptureForm /></div>
+    </>
+  );
+}
 
 type Step = "floor" | "location" | "area" | "material" | "issue" | "assessment" | "details" | "done";
 
@@ -61,7 +72,7 @@ function BigOption({
   );
 }
 
-function CapturePage() {
+function MobileCapture() {
   const { user, can } = useAuth();
   const isAdmin = can("manage_settings");
   const { data: project } = useProject();
@@ -188,7 +199,7 @@ function CapturePage() {
   return (
     <div>
       <PageHeader
-        title="Capture deficiency"
+        title="Add a deficiency"
         subtitle={crumb || project?.name || "New item"}
         actions={
           step !== "floor" && step !== "done" ? (

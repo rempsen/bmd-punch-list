@@ -148,7 +148,16 @@ export function useAuth() {
 /** Where a user should land inside the current job. */
 export function homeFor(role: AppRole | null): string {
   if (role === "trade") return "/my-work";
-  if (role === "client") return "/decisions";
-  if (role && ["super_admin", "bmd_admin", "bmd_manager", "bmd_field"].includes(role)) return "/capture";
-  return "/floors";
+  return "/dashboard";
+}
+
+/** Like homeFor, but clients land on Decisions when items await their decision. */
+export async function resolveHome(role: AppRole | null, projectId: string | null): Promise<string> {
+  if (role !== "client" || !projectId) return homeFor(role);
+  const { count } = await supabase
+    .from("deficiencies")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId)
+    .eq("status", "awaiting_client");
+  return (count ?? 0) > 0 ? "/decisions" : "/dashboard";
 }

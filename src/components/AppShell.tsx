@@ -18,7 +18,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-type NavItem = { to: string; label: string; icon: typeof Camera };
+type NavItem = { to: string; label: string; short?: string; icon: typeof Camera };
 
 export function useNavItems() {
   const { can, role } = useAuth();
@@ -27,11 +27,11 @@ export function useNavItems() {
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench });
   if (can("decide_client_items") && !can("capture_items"))
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
-  if (can("capture_items")) items.push({ to: "/capture", label: "Capture", icon: Camera });
+  if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
+  if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera });
   items.push({ to: "/floors", label: "Floors", icon: Grid3x3 });
   if (can("capture_items") || can("edit_any_item"))
     items.push({ to: "/board", label: "Board", icon: KanbanSquare });
-  if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
   items.push({ to: "/list", label: "List", icon: ClipboardList });
   if (can("export_pdf") || can("export_excel"))
     items.push({ to: "/exports", label: "Exports", icon: FileDown });
@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 )}
               >
                 <item.icon className="h-5 w-5" />
-                {item.label}
+                {item.short ?? item.label}
               </Link>
             ))}
             <Link

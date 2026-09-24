@@ -4,7 +4,7 @@ import { Building2, Check, FileClock, MapPin, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/AppShell";
-import { homeFor, useAuth } from "@/lib/auth";
+import { resolveHome, useAuth } from "@/lib/auth";
 import { roleLabel } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,7 @@ function JobsPage() {
     const job = jobs.find((j) => j.id === id);
     setProjectId(id);
     qc.removeQueries({ predicate: (q) => q.queryKey[0] !== "project" });
-    void navigate({ to: homeFor(job?.role ?? null) });
+    void resolveHome(job?.role ?? null, id).then((to) => navigate({ to }));
   };
 
   return (
