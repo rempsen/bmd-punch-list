@@ -166,7 +166,7 @@ export function DesktopCaptureForm() {
         if (then === "stay") setLocationId(null);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save");
+      toast.error(`Could not save: ${(err as { message?: string })?.message ?? String(err)}`);
     } finally {
       setSaving(false);
     }
