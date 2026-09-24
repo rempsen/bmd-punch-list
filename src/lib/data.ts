@@ -127,6 +127,10 @@ export function usePickLists() {
   });
 }
 
+/** client_decision_note is served through a permission-aware computed field. */
+export const DEF_SELECT =
+  "id,project_id,item_number,location_id,area,material,issue_type,description,assessment,status,assigned_to,due_date,is_sample,created_by,created_at,updated_at,closed_at,client_decision_note:decision_note,locations(id,name,type,floor_id,floors(number,label))";
+
 export function useDeficiencies(projectId?: string) {
   return useQuery({
     queryKey: ["deficiencies", projectId],
@@ -135,7 +139,7 @@ export function useDeficiencies(projectId?: string) {
       unwrap<DefRow[]>(
         await supabase
           .from("deficiencies")
-          .select("*, locations(id,name,type,floor_id,floors(number,label))")
+          .select(DEF_SELECT)
           .eq("project_id", projectId!)
           .order("item_number", { ascending: false }),
       ),
@@ -148,7 +152,7 @@ export function useDeficiency(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("deficiencies")
-        .select("*, locations(id,name,type,floor_id,floors(number,label))")
+        .select(DEF_SELECT)
         .eq("id", id)
         .maybeSingle();
       if (error) throw new Error(error.message);

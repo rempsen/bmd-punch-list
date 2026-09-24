@@ -1,3 +1,4 @@
+import { roleLabel } from "@/lib/roles";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut } from "lucide-react";
@@ -45,7 +46,7 @@ function MorePage() {
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm font-medium">{user?.email}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Access: {roles.join(", ") || "no role assigned yet"}
+            Access: {roles.map(roleLabel).join(", ") || "no role assigned yet"}
           </p>
           <Button variant="outline" className="mt-4 h-11" onClick={signOut}>
             <LogOut className="mr-2 h-4 w-4" /> Sign out
