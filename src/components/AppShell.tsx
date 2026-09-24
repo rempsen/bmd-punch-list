@@ -95,7 +95,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 to={item.to}
                 className={cn(
                   "flex min-h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-medium",
-                  pathname.startsWith(item.to) ? "text-primary" : "text-muted-foreground",
+                  pathname.startsWith(item.to) ? "border-t-2 border-blush text-primary" : "text-muted-foreground",
                 )}
               >
                 <item.icon className="h-5 w-5" />
@@ -106,7 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               to="/more"
               className={cn(
                 "flex min-h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-medium",
-                pathname.startsWith("/more") ? "text-primary" : "text-muted-foreground",
+                pathname.startsWith("/more") ? "border-t-2 border-blush text-primary" : "text-muted-foreground",
               )}
             >
               <MoreHorizontal className="h-5 w-5" />
