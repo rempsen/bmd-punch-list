@@ -118,7 +118,7 @@ async function findId(sb: ReturnType<typeof supabaseForUser>, item: string, job?
   if (error) throw new ToolError(error.message);
   if (!data?.[0]) throw new ToolError(`Deficiency ${item} not found`);
   if (data.length > 1) {
-    const names = data.map((d) => (d.projects as { name: string } | null)?.name).join(", ");
+    const names = data.map((d) => (d.projects as unknown as { name: string } | null)?.name).join(", ");
     throw new ToolError(`${item} exists on several jobs (${names}). Pass the job name.`);
   }
   return data[0].id as string;
