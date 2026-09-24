@@ -24,18 +24,20 @@ export const Route = createFileRoute("/auth")({
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>): { next?: string | undefined } => ({
+  validateSearch: (s: Record<string, unknown>): { next?: string | undefined; invite?: string | undefined; email?: string | undefined } => ({
+    invite: typeof s["invite"] === "string" ? s["invite"] : undefined,
+    email: typeof s["email"] === "string" ? s["email"] : undefined,
     next: typeof s["next"] === "string" && s["next"].startsWith("/") && !s["next"].startsWith("//") ? s["next"] : undefined,
   }),
   component: AuthPage,
 });
 
 function AuthPage() {
-  const { next } = Route.useSearch();
+  const { next, invite, email: invitedEmail } = Route.useSearch();
   const go = () => (next ? window.location.assign(next) : void navigate({ to: "/floors" }));
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [email, setEmail] = useState("");
+  const [mode, setMode] = useState<"signin" | "signup">(invite ? "signup" : "signin");
+  const [email, setEmail] = useState(invitedEmail ?? "");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false);
