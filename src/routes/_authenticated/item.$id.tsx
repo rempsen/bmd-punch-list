@@ -1,3 +1,5 @@
+import { AssignDialog } from "@/components/AssignDialog";
+import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -241,23 +243,7 @@ function ItemDetail() {
                 </Select>
               </Field>
               <Field label="Assigned to">
-                <Select
-                  value={item.assigned_to ?? "none"}
-                  disabled={!can("assign_items")}
-                  onValueChange={(v) => patch({ assigned_to: v === "none" ? null : v })}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Unassigned</SelectItem>
-                    {profiles.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.full_name ?? p.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <ItemAssign item={item} />
               </Field>
               <Field label="Due date">
                 <Input
@@ -334,7 +320,9 @@ function describeEvent(type: string, from: string | null, to: string | null) {
     case "assessment_change":
       return `Assessment ${from} → ${to}`;
     case "assignment":
-      return "Assignment changed";
+      return "Assigned person changed";
+    case "trade_assignment":
+      return `Trade ${from ?? "—"} → ${to ?? "—"}`;
     case "comment":
       return "Comment";
     default:
@@ -377,5 +365,34 @@ function PickSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function ItemAssign({ item }: { item: DefRow }) {
+  const { can, projectId } = useAuth();
+  const { data: people = [] } = useProjectPeople(projectId);
+  const [open, setOpen] = useState(false);
+  const a = assigneeText(item, peopleMap(people));
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-2 rounded-md border border-input px-3 py-1.5">
+      <div className="min-w-0 text-sm">
+        <div className="truncate font-medium">{a.person || a.trade || "Unassigned"}</div>
+        {a.person && a.trade && <div className="truncate text-xs text-muted-foreground">{a.trade}</div>}
+      </div>
+      {can("assign_items") && (
+        <>
+          <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+            Assign
+          </Button>
+          <AssignDialog
+            open={open}
+            onOpenChange={setOpen}
+            ids={[item.id]}
+            initialPerson={item.assigned_to}
+            initialTrade={item.assigned_trade}
+          />
+        </>
+      )}
+    </div>
   );
 }
