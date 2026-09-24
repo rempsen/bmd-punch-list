@@ -349,8 +349,9 @@ function PickSelect({
   value: string;
   options: string[];
   onChange: (v: string) => void;
-  disabled?: boolean;
+  disabled?: boolean | undefined;
 }) {
+  const isDisabled = disabled ?? false;
   const list = options.includes(value) ? options : [value, ...options];
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
