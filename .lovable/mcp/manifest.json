@@ -29,6 +29,10 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "job": {
+              "description": "Job name (or part of it). Needed when you belong to more than one job.",
+              "type": "string"
+            },
             "status": {
               "description": "Filter by workflow status.",
               "type": "string",
@@ -85,6 +89,10 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "job": {
+              "description": "Job name (or part of it). Needed when you belong to more than one job.",
+              "type": "string"
+            },
             "item": {
               "type": "string",
               "minLength": 1,
@@ -111,6 +119,10 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "job": {
+              "description": "Job name (or part of it). Needed when you belong to more than one job.",
+              "type": "string"
+            },
             "item": {
               "type": "string",
               "minLength": 1,
@@ -155,6 +167,10 @@
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
           "properties": {
+            "job": {
+              "description": "Job name (or part of it). Needed when you belong to more than one job.",
+              "type": "string"
+            },
             "item": {
               "type": "string",
               "minLength": 1,
