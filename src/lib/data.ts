@@ -139,7 +139,7 @@ export function useDeficiencies(projectId?: string) {
       unwrap<DefRow[]>(
         await supabase
           .from("deficiencies")
-          .select(DEF_SELECT)
+          .select(DEF_SELECT as "*")
           .eq("project_id", projectId!)
           .order("item_number", { ascending: false }),
       ),
@@ -152,7 +152,7 @@ export function useDeficiency(id: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("deficiencies")
-        .select(DEF_SELECT)
+        .select(DEF_SELECT as "*")
         .eq("id", id)
         .maybeSingle();
       if (error) throw new Error(error.message);
