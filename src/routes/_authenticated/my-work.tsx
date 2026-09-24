@@ -16,6 +16,7 @@ import {
   useUpdateDeficiency,
   type DefRow,
 } from "@/lib/data";
+import { peopleMap, tradeOf, useProjectPeople } from "@/lib/assign";
 import { uploadDeficiencyPhoto, useSignedUrls } from "@/lib/photos";
 
 export const Route = createFileRoute("/_authenticated/my-work")({
@@ -49,16 +50,25 @@ function MyWorkPage() {
   const paths = useMemo(() => photos.map((p) => p.storage_path), [photos]);
   const { data: urls = {} } = useSignedUrls(paths);
 
+  const { user, projectId } = useAuth();
+  const { data: people = [] } = useProjectPeople(projectId);
   const groups = useMemo(() => {
+    const pmap = peopleMap(people);
+    const myCompany = (user ? pmap.get(user.id)?.company : null)?.trim().toLowerCase();
+    const mine = work.filter(
+      (i) => (user && i.assigned_to === user.id) || (!!myCompany && tradeOf(i, pmap).toLowerCase() === myCompany),
+    );
+    const mineIds = new Set(mine.map((i) => i.id));
     const m = new Map<number, { label: string; items: DefRow[] }>();
-    for (const i of work) {
+    for (const i of work.filter((w) => !mineIds.has(w.id))) {
       const f = i.locations?.floors;
       const n = f?.number ?? -1;
       if (!m.has(n)) m.set(n, { label: floorLabel(f), items: [] });
       m.get(n)!.items.push(i);
     }
-    return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
-  }, [work]);
+    const rest = [...m.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+    return mine.length ? [{ label: "Assigned to you", items: mine }, ...rest] : rest;
+  }, [work, people, user]);
 
   return (
     <div>
