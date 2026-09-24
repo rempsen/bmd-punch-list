@@ -24,7 +24,7 @@ export function SearchSelect({
   placeholder?: string;
   disabled?: boolean;
   invalid?: boolean;
-  onCreate?: (text: string) => void | Promise<void>;
+  onCreate?: ((text: string) => unknown) | undefined;
   createLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
