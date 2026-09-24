@@ -134,35 +134,31 @@ export async function exportPdf(
 
   const urls = await signPaths(rows.flatMap((r) => r.photoPaths).slice(0, 120));
 
-  const floorNames = new Map<number, string>();
-  for (const r of rows) {
-    const f = r.locations?.floors;
-    if (f) floorNames.set(f.number, floorLabel(f));
-  }
-  const byFloor = new Map<number, ExportRow[]>();
-  for (const r of rows) {
-    const f = r.locations?.floors?.number ?? 0;
-    byFloor.set(f, [...(byFloor.get(f) ?? []), r]);
-  }
+  const sections = buildSections(rows, opts);
 
-  for (const floorNumber of [...byFloor.keys()].sort((a, b) => a - b)) {
-    const floorRows = byFloor.get(floorNumber) ?? [];
-    ensureSpace(40);
+  for (const section of sections) {
+    ensureSpace(60);
+    const headerH = 20 + section.lines.length * 11;
     doc.setFillColor(35, 45, 70);
-    doc.rect(margin, y - 12, pageWidth - margin * 2, 20, "F");
+    doc.rect(margin, y - 12, pageWidth - margin * 2, headerH, "F");
     doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text(floorNames.get(floorNumber) ?? `Floor ${floorNumber}`, margin + 6, y + 2);
+    doc.text(section.title, margin + 6, y + 2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`${section.rows.length} item${section.rows.length === 1 ? "" : "s"}`, pageWidth - margin - 6, y + 2, { align: "right" });
+    section.lines.forEach((l, i) => doc.text(l, margin + 6, y + 14 + i * 11));
     doc.setTextColor(20);
-    y += 24;
+    y += headerH + 4;
 
     const byLocation = new Map<string, ExportRow[]>();
-    for (const r of floorRows) {
-      const name = r.locations?.name ?? "—";
+    for (const r of section.rows) {
+      const name = locKey(r, opts.groupBy !== "floor");
       byLocation.set(name, [...(byLocation.get(name) ?? []), r]);
     }
 
-    for (const name of [...byLocation.keys()].sort()) {
+    for (const name of byLocation.keys()) {
       ensureSpace(92);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
