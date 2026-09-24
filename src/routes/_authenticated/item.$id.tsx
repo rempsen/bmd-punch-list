@@ -134,6 +134,11 @@ function ItemDetail() {
                 />
               </div>
             )}
+            {item.status !== "awaiting_client" && item.client_decision_note && (
+              <p className="mt-4 rounded-md bg-muted p-3 text-sm">
+                <span className="font-medium">Client note:</span> {item.client_decision_note}
+              </p>
+            )}
           </section>
 
           <section className="rounded-lg border border-border bg-card p-4">
