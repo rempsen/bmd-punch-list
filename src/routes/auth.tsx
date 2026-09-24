@@ -132,8 +132,8 @@ function AuthPage() {
           {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
         </button>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          New accounts get BMD field access. Ask your BMD admin to change your access in Settings →
-          Users.
+          You'll see the jobs your BMD admin invited you to. If you don't see a job, ask your BMD
+          admin to add you in Settings → Users.
         </p>
       </div>
     </div>
