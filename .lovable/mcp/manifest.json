@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "sdk_version": "3.0.2",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://coeixwkzefkwtywfhtpb.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "bmd-punch",
+      "version": "0.1.0",
+      "title": "BMD Punch"
+    },
+    "tools": [
+      {
+        "name": "list_deficiencies",
+        "title": "List deficiencies",
+        "description": "List punch list deficiencies, optionally filtered by status, assessment, floor or text search.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "description": "Filter by workflow status.",
+              "type": "string",
+              "enum": [
+                "open",
+                "awaiting_client",
+                "accepted_as_is",
+                "fix_required",
+                "in_progress",
+                "fixed",
+                "verified"
+              ]
+            },
+            "assessment": {
+              "description": "Filter by assessment.",
+              "type": "string",
+              "enum": [
+                "acceptable",
+                "client_review",
+                "must_fix"
+              ]
+            },
+            "floor": {
+              "description": "Floor number, e.g. 5.",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "search": {
+              "description": "Text to match in location, material, issue or description.",
+              "type": "string"
+            },
+            "limit": {
+              "description": "Max rows (default 50).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_deficiency",
+        "title": "Get deficiency",
+        "description": "Get one deficiency by item number (e.g. D-0012) with its activity and comments.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "item": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Item number, e.g. D-0012."
+            }
+          },
+          "required": [
+            "item"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "update_deficiency_status",
+        "title": "Update deficiency status",
+        "description": "Move a deficiency to a new status. Workflow rules and your role apply (e.g. 'fixed' needs an after photo).",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "item": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Item number, e.g. D-0012."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "open",
+                "awaiting_client",
+                "accepted_as_is",
+                "fix_required",
+                "in_progress",
+                "fixed",
+                "verified"
+              ],
+              "description": "New status."
+            },
+            "note": {
+              "description": "Optional decision note (used for client decisions).",
+              "type": "string"
+            }
+          },
+          "required": [
+            "item",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "add_deficiency_comment",
+        "title": "Add comment",
+        "description": "Add a comment to a deficiency's activity timeline.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "item": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Item number, e.g. D-0012."
+            },
+            "comment": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Comment text."
+            }
+          },
+          "required": [
+            "item",
+            "comment"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
