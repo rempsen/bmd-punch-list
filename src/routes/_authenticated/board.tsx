@@ -13,6 +13,8 @@ import { cn } from "@/lib/utils";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssignDialog } from "@/components/AssignDialog";
+import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
+import { respLabel } from "@/lib/responsible";
 
 export const Route = createFileRoute("/_authenticated/board")({
   validateSearch: (s: Record<string, unknown>): BoardFilters => ({
@@ -134,9 +136,12 @@ function Card({
   photo?: string | undefined;
   onDragStart: () => void;
 }) {
-  const { can } = useAuth();
+  const { can, projectId } = useAuth();
   const canAssign = can("assign_items");
   const [open, setOpen] = useState(false);
+  const { data: people = [] } = useProjectPeople(projectId);
+  const a = assigneeText(d, peopleMap(people));
+  const assignee = a.person || a.trade;
   return (
     <div
       draggable
