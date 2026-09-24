@@ -1,45 +1,21 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, Pencil } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type Job } from "@/lib/auth";
 
 export function ProjectsPanel() {
-  const { jobs, refreshPermissions, setProjectId, projectId } = useAuth();
+  const { jobs, refreshPermissions, projectId } = useAuth();
   const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [client, setClient] = useState("");
-  const [address, setAddress] = useState("");
-  const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
   const reload = async () => {
     await refreshPermissions();
     void qc.invalidateQueries({ queryKey: ["project"] });
-  };
-
-  const create = async () => {
-    if (!name.trim()) {
-      toast.error("Enter a job name");
-      return;
-    }
-    setBusy(true);
-    const { data, error } = await supabase.rpc("create_project", { _name: name, _client: client, _address: address });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setName("");
-    setClient("");
-    setAddress("");
-    await reload();
-    toast.success("Job created with the default pick lists", {
-      action: data ? { label: "Open it", onClick: () => setProjectId(data as string) } : undefined,
-    });
   };
 
   const archive = async (job: Job, on: boolean) => {
@@ -57,18 +33,15 @@ export function ProjectsPanel() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-border bg-card p-4">
-        <h2 className="mb-1 text-sm font-semibold text-muted-foreground uppercase">New job</h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          A new job starts empty with the default pick lists. Open it, then add floors and rooms under Floors &amp; rooms.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Input className="h-11" placeholder="Job name" value={name} onChange={(e) => setName(e.target.value)} />
-          <Input className="h-11" placeholder="Client name" value={client} onChange={(e) => setClient(e.target.value)} />
-          <Input className="h-11" placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase">New job</h2>
+          <p className="text-sm text-muted-foreground">Guided setup: details, client, scopes and the building's floors and rooms.</p>
         </div>
-        <Button className="mt-3 h-11" disabled={busy} onClick={() => void create()}>
-          Create job
+        <Button asChild className="h-11">
+          <Link to="/new-job">
+            <Plus className="mr-1 h-4 w-4" /> New job
+          </Link>
         </Button>
       </section>
 

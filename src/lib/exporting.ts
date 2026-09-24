@@ -72,6 +72,7 @@ async function toDataUrl(url: string): Promise<string | null> {
 export async function exportPdf(
   rows: ExportRow[],
   project: { name: string; client_name: string | null; address: string | null },
+  clientText?: string,
 ) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -93,7 +94,7 @@ export async function exportPdf(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(90, 90, 90);
-    doc.text(reportDate, tx, margin + 22);
+    doc.text(clientText ? `${reportDate}  ·  ${clientText}` : reportDate, tx, margin + 22);
     doc.setTextColor(0, 0, 0);
     doc.setDrawColor(232, 196, 184);
     doc.line(margin, margin + 38, pageWidth - margin, margin + 38);
@@ -110,7 +111,7 @@ export async function exportPdf(
   drawHeader();
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  const sub = [project.client_name, project.address].filter(Boolean).join("  ·  ");
+  const sub = [clientText ? null : project.client_name, project.address].filter(Boolean).join("  ·  ");
   if (sub) {
     doc.text(sub, margin, y);
     y += 18;

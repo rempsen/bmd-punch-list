@@ -24,6 +24,7 @@ import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/j
 import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
 import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated/my-work'
+import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated/new-job'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
@@ -103,6 +104,11 @@ const AuthenticatedMyWorkRoute = AuthenticatedMyWorkRouteImport.update({
   path: '/my-work',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedNewJobRoute = AuthenticatedNewJobRouteImport.update({
+  id: '/new-job',
+  path: '/new-job',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
+  '/new-job': typeof AuthenticatedNewJobRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
+  '/new-job': typeof AuthenticatedNewJobRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/_authenticated/list': typeof AuthenticatedListRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
   '/_authenticated/my-work': typeof AuthenticatedMyWorkRoute
+  '/_authenticated/new-job': typeof AuthenticatedNewJobRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/list'
     | '/more'
     | '/my-work'
+    | '/new-job'
     | '/settings'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -214,6 +224,7 @@ export interface FileRouteTypes {
     | '/list'
     | '/more'
     | '/my-work'
+    | '/new-job'
     | '/settings'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -234,6 +245,7 @@ export interface FileRouteTypes {
     | '/_authenticated/list'
     | '/_authenticated/more'
     | '/_authenticated/my-work'
+    | '/_authenticated/new-job'
     | '/_authenticated/settings'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
@@ -355,6 +367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyWorkRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/new-job': {
+      id: '/_authenticated/new-job'
+      path: '/new-job'
+      fullPath: '/new-job'
+      preLoaderRoute: typeof AuthenticatedNewJobRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -390,6 +409,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedListRoute: typeof AuthenticatedListRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
   AuthenticatedMyWorkRoute: typeof AuthenticatedMyWorkRoute
+  AuthenticatedNewJobRoute: typeof AuthenticatedNewJobRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
 }
@@ -405,6 +425,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedListRoute: AuthenticatedListRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
   AuthenticatedMyWorkRoute: AuthenticatedMyWorkRoute,
+  AuthenticatedNewJobRoute: AuthenticatedNewJobRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
 }

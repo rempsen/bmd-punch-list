@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { ASSESSMENTS, isClosed, STATUS_LABEL } from "@/lib/bmd";
 import { useDeficiencies, useFloors, usePhotos, useProject } from "@/lib/data";
+import { clientLine, useContacts } from "@/lib/data";
 import { buildRows, exportCsv, exportExcel, exportPdf } from "@/lib/exporting";
 
 export const Route = createFileRoute("/_authenticated/exports")({
@@ -27,6 +28,7 @@ function ExportsPage() {
   const pdfOk = can("export_pdf");
   const xlsOk = can("export_excel");
   const { data: project } = useProject();
+  const { data: contacts = [] } = useContacts(project?.id);
   const { data: items = [] } = useDeficiencies(project?.id);
   const { data: floors = [] } = useFloors(project?.id);
   const ids = useMemo(() => items.map((i) => i.id), [items]);
@@ -52,7 +54,7 @@ function ExportsPage() {
     if (!project) return;
     setBusy(kind);
     try {
-      if (kind === "pdf") await exportPdf(rows, project);
+      if (kind === "pdf") await exportPdf(rows, project, clientLine(project.client_name, contacts));
       if (kind === "xlsx") await exportExcel(rows, project.name);
       if (kind === "csv") await exportCsv(rows, project.name);
     } catch (err) {

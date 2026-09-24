@@ -72,9 +72,61 @@ export function useProject() {
     queryFn: async () => {
       const { data, error } = await supabase.from("projects").select("*").eq("id", projectId!).maybeSingle();
       if (error) throw new Error(error.message);
-      return data as { id: string; name: string; client_name: string | null; address: string | null } | null;
+      return data;
     },
   });
+}
+
+export type ProjectContact = {
+  id: string;
+  project_id: string;
+  kind: string;
+  name: string | null;
+  company: string | null;
+  title: string | null;
+  email: string | null;
+  phone_mobile: string | null;
+  phone_office: string | null;
+  is_primary: boolean;
+  sort_order: number;
+};
+
+export function useContacts(projectId?: string | null) {
+  return useQuery({
+    queryKey: ["contacts", projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("project_contacts")
+        .select("*")
+        .eq("project_id", projectId!)
+        .order("sort_order");
+      if (error) throw new Error(error.message);
+      return (data ?? []) as ProjectContact[];
+    },
+  });
+}
+
+export function useScopes(projectId?: string | null) {
+  return useQuery({
+    queryKey: ["scopes", projectId],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("project_scopes").select("*").eq("project_id", projectId!);
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+  });
+}
+
+/** "Client: Hyatt Centric, contact Jane Smith (PM) · 204-555-0100" */
+export function clientLine(clientName: string | null | undefined, contacts: ProjectContact[]) {
+  const primary = contacts.find((c) => c.kind === "client" && c.is_primary) ?? contacts.find((c) => c.kind === "client");
+  const company = primary?.company || clientName;
+  if (!company && !primary?.name) return "";
+  const who = primary?.name ? `, contact ${primary.name}${primary.title ? ` (${primary.title})` : ""}` : "";
+  const reach = [primary?.phone_mobile || primary?.phone_office, primary?.email].filter(Boolean).join(" · ");
+  return `Client: ${company ?? "—"}${who}${reach ? ` · ${reach}` : ""}`;
 }
 
 export function useFloors(projectId?: string) {

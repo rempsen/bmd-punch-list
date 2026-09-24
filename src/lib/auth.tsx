@@ -25,6 +25,8 @@ type AuthValue = {
   loading: boolean;
   isSuperAdmin: boolean;
   can: (cap: Capability) => boolean;
+  /** Super admin, or manage_settings on at least one job. */
+  canCreateJobs: boolean;
   refreshPermissions: () => Promise<void>;
   signOut: () => Promise<void>;
   /** Jobs this user can open. */
@@ -120,6 +122,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     isSuperAdmin,
     can: (cap) => isSuperAdmin || (!!currentJob && caps.has(cap)),
+    canCreateJobs:
+      isSuperAdmin ||
+      jobs.some((j) => perms.some((p) => p.allowed && p.capability === "manage_settings" && normalise(p.role) === j.role)),
     refreshPermissions: () => load(session?.user.id),
     signOut: async () => {
       await supabase.auth.signOut();

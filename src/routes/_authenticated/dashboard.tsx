@@ -1,7 +1,8 @@
 import { useAuth } from "@/lib/auth";
 import { AiSummary } from "@/components/AiSummary";
 import { floorLabel, floorShort } from "@/lib/data";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { CheckCircle2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Bar,
@@ -24,9 +25,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ASSESSMENTS, isClosed } from "@/lib/bmd";
-import { useAllEvents, useDeficiencies, useFloors, usePickLists, useProject } from "@/lib/data";
+import { clientLine, useContacts, useAllEvents, useDeficiencies, useFloors, usePickLists, useProject } from "@/lib/data";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
+  validateSearch: (s: Record<string, unknown>): { welcome?: string | undefined } => ({
+    welcome: typeof s["welcome"] === "string" ? s["welcome"] : undefined,
+  }),
   component: DashboardPage,
 });
 
@@ -37,6 +41,9 @@ function DashboardPage() {
   const { data: floors = [] } = useFloors(project?.id);
   const { data: picks } = usePickLists();
   const { data: events = [] } = useAllEvents(project?.id);
+  const { data: contacts = [] } = useContacts(project?.id);
+  const { welcome } = Route.useSearch();
+  const navigate = useNavigate({ from: "/dashboard" });
 
   const [floor, setFloor] = useState("all");
   const [assessment, setAssessment] = useState("all");
@@ -116,7 +123,37 @@ function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title={project?.name ?? "Dashboard"} subtitle={[project?.address, project?.client_name && `Client: ${project.client_name}`].filter(Boolean).join(" · ") || undefined} />
+      <PageHeader title={project?.name ?? "Dashboard"} subtitle={[project?.address, clientLine(project?.client_name, contacts)].filter(Boolean).join(" · ") || undefined} />
+      {welcome && (
+        <div className="mx-4 mt-4 rounded-lg border border-blush bg-card p-4 md:mx-6">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-semibold">Your new job is set up</p>
+              <p className="text-sm text-muted-foreground">Three things to do next:</p>
+            </div>
+            <button type="button" aria-label="Dismiss" onClick={() => void navigate({ search: {}, replace: true })} className="rounded p-1 hover:bg-muted">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <ol className="mt-3 grid gap-2 sm:grid-cols-3">
+            {[
+              { to: "/settings" as const, search: { tab: "users" }, label: "Invite users", hint: "Settings → Users" },
+              { to: "/settings" as const, search: { tab: "lists" }, label: "Review pick lists", hint: "Settings → Pick lists" },
+              { to: "/capture" as const, search: undefined, label: "Start capturing", hint: "Log the first deficiency" },
+            ].map((c) => (
+              <li key={c.label}>
+                <Link to={c.to} search={c.search as never} className="flex min-h-14 items-center gap-2 rounded-md border border-border px-3 py-2 hover:bg-muted">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                  <span>
+                    <span className="block text-sm font-medium">{c.label}</span>
+                    <span className="block text-xs text-muted-foreground">{c.hint}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 border-b border-border bg-card px-4 py-3 md:px-6">
         <Filter
