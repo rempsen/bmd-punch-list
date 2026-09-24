@@ -164,9 +164,9 @@ function FloorsPage() {
                     <Link
                       to="/item/$id"
                       params={{ id: d.id }}
-                      className="flex flex-wrap items-center gap-2 py-3 text-sm hover:bg-muted/50"
+                      className="group -mx-2 flex cursor-pointer flex-wrap items-center gap-2 rounded-md border border-transparent px-2 py-3 text-sm outline-none transition hover:-translate-y-0.5 hover:border-primary hover:bg-card hover:shadow-md focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      <span className="font-mono font-semibold">{itemNo(d.item_number)}</span>
+                      <span className="font-mono font-semibold underline-offset-2 group-hover:underline group-focus-visible:underline">{itemNo(d.item_number)}</span>
                       <span className="text-muted-foreground">
                         {d.area} · {d.material} · {d.issue_type}
                       </span>

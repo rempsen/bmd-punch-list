@@ -135,27 +135,35 @@ function Card({
     <div
       draggable
       onDragStart={onDragStart}
-      className={cn("rounded-lg border border-border bg-card p-3 shadow-sm")}
+      className={cn(
+        "rounded-lg border border-border bg-card p-3 shadow-sm transition",
+        "has-[.card-link:hover]:-translate-y-0.5 has-[.card-link:hover]:border-primary has-[.card-link:hover]:shadow-md",
+        "has-[.card-link:focus-visible]:ring-2 has-[.card-link:focus-visible]:ring-ring has-[.card-link:focus-visible]:border-primary",
+      )}
     >
-      <div className="flex gap-3">
-        <PhotoThumb path={photo ?? null} className="h-14 w-14 shrink-0" />
-        <div className="min-w-0 flex-1">
-          <Link
-            to="/item/$id"
-            params={{ id: d.id }}
-            className="font-mono text-sm font-semibold hover:underline"
-          >
-            {itemNo(d.item_number)}
-          </Link>
-          <p className="truncate text-sm font-medium">{d.locations?.name}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {d.material} · {d.issue_type}
-          </p>
+      <Link
+        to="/item/$id"
+        params={{ id: d.id }}
+        draggable={false}
+        aria-label={`Open ${itemNo(d.item_number)} – ${d.locations?.name ?? ""}`}
+        className="card-link group block cursor-pointer rounded-md outline-none"
+      >
+        <div className="flex gap-3">
+          <PhotoThumb path={photo ?? null} className="h-14 w-14 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <span className="font-mono text-sm font-semibold underline-offset-2 group-hover:underline group-focus-visible:underline">
+              {itemNo(d.item_number)}
+            </span>
+            <p className="truncate text-sm font-medium">{d.locations?.name}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {d.material} · {d.issue_type}
+            </p>
+          </div>
         </div>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <AssessmentBadge value={d.assessment} />
-      </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <AssessmentBadge value={d.assessment} />
+        </div>
+      </Link>
       <div className="mt-2">
         <StatusActions id={d.id} status={d.status} size="sm" />
       </div>
