@@ -69,12 +69,12 @@ function FloorsPage() {
         type="button"
         onClick={() => setSelected(id)}
         className={cn(
-          "flex min-h-[56px] flex-col items-center justify-center rounded-lg border-2 px-1 text-sm font-semibold",
+          "flex min-h-[56px] w-full min-w-0 flex-col items-center justify-center rounded-lg border-2 px-2 py-1 text-sm font-semibold",
           toneClass[tone],
           selected === id && "ring-4 ring-foreground/20",
         )}
       >
-        <span className="truncate px-1">{name}</span>
+        <span className="line-clamp-2 w-full break-words text-center leading-tight" title={name}>{name}</span>
         {list.length > 0 && <span className="text-[11px] font-medium opacity-90">{list.length}</span>}
       </button>
     );
