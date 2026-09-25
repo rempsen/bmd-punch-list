@@ -30,12 +30,23 @@ export const summarisePunchList = createServerFn({ method: "POST" })
     if (!project) throw new Error("Job not found");
     const { data: items, error } = await context.supabase
       .from("deficiencies")
-      .select("item_number,area,material,issue_type,description,assessment,status,due_date,created_at,locations(name,floors(number,label))")
+      .select("id,item_number,area,material,issue_type,description,assessment,status,due_date,created_at,assigned_trade,responsible_party,decision_reason,locations(name,floors(number,label))")
       .eq("project_id", data.projectId)
       .order("item_number");
     if (error) throw new Error(error.message);
 
+    const ids = (items ?? []).map((d) => d.id);
+    const [{ data: photos }, { data: events }, { count: inboxNew }] = await Promise.all([
+      ids.length ? context.supabase.from("deficiency_photos").select("deficiency_id,kind").in("deficiency_id", ids) : Promise.resolve({ data: [] as { deficiency_id: string; kind: string }[] }),
+      ids.length ? context.supabase.from("deficiency_events").select("deficiency_id,event_type,note,created_at").in("deficiency_id", ids).not("note", "is", null).order("created_at", { ascending: false }).limit(400) : Promise.resolve({ data: [] as { deficiency_id: string; event_type: string; note: string | null; created_at: string }[] }),
+      context.supabase.from("companycam_inbox").select("id", { count: "exact", head: true }).eq("project_id", data.projectId).eq("status", "new"),
+    ]);
+    const pc = new Map<string, { b: number; a: number }>();
+    for (const p of photos ?? []) { const c = pc.get(p.deficiency_id) ?? { b: 0, a: 0 }; if (p.kind === "after") c.a++; else c.b++; pc.set(p.deficiency_id, c); }
+    const notes = new Map<string, string[]>();
+    for (const e of events ?? []) { const l = notes.get(e.deficiency_id) ?? []; if (l.length < 2 && e.note) l.push(e.note.slice(0, 140)); notes.set(e.deficiency_id, l); }
     const lines = (items ?? []).map((d) => {
+      const c = pc.get(d.id) ?? { b: 0, a: 0 };
       const loc = d.locations as { name: string; floors: { number: number; label: string } | null } | null;
       return [
         `D-${String(d.item_number).padStart(4, "0")}`,
@@ -48,22 +59,27 @@ export const summarisePunchList = createServerFn({ method: "POST" })
         STATUS[d.status] ?? d.status,
         d.due_date ? `due ${d.due_date}` : "",
         d.description ? `"${d.description.slice(0, 160)}"` : "",
+        d.assigned_trade ? `assigned ${d.assigned_trade}` : `responsible ${d.responsible_party}`,
+        `photos ${c.b} before / ${c.a} after`,
+        d.decision_reason ? `client request: "${d.decision_reason.slice(0, 120)}"` : "",
+        ...(notes.get(d.id) ?? []).map((n) => `note: "${n}"`),
       ].filter(Boolean).join(" | ");
     });
 
     const today = new Date().toISOString().slice(0, 10);
     const prompt = `Project: ${project?.name ?? "Unknown"} (client: ${project?.client_name ?? "—"}). Today: ${today}.
+CompanyCam photos still waiting for review in the Photo inbox: ${inboxNew ?? 0}.
 Flooring & tile deficiency punch list, ${lines.length} items (closed = Accepted as-is or Verified):
 ${lines.join("\n") || "(no items)"}
 
-Write a concise progress summary (under 250 words) in markdown for the site team and the client:
-- One-sentence headline on overall status.
-- Key numbers: total, open vs closed, must-fix still open, awaiting client decision.
-- Hot spots: floors/rooms or materials/issues with the most open items.
-- Items needing the client's decision (list D-numbers).
-- Overdue items if any.
-- 2-3 recommended next actions.
-Only use facts from the data. Do not invent items.`;
+Write a clear punch-list summary (under 350 words) in markdown for the site team and the client, using short headings:
+- **Headline**: one sentence on overall status.
+- **Key numbers**: total, open vs closed, must-fix still open, awaiting client decision, overdue.
+- **Still open**: the open items grouped by floor, one short line each (D-number, room, what's wrong, who has it, due date).
+- **Photo review gaps**: items marked Fixed with no after photo, open items with no before photo, and the number of CompanyCam photos still waiting in the Photo inbox.
+- **Waiting on the client**: D-numbers and what BMD is asking.
+- **Next actions**: 2-4 concrete steps, naming trades or people where the data shows them.
+Use the notes to explain what's actually happening on an item. Only use facts from the data. Do not invent items, people or dates.`;
 
     const { streamText } = await import("ai");
     const { createOpenAI } = await import("@ai-sdk/openai");
