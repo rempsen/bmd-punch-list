@@ -118,9 +118,9 @@ ${text.slice(0, 6000)}`;
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** Map AI text answers to real IDs; unknowns fall back to the default job + placeholder location. */
-export async function resolve(admin: Admin, p: Parsed, jobs: Jobs, defaultProject: string | null) {
+export async function resolve(admin: Admin, p: Parsed, jobs: Jobs, defaultProject: string | null, forcedProject: string | null = null) {
   const missing: string[] = [];
-  let job = jobs.find((j) => norm(j.name) === norm(p.job)) ?? jobs.find((j) => p.job && norm(j.name).includes(norm(p.job)));
+  let job = (forcedProject ? jobs.find((j) => j.id === forcedProject) : undefined) ?? jobs.find((j) => norm(j.name) === norm(p.job)) ?? jobs.find((j) => p.job && norm(j.name).includes(norm(p.job)));
   if (!job) {
     missing.push("job");
     job = jobs.find((j) => j.id === defaultProject) ?? jobs[0];
@@ -193,12 +193,15 @@ async function loadTraining(admin: Admin, fromEmail?: string | null) {
   return { settings: s, examples: [...mine.slice(0, 6), ...rest].slice(0, 8) };
 }
 
-export async function ingestOne(admin: Admin, row: { id: string; message_id: string; from_name: string | null; from_email: string | null; subject: string | null; body_text: string | null }, hasAttachments: boolean) {
+export async function ingestOne(admin: Admin, row: { id: string; message_id: string; from_name: string | null; from_email: string | null; subject: string | null; body_text: string | null }, hasAttachments: boolean, tag: string | null = null) {
   const { settings, examples } = await loadTraining(admin, row.from_email);
   const jobs = await context(admin);
   try {
     const parsed = await parseEmail(emailText(row), jobs, settings?.rules ?? "", examples);
-    const r = await resolve(admin, parsed, jobs, settings?.default_project_id ?? null);
+    // The +tag in the address (e.g. dan+centric@) names the job; "ingest" means "let the AI decide".
+    const t = norm(tag);
+    const tagged = t && t !== "ingest" ? jobs.find((j) => norm(j.name).includes(t))?.id ?? null : null;
+    const r = await resolve(admin, parsed, jobs, settings?.default_project_id ?? null, tagged);
     const userId = settings?.created_by_user ?? null;
     const { data: def, error } = await admin
       .from("deficiencies")
@@ -223,7 +226,7 @@ export async function ingestOne(admin: Admin, row: { id: string; message_id: str
   }
 }
 
-/** Poll the mailbox for new "+ingest@" emails since the saved cursor. */
+/** Poll the mailbox for new plus-addressed (e.g. "+centric@") emails since the saved cursor. */
 export async function pollMailbox(admin: Admin) {
   const { settings } = await loadTraining(admin);
   const since = settings?.cursor_at ?? new Date(Date.now() - 86400000).toISOString();
@@ -239,7 +242,9 @@ export async function pollMailbox(admin: Admin) {
   for (const m of value ?? []) {
     cursor = m.receivedDateTime;
     const rcpt = [...(m.toRecipients ?? []), ...(m.ccRecipients ?? [])].map((r) => r.emailAddress.address.toLowerCase());
-    if (!rcpt.some((a) => a.includes("+ingest@"))) continue;
+    // Any plus-address on a bmdmaterials.com mailbox: dan+centric@, brian+ingest@, etc.
+    const hit = rcpt.map((a) => /^[^+@]+\+([^@]+)@bmdmaterials\.com$/.exec(a)).find(Boolean);
+    if (!hit) continue;
     const { data: row, error } = await admin
       .from("email_intake")
       .insert({
@@ -249,7 +254,7 @@ export async function pollMailbox(admin: Admin) {
       .select("id,message_id,from_name,from_email,subject,body_text")
       .single();
     if (error) continue; // duplicate
-    await ingestOne(admin, row, m.hasAttachments);
+    await ingestOne(admin, row, m.hasAttachments, hit[1]);
     created++;
   }
   await admin.from("intake_settings").update({ cursor_at: cursor, updated_at: new Date().toISOString() }).eq("id", 1);

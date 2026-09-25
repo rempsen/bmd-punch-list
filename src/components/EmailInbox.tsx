@@ -81,7 +81,7 @@ export function EmailInbox() {
         </div>
       </header>
       {!expanded ? null : rows.length === 0 ? (
-        <p className="px-4 py-6 text-sm text-muted-foreground">No emails yet. Forward issues to dan+ingest@bmdmaterials.com.</p>
+        <p className="px-4 py-6 text-sm text-muted-foreground">No emails yet. Forward issues to dan+centric@bmdmaterials.com.</p>
       ) : (
         <ul className="divide-y divide-border">
           {rows.map((r) => {
