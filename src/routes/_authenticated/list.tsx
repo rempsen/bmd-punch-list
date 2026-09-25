@@ -330,7 +330,7 @@ function ListPage() {
           </thead>
           <tbody>
             {filtered.map((d) => (
-              <tr key={d.id} className="border-b border-border/60 hover:bg-muted/40">
+              <tr key={d.id} className="border-b border-border/60">
                 {canCapture && (
                   <td className="py-2">
                     <Checkbox
