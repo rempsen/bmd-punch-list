@@ -1,17 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
-import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { ConfirmDialog, type Outcome } from "@/components/DecisionConfirm";
 import { AssessmentBadge, StatusBadge } from "@/components/badges";
 import { DecisionRequestNote } from "@/components/DecisionRequest";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { itemNo } from "@/lib/bmd";
-import { floorLabel, useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
+import { floorLabel, useDeficiencies, usePhotos, useProject, type DefRow } from "@/lib/data";
 import { peopleMap, personName, useProjectPeople } from "@/lib/assign";
 import { useSignedUrls } from "@/lib/photos";
 
