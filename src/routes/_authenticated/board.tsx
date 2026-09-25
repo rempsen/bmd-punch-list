@@ -11,7 +11,7 @@ import { PhotoThumb } from "@/components/PhotoThumb";
 import { BOARD_COLUMNS, itemNo, type Status } from "@/lib/bmd";
 import { useFloors, useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { UserCheck, UserPlus } from "lucide-react";
+import { ArrowRight, ChevronDown, UserCheck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssignDialog } from "@/components/AssignDialog";
 import { assigneeText, isAssigned, peopleMap, useProjectPeople } from "@/lib/assign";
