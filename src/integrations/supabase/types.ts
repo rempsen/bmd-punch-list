@@ -44,8 +44,10 @@ export type Database = {
           item_number: number
           location_id: string
           material: string
+          needs_review: boolean
           project_id: string
           responsible_party: Database["public"]["Enums"]["responsible_party"]
+          source: string | null
           status: Database["public"]["Enums"]["deficiency_status"]
           updated_at: string
         }
@@ -78,8 +80,10 @@ export type Database = {
           item_number?: number
           location_id: string
           material: string
+          needs_review?: boolean
           project_id: string
           responsible_party?: Database["public"]["Enums"]["responsible_party"]
+          source?: string | null
           status?: Database["public"]["Enums"]["deficiency_status"]
           updated_at?: string
         }
@@ -112,8 +116,10 @@ export type Database = {
           item_number?: number
           location_id?: string
           material?: string
+          needs_review?: boolean
           project_id?: string
           responsible_party?: Database["public"]["Enums"]["responsible_party"]
+          source?: string | null
           status?: Database["public"]["Enums"]["deficiency_status"]
           updated_at?: string
         }
@@ -213,6 +219,72 @@ export type Database = {
           },
         ]
       }
+      email_intake: {
+        Row: {
+          ai_json: Json | null
+          body_text: string | null
+          confidence: Json | null
+          created_at: string
+          deficiency_id: string | null
+          error: string | null
+          from_email: string | null
+          from_name: string | null
+          id: string
+          message_id: string
+          project_id: string | null
+          received_at: string | null
+          status: string
+          subject: string | null
+        }
+        Insert: {
+          ai_json?: Json | null
+          body_text?: string | null
+          confidence?: Json | null
+          created_at?: string
+          deficiency_id?: string | null
+          error?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          message_id: string
+          project_id?: string | null
+          received_at?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Update: {
+          ai_json?: Json | null
+          body_text?: string | null
+          confidence?: Json | null
+          created_at?: string
+          deficiency_id?: string | null
+          error?: string | null
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          message_id?: string
+          project_id?: string | null
+          received_at?: string | null
+          status?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_intake_deficiency_id_fkey"
+            columns: ["deficiency_id"]
+            isOneToOne: false
+            referencedRelation: "deficiencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_intake_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       floors: {
         Row: {
           id: string
@@ -239,6 +311,79 @@ export type Database = {
           {
             foreignKeyName: "floors_project_id_fkey"
             columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intake_examples: {
+        Row: {
+          active: boolean
+          corrected: Json
+          created_at: string
+          created_by: string | null
+          email_intake_id: string | null
+          email_text: string
+          id: string
+        }
+        Insert: {
+          active?: boolean
+          corrected: Json
+          created_at?: string
+          created_by?: string | null
+          email_intake_id?: string | null
+          email_text: string
+          id?: string
+        }
+        Update: {
+          active?: boolean
+          corrected?: Json
+          created_at?: string
+          created_by?: string | null
+          email_intake_id?: string | null
+          email_text?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_examples_email_intake_id_fkey"
+            columns: ["email_intake_id"]
+            isOneToOne: false
+            referencedRelation: "email_intake"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      intake_settings: {
+        Row: {
+          created_by_user: string | null
+          cursor_at: string | null
+          default_project_id: string | null
+          id: number
+          rules: string
+          updated_at: string
+        }
+        Insert: {
+          created_by_user?: string | null
+          cursor_at?: string | null
+          default_project_id?: string | null
+          id?: number
+          rules?: string
+          updated_at?: string
+        }
+        Update: {
+          created_by_user?: string | null
+          cursor_at?: string | null
+          default_project_id?: string | null
+          id?: number
+          rules?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intake_settings_default_project_id_fkey"
+            columns: ["default_project_id"]
             isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
