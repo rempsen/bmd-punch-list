@@ -44,7 +44,7 @@ export function ConfirmDialog({ pending, onClose }: { pending: { item: DefRow; o
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           {reject
-            ? "The item goes back to BMD as fix required."
+            ? "The item goes back to BMD as fix required, due in 7 days (an existing later due date is kept)."
             : "The item is accepted as it is and closed."}{" "}
           Your name, the time and your note are recorded.
         </p>
