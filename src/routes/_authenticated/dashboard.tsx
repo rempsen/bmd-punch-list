@@ -9,8 +9,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -28,7 +26,7 @@ import {
 import { ASSESSMENTS, isClosed } from "@/lib/bmd";
 import { RESPONSIBLE } from "@/lib/responsible";
 import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
-import { clientLine, useContacts, useAllEvents, useDeficiencies, useFloors, usePickLists, useProject } from "@/lib/data";
+import { clientLine, useContacts, useDeficiencies, useFloors, usePickLists, useProject } from "@/lib/data";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   validateSearch: (s: Record<string, unknown>): { welcome?: string | undefined } => ({
@@ -44,7 +42,6 @@ function DashboardPage() {
   const { data: people = [] } = useProjectPeople(project?.id);
   const { data: floors = [] } = useFloors(project?.id);
   const { data: picks } = usePickLists();
-  const { data: events = [] } = useAllEvents(project?.id);
   const { data: contacts = [] } = useContacts(project?.id);
   const { welcome } = Route.useSearch();
   const navigate = useNavigate({ from: "/dashboard" });
