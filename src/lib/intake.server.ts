@@ -200,7 +200,7 @@ export async function ingestOne(admin: Admin, row: { id: string; message_id: str
       .single();
     if (error) throw new Error(error.message);
     if (hasAttachments) await attachPhotos(admin, row.message_id, def.id, userId).catch(() => {});
-    await admin.from("deficiency_events").insert({ deficiency_id: def.id, actor: userId, kind: "comment", note: `Created from email from ${row.from_email ?? "unknown"}` }).then(() => {}, () => {});
+    await admin.from("deficiency_events").insert({ deficiency_id: def.id, user_id: userId, event_type: "comment", note: `Created from email from ${row.from_email ?? "unknown"}` }).then(() => {}, () => {});
     await admin.from("email_intake").update({
       project_id: r.projectId, deficiency_id: def.id, ai_json: parsed, confidence: { ...parsed.confidence, missing: r.missing },
       status: r.missing.length ? "needs_review" : "parsed", error: null,
