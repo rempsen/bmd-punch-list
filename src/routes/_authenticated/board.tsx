@@ -145,36 +145,45 @@ function Card({
   const assigned = isAssigned(d);
   const chipParty =
     d.responsible_party === "bmd" ? "BMD" : d.responsible_party === "trade" ? "Trade" : d.responsible_party === "client" ? "Client" : "Assigned";
+  const [expanded, setExpanded] = useState(false);
   return (
     <div
       draggable
       onDragStart={onDragStart}
       className={cn(
-        "rounded-lg border border-border bg-card p-3 shadow-sm transition",
-        "has-[.card-link:hover]:-translate-y-0.5 has-[.card-link:hover]:border-primary has-[.card-link:hover]:shadow-md",
-        "has-[.card-link:focus-visible]:ring-2 has-[.card-link:focus-visible]:ring-ring has-[.card-link:focus-visible]:border-primary",
+        "rounded-lg border border-border bg-card p-2 shadow-sm transition",
+        expanded ? "border-primary" : "hover:border-primary",
       )}
     >
-      <Link
-        to="/item/$id"
-        params={{ id: d.id }}
+      <button
+        type="button"
         draggable={false}
-        aria-label={`Open ${itemNo(d.item_number)} – ${d.locations?.name ?? ""}`}
-        className="card-link group block cursor-pointer rounded-md outline-none"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full cursor-pointer items-center gap-2 rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div className="flex gap-3">
-          <PhotoThumb path={photo ?? null} className="h-14 w-14 shrink-0" />
-          <div className="min-w-0 flex-1">
-            <span className="font-mono text-sm font-semibold underline-offset-2 group-hover:underline group-focus-visible:underline">
-              {itemNo(d.item_number)}
-            </span>
-            <p className="truncate text-sm font-medium">{d.locations?.name}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {d.material} · {d.issue_type}
-            </p>
-          </div>
+        <PhotoThumb path={photo ?? null} className="h-9 w-9 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-baseline gap-2 truncate text-sm">
+            <span className="font-mono font-semibold">{itemNo(d.item_number)}</span>
+            <span className="truncate font-medium">{d.locations?.name}</span>
+          </p>
+          <p className="truncate text-xs text-muted-foreground">
+            {d.material} · {d.issue_type}
+          </p>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span
+          aria-hidden
+          className={cn(
+            "h-2.5 w-2.5 shrink-0 rounded-full",
+            d.assessment === "must_fix" ? "bg-mustfix" : d.assessment === "client_review" ? "bg-review" : "bg-acceptable",
+          )}
+        />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", expanded && "rotate-180")} />
+      </button>
+      {expanded && (
+      <>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
           <AssessmentBadge value={d.assessment} />
           {d.status === "awaiting_client" && (
             <span
@@ -212,7 +221,6 @@ function Card({
         {d.status === "awaiting_client" && d.decision_reason && (
           <p className="mt-1 line-clamp-2 text-xs">{d.decision_reason}</p>
         )}
-      </Link>
       <div className="mt-2 flex flex-wrap items-start gap-2">
         <StatusActions id={d.id} status={d.status} size="sm" />
         {canAssign && (
@@ -220,7 +228,14 @@ function Card({
             <UserPlus className="mr-1 h-3.5 w-3.5" /> {assigned ? "Reassign" : "Assign"}
           </Button>
         )}
+        <Button asChild size="sm" variant="ghost">
+          <Link to="/item/$id" params={{ id: d.id }} draggable={false}>
+            Open item <ArrowRight className="ml-1 h-3.5 w-3.5" />
+          </Link>
+        </Button>
       </div>
+      </>
+      )}
       {canAssign && (
         <AssignDialog
           open={open}
