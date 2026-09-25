@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/email-intake")({
   head: () => ({
     meta: [
       { title: "Email intake — BMD Deficiency Tracker" },
-      { name: "description", content: "Issues emailed to dan+ingest@bmdmaterials.com, turned into open deficiencies." },
+      { name: "description", content: "Issues emailed to dan+centric@bmdmaterials.com, turned into open deficiencies." },
       { property: "og:title", content: "Email intake — BMD Deficiency Tracker" },
       { property: "og:description", content: "Issues emailed in, turned into open deficiencies." },
       { property: "og:type", content: "website" },
@@ -95,7 +95,7 @@ function IntakePage() {
     <div>
       <PageHeader
         title="Email intake"
-        subtitle="Issues sent to dan+ingest@bmdmaterials.com"
+        subtitle="Issues sent to dan+centric@bmdmaterials.com"
       />
       <div className="space-y-6 p-4 md:p-6">
         <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -125,7 +125,7 @@ function IntakePage() {
               {filter === "review" ? "Nothing needs review" : "No emails yet"}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              {filter === "review" ? "All caught up. New forwarded emails will show here." : "Forward an issue to dan+ingest@bmdmaterials.com."}
+              {filter === "review" ? "All caught up. New forwarded emails will show here." : "Forward an issue to dan+centric@bmdmaterials.com."}
             </p>
           </div>
         )}
