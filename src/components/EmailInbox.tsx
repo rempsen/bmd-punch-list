@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Mail, RefreshCw } from "lucide-react";
+import { ChevronDown, Mail, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,8 @@ export function EmailInbox() {
     },
   });
   const pending = rows.filter((r) => r.status === "needs_review" || r.status === "error").length;
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const expanded = toggled ?? pending > 0;
 
   const run = async () => {
     setBusy(true);
@@ -60,12 +62,14 @@ export function EmailInbox() {
 
   return (
     <section className="mx-4 mt-4 rounded-lg border border-border bg-card md:mx-6">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-        <div className="flex items-center gap-2">
+      <header className={cn("flex flex-wrap items-center justify-between gap-2 px-4", expanded ? "border-b border-border py-3" : "py-1.5")}>
+        <button type="button" onClick={() => setToggled(!expanded)} aria-expanded={expanded} className="flex items-center gap-2 text-left">
+          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !expanded && "-rotate-90")} />
           <Mail className="h-4 w-4 text-primary" />
           <h2 className="font-semibold">Email inbox</h2>
           {pending > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">{pending} to review</span>}
-        </div>
+          {!expanded && pending === 0 && <span className="text-xs text-muted-foreground">All caught up</span>}
+        </button>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={run} disabled={busy}>
             <RefreshCw className={cn("mr-1 h-4 w-4", busy && "animate-spin")} />
@@ -76,7 +80,7 @@ export function EmailInbox() {
           </Button>
         </div>
       </header>
-      {rows.length === 0 ? (
+      {!expanded ? null : rows.length === 0 ? (
         <p className="px-4 py-6 text-sm text-muted-foreground">No emails yet. Forward issues to dan+ingest@bmdmaterials.com.</p>
       ) : (
         <ul className="divide-y divide-border">
