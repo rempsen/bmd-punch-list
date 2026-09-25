@@ -184,7 +184,7 @@ function describe(e: EventRow) {
   }
 }
 
-function LogRow({ e, item, pmap }: { e: EventRow; item?: DefRow; pmap: Map<string, Person> }) {
+function LogRow({ e, item, pmap }: { e: EventRow; item: DefRow | undefined; pmap: Map<string, Person> }) {
   return (
     <li className="p-3 text-sm">
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -271,23 +271,25 @@ function ProgressDialog({
   const needsPhoto = next === "fixed" && !hasAfter && files.length === 0;
 
   const save = async () => {
-    if (!next && !note.trim() && files.length === 0) return toast.error("Choose a status, add a note or add a photo.");
-    if (needsPhoto) return toast.error("Add an after photo before marking fixed.");
+    if (!next && !note.trim() && files.length === 0) {
+      toast.error("Choose a status, add a note or add a photo.");
+      return;
+    }
+    if (needsPhoto) {
+      toast.error("Add an after photo before marking fixed.");
+      return;
+    }
     setBusy(true);
     try {
       for (const f of files) await uploadDeficiencyPhoto(item.id, f, "after", user?.id);
       if (next && next !== item.status) {
-        if (next === "fixed" && item.status === "fix_required") {
-          const r = await supabase.from("deficiencies").update({ status: "in_progress" }).eq("id", item.id);
-          if (r.error) throw new Error(r.error.message);
-        }
         const r = await supabase.from("deficiencies").update({ status: next }).eq("id", item.id);
         if (r.error) throw new Error(r.error.message);
       }
       if (note.trim()) {
         const r = await supabase
           .from("deficiency_events")
-          .insert({ deficiency_id: item.id, user_id: user?.id, event_type: "comment", note: note.trim() });
+          .insert({ deficiency_id: item.id, user_id: user?.id ?? null, event_type: "comment", note: note.trim() });
         if (r.error) throw new Error(r.error.message);
       }
       toast.success("Progress updated");
