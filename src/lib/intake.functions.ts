@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function assertManager(supabase: { rpc: (fn: string, args: object) => PromiseLike<{ data: unknown }> }) {
-  const { data } = await supabase.rpc("has_capability", { _cap: "manage_settings" });
+  const { data } = await supabase.rpc("has_capability", { _capability: "manage_settings" });
   if (!data) throw new Error("Only BMD managers can run email intake.");
 }
 
@@ -64,7 +64,7 @@ export const saveIntakeCorrection = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const sb = context.supabase;
-    const { data: ok } = await sb.rpc("has_capability", { _cap: "manage_settings", _project: data.projectId });
+    const { data: ok } = await sb.rpc("has_capability", { _capability: "manage_settings", _project: data.projectId });
     if (!ok) throw new Error("You can't manage that job.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { emailText } = await import("./intake.server");
@@ -84,7 +84,7 @@ export const saveIntakeCorrection = createServerFn({ method: "POST" })
     const { data: old } = await admin.from("deficiencies").select("*").eq("id", defId).single();
     if (!old) throw new Error("Item not found.");
     if (old.project_id !== data.projectId) {
-      const { data: okOld } = await sb.rpc("has_capability", { _cap: "manage_settings", _project: old.project_id });
+      const { data: okOld } = await sb.rpc("has_capability", { _capability: "manage_settings", _project: old.project_id });
       if (!okOld) throw new Error("You can't manage the item's current job.");
       const { data: created, error } = await admin
         .from("deficiencies")
