@@ -42,7 +42,7 @@ export const ccStatus = createServerFn({ method: "POST" })
 
 export const ccSearchProjects = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { projectId: string; query?: string }) => ({ ...pid(d), query: (d.query ?? "").slice(0, 120) }))
+  .inputValidator((d: { projectId: string; query?: string | undefined }) => ({ ...pid(d), query: (d.query ?? "").slice(0, 120) }))
   .handler(async ({ context, data }) => {
     await need(context.supabase, "manage_settings", data.projectId);
     const { cc, score, ccAddress } = await import("./companycam.server");
@@ -63,7 +63,7 @@ export const ccSearchProjects = createServerFn({ method: "POST" })
 
 export const ccLinkProject = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { projectId: string; ccProjectId: string | null; url?: string | null }) => {
+  .inputValidator((d: { projectId: string; ccProjectId: string | null; url?: string | null | undefined }) => {
     pid(d);
     if (d.ccProjectId !== null && !/^\d{1,20}$/.test(d.ccProjectId)) throw new Error("Invalid CompanyCam project");
     return d;

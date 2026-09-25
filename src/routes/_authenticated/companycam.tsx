@@ -167,7 +167,7 @@ function Overview({ st }: { st: St }) {
     </div>
   );
 }
-const Stat = ({ n, l }: { n?: number; l: string }) => (
+const Stat = ({ n, l }: { n?: number | undefined; l: string }) => (
   <div className="rounded-md bg-muted px-2 py-2">
     <p className="text-xl font-semibold">{n ?? "–"}</p>
     <p className="text-xs text-muted-foreground">{l}</p>
