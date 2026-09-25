@@ -59,7 +59,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const onJobs = pathname.startsWith("/jobs") || pathname.startsWith("/new-job");
   if (!loading && jobsLoaded && !currentJob && !onJobs) return <Navigate to="/jobs" replace />;
 
-  const mobileTabs = nav.slice(0, 3);
 
   return (
     <div className="min-h-screen bg-surface">
@@ -131,37 +130,80 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </header>
 
-          <main className="flex-1 pb-24 md:pb-8">{children}</main>
+          <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">{children}</main>
 
-          {/* Mobile bottom tabs */}
-          <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t border-border bg-card md:hidden">
-            {mobileTabs.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={cn(
-                  "flex min-h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-medium",
-                  pathname.startsWith(item.to) ? "border-t-2 border-blush text-primary" : "text-muted-foreground",
-                )}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.short ?? item.label}
-              </Link>
-            ))}
-            <Link
-              to="/more"
-              className={cn(
-                "flex min-h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-medium",
-                pathname.startsWith("/more") ? "border-t-2 border-blush text-primary" : "text-muted-foreground",
-              )}
-            >
-              <MoreHorizontal className="h-5 w-5" />
-              More
-            </Link>
-          </nav>
+          <MobileTabBar pathname={pathname} />
         </div>
       </div>
     </div>
+  );
+}
+
+function MobileTabBar({ pathname }: { pathname: string }) {
+  const { can, role } = useAuth();
+  const canAdd = can("capture_items");
+  const left: NavItem[] = [];
+  if (can("view_dashboard")) left.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
+  left.push({ to: "/floors", label: "Floors", icon: Grid3x3 });
+  if (left.length < 2) left.unshift({ to: "/list", label: "List", icon: ClipboardList });
+  const right: NavItem =
+    can("capture_items") || can("edit_any_item")
+      ? { to: "/board", label: "Board", icon: KanbanSquare }
+      : { to: "/list", label: "List", icon: ClipboardList };
+  const centre: NavItem | null = canAdd
+    ? { to: "/capture", label: "Add", icon: Plus }
+    : role === "trade"
+      ? { to: "/my-work", label: "My work", icon: Wrench }
+      : role === "client" || can("decide_client_items")
+        ? { to: "/decisions", label: "Decisions", icon: ShieldCheck }
+        : null;
+  const tab = (item: NavItem) => (
+    <Link
+      key={item.to}
+      to={item.to}
+      className={cn(
+        "flex min-h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-medium",
+        pathname.startsWith(item.to) ? "border-t-2 border-blush text-primary" : "text-muted-foreground",
+      )}
+    >
+      <item.icon className="h-5 w-5" />
+      {item.short ?? item.label}
+    </Link>
+  );
+  const active = centre ? pathname.startsWith(centre.to) : false;
+  return (
+    <nav
+      aria-label="Main"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+    >
+      <div className="grid grid-cols-5">
+        {left.slice(0, 2).map(tab)}
+        <div className="relative flex justify-center">
+          {centre && (
+            <Link
+              to={centre.to}
+              aria-label={centre.label === "Add" ? "Add a deficiency" : centre.label}
+              data-testid="mobile-fab"
+              className="absolute -top-7 flex flex-col items-center gap-0.5"
+            >
+              <span
+                className={cn(
+                  "grid h-16 w-16 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-card transition-transform active:scale-95",
+                  active && "ring-blush",
+                )}
+              >
+                <centre.icon className="h-8 w-8" strokeWidth={centre.label === "Add" ? 3 : 2.25} />
+              </span>
+              <span className={cn("text-[11px] font-semibold", active ? "text-primary" : "text-foreground")}>
+                {centre.label}
+              </span>
+            </Link>
+          )}
+        </div>
+        {tab(right)}
+        {tab({ to: "/more", label: "More", icon: MoreHorizontal })}
+      </div>
+    </nav>
   );
 }
 

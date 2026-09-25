@@ -119,6 +119,7 @@ function MobileCapture() {
     if (lastFloor && floors.some((f) => f.id === lastFloor)) {
       setFloorId(lastFloor);
       if (lastLocation) setLocationId(lastLocation);
+      setStep((s) => (s === "floor" ? (lastLocation ? "area" : "location") : s));
     } else {
       setFloorId(null);
       setLocationId(null);
@@ -451,15 +452,16 @@ function MobileCapture() {
         {step === "done" && (
           <Section title={savedNumber ? `${itemNo(savedNumber)} saved` : "Saved"}>
             <div className="grid gap-3">
-              <Button className="h-14 text-base" onClick={() => resetItem(true)}>
-                Add another in {location?.name ?? "this room"}
+              <Button className="h-20 text-lg font-semibold" onClick={() => resetItem(true)}>
+                <Plus className="mr-2 h-6 w-6" /> Add another here
+                <span className="ml-2 truncate text-sm font-normal opacity-80">{location?.name}</span>
               </Button>
-              <Button variant="secondary" className="h-14 text-base" onClick={() => resetItem(false)}>
-                Next room
+              <Button variant="secondary" className="h-20 text-lg font-semibold" onClick={() => resetItem(false)}>
+                Next room →
               </Button>
-              <Button variant="outline" className="h-14 text-base" asChild>
-                <Link to="/floors">Done</Link>
-              </Button>
+              <Link to="/dashboard" className="mx-auto mt-2 px-4 py-3 text-sm text-muted-foreground underline-offset-4 hover:underline">
+                Done
+              </Link>
             </div>
           </Section>
         )}
