@@ -34,7 +34,7 @@ function PhotosPage() {
   const [view, setView] = useState<Viewing | null>(null);
   return (
     <div className="space-y-4">
-      <PageHeader title="Job photos" subtitle="CompanyCam photos and our own uploads, side by side." actions={<Button asChild size="sm" variant="outline"><Link to="/companycam">Photo inbox</Link></Button>} />
+      <PageHeader title="Job photos" subtitle="CompanyCam photos and our own uploads, side by side." actions={<Button asChild className="h-11 px-5 text-base font-semibold shadow-md ring-2 ring-accent"><Link to="/companycam"><ScanSearch className="mr-2 h-5 w-5" />Review photos for deficiencies</Link></Button>} />
       <div className="grid gap-4 lg:grid-cols-2">
         <OurPhotos projectId={projectId} onOpen={setView} />
         <CcPhotos projectId={projectId} onOpen={setView} />

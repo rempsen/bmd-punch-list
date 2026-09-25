@@ -320,19 +320,21 @@ function Inbox({ canAct }: { canAct: boolean }) {
   const [show, setShow] = useState<"new" | "all">("new");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [open, setOpen] = useState<{ row: InboxRow; mode: "create" | "attach" } | null>(null);
   const { data: rows = [] } = useQuery({
-    queryKey: ["cc-inbox", currentJob?.id, from, to],
+    queryKey: ["cc-inbox", currentJob?.id, from, to, sort],
     enabled: !!currentJob,
     queryFn: async () => {
       let q = supabase.from("companycam_inbox").select("*, deficiencies(item_number)").eq("project_id", currentJob!.id);
       if (from) q = q.gte("taken_at", new Date(`${from}T00:00:00`).toISOString());
       if (to) q = q.lte("taken_at", new Date(`${to}T23:59:59.999`).toISOString());
-      return ((await q.order("taken_at", { ascending: false }).limit(from || to ? 1000 : 200)).data ?? []) as InboxRow[];
+      return ((await q.order("taken_at", { ascending: sort === "oldest" }).limit(from || to ? 1000 : 200)).data ?? []) as InboxRow[];
     },
   });
   const isDef = (r: InboxRow) => r.tags.some((t) => t.toLowerCase() === "deficiency");
-  const shown = rows.filter((r) => show === "all" || r.status === "new").sort((a, b) => Number(isDef(b)) - Number(isDef(a)));
+  void isDef;
+  const shown = rows.filter((r) => show === "all" || r.status === "new");
   const actions = canAct || can("capture_items");
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const preset = (days: number) => { const t = new Date(); const f = new Date(); f.setDate(t.getDate() - days + 1); setFrom(iso(f)); setTo(iso(t)); };
@@ -344,6 +346,12 @@ function Inbox({ canAct }: { canAct: boolean }) {
           <Button key={k} size="sm" variant={show === k ? "default" : "outline"} onClick={() => setShow(k)}>{k === "new" ? `New (${rows.filter((r) => r.status === "new").length})` : "All"}</Button>
         ))}
         <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
+        <label className="text-xs text-muted-foreground">Sort
+          <select value={sort} onChange={(e) => setSort(e.target.value as "newest" | "oldest")} className="ml-1 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </label>
         <label className="text-xs text-muted-foreground">From
           <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="ml-1 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
         </label>
