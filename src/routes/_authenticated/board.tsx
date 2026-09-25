@@ -221,6 +221,11 @@ function Card({
           <p className="truncate text-xs text-muted-foreground">
             {d.material} · {d.issue_type}
           </p>
+          {d.email_pending && (
+            <span className="mt-1 inline-flex items-center rounded-full border border-primary bg-accent px-2 py-0.5 text-[11px] font-semibold text-primary">
+              Email generated
+            </span>
+          )}
         </div>
         <span
           aria-hidden

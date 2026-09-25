@@ -202,7 +202,7 @@ export async function ingestOne(admin: Admin, row: { id: string; message_id: str
         assessment: r.assessment as "must_fix", status: "open", responsible_party: "unassigned",
         due_date: /^\d{4}-\d{2}-\d{2}$/.test(parsed.due_date ?? "") ? parsed.due_date : null,
         description: [parsed.description, parsed.urgency ? `Time-sensitive: ${parsed.urgency}` : null, `(From email: ${row.subject ?? ""} — ${row.from_email ?? ""})`].filter(Boolean).join("\n"),
-        created_by: userId, needs_review: r.missing.length > 0, source: "email",
+        created_by: userId, needs_review: r.missing.length > 0, source: "email", email_pending: true,
       })
       .select("id")
       .single();

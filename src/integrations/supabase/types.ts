@@ -220,6 +220,7 @@ export type Database = {
           decision_requested_by: string | null
           description: string | null
           due_date: string | null
+          email_pending: boolean
           id: string
           is_sample: boolean
           issue_type: string
@@ -257,6 +258,7 @@ export type Database = {
           decision_requested_by?: string | null
           description?: string | null
           due_date?: string | null
+          email_pending?: boolean
           id?: string
           is_sample?: boolean
           issue_type: string
@@ -294,6 +296,7 @@ export type Database = {
           decision_requested_by?: string | null
           description?: string | null
           due_date?: string | null
+          email_pending?: boolean
           id?: string
           is_sample?: boolean
           issue_type?: string
