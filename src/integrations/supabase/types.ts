@@ -14,6 +14,187 @@ export type Database = {
   }
   public: {
     Tables: {
+      companycam_inbox: {
+        Row: {
+          cc_photo_id: string
+          cc_project_id: string | null
+          created_at: string
+          creator_name: string | null
+          deficiency_id: string | null
+          description: string | null
+          id: string
+          photo_url: string | null
+          project_id: string
+          status: string
+          tags: string[]
+          taken_at: string | null
+          thumb_url: string | null
+          web_url: string | null
+        }
+        Insert: {
+          cc_photo_id: string
+          cc_project_id?: string | null
+          created_at?: string
+          creator_name?: string | null
+          deficiency_id?: string | null
+          description?: string | null
+          id?: string
+          photo_url?: string | null
+          project_id: string
+          status?: string
+          tags?: string[]
+          taken_at?: string | null
+          thumb_url?: string | null
+          web_url?: string | null
+        }
+        Update: {
+          cc_photo_id?: string
+          cc_project_id?: string | null
+          created_at?: string
+          creator_name?: string | null
+          deficiency_id?: string | null
+          description?: string | null
+          id?: string
+          photo_url?: string | null
+          project_id?: string
+          status?: string
+          tags?: string[]
+          taken_at?: string | null
+          thumb_url?: string | null
+          web_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companycam_inbox_deficiency_id_fkey"
+            columns: ["deficiency_id"]
+            isOneToOne: false
+            referencedRelation: "deficiencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "companycam_inbox_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companycam_suggestions: {
+        Row: {
+          address: string | null
+          cc_project_id: string
+          created_at: string
+          id: string
+          kind: string
+          name: string | null
+          payload: Json | null
+          project_id: string | null
+          status: string
+        }
+        Insert: {
+          address?: string | null
+          cc_project_id: string
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string | null
+          payload?: Json | null
+          project_id?: string | null
+          status?: string
+        }
+        Update: {
+          address?: string | null
+          cc_project_id?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string | null
+          payload?: Json | null
+          project_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companycam_suggestions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companycam_sync_log: {
+        Row: {
+          created_at: string
+          direction: string
+          entity: string
+          error: string | null
+          id: string
+          local_id: string | null
+          payload: Json | null
+          project_id: string | null
+          remote_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          entity: string
+          error?: string | null
+          id?: string
+          local_id?: string | null
+          payload?: Json | null
+          project_id?: string | null
+          remote_id?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          entity?: string
+          error?: string | null
+          id?: string
+          local_id?: string | null
+          payload?: Json | null
+          project_id?: string | null
+          remote_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companycam_sync_log_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companycam_webhook: {
+        Row: {
+          created_at: string
+          id: number
+          secret: string | null
+          url: string | null
+          webhook_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          secret?: string | null
+          url?: string | null
+          webhook_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          secret?: string | null
+          url?: string | null
+          webhook_id?: string | null
+        }
+        Relationships: []
+      }
       deficiencies: {
         Row: {
           area: string
@@ -23,6 +204,7 @@ export type Database = {
           assigned_trade: string | null
           client_decision_note: string | null
           closed_at: string | null
+          companycam_task_id: string | null
           created_at: string
           created_by: string | null
           decided_at: string | null
@@ -59,6 +241,7 @@ export type Database = {
           assigned_trade?: string | null
           client_decision_note?: string | null
           closed_at?: string | null
+          companycam_task_id?: string | null
           created_at?: string
           created_by?: string | null
           decided_at?: string | null
@@ -95,6 +278,7 @@ export type Database = {
           assigned_trade?: string | null
           client_decision_note?: string | null
           closed_at?: string | null
+          companycam_task_id?: string | null
           created_at?: string
           created_by?: string | null
           decided_at?: string | null
@@ -184,6 +368,7 @@ export type Database = {
       deficiency_photos: {
         Row: {
           caption: string | null
+          companycam_photo_id: string | null
           deficiency_id: string
           id: string
           kind: Database["public"]["Enums"]["photo_kind"]
@@ -193,6 +378,7 @@ export type Database = {
         }
         Insert: {
           caption?: string | null
+          companycam_photo_id?: string | null
           deficiency_id: string
           id?: string
           kind?: Database["public"]["Enums"]["photo_kind"]
@@ -202,6 +388,7 @@ export type Database = {
         }
         Update: {
           caption?: string | null
+          companycam_photo_id?: string | null
           deficiency_id?: string
           id?: string
           kind?: Database["public"]["Enums"]["photo_kind"]
@@ -508,6 +695,7 @@ export type Database = {
       profiles: {
         Row: {
           company: string | null
+          companycam_user_id: string | null
           created_at: string
           email: string | null
           full_name: string | null
@@ -515,6 +703,7 @@ export type Database = {
         }
         Insert: {
           company?: string | null
+          companycam_user_id?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -522,6 +711,7 @@ export type Database = {
         }
         Update: {
           company?: string | null
+          companycam_user_id?: string | null
           created_at?: string
           email?: string | null
           full_name?: string | null
@@ -656,6 +846,11 @@ export type Database = {
           building_type: string | null
           city: string | null
           client_name: string | null
+          companycam_last_sync_at: string | null
+          companycam_options: Json
+          companycam_project_id: string | null
+          companycam_project_url: string | null
+          companycam_sync_enabled: boolean
           created_at: string
           id: string
           name: string
@@ -673,6 +868,11 @@ export type Database = {
           building_type?: string | null
           city?: string | null
           client_name?: string | null
+          companycam_last_sync_at?: string | null
+          companycam_options?: Json
+          companycam_project_id?: string | null
+          companycam_project_url?: string | null
+          companycam_sync_enabled?: boolean
           created_at?: string
           id?: string
           name: string
@@ -690,6 +890,11 @@ export type Database = {
           building_type?: string | null
           city?: string | null
           client_name?: string | null
+          companycam_last_sync_at?: string | null
+          companycam_options?: Json
+          companycam_project_id?: string | null
+          companycam_project_url?: string | null
+          companycam_sync_enabled?: boolean
           created_at?: string
           id?: string
           name?: string
