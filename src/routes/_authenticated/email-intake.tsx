@@ -119,14 +119,21 @@ function IntakePage() {
         </div>
 
         {shown.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-            <Mail className="mx-auto mb-2 h-6 w-6" />
-            {filter === "review" ? "Nothing needs review." : "No emails yet. Forward an issue to dan+ingest@bmdmaterials.com."}
+          <div className="flex min-h-[45vh] flex-col items-center justify-center rounded-lg border border-dashed border-border p-10 text-center">
+            <Mail className="mb-4 h-12 w-12 text-muted-foreground" />
+            <p className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              {filter === "review" ? "Nothing needs review" : "No emails yet"}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {filter === "review" ? "All caught up. New forwarded emails will show here." : "Forward an issue to dan+ingest@bmdmaterials.com."}
+            </p>
           </div>
         )}
         {shown.map((r) => <IntakeRow key={r.id} row={r} jobs={jobs} />)}
 
-        <Training jobs={jobs} />
+        <div className="mt-[20vh] border-t border-border pt-6">
+          <Training jobs={jobs} />
+        </div>
       </div>
     </div>
   );
