@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { itemNo } from "@/lib/bmd";
 import { useDeficiencies, usePhotos, useProject, useUpdateDeficiency } from "@/lib/data";
 import { useSignedUrls } from "@/lib/photos";
+import { DecisionRequestNote } from "@/components/DecisionRequest";
 
 export const Route = createFileRoute("/_authenticated/decisions")({
   component: DecisionsPage,
@@ -69,6 +70,9 @@ function DecisionsPage() {
                 {d.area} · {d.material} · {d.issue_type}
               </p>
               {d.description && <p className="mt-2 text-sm">{d.description}</p>}
+              <div className="mt-3">
+                <DecisionRequestNote item={d} />
+              </div>
 
               {shots.length > 0 && (
                 <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
