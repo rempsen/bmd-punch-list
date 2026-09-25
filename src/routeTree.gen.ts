@@ -31,6 +31,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
+import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -145,6 +146,11 @@ const AuthenticatedItemIdRoute = AuthenticatedItemIdRouteImport.update({
   path: '/item/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicIntakePollRoute = ApiPublicIntakePollRouteImport.update({
+  id: '/api/public/intake/poll',
+  path: '/api/public/intake/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -191,6 +198,7 @@ export interface FileRoutesByTo {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -216,6 +224,7 @@ export interface FileRoutesById {
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/intake/poll'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -264,6 +274,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/intake/poll'
   id:
     | '__root__'
     | '/'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/_authenticated/trade-portal'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
+    | '/api/public/intake/poll'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -297,6 +309,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -455,6 +468,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedItemIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/intake/poll': {
+      id: '/api/public/intake/poll'
+      path: '/api/public/intake/poll'
+      fullPath: '/api/public/intake/poll'
+      preLoaderRoute: typeof ApiPublicIntakePollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -507,6 +527,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
