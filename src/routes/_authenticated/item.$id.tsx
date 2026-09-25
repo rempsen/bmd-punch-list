@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/AppShell";
 import { AssessmentBadge, StatusBadge } from "@/components/badges";
 import { StatusActions } from "@/components/StatusActions";
 import { DecisionRequestNote, SendToClientButton } from "@/components/DecisionRequest";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -121,15 +122,15 @@ function ItemDetail() {
 
       <div className="grid gap-6 p-4 md:grid-cols-3 md:p-6">
         <div className="space-y-6 md:col-span-2">
-          <section className="rounded-lg border border-border bg-card p-4">
+          <section className="rounded-lg border border-border bg-card p-3">
             <div className="flex flex-wrap items-center gap-2">
               <AssessmentBadge value={item.assessment} />
               <StatusBadge value={item.status} />
             </div>
-            <div className="mt-4">
+            <div className="mt-3 [&_button]:h-8 [&_button]:px-3 [&_button]:text-xs [&_svg]:h-3.5 [&_svg]:w-3.5">
               <StatusActions id={item.id} status={item.status} createdBy={item.created_by} />
             </div>
-            <div className="mt-3">
+            <div className="mt-2 [&_button]:h-8 [&_button]:px-3 [&_button]:text-xs [&_svg]:h-3.5 [&_svg]:w-3.5">
               <SendToClientButton item={item} />
             </div>
             {(item.status === "awaiting_client" || item.decision_reason) && (
@@ -165,7 +166,7 @@ function ItemDetail() {
               return (
                 <div key={kind} className="mt-3">
                   <p className="mb-2 text-xs font-semibold uppercase">{kind}</p>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div className={cn("grid gap-3", list.length > 1 && "sm:grid-cols-2")}>
                     {list.map((p) => (
                       <a
                         key={p.id}
@@ -177,7 +178,7 @@ function ItemDetail() {
                         <img
                           src={urls[p.storage_path]}
                           alt={`${kind} photo`}
-                          className="h-28 w-full rounded-md object-cover"
+                          className="max-h-[520px] min-h-[280px] w-full rounded-md bg-muted object-contain"
                         />
                       </a>
                     ))}
@@ -190,9 +191,9 @@ function ItemDetail() {
                 {(editable ? (["before", "after"] as const) : (["after"] as const)).map((kind) => (
                   <label
                     key={kind}
-                    className="flex min-h-[48px] cursor-pointer items-center gap-2 rounded-md border border-border px-4 text-sm font-medium"
+                    className="flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
                   >
-                    <Camera className="h-4 w-4" /> Add {kind} photo
+                    <Camera className="h-3.5 w-3.5" /> Add {kind} photo
                     <input
                       type="file"
                       accept="image/*"
