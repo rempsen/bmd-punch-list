@@ -16,6 +16,7 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/board'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
@@ -65,6 +66,12 @@ const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
   path: '/capture',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedCompanyWorkRoute =
+  AuthenticatedCompanyWorkRouteImport.update({
+    id: '/company-work',
+    path: '/company-work',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -139,6 +146,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/exports': typeof AuthenticatedExportsRoute
@@ -160,6 +168,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/exports': typeof AuthenticatedExportsRoute
@@ -183,6 +192,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/board': typeof AuthenticatedBoardRoute
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
+  '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/board'
     | '/capture'
+    | '/company-work'
     | '/dashboard'
     | '/decisions'
     | '/exports'
@@ -227,6 +238,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/board'
     | '/capture'
+    | '/company-work'
     | '/dashboard'
     | '/decisions'
     | '/exports'
@@ -249,6 +261,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/board'
     | '/_authenticated/capture'
+    | '/_authenticated/company-work'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
     | '/_authenticated/exports'
@@ -322,6 +335,13 @@ declare module '@tanstack/react-router' {
       path: '/capture'
       fullPath: '/capture'
       preLoaderRoute: typeof AuthenticatedCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/company-work': {
+      id: '/_authenticated/company-work'
+      path: '/company-work'
+      fullPath: '/company-work'
+      preLoaderRoute: typeof AuthenticatedCompanyWorkRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -421,6 +441,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedBoardRoute: typeof AuthenticatedBoardRoute
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
+  AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
@@ -438,6 +459,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBoardRoute: AuthenticatedBoardRoute,
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
+  AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
