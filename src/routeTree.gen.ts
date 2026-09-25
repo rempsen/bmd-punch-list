@@ -32,6 +32,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
+import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 
 const IndexRoute = IndexRouteImport.update({
@@ -153,6 +154,12 @@ const AuthenticatedItemIdRoute = AuthenticatedItemIdRouteImport.update({
   path: '/item/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicCompanycamWebhookRoute =
+  ApiPublicCompanycamWebhookRouteImport.update({
+    id: '/api/public/companycam/webhook',
+    path: '/api/public/companycam/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicIntakePollRoute = ApiPublicIntakePollRouteImport.update({
   id: '/api/public/intake/poll',
   path: '/api/public/intake/poll',
@@ -182,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesByTo {
@@ -207,6 +215,7 @@ export interface FileRoutesByTo {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesById {
@@ -234,6 +243,7 @@ export interface FileRoutesById {
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRouteTypes {
@@ -261,6 +271,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -286,6 +297,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
   id:
     | '__root__'
@@ -312,6 +324,7 @@ export interface FileRouteTypes {
     | '/_authenticated/trade-portal'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
+    | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
   fileRoutesById: FileRoutesById
 }
@@ -322,6 +335,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
 }
 
@@ -488,6 +502,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedItemIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/companycam/webhook': {
+      id: '/api/public/companycam/webhook'
+      path: '/api/public/companycam/webhook'
+      fullPath: '/api/public/companycam/webhook'
+      preLoaderRoute: typeof ApiPublicCompanycamWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/intake/poll': {
       id: '/api/public/intake/poll'
       path: '/api/public/intake/poll'
@@ -549,6 +570,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
 }
 export const routeTree = rootRouteImport
