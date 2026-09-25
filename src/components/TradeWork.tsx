@@ -53,7 +53,9 @@ export function WorkCard({ item, beforeUrl, hasAfter }: { item: DefRow; beforeUr
         </div>
       </Link>
       <div className="mt-3">
-        {item.status === "fixed" ? (
+        {item.status === "verified" ? (
+          <p className="text-center text-sm text-muted-foreground">Verified by BMD{item.closed_at ? ` on ${new Date(item.closed_at).toLocaleDateString()}` : ""}</p>
+        ) : item.status === "fixed" ? (
           <p className="text-center text-sm text-muted-foreground">Fixed — waiting for verification</p>
         ) : (
           <Button className="h-12 w-full" onClick={() => setOpen(true)}>
