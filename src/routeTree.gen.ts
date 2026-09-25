@@ -31,6 +31,7 @@ import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated/new-job'
 import { Route as AuthenticatedPhotosRouteImport } from './routes/_authenticated/photos'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
@@ -150,6 +151,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSummaryRoute = AuthenticatedSummaryRouteImport.update({
+  id: '/summary',
+  path: '/summary',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTradePortalRoute =
   AuthenticatedTradePortalRouteImport.update({
     id: '/trade-portal',
@@ -200,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/new-job': typeof AuthenticatedNewJobRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -228,6 +235,7 @@ export interface FileRoutesByTo {
   '/new-job': typeof AuthenticatedNewJobRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -258,6 +266,7 @@ export interface FileRoutesById {
   '/_authenticated/new-job': typeof AuthenticatedNewJobRoute
   '/_authenticated/photos': typeof AuthenticatedPhotosRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
@@ -288,6 +297,7 @@ export interface FileRouteTypes {
     | '/new-job'
     | '/photos'
     | '/settings'
+    | '/summary'
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -316,6 +326,7 @@ export interface FileRouteTypes {
     | '/new-job'
     | '/photos'
     | '/settings'
+    | '/summary'
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -345,6 +356,7 @@ export interface FileRouteTypes {
     | '/_authenticated/new-job'
     | '/_authenticated/photos'
     | '/_authenticated/settings'
+    | '/_authenticated/summary'
     | '/_authenticated/trade-portal'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
@@ -519,6 +531,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/summary': {
+      id: '/_authenticated/summary'
+      path: '/summary'
+      fullPath: '/summary'
+      preLoaderRoute: typeof AuthenticatedSummaryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trade-portal': {
       id: '/_authenticated/trade-portal'
       path: '/trade-portal'
@@ -575,6 +594,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedNewJobRoute: typeof AuthenticatedNewJobRoute
   AuthenticatedPhotosRoute: typeof AuthenticatedPhotosRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedSummaryRoute: typeof AuthenticatedSummaryRoute
   AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
 }
@@ -597,6 +617,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedNewJobRoute: AuthenticatedNewJobRoute,
   AuthenticatedPhotosRoute: AuthenticatedPhotosRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedSummaryRoute: AuthenticatedSummaryRoute,
   AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
 }
