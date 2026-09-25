@@ -90,19 +90,30 @@ function TradePortal() {
             {mine.length === 0 ? isTrade ? "Nothing is assigned to you or your company on this job." : "Nothing is assigned to you on this job yet." : "No items in this view."}
           </p>
         ) : (
-          <ul className="grid gap-3 lg:grid-cols-2">
-            {shown.map((d) => {
-              const before = photos.find((p) => p.deficiency_id === d.id && p.kind === "before");
-              return (
-                <WorkCard
-                  key={d.id}
-                  item={d}
-                  beforeUrl={before ? urls[before.storage_path] : undefined}
-                  hasAfter={photos.some((p) => p.deficiency_id === d.id && p.kind === "after")}
-                />
-              );
-            })}
-          </ul>
+          TABS.filter((t) => t.value !== "all" && (tab === "all" || tab === t.value)).map((g) => {
+            const group = shown.filter(g.match);
+            if (group.length === 0) return null;
+            return (
+              <section key={g.value} className="space-y-2">
+                <h2 className="text-sm font-semibold text-muted-foreground uppercase">
+                  {g.value === "fixed" ? "Fixed — done, waiting for BMD to verify" : g.label} ({group.length})
+                </h2>
+                <ul className={`grid gap-3 lg:grid-cols-2 ${g.value === "fixed" ? "opacity-90" : ""}`}>
+                  {group.map((d) => {
+                    const before = photos.find((p) => p.deficiency_id === d.id && p.kind === "before");
+                    return (
+                      <WorkCard
+                        key={d.id}
+                        item={d}
+                        beforeUrl={before ? urls[before.storage_path] : undefined}
+                        hasAfter={photos.some((p) => p.deficiency_id === d.id && p.kind === "after")}
+                      />
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })
         )}
       </div>
     </div>
