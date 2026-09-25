@@ -17,6 +17,8 @@ import {
 import { ASSESSMENTS, isClosed, STATUS_LABEL } from "@/lib/bmd";
 import { useDeficiencies, useFloors, usePhotos, useProject } from "@/lib/data";
 import { clientLine, useContacts } from "@/lib/data";
+import { useServerFn } from "@tanstack/react-start";
+import { ccSendDocument } from "@/lib/companycam.functions";
 import { buildRows, exportCsv, exportExcel, exportPdf, type GroupBy } from "@/lib/exporting";
 import { assignFilterOptions, matchesAssign, peopleMap, tradeOf, useProjectPeople } from "@/lib/assign";
 import { AssignFilter } from "@/components/AssignFilter";
@@ -59,6 +61,24 @@ function ExportsPage() {
   });
 
   const rows = buildRows(filtered, photos);
+  const sendDoc = useServerFn(ccSendDocument);
+  const sendToCc = async () => {
+    if (!project) return;
+    setBusy("cc");
+    try {
+      const blob = (await exportPdf(rows, project, clientLine(project.client_name, contacts), { groupBy, people: pmap, contacts, asBlob: true })) as Blob;
+      const buf = new Uint8Array(await blob.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const name = `${project.name} deficiency report ${new Date().toISOString().slice(0, 10)}.pdf`;
+      await sendDoc({ data: { projectId: project.id, name, base64: btoa(bin) } });
+      toast.success("PDF sent to CompanyCam");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't send to CompanyCam");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (kind: "pdf" | "xlsx" | "csv") => {
     if (!project) return;
@@ -200,6 +220,18 @@ function ExportsPage() {
             <FileDown className="mr-2 h-5 w-5" /> CSV
           </Button>
         </section>
+
+        {(project as { companycam_project_id?: string | null } | undefined)?.companycam_project_id && (
+          <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold">Send to CompanyCam</h2>
+              <p className="text-sm text-muted-foreground">Uploads this PDF report (with the filters above) to the linked CompanyCam project as a document.</p>
+            </div>
+            <Button className="h-12 shrink-0" variant="secondary" disabled={busy !== null || !pdfOk} onClick={() => void sendToCc()}>
+              <FileText className="mr-2 h-5 w-5" /> {busy === "cc" ? "Sending…" : "Send to CompanyCam"}
+            </Button>
+          </section>
+        )}
 
         <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
