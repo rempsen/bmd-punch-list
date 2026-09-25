@@ -294,7 +294,8 @@ export const ccProjectPhotos = createServerFn({ method: "POST" })
   .inputValidator((d: { projectId: string; page?: number | undefined }) => ({ ...pid(d), page: Math.max(1, Math.min(500, Math.floor(d.page ?? 1))) }))
   .handler(async ({ context, data }) => {
     const { data: member } = await (context.supabase as unknown as Sb).rpc("is_project_member", { _project: data.projectId });
-    if (!member) throw new Error("You don't have access to this job.");
+    const { data: sup } = member ? { data: true } : await (context.supabase as unknown as Sb).rpc("is_super_admin", { _user_id: context.userId });
+    if (!member && !sup) throw new Error("You don't have access to this job.");
     const { hasToken, cc } = await import("./companycam.server");
     const a = await admin();
     const { data: proj } = await a.from("projects").select("companycam_project_id,companycam_project_url").eq("id", data.projectId).single();
