@@ -161,7 +161,7 @@ function MyWorkPage() {
   );
 }
 
-function describe(e: EventRow) {
+function describe(e: EventRow, pmap: Map<string, Person>) {
   const s = (v: string | null) => (v && v in STATUS_LABEL ? STATUS_LABEL[v as Status] : v ?? "—");
   switch (e.event_type) {
     case "status_change":
@@ -170,6 +170,8 @@ function describe(e: EventRow) {
       return e.note ?? "Comment";
     case "photo_added":
       return `Added ${e.to_value ?? ""} photo`.replace("  ", " ");
+    case "assignment":
+      return e.to_value ? `Assigned to ${personName(pmap.get(e.to_value))}` : "Unassigned";
     case "created":
       return "Item created";
     default:
@@ -190,7 +192,7 @@ function LogRow({ e, item, pmap }: { e: EventRow; item: DefRow | undefined; pmap
         )}
         <span>{new Date(e.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
       </div>
-      <p className="mt-1 first-letter:uppercase">{describe(e)}</p>
+      <p className="mt-1 first-letter:uppercase">{describe(e, pmap)}</p>
       {e.event_type === "status_change" && e.note && <p className="text-xs text-muted-foreground">{e.note}</p>}
       <p className="text-xs text-muted-foreground">{e.user_id ? personName(pmap.get(e.user_id)) : "System"}</p>
     </li>
