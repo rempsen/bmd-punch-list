@@ -288,7 +288,7 @@ export const ccSendDocument = createServerFn({ method: "POST" })
     }
   });
 
-type CcPhotoRaw = { id: string; creator_name?: string; captured_at?: number; description?: string | null; uris?: { type: string; uri: string }[] };
+type CcPhotoRaw = { id: string; creator_name?: string; captured_at?: number; description?: unknown; uris?: { type: string; uri: string }[] };
 export const ccProjectPhotos = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { projectId: string; page?: number | undefined }) => ({ ...pid(d), page: Math.max(1, Math.min(500, Math.floor(d.page ?? 1))) }))
@@ -296,7 +296,7 @@ export const ccProjectPhotos = createServerFn({ method: "POST" })
     const { data: member } = await (context.supabase as unknown as Sb).rpc("is_project_member", { _project: data.projectId });
     const { data: sup } = member ? { data: true } : await (context.supabase as unknown as Sb).rpc("is_super_admin", { _user_id: context.userId });
     if (!member && !sup) throw new Error("You don't have access to this job.");
-    const { hasToken, cc } = await import("./companycam.server");
+    const { hasToken, cc, ccText } = await import("./companycam.server");
     const a = await admin();
     const { data: proj } = await a.from("projects").select("companycam_project_id,companycam_project_url").eq("id", data.projectId).single();
     if (!hasToken()) return { state: "not_connected" as const, photos: [], hasMore: false, url: null };
@@ -312,7 +312,7 @@ export const ccProjectPhotos = createServerFn({ method: "POST" })
         original: u("original") ?? u("web"),
         creator: p.creator_name ?? null,
         takenAt: p.captured_at ? new Date(p.captured_at * 1000).toISOString() : null,
-        description: p.description ?? null,
+        description: ccText(p.description),
       };
     });
     return { state: "ok" as const, photos, hasMore: photos.length === per, url: proj.companycam_project_url as string | null };

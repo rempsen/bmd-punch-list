@@ -255,6 +255,13 @@ export async function syncProject(admin: Admin, projectId: string) {
 }
 
 /** Add a CompanyCam photo to the inbox unless the app uploaded it or it's already there. */
+export function ccText(d: unknown): string | null {
+  if (!d) return null;
+  if (typeof d === "string") return d;
+  const o = d as { plain_text_content?: string; html_content?: string };
+  return o.plain_text_content ?? o.html_content ?? null;
+}
+
 export async function inboxPhoto(admin: Admin, projectId: string, ccProjectId: string, p: CcPhoto) {
   const id = String(p.id);
   const { data: mine } = await admin.from("deficiency_photos").select("id").eq("companycam_photo_id", id).maybeSingle();
@@ -263,7 +270,7 @@ export async function inboxPhoto(admin: Admin, projectId: string, ccProjectId: s
   const { error } = await admin.from("companycam_inbox").insert({
     project_id: projectId, cc_photo_id: id, cc_project_id: ccProjectId,
     thumb_url: uri("thumbnail") ?? uri("web") ?? null, photo_url: uri("original") ?? uri("large") ?? uri("web") ?? null, web_url: p.photo_url ?? null,
-    description: p.description ?? null, tags: (p.tags ?? []).map((t) => t.display_value ?? t.value ?? "").filter(Boolean),
+    description: ccText(p.description), tags: (p.tags ?? []).map((t) => t.display_value ?? t.value ?? "").filter(Boolean),
     taken_at: p.captured_at ? new Date(p.captured_at * 1000).toISOString() : null, creator_name: p.creator_name ?? null,
   });
   return !error;
