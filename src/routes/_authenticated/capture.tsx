@@ -53,10 +53,12 @@ const STEP_ORDER: Step[] = [
 function BigOption({
   label,
   selected,
+  last,
   onClick,
 }: {
   label: string;
   selected?: boolean;
+  last?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -67,10 +69,15 @@ function BigOption({
         "min-h-[56px] min-w-0 break-words rounded-lg border-2 px-3 py-3 text-left text-base font-medium leading-tight transition-colors",
         selected
           ? "border-primary bg-primary text-primary-foreground"
-          : "border-border bg-card hover:border-primary/50",
+          : last
+            ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+            : "border-border bg-card hover:border-primary/50",
       )}
     >
       {label}
+      {last && !selected && (
+        <span className="mt-1 block text-[11px] font-semibold tracking-wide text-primary uppercase">Last used</span>
+      )}
     </button>
   );
 }
@@ -113,19 +120,18 @@ function MobileCapture() {
   }, [step === "assessment", project?.id, savedNumber]);
 
 
+  // Last floor/room are only hints for highlighting and ordering — never used to skip steps.
+  const [lastFloorId, setLastFloorId] = useState<string | null>(null);
+  const [lastLocationId, setLastLocationId] = useState<string | null>(null);
   useEffect(() => {
-    const lastFloor = localStorage.getItem("bmd:lastFloor");
-    const lastLocation = localStorage.getItem("bmd:lastLocation");
-    if (lastFloor && floors.some((f) => f.id === lastFloor)) {
-      setFloorId(lastFloor);
-      if (lastLocation) setLocationId(lastLocation);
-      setStep((s) => (s === "floor" ? (lastLocation ? "area" : "location") : s));
-    } else {
-      setFloorId(null);
-      setLocationId(null);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [floors.map((f) => f.id).join("|")]);
+    setLastFloorId(localStorage.getItem("bmd:lastFloor"));
+    setLastLocationId(localStorage.getItem("bmd:lastLocation"));
+    setStep("floor");
+  }, []);
+  const orderedFloors = useMemo(() => {
+    const last = floors.find((f) => f.id === lastFloorId);
+    return last ? [last, ...floors.filter((f) => f.id !== last.id)] : floors;
+  }, [floors, lastFloorId]);
 
   const floorLocations = locations.filter((l) => l.floor_id === floorId);
   const rooms = floorLocations.filter((l) => l.type === "room");
@@ -218,6 +224,9 @@ function MobileCapture() {
     .filter(Boolean)
     .join(" · ");
 
+  const stepIdx = STEP_ORDER.indexOf(step);
+  const STEP_NAMES = ["Floor", "Room", "Area", "Material", "Issue", "Assessment", "Photos"];
+
   return (
     <div>
       <PageHeader
@@ -232,16 +241,31 @@ function MobileCapture() {
         }
       />
 
+      {stepIdx >= 0 && (
+        <div className="px-4 pt-3">
+          <p className="text-sm font-medium text-muted-foreground">
+            Step {stepIdx + 1} of 7 · {STEP_NAMES[stepIdx]}
+          </p>
+          <div className="mt-2 flex gap-1">
+            {STEP_ORDER.map((s, i) => (
+              <span key={s} className={cn("h-1.5 flex-1 rounded-full", i <= stepIdx ? "bg-primary" : "bg-muted")} />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="p-4 md:p-6">
         {step === "floor" && (
           <Section title="Which floor?">
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
-              {floors.map((f) => (
+              {orderedFloors.map((f) => (
                 <BigOption
                   key={f.id}
                   label={floorShort(f)}
                   selected={f.id === floorId}
+                  last={!floorId && f.id === lastFloorId}
                   onClick={() => {
+                    if (f.id !== floorId) setLocationId(null);
                     setFloorId(f.id);
                     setStep("location");
                   }}
@@ -252,7 +276,7 @@ function MobileCapture() {
         )}
 
         {step === "location" && (
-          <Section title="Which room or area?">
+          <Section title="Which room?">
             {rooms.length === 0 && (
               <p className="mb-2 rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">
                 No guest rooms on this floor — pick a common area below
@@ -265,6 +289,7 @@ function MobileCapture() {
                   key={l.id}
                   label={l.name}
                   selected={l.id === locationId}
+                  last={!locationId && l.id === lastLocationId}
                   onClick={() => {
                     setLocationId(l.id);
                     setStep("area");
@@ -292,6 +317,7 @@ function MobileCapture() {
                   key={l.id}
                   label={l.name}
                   selected={l.id === locationId}
+                  last={!locationId && l.id === lastLocationId}
                   onClick={() => {
                     setLocationId(l.id);
                     setStep("area");
