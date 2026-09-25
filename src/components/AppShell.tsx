@@ -42,6 +42,7 @@ export function useNavItems() {
   if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera });
   if (can("export_pdf") || can("export_excel"))
     items.push({ to: "/exports", label: "Exports", icon: FileDown });
+  if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images });
   if (can("manage_settings")) items.push({ to: "/companycam", label: "CompanyCam", short: "Cam", icon: Images });
   else if (role === "bmd_field") items.push({ to: "/companycam", label: "Photo inbox", short: "Photos", icon: Images });
   if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
