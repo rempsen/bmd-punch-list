@@ -83,6 +83,35 @@ function BoardPage() {
     setDragging(null);
   };
 
+  const [widths, setWidths] = useState<Record<string, number>>({});
+  useEffect(() => {
+    try { setWidths(JSON.parse(localStorage.getItem(BOARD_WIDTHS_KEY) ?? "{}")); } catch { /* ignore */ }
+  }, []);
+  const setWidth = (key: string, value: number | undefined) =>
+    setWidths((prev) => {
+      const next = { ...prev };
+      if (value === undefined) delete next[key]; else next[key] = value;
+      localStorage.setItem(BOARD_WIDTHS_KEY, JSON.stringify(next));
+      return next;
+    });
+  const startResize = (e: React.PointerEvent<HTMLDivElement>, key: string) => {
+    e.preventDefault();
+    const colEl = e.currentTarget.parentElement!;
+    const startX = e.clientX;
+    const startW = colEl.getBoundingClientRect().width;
+    const move = (ev: PointerEvent) => {
+      const nw = Math.max(COLLAPSED, Math.min(700, Math.round(startW + ev.clientX - startX)));
+      setWidths((prev) => ({ ...prev, [key]: nw < 120 ? COLLAPSED : nw }));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setWidths((prev) => { localStorage.setItem(BOARD_WIDTHS_KEY, JSON.stringify(prev)); return prev; });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
   return (
     <div>
       <PageHeader title="Board" subtitle={project?.name ?? undefined} />
@@ -96,20 +125,38 @@ function BoardPage() {
       <div className="flex gap-3 overflow-x-auto p-4 md:p-6">
         {BOARD_COLUMNS.map((col) => {
           const cards = visible.filter((i) => col.statuses.includes(i.status));
+          const w = widths[col.key];
+          const collapsed = w !== undefined && w <= COLLAPSED;
           return (
             <div
               key={col.key}
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => drop(col)}
-              className="min-w-[268px] flex-1 rounded-lg bg-card/60 p-2"
+              style={w !== undefined ? { width: w, minWidth: w } : undefined}
+              className={cn("relative rounded-lg bg-card/60 p-2", w !== undefined ? "flex-none" : "min-w-[268px] flex-1")}
             >
-              <div className="flex items-center justify-between px-2 py-2">
-                <h2 className="text-sm font-semibold">{col.label}</h2>
-                <span className="rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground">
+              <div className={cn("flex items-center justify-between gap-1 px-2 py-2", collapsed && "flex-col")}>
+                <button
+                  type="button"
+                  onClick={() => setWidth(col.key, collapsed ? undefined : COLLAPSED)}
+                  title={collapsed ? "Expand column" : "Collapse column"}
+                  className={cn("min-w-0 text-left text-sm font-semibold hover:text-primary", collapsed && "[writing-mode:vertical-rl]")}
+                >
+                  <span className="truncate">{col.label}</span>
+                </button>
+                <span className="shrink-0 rounded-full bg-muted px-2 text-xs font-medium text-muted-foreground">
                   {cards.length}
                 </span>
               </div>
-              <div className="space-y-2">
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                title="Drag to resize · double-click to reset"
+                onPointerDown={(e) => startResize(e, col.key)}
+                onDoubleClick={() => setWidth(col.key, undefined)}
+                className="absolute inset-y-0 -right-2 z-10 w-3 cursor-col-resize rounded after:absolute after:inset-y-2 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:rounded after:bg-transparent hover:after:bg-primary"
+              />
+              {!collapsed && <div className="space-y-2">
                 {cards.map((d) => (
                   <Card
                     key={d.id}
@@ -118,7 +165,7 @@ function BoardPage() {
                     onDragStart={() => setDragging(d.id)}
                   />
                 ))}
-              </div>
+              </div>}
             </div>
           );
         })}
@@ -126,6 +173,9 @@ function BoardPage() {
     </div>
   );
 }
+
+const BOARD_WIDTHS_KEY = "bmd:board-col-widths";
+const COLLAPSED = 56;
 
 function Card({
   d,
