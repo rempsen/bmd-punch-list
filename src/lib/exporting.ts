@@ -298,6 +298,16 @@ export async function exportPdf(
             doc.setTextColor(20);
             y += 11;
           }
+          if (r.decision_outcome && r.decided_at) {
+            const by = r.decided_by ? opts.people?.get(r.decided_by) : undefined;
+            const byName = by ? by.full_name?.trim() || by.email || "" : "";
+            const line = `Client decision: ${r.decision_outcome === "fix_required" ? "Fix required" : "Accepted as-is"}${byName ? ` by ${byName}` : ""} on ${new Date(r.decided_at).toLocaleDateString()}${r.client_decision_note ? ` — "${r.client_decision_note}"` : ""}`;
+            const lines = doc.splitTextToSize(line, pageWidth - margin * 2 - 60) as string[];
+            doc.setTextColor(r.decision_outcome === "fix_required" ? 170 : 40, 40, 40);
+            doc.text(lines, margin + 55, y);
+            doc.setTextColor(20);
+            y += lines.length * 11;
+          }
         }
         if (r.description) {
           const lines = doc.splitTextToSize(r.description, pageWidth - margin * 2 - 60) as string[];
