@@ -13,6 +13,7 @@ import {
   ArrowLeftRight,
   Plus,
   Building2,
+  Briefcase,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
@@ -26,6 +27,7 @@ export function useNavItems() {
   const items: NavItem[] = [];
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench });
+  if (isTrade) items.push({ to: "/trade-portal", label: "Trade portal", short: "Portal", icon: Briefcase });
   if (role === "bmd_field") items.push({ to: "/trade-portal", label: "My items", short: "Mine", icon: Wrench });
   if (can("decide_client_items") && !can("capture_items"))
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
