@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquareQuote, Send } from "lucide-react";
+import { MessageSquareQuote, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -12,6 +12,29 @@ export const RECOMMENDATIONS: { value: Recommendation; label: string; short: str
   { value: "accepted_as_is", label: "Recommend accept as-is", short: "Accept as-is" },
   { value: "fix_required", label: "Recommend fix", short: "Fix" },
 ];
+const what = (i: DefRow) =>
+  [i.material, i.issue_type].filter(Boolean).join(" – ").toLowerCase() || "this item";
+
+const FIX_TEXT = (i: DefRow) =>
+  `We recommend correcting the ${what(i)}. It falls outside acceptable installation tolerances and would be noticeable in the finished space. BMD will repair or replace the affected area and confirm it with an after photo.`;
+
+const ACCEPT_TEXTS: ((i: DefRow) => string)[] = [
+  (i) => `The ${what(i)} is minor and within normal installation tolerances. Correcting it would risk damaging the surrounding finish, so we recommend accepting it as-is.`,
+  (i) => `This ${what(i)} is cosmetic only and does not affect performance or durability. It is barely visible under normal lighting, so we recommend leaving it as installed.`,
+  (i) => `We reviewed the ${what(i)} on site. It meets industry standards, and a repair would likely leave a more visible result than the current condition. We recommend accepting it.`,
+  (i) => `The ${what(i)} is within manufacturer and TCNA tolerances. Replacing it would disturb adjacent material that is in good condition, so we recommend accepting it as-is.`,
+  (i) => `This is a minor, isolated ${what(i)} that will not worsen over time. Given its low visibility, we recommend accepting it rather than disturbing the finished installation.`,
+  (i) => `The ${what(i)} is typical of this material and consistent with the rest of the installation. It poses no functional or safety concern, and we recommend accepting it as-is.`,
+];
+
+const allTemplates = (i: DefRow) => [FIX_TEXT(i), ...ACCEPT_TEXTS.map((f) => f(i))];
+
+function suggestReason(rec: Recommendation, i: DefRow, current = ""): string {
+  if (rec === "fix_required") return FIX_TEXT(i);
+  const opts = ACCEPT_TEXTS.map((f) => f(i)).filter((t) => t !== current);
+  return opts[Math.floor(Math.random() * opts.length)] ?? "";
+}
+
 export const recLabel = (v: string | null | undefined) => RECOMMENDATIONS.find((r) => r.value === v)?.short ?? null;
 
 /** Sends an item to the client for a decision with a recommended outcome and a reason. */
@@ -82,6 +105,8 @@ export function SendToClientButton({ item, size }: { item: DefRow; size?: "sm" }
                     onClick={() => {
                       setRec(r.value);
                       setErr(null);
+                      if (!reason.trim() || allTemplates(item).includes(reason.trim()))
+                        setReason(suggestReason(r.value, item));
                     }}
                   >
                     {r.label}
@@ -90,7 +115,14 @@ export function SendToClientButton({ item, size }: { item: DefRow; size?: "sm" }
               </div>
             </div>
             <div>
-              <p className="mb-2 text-sm font-medium">Reason for the client</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-medium">Reason for the client</p>
+                {rec === "accepted_as_is" && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setReason(suggestReason(rec, item, reason.trim()))}>
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" /> Another wording
+                  </Button>
+                )}
+              </div>
               <Textarea
                 rows={4}
                 value={reason}
@@ -98,7 +130,7 @@ export function SendToClientButton({ item, size }: { item: DefRow; size?: "sm" }
                   setReason(e.target.value);
                   setErr(null);
                 }}
-                placeholder="e.g. Minor lippage within tolerance; replacing the tile risks damaging adjacent units."
+                placeholder="Choose a recommendation above to fill in a standard reason, then edit if needed."
               />
             </div>
             {err && <p className="text-sm text-destructive">{err}</p>}
