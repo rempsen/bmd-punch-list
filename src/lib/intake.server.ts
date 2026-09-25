@@ -40,6 +40,8 @@ export type Parsed = {
   issue_type: string | null;
   assessment: string | null;
   description: string | null;
+  due_date: string | null;
+  urgency: string | null;
   confidence: { job: number; location: number; material: number; issue_type: number };
 };
 
@@ -76,7 +78,12 @@ export async function parseEmail(text: string, jobs: Jobs, rules: string, exampl
   const prompt = `You turn emails about flooring/tile/window-covering problems into one deficiency record for BMD Materials.
 Choose values ONLY from the lists below (copy spelling exactly). Use null when the email doesn't say or you can't tell.
 floor = floor label, location = room number or common-area name on that floor. assessment: acceptable | client_review | must_fix (client complaints default to must_fix).
-description: 1-3 plain sentences summarising the problem in BMD's words. Confidence 0-1 per field.
+Work out, from the forwarded email and any note typed above it: WHERE the problem is (floor, room or common area, area/scope of work), WHAT it is (material, issue type), and whether it is acceptable, needs the client to review it, or obviously must be fixed.
+area = the scope/area of work from the Areas list. material = type of material. issue_type = the kind of defect.
+description: 1-3 plain sentences describing the problem in BMD's words (what, where, how bad). If the email gives a deadline or time pressure, add it as the last sentence.
+due_date: if the client says it must be done before a date or event ("before the inspection on Oct 3", "by Friday", "before guests check in next week"), give that date as YYYY-MM-DD (today is ${new Date().toISOString().slice(0, 10)}); otherwise null.
+urgency: the time-sensitive wording copied short (e.g. "before Oct 3 inspection"), or null.
+Confidence 0-1 per field.
 
 ${rules ? `HOUSE RULES:\n${rules}\n\n` : ""}${jobText}
 
@@ -99,7 +106,7 @@ ${text.slice(0, 6000)}`;
     prompt,
     output: Output.object({
       schema: z.object({
-        job: s, floor: s, location: s, area: s, material: s, issue_type: s, assessment: s, description: s,
+        job: s, floor: s, location: s, area: s, material: s, issue_type: s, assessment: s, description: s, due_date: s, urgency: s,
         confidence: z.object({ job: z.number(), location: z.number(), material: z.number(), issue_type: z.number() }),
       }),
     }),
@@ -193,7 +200,8 @@ export async function ingestOne(admin: Admin, row: { id: string; message_id: str
       .insert({
         project_id: r.projectId, location_id: r.locationId, area: r.area, material: r.material, issue_type: r.issue,
         assessment: r.assessment as "must_fix", status: "open", responsible_party: "unassigned",
-        description: [parsed.description, `(From email: ${row.subject ?? ""} — ${row.from_email ?? ""})`].filter(Boolean).join("\n"),
+        due_date: /^\d{4}-\d{2}-\d{2}$/.test(parsed.due_date ?? "") ? parsed.due_date : null,
+        description: [parsed.description, parsed.urgency ? `Time-sensitive: ${parsed.urgency}` : null, `(From email: ${row.subject ?? ""} — ${row.from_email ?? ""})`].filter(Boolean).join("\n"),
         created_by: userId, needs_review: r.missing.length > 0, source: "email",
       })
       .select("id")
