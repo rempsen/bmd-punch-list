@@ -37,6 +37,7 @@ export type DefRow = {
   decision_outcome: Status | null;
   client_decision_note: string | null;
   is_sample: boolean;
+  email_pending?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -191,7 +192,7 @@ export function usePickLists() {
 
 /** client_decision_note is served through a permission-aware computed field. */
 export const DEF_SELECT =
-  "id,project_id,item_number,location_id,area,material,issue_type,description,assessment,status,assigned_to,assigned_trade,assigned_at,responsible_party,due_date,decision_recommendation,decision_reason,decision_requested_at,decision_requested_by,decided_at,decided_by,decision_outcome,is_sample,created_by,created_at,updated_at,closed_at,locations(id,name,type,floor_id,floors(number,label))";
+  "id,project_id,item_number,location_id,area,material,issue_type,description,assessment,status,assigned_to,assigned_trade,assigned_at,responsible_party,due_date,decision_recommendation,decision_reason,decision_requested_at,decision_requested_by,decided_at,decided_by,decision_outcome,is_sample,email_pending,created_by,created_at,updated_at,closed_at,locations(id,name,type,floor_id,floors(number,label))";
 
 async function withNotes<T extends { id: string; client_decision_note?: string | null }>(rows: T[]): Promise<T[]> {
   if (rows.length === 0) return rows;
