@@ -32,7 +32,7 @@ const allTemplates = (i: DefRow) => [FIX_TEXT(i), ...ACCEPT_TEXTS.map((f) => f(i
 function suggestReason(rec: Recommendation, i: DefRow, current = ""): string {
   if (rec === "fix_required") return FIX_TEXT(i);
   const opts = ACCEPT_TEXTS.map((f) => f(i)).filter((t) => t !== current);
-  return opts[Math.floor(Math.random() * opts.length)];
+  return opts[Math.floor(Math.random() * opts.length)] ?? "";
 }
 
 export const recLabel = (v: string | null | undefined) => RECOMMENDATIONS.find((r) => r.value === v)?.short ?? null;
