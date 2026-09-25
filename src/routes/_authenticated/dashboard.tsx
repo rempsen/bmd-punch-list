@@ -245,8 +245,8 @@ function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" fontSize={12} />
                 <YAxis allowDecimals={false} fontSize={12} />
-                <Tooltip />
-                <Bar dataKey="open" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                <Tooltip cursor={false} content={({ active, payload, label }) => active && payload?.length && Number(payload[0].value) > 0 ? <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm">{label}: {payload[0].value} open</div> : null} />
+                <Bar dataKey="open" activeBar={false} fill="var(--primary)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Panel>
@@ -257,8 +257,8 @@ function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" fontSize={10} interval={0} angle={-20} textAnchor="end" height={60} />
                 <YAxis allowDecimals={false} fontSize={12} />
-                <Tooltip />
-                <Bar dataKey="open" fill="var(--mustfix)" radius={[4, 4, 0, 0]} />
+                <Tooltip cursor={false} content={({ active, payload, label }) => active && payload?.length && Number(payload[0].value) > 0 ? <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm">{label}: {payload[0].value} open</div> : null} />
+                <Bar dataKey="open" activeBar={false} fill="var(--mustfix)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Panel>
