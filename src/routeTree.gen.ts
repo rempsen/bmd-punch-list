@@ -26,6 +26,7 @@ import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/m
 import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated/my-work'
 import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated/new-job'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
 
@@ -114,6 +115,12 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTradePortalRoute =
+  AuthenticatedTradePortalRouteImport.update({
+    id: '/trade-portal',
+    path: '/trade-portal',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
@@ -142,6 +149,7 @@ export interface FileRoutesByFullPath {
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
 }
@@ -162,6 +170,7 @@ export interface FileRoutesByTo {
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
 }
@@ -184,6 +193,7 @@ export interface FileRoutesById {
   '/_authenticated/my-work': typeof AuthenticatedMyWorkRoute
   '/_authenticated/new-job': typeof AuthenticatedNewJobRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
 }
@@ -206,6 +216,7 @@ export interface FileRouteTypes {
     | '/my-work'
     | '/new-job'
     | '/settings'
+    | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -226,6 +237,7 @@ export interface FileRouteTypes {
     | '/my-work'
     | '/new-job'
     | '/settings'
+    | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
   id:
@@ -247,6 +259,7 @@ export interface FileRouteTypes {
     | '/_authenticated/my-work'
     | '/_authenticated/new-job'
     | '/_authenticated/settings'
+    | '/_authenticated/trade-portal'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
   fileRoutesById: FileRoutesById
@@ -381,6 +394,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/trade-portal': {
+      id: '/_authenticated/trade-portal'
+      path: '/trade-portal'
+      fullPath: '/trade-portal'
+      preLoaderRoute: typeof AuthenticatedTradePortalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
@@ -411,6 +431,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMyWorkRoute: typeof AuthenticatedMyWorkRoute
   AuthenticatedNewJobRoute: typeof AuthenticatedNewJobRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
 }
 
@@ -427,6 +448,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMyWorkRoute: AuthenticatedMyWorkRoute,
   AuthenticatedNewJobRoute: AuthenticatedNewJobRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
 }
 
