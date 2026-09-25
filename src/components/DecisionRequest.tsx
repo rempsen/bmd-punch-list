@@ -32,7 +32,7 @@ export function SendToClientButton({ item, size }: { item: DefRow; size?: "sm" }
   }, [open, item.decision_recommendation, item.decision_reason]);
 
   const allowed = can("change_assessment") || can("edit_any_item");
-  if (!allowed || (item.status !== "open" && item.status !== "awaiting_client")) return null;
+  if (!allowed) return null;
   const resend = item.status === "awaiting_client";
 
   const submit = () => {
