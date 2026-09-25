@@ -61,7 +61,7 @@ export function EmailInbox() {
   };
 
   return (
-    <section className="mx-4 mt-4 rounded-lg border border-border bg-card md:mx-6">
+    <section className="mx-4 my-3 rounded-lg border border-border bg-card md:mx-6">
       <header className={cn("flex flex-wrap items-center justify-between gap-2 px-4", expanded ? "border-b border-border py-3" : "py-1.5")}>
         <button type="button" onClick={() => setToggled(!expanded)} aria-expanded={expanded} className="flex items-center gap-2 text-left">
           <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", !expanded && "-rotate-90")} />
