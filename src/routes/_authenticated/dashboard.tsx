@@ -1,6 +1,7 @@
 import { useAuth } from "@/lib/auth";
 import { AiSummary } from "@/components/AiSummary";
 import { JobOverall } from "@/components/JobOverall";
+import { EmailInbox } from "@/components/EmailInbox";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, X } from "lucide-react";
@@ -123,6 +124,7 @@ function DashboardPage() {
   return (
     <div>
       <PageHeader title={project?.name ?? "Dashboard"} subtitle={[project?.address, clientLine(project?.client_name, contacts)].filter(Boolean).join(" · ") || undefined} />
+      {can("manage_settings") && <EmailInbox />}
       {welcome && (
         <div className="mx-4 mt-4 rounded-lg border border-blush bg-card p-4 md:mx-6">
           <div className="flex items-start justify-between gap-2">
