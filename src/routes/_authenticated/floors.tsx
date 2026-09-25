@@ -67,9 +67,13 @@ function FloorsPage() {
     return (
       <button
         type="button"
-        onClick={() => setSelected(id)}
+        onClick={() => {
+          setSelected(id);
+          if (floorId) localStorage.setItem("bmd:lastFloor", floorId);
+          localStorage.setItem("bmd:lastLocation", id);
+        }}
         className={cn(
-          "flex min-h-[56px] w-full min-w-0 flex-col items-center justify-center rounded-lg border-2 px-2 py-1 text-sm font-semibold",
+          "flex min-h-[64px] md:min-h-[56px] w-full min-w-0 flex-col items-center justify-center rounded-lg border-2 px-2 py-1 text-sm font-semibold",
           toneClass[tone],
           selected === id && "ring-4 ring-foreground/20",
         )}
@@ -92,6 +96,8 @@ function FloorsPage() {
             onClick={() => {
               setActiveFloor(f.id);
               setSelected(null);
+              localStorage.setItem("bmd:lastFloor", f.id);
+              localStorage.removeItem("bmd:lastLocation");
             }}
             className={cn(
               "min-h-[44px] min-w-[56px] rounded-md px-3 text-sm font-semibold",
@@ -127,7 +133,7 @@ function FloorsPage() {
 
         <section>
           <h2 className="mb-2 text-sm font-semibold text-muted-foreground uppercase">Rooms</h2>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7 xl:grid-cols-14">
+          <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-7 xl:grid-cols-14">
             {rooms.map((l) => (
               <Tile key={l.id} id={l.id} name={l.name} />
             ))}
