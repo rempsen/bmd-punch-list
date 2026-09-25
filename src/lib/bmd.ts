@@ -63,11 +63,11 @@ export const isClosed = (s: Status) => CLOSED_STATUSES.includes(s);
 export const ALLOWED_TRANSITIONS: Record<Status, Status[]> = {
   open: ["awaiting_client", "fix_required", "in_progress", "verified", "accepted_as_is"],
   awaiting_client: ["accepted_as_is", "fix_required", "open"],
-  fix_required: ["in_progress", "fixed", "open"],
-  in_progress: ["fixed", "fix_required"],
-  fixed: ["verified", "fix_required"],
-  verified: ["fix_required", "open"],
-  accepted_as_is: ["fix_required", "open"],
+  fix_required: ["in_progress", "fixed", "open", "awaiting_client"],
+  in_progress: ["fixed", "fix_required", "awaiting_client"],
+  fixed: ["verified", "fix_required", "awaiting_client"],
+  verified: ["fix_required", "open", "awaiting_client"],
+  accepted_as_is: ["fix_required", "open", "awaiting_client"],
 };
 
 export const itemNo = (n: number) => `D-${String(n).padStart(4, "0")}`;
