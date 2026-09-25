@@ -347,4 +347,4 @@ export async function handleWebhook(admin: Admin, evt: Hook) {
   }
 }
 
-export const WEBHOOK_SCOPES = ["photo.created", "photo.updated", "project.created", "project.updated", "comment.created", "tag.created", "task.updated", "task.completed"];
+export const WEBHOOK_SCOPES = ["photo.created", "photo.updated", "project.created", "project.updated", "comment.created", "tag.created"];
