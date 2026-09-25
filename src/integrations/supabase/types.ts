@@ -686,6 +686,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_my_assignment: {
+        Args: { _assigned_to: string; _trade: string }
+        Returns: boolean
+      }
       is_project_member: { Args: { _project: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
       list_users: {
