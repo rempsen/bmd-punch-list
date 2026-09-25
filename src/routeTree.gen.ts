@@ -20,6 +20,7 @@ import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authent
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
+import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenticated/email-intake'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
 import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
@@ -31,6 +32,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
+import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -89,6 +91,12 @@ const AuthenticatedDecisionsRoute = AuthenticatedDecisionsRouteImport.update({
   path: '/decisions',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEmailIntakeRoute =
+  AuthenticatedEmailIntakeRouteImport.update({
+    id: '/email-intake',
+    path: '/email-intake',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedExportsRoute = AuthenticatedExportsRouteImport.update({
   id: '/exports',
   path: '/exports',
@@ -145,6 +153,11 @@ const AuthenticatedItemIdRoute = AuthenticatedItemIdRouteImport.update({
   path: '/item/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicIntakePollRoute = ApiPublicIntakePollRouteImport.update({
+  id: '/api/public/intake/poll',
+  path: '/api/public/intake/poll',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -157,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
@@ -168,6 +182,7 @@ export interface FileRoutesByFullPath {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -180,6 +195,7 @@ export interface FileRoutesByTo {
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
@@ -191,6 +207,7 @@ export interface FileRoutesByTo {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -205,6 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
+  '/_authenticated/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
   '/_authenticated/jobs': typeof AuthenticatedJobsRoute
@@ -216,6 +234,7 @@ export interface FileRoutesById {
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -230,6 +249,7 @@ export interface FileRouteTypes {
     | '/company-work'
     | '/dashboard'
     | '/decisions'
+    | '/email-intake'
     | '/exports'
     | '/floors'
     | '/jobs'
@@ -241,6 +261,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/intake/poll'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -253,6 +274,7 @@ export interface FileRouteTypes {
     | '/company-work'
     | '/dashboard'
     | '/decisions'
+    | '/email-intake'
     | '/exports'
     | '/floors'
     | '/jobs'
@@ -264,6 +286,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/intake/poll'
   id:
     | '__root__'
     | '/'
@@ -277,6 +300,7 @@ export interface FileRouteTypes {
     | '/_authenticated/company-work'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
+    | '/_authenticated/email-intake'
     | '/_authenticated/exports'
     | '/_authenticated/floors'
     | '/_authenticated/jobs'
@@ -288,6 +312,7 @@ export interface FileRouteTypes {
     | '/_authenticated/trade-portal'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
+    | '/api/public/intake/poll'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -297,6 +322,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -378,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDecisionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/email-intake': {
+      id: '/_authenticated/email-intake'
+      path: '/email-intake'
+      fullPath: '/email-intake'
+      preLoaderRoute: typeof AuthenticatedEmailIntakeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/exports': {
       id: '/_authenticated/exports'
       path: '/exports'
@@ -455,6 +488,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedItemIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/intake/poll': {
+      id: '/api/public/intake/poll'
+      path: '/api/public/intake/poll'
+      fullPath: '/api/public/intake/poll'
+      preLoaderRoute: typeof ApiPublicIntakePollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -465,6 +505,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
+  AuthenticatedEmailIntakeRoute: typeof AuthenticatedEmailIntakeRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
   AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
@@ -484,6 +525,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
+  AuthenticatedEmailIntakeRoute: AuthenticatedEmailIntakeRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
   AuthenticatedJobsRoute: AuthenticatedJobsRoute,
@@ -507,6 +549,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
