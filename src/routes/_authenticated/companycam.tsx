@@ -31,6 +31,9 @@ export const Route = createFileRoute("/_authenticated/companycam")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  validateSearch: (s: Record<string, unknown>): { tab?: string | undefined } => ({
+    tab: typeof s["tab"] === "string" ? s["tab"] : undefined,
+  }),
   component: CompanyCamPage,
 });
 
@@ -64,7 +67,7 @@ function CompanyCamPage() {
       <div className="px-4 py-4 md:px-6">
         <ConnectionBanner st={st} />
         {manager ? (
-          <Tabs defaultValue="overview" className="mt-4">
+          <Tabs defaultValue={Route.useSearch().tab ?? "overview"} className="mt-4">
             <TabsList className="flex h-auto flex-wrap justify-start">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="inbox">Photo inbox</TabsTrigger>
