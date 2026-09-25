@@ -128,10 +128,6 @@ function MobileCapture() {
     setLastLocationId(localStorage.getItem("bmd:lastLocation"));
     setStep("floor");
   }, []);
-  const orderedFloors = useMemo(() => {
-    const last = floors.find((f) => f.id === lastFloorId);
-    return last ? [last, ...floors.filter((f) => f.id !== last.id)] : floors;
-  }, [floors, lastFloorId]);
 
   const floorLocations = locations.filter((l) => l.floor_id === floorId);
   const rooms = floorLocations.filter((l) => l.type === "room");
