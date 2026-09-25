@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AssessmentBadge, StatusBadge } from "@/components/badges";
 import { StatusActions } from "@/components/StatusActions";
+import { DecisionRequestNote, SendToClientButton } from "@/components/DecisionRequest";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -128,6 +129,14 @@ function ItemDetail() {
             <div className="mt-4">
               <StatusActions id={item.id} status={item.status} createdBy={item.created_by} />
             </div>
+            <div className="mt-3">
+              <SendToClientButton item={item} />
+            </div>
+            {(item.status === "awaiting_client" || item.decision_reason) && (
+              <div className="mt-4">
+                <DecisionRequestNote item={item} />
+              </div>
+            )}
             {can("decide_client_items") && item.status === "awaiting_client" && (
               <div className="mt-4">
                 <Textarea

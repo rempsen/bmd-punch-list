@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AssessmentBadge } from "@/components/badges";
 import { StatusActions } from "@/components/StatusActions";
+import { recLabel } from "@/components/DecisionRequest";
 import { PhotoThumb } from "@/components/PhotoThumb";
 import { BOARD_COLUMNS, itemNo, type Status } from "@/lib/bmd";
 import { useFloors, useDeficiencies, usePhotos, useProject, useUpdateDeficiency, type DefRow } from "@/lib/data";
@@ -175,6 +176,16 @@ function Card({
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <AssessmentBadge value={d.assessment} />
+          {d.status === "awaiting_client" && (
+            <span
+              title={d.decision_reason ?? undefined}
+              className="inline-flex max-w-full items-center rounded-full border border-primary px-2.5 py-0.5 text-xs font-semibold text-primary"
+            >
+              <span className="truncate">
+                Client decision{recLabel(d.decision_recommendation) ? ` · BMD: ${recLabel(d.decision_recommendation)}` : ""}
+              </span>
+            </span>
+          )}
           {assigned && (
             <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
               <UserCheck className="h-3.5 w-3.5 shrink-0" />
@@ -185,6 +196,9 @@ function Card({
             </span>
           )}
         </div>
+        {d.status === "awaiting_client" && d.decision_reason && (
+          <p className="mt-1 line-clamp-2 text-xs">{d.decision_reason}</p>
+        )}
       </Link>
       <div className="mt-2 flex flex-wrap items-start gap-2">
         <StatusActions id={d.id} status={d.status} size="sm" />
