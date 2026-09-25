@@ -287,3 +287,32 @@ export const ccSendDocument = createServerFn({ method: "POST" })
       throw e;
     }
   });
+
+type CcPhotoRaw = { id: string; creator_name?: string; captured_at?: number; description?: string | null; uris?: { type: string; uri: string }[] };
+export const ccProjectPhotos = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { projectId: string; page?: number | undefined }) => ({ ...pid(d), page: Math.max(1, Math.min(500, Math.floor(d.page ?? 1))) }))
+  .handler(async ({ context, data }) => {
+    const { data: member } = await (context.supabase as unknown as Sb).rpc("is_project_member", { _project: data.projectId });
+    if (!member) throw new Error("You don't have access to this job.");
+    const { hasToken, cc } = await import("./companycam.server");
+    const a = await admin();
+    const { data: proj } = await a.from("projects").select("companycam_project_id,companycam_project_url").eq("id", data.projectId).single();
+    if (!hasToken()) return { state: "not_connected" as const, photos: [], hasMore: false, url: null };
+    if (!proj?.companycam_project_id) return { state: "not_linked" as const, photos: [], hasMore: false, url: null };
+    const per = 48;
+    const raw = await cc<CcPhotoRaw[]>(`/projects/${proj.companycam_project_id}/photos?per_page=${per}&page=${data.page}`);
+    const photos = (raw ?? []).map((p) => {
+      const u = (t: string) => p.uris?.find((x) => x.type === t)?.uri ?? null;
+      return {
+        id: String(p.id),
+        thumb: u("thumbnail") ?? u("web"),
+        web: u("web") ?? u("original"),
+        original: u("original") ?? u("web"),
+        creator: p.creator_name ?? null,
+        takenAt: p.captured_at ? new Date(p.captured_at * 1000).toISOString() : null,
+        description: p.description ?? null,
+      };
+    });
+    return { state: "ok" as const, photos, hasMore: photos.length === per, url: proj.companycam_project_url as string | null };
+  });
