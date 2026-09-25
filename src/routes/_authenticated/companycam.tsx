@@ -382,7 +382,7 @@ function InboxDialog({ row, mode, onClose }: { row: InboxRow; mode: "create" | "
   const kind0: "before" | "after" = row.tags.some((t) => t.toLowerCase() === "after") ? "after" : "before";
   const dMatch = desc.match(/D-?0*(\d{1,5})/i);
   const [defId, setDefId] = useState("");
-  const [q, setQ] = useState(dMatch ? `D-${dMatch[1].padStart(4, "0")}` : "");
+  const [q, setQ] = useState(dMatch ? `D-${(dMatch[1] ?? "").padStart(4, "0")}` : "");
   const [kind, setKind] = useState(kind0);
   const pickIn = (list: string[] | undefined) => list?.find((v) => desc.toLowerCase().includes(v.toLowerCase())) ?? "";
   const room = desc.match(/\b(?:room|rm|suite)\s*#?\s*(\w+)/i)?.[1];
