@@ -62,7 +62,7 @@ function TradePortal() {
     <div>
       <PageHeader
         title={isTrade ? "Trade portal" : "My items"}
-        subtitle={`${isTrade ? company || "Your work" : "Assigned to you"} · ${mine.length} assigned${overdue ? ` · ${overdue} overdue` : ""}`}
+        subtitle={`${isTrade ? company || "Your work" : "Assigned to you"} · ${mine.filter((i) => i.status !== "verified").length} assigned${overdue ? ` · ${overdue} overdue` : ""}`}
         actions={
           isTrade ? (
             <Button variant="ghost" className="h-11" asChild>
