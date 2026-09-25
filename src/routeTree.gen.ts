@@ -20,6 +20,7 @@ import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authent
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
+import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenticated/email-intake'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
 import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
@@ -90,6 +91,12 @@ const AuthenticatedDecisionsRoute = AuthenticatedDecisionsRouteImport.update({
   path: '/decisions',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedEmailIntakeRoute =
+  AuthenticatedEmailIntakeRouteImport.update({
+    id: '/email-intake',
+    path: '/email-intake',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedExportsRoute = AuthenticatedExportsRouteImport.update({
   id: '/exports',
   path: '/exports',
@@ -163,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
@@ -187,6 +195,7 @@ export interface FileRoutesByTo {
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
@@ -213,6 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
+  '/_authenticated/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
   '/_authenticated/jobs': typeof AuthenticatedJobsRoute
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/company-work'
     | '/dashboard'
     | '/decisions'
+    | '/email-intake'
     | '/exports'
     | '/floors'
     | '/jobs'
@@ -263,6 +274,7 @@ export interface FileRouteTypes {
     | '/company-work'
     | '/dashboard'
     | '/decisions'
+    | '/email-intake'
     | '/exports'
     | '/floors'
     | '/jobs'
@@ -288,6 +300,7 @@ export interface FileRouteTypes {
     | '/_authenticated/company-work'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
+    | '/_authenticated/email-intake'
     | '/_authenticated/exports'
     | '/_authenticated/floors'
     | '/_authenticated/jobs'
@@ -391,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDecisionsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/email-intake': {
+      id: '/_authenticated/email-intake'
+      path: '/email-intake'
+      fullPath: '/email-intake'
+      preLoaderRoute: typeof AuthenticatedEmailIntakeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/exports': {
       id: '/_authenticated/exports'
       path: '/exports'
@@ -485,6 +505,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
+  AuthenticatedEmailIntakeRoute: typeof AuthenticatedEmailIntakeRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
   AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
@@ -504,6 +525,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
+  AuthenticatedEmailIntakeRoute: AuthenticatedEmailIntakeRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
   AuthenticatedJobsRoute: AuthenticatedJobsRoute,
