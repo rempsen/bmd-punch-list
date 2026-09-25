@@ -110,8 +110,20 @@ function SummaryPage() {
             </Button>
           </div>
           {ai ? (
-            <div className="prose prose-sm mt-3 max-w-none text-foreground [&_h1]:text-base [&_h2]:text-base [&_h3]:text-sm [&_li]:my-0.5">
-              <ReactMarkdown>{ai}</ReactMarkdown>
+            <div className="mt-4 max-w-3xl text-[15px] leading-relaxed text-foreground">
+              <ReactMarkdown
+                components={{
+                  h1: ({ children }) => <h2 className="mt-8 mb-3 border-b border-border pb-2 text-xl font-bold first:mt-0">{children}</h2>,
+                  h2: ({ children }) => <h2 className="mt-8 mb-3 border-b border-border pb-2 text-xl font-bold first:mt-0">{children}</h2>,
+                  h3: ({ children }) => <h3 className="mt-6 mb-2 text-lg font-semibold text-primary">{children}</h3>,
+                  h4: ({ children }) => <h4 className="mt-4 mb-2 text-base font-semibold">{children}</h4>,
+                  p: ({ children }) => <p className="my-3">{children}</p>,
+                  ul: ({ children }) => <ul className="my-3 space-y-3">{children}</ul>,
+                  ol: ({ children }) => <ol className="my-3 list-decimal space-y-3 pl-5">{children}</ol>,
+                  li: ({ children }) => <li className="rounded-md border-l-4 border-border bg-muted/40 py-2 pl-3 pr-2">{children}</li>,
+                  strong: ({ children }) => <strong className="font-semibold text-foreground">{children}</strong>,
+                }}
+              >{ai}</ReactMarkdown>
             </div>
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">
