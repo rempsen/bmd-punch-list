@@ -86,7 +86,7 @@ function ProgressDialog({
   const [busy, setBusy] = useState(false);
 
   const options: { value: Status; label: string }[] = [
-    ...(item.status === "fix_required" ? [{ value: "in_progress" as Status, label: "Start work" }] : []),
+    ...(item.status === "fix_required" || item.status === "open" ? [{ value: "in_progress" as Status, label: "Start work" }] : []),
     { value: "fixed", label: "Mark fixed" },
   ];
   const needsPhoto = next === "fixed" && !hasAfter && files.length === 0;

@@ -25,6 +25,7 @@ export function useNavItems() {
   const items: NavItem[] = [];
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench });
+  if (role === "bmd_field") items.push({ to: "/trade-portal", label: "My items", short: "Mine", icon: Wrench });
   if (can("decide_client_items") && !can("capture_items"))
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
   if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });

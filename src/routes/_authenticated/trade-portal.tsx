@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_authenticated/trade-portal")({
 
 type Tab = "todo" | "in_progress" | "fixed" | "all";
 const TABS: { value: Tab; label: string; match: (d: DefRow) => boolean }[] = [
-  { value: "todo", label: "To start", match: (d) => d.status === "fix_required" },
+  { value: "todo", label: "To start", match: (d) => d.status === "fix_required" || d.status === "open" },
   { value: "in_progress", label: "In progress", match: (d) => d.status === "in_progress" },
   { value: "fixed", label: "Fixed", match: (d) => d.status === "fixed" },
   { value: "all", label: "All", match: () => true },
@@ -34,19 +34,22 @@ const TABS: { value: Tab; label: string; match: (d: DefRow) => boolean }[] = [
 function TradePortal() {
   const { data: project } = useProject();
   const { data: items = [] } = useDeficiencies(project?.id);
-  const { user, projectId } = useAuth();
+  const { user, projectId, role } = useAuth();
+  const isTrade = role === "trade";
   const { data: people = [] } = useProjectPeople(projectId);
   const [tab, setTab] = useState<Tab>("all");
 
   const pmap = useMemo(() => peopleMap(people), [people]);
   const company = (user ? pmap.get(user.id)?.company : null)?.trim() || "";
+  const statuses = isTrade ? ["fix_required", "in_progress", "fixed"] : ["open", "fix_required", "in_progress", "fixed"];
   const mine = useMemo(() => {
-    const c = company.toLowerCase();
+    // Trades also see work assigned to their company; BMD crews see only items assigned to them.
+    const c = isTrade ? company.toLowerCase() : "";
     return items
-      .filter((i) => ["fix_required", "in_progress", "fixed"].includes(i.status))
+      .filter((i) => statuses.includes(i.status))
       .filter((i) => (!!user && i.assigned_to === user.id) || (!!c && tradeOf(i, pmap).toLowerCase() === c))
       .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") || a.item_number - b.item_number);
-  }, [items, pmap, user, company]);
+  }, [items, pmap, user, company, isTrade]);
 
   const shown = mine.filter(TABS.find((t) => t.value === tab)!.match);
   const ids = useMemo(() => mine.map((i) => i.id), [mine]);
@@ -57,14 +60,16 @@ function TradePortal() {
   return (
     <div>
       <PageHeader
-        title="Trade portal"
-        subtitle={`${company || "Your work"} · ${mine.length} assigned${overdue ? ` · ${overdue} overdue` : ""}`}
+        title={isTrade ? "Trade portal" : "My items"}
+        subtitle={`${isTrade ? company || "Your work" : "Assigned to you"} · ${mine.length} assigned${overdue ? ` · ${overdue} overdue` : ""}`}
         actions={
-          <Button variant="ghost" className="h-11" asChild>
-            <Link to="/my-work">
-              <ArrowLeft className="mr-2 h-4 w-4" /> My work
-            </Link>
-          </Button>
+          isTrade ? (
+            <Button variant="ghost" className="h-11" asChild>
+              <Link to="/my-work">
+                <ArrowLeft className="mr-2 h-4 w-4" /> My work
+              </Link>
+            </Button>
+          ) : undefined
         }
       />
       <div className="space-y-4 p-4 md:p-6">
@@ -82,7 +87,7 @@ function TradePortal() {
         </div>
         {shown.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            {mine.length === 0 ? "Nothing is assigned to you or your company on this job." : "No items in this view."}
+            {mine.length === 0 ? isTrade ? "Nothing is assigned to you or your company on this job." : "Nothing is assigned to you on this job yet." : "No items in this view."}
           </p>
         ) : (
           <ul className="grid gap-3 lg:grid-cols-2">
