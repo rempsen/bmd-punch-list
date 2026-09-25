@@ -16,6 +16,7 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/board'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authenticated/client-portal'
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
@@ -66,6 +67,12 @@ const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
   path: '/capture',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedClientPortalRoute =
+  AuthenticatedClientPortalRouteImport.update({
+    id: '/client-portal',
+    path: '/client-portal',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedCompanyWorkRoute =
   AuthenticatedCompanyWorkRouteImport.update({
     id: '/company-work',
@@ -146,6 +153,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/client-portal': typeof AuthenticatedClientPortalRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
@@ -168,6 +176,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/client-portal': typeof AuthenticatedClientPortalRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
@@ -192,6 +201,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/board': typeof AuthenticatedBoardRoute
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
+  '/_authenticated/client-portal': typeof AuthenticatedClientPortalRoute
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/board'
     | '/capture'
+    | '/client-portal'
     | '/company-work'
     | '/dashboard'
     | '/decisions'
@@ -238,6 +249,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/board'
     | '/capture'
+    | '/client-portal'
     | '/company-work'
     | '/dashboard'
     | '/decisions'
@@ -261,6 +273,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/board'
     | '/_authenticated/capture'
+    | '/_authenticated/client-portal'
     | '/_authenticated/company-work'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
@@ -335,6 +348,13 @@ declare module '@tanstack/react-router' {
       path: '/capture'
       fullPath: '/capture'
       preLoaderRoute: typeof AuthenticatedCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/client-portal': {
+      id: '/_authenticated/client-portal'
+      path: '/client-portal'
+      fullPath: '/client-portal'
+      preLoaderRoute: typeof AuthenticatedClientPortalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/company-work': {
@@ -441,6 +461,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedBoardRoute: typeof AuthenticatedBoardRoute
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
+  AuthenticatedClientPortalRoute: typeof AuthenticatedClientPortalRoute
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
@@ -459,6 +480,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBoardRoute: AuthenticatedBoardRoute,
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
+  AuthenticatedClientPortalRoute: AuthenticatedClientPortalRoute,
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
