@@ -15,7 +15,7 @@ import {
 } from "@/lib/assign";
 import { cn } from "@/lib/utils";
 import { respLabel, RESPONSIBLE } from "@/lib/responsible";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AssessmentBadge, StatusBadge } from "@/components/badges";
@@ -112,6 +112,7 @@ function ListPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [assignOpen, setAssignOpen] = useState(false);
   const { projectId } = useAuth();
+  const { widths, set: setWidth, reset: resetWidth } = useColWidths();
   const { data: people = [] } = useProjectPeople(projectId);
   const pmap = useMemo(() => peopleMap(people), [people]);
   const assignOptions = useMemo(() => assignFilterOptions(items, pmap), [items, pmap]);
@@ -201,7 +202,15 @@ function ListPage() {
     else setSp({ sort: key, dir: "asc" });
   };
   const th = (label: string, key: SortKey) => (
-    <SortableTh label={label} active={sort === key} asc={asc} onClick={() => toggleSort(key)} />
+    <SortableTh
+      label={label}
+      active={sort === key}
+      asc={asc}
+      onClick={() => toggleSort(key)}
+      width={widths[key] ?? 120}
+      onResize={(px) => setWidth(key, px)}
+      onReset={() => resetWidth(key)}
+    />
   );
 
   return (
@@ -299,10 +308,13 @@ function ListPage() {
 
       <div className="overflow-x-auto p-4 md:p-6">
         <AssignDialog open={assignOpen} onOpenChange={setAssignOpen} ids={selected} onDone={() => setSelected([])} />
-        <table className="w-full min-w-[1080px] border-collapse text-sm">
+        <table
+          className="table-fixed border-collapse text-sm [&_td]:overflow-hidden [&_td]:text-ellipsis"
+          style={{ width: Object.values(widths).reduce((a, b) => a + b, 0) + (canCapture ? 32 : 0) }}
+        >
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase">
-              {canCapture && <th className="w-8 py-2" />}
+              {canCapture && <th className="py-2" style={{ width: 32 }} />}
               {th("Item", "item_number")}
               {th("Floor", "floor")}
               {th("Location", "location")}
@@ -361,18 +373,79 @@ function ListPage() {
   );
 }
 
-function SortableTh({ label, active, asc, onClick }: { label: string; active: boolean; asc: boolean; onClick: () => void }) {
+const DEFAULT_WIDTHS: Record<string, number> = {
+  item_number: 90, floor: 70, location: 100, area: 190, material: 120, issue: 150,
+  assessment: 150, status: 120, responsible: 140, assigned: 170, created_at: 100,
+};
+const WIDTHS_KEY = "bmd:list-col-widths";
+
+function useColWidths() {
+  const [widths, setWidths] = useState<Record<string, number>>(DEFAULT_WIDTHS);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(WIDTHS_KEY) || "{}");
+      setWidths((w) => ({ ...w, ...saved }));
+    } catch { /* ignore */ }
+  }, []);
+  const set = (key: string, px: number) =>
+    setWidths((w) => {
+      const next = { ...w, [key]: Math.max(50, Math.round(px)) };
+      localStorage.setItem(WIDTHS_KEY, JSON.stringify(next));
+      return next;
+    });
+  const reset = (key: string) => set(key, DEFAULT_WIDTHS[key] ?? 120);
+  return { widths, set, reset };
+}
+
+function SortableTh({
+  label, active, asc, onClick, width, onResize, onReset,
+}: {
+  label: string; active: boolean; asc: boolean; onClick: () => void;
+  width: number; onResize: (px: number) => void; onReset: () => void;
+}) {
   const Icon = !active ? ArrowUpDown : asc ? ArrowUp : ArrowDown;
+  const startDrag = (e: React.PointerEvent<HTMLSpanElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startW = width;
+    const move = (ev: PointerEvent) => onResize(startW + ev.clientX - startX);
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
   return (
-    <th className="py-2 pr-3" aria-sort={active ? (asc ? "ascending" : "descending") : "none"}>
+    <th
+      className="relative py-2 pr-3"
+      style={{ width }}
+      aria-sort={active ? (asc ? "ascending" : "descending") : "none"}
+    >
       <button
         type="button"
         onClick={onClick}
-        className={cn("inline-flex items-center gap-1 uppercase hover:text-foreground", active && "text-foreground")}
+        className={cn("inline-flex max-w-full items-center gap-1 truncate uppercase hover:text-foreground", active && "text-foreground")}
       >
         {label}
-        <Icon className={cn("h-3 w-3", !active && "opacity-40")} />
+        <Icon className={cn("h-3 w-3 shrink-0", !active && "opacity-40")} />
       </button>
+      <span
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={`Resize ${label} column`}
+        title="Drag to resize · double-click to reset"
+        onPointerDown={startDrag}
+        onDoubleClick={onReset}
+        className="group absolute top-0 right-0 flex h-full w-2 cursor-col-resize touch-none justify-center"
+      >
+        <span className="h-full w-px bg-border group-hover:w-0.5 group-hover:bg-primary" />
+      </span>
     </th>
   );
 }
