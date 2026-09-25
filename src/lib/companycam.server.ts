@@ -38,7 +38,7 @@ export type CcProject = {
 export type CcPhoto = {
   id: string | number;
   project_id?: string | number;
-  description?: string | null;
+  description?: unknown;
   captured_at?: number;
   creator_name?: string;
   photo_url?: string;
