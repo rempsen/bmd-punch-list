@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ScanSearch } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,7 +34,7 @@ function PhotosPage() {
   const [view, setView] = useState<Viewing | null>(null);
   return (
     <div className="space-y-4">
-      <PageHeader title="Job photos" subtitle="CompanyCam photos and our own uploads, side by side." actions={<Button asChild size="sm" variant="outline"><Link to="/companycam">Photo inbox</Link></Button>} />
+      <PageHeader title="Job photos" subtitle="CompanyCam photos and our own uploads, side by side." actions={<Button asChild className="h-11 px-5 text-base font-semibold shadow-md ring-2 ring-accent"><Link to="/companycam" search={{ tab: "inbox" }}><ScanSearch className="mr-2 h-5 w-5" />Review photos for deficiencies</Link></Button>} />
       <div className="grid gap-4 lg:grid-cols-2">
         <OurPhotos projectId={projectId} onOpen={setView} />
         <CcPhotos projectId={projectId} onOpen={setView} />
