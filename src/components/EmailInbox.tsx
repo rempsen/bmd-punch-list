@@ -81,7 +81,7 @@ export function EmailInbox() {
       ) : (
         <ul className="divide-y divide-border">
           {rows.map((r) => {
-            const s = STATUS[r.status] ?? STATUS.parsed;
+            const s = STATUS[r.status] ?? { l: "Added", c: "bg-muted text-muted-foreground" };
             const body = (
               <>
                 <div className="min-w-0 flex-1">
