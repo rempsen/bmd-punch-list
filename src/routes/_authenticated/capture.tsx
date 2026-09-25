@@ -64,7 +64,7 @@ function BigOption({
       type="button"
       onClick={onClick}
       className={cn(
-        "min-h-[56px] rounded-lg border-2 px-4 py-3 text-left text-base font-medium transition-colors",
+        "min-h-[56px] min-w-0 break-words rounded-lg border-2 px-3 py-3 text-left text-base font-medium leading-tight transition-colors",
         selected
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-card hover:border-primary/50",
