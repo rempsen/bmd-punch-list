@@ -115,29 +115,6 @@ function DashboardPage() {
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [filtered]);
 
-  const burndown = useMemo(() => {
-    const ids = new Set(filtered.map((d) => d.id));
-    const relevant = events.filter((e) => ids.has(e.deficiency_id));
-    const closedStates = new Set(["verified", "accepted_as_is"]);
-    let open = 0;
-    const perDay = new Map<string, number>();
-    for (const e of relevant) {
-      const day = e.created_at.slice(0, 10);
-      if (e.event_type === "created") {
-        if (!closedStates.has(e.to_value ?? "")) open += 1;
-      } else if (e.event_type === "status_change") {
-        const wasClosed = closedStates.has(e.from_value ?? "");
-        const nowClosed = closedStates.has(e.to_value ?? "");
-        if (!wasClosed && nowClosed) open -= 1;
-        if (wasClosed && !nowClosed) open += 1;
-      } else {
-        continue;
-      }
-      perDay.set(day, Math.max(open, 0));
-    }
-    return [...perDay.entries()].map(([date, value]) => ({ date, open: value }));
-  }, [events, filtered]);
-
   if (!can("view_dashboard"))
     return (
       <div>
