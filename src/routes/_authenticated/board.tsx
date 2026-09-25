@@ -186,6 +186,16 @@ function Card({
               </span>
             </span>
           )}
+          {d.decision_outcome && d.status !== "awaiting_client" && (
+            <span
+              title={d.client_decision_note ?? undefined}
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                d.decision_outcome === "fix_required" ? "bg-mustfix text-primary-foreground" : "bg-acceptable text-primary-foreground"
+              }`}
+            >
+              Client: {d.decision_outcome === "fix_required" ? "Fix required" : "Accepted as-is"}
+            </span>
+          )}
           {assigned && (
             <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
               <UserCheck className="h-3.5 w-3.5 shrink-0" />
@@ -196,6 +206,9 @@ function Card({
             </span>
           )}
         </div>
+        {d.decision_outcome && d.status !== "awaiting_client" && d.client_decision_note && (
+          <p className="mt-1 line-clamp-2 text-xs">Client: “{d.client_decision_note}”</p>
+        )}
         {d.status === "awaiting_client" && d.decision_reason && (
           <p className="mt-1 line-clamp-2 text-xs">{d.decision_reason}</p>
         )}
