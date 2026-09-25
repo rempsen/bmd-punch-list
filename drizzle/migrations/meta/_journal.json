@@ -141,6 +141,13 @@
       "when": 1790312291226,
       "tag": "0019_email_pending_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790315652240,
+      "tag": "0020_move_deficiency",
+      "breakpoints": true
     }
   ]
 }

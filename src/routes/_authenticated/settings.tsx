@@ -29,6 +29,7 @@ import { AllUsersPanel, UsersPanel } from "@/components/settings/UsersPanel";
 import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
+import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   validateSearch: (s: Record<string, unknown>): { tab?: string | undefined } => ({
@@ -188,8 +189,9 @@ function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle={project?.name ?? undefined} />
       <div className="p-4 md:p-6">
-        <Tabs defaultValue={Route.useSearch().tab ?? (canSettings ? "structure" : "users")}>
+        <Tabs defaultValue={Route.useSearch().tab ?? (canSettings ? "jobs" : "users")}>
           <TabsList className="flex-wrap">
+            {canSettings && <TabsTrigger value="jobs">Jobs admin</TabsTrigger>}
             {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
             {canSettings && <TabsTrigger value="lists">Pick lists</TabsTrigger>}
             {canUsers && <TabsTrigger value="users">Users</TabsTrigger>}
@@ -199,6 +201,12 @@ function SettingsPage() {
             {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
             {canSettings && <TabsTrigger value="companycam">CompanyCam</TabsTrigger>}
           </TabsList>
+
+          {canSettings && (
+            <TabsContent value="jobs">
+              <JobsAdminPanel />
+            </TabsContent>
+          )}
 
           <TabsContent value="companycam" className="space-y-4">
             <Card title="CompanyCam">
