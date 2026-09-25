@@ -1073,6 +1073,10 @@ export type Database = {
         }[]
       }
       location_project: { Args: { _loc: string }; Returns: string }
+      move_deficiency: {
+        Args: { _id: string; _location: string }
+        Returns: number
+      }
       my_projects: {
         Args: never
         Returns: {
