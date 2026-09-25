@@ -95,9 +95,19 @@ function IntakePage() {
     <div>
       <PageHeader
         title="Email intake"
-        subtitle="Issues sent to dan+centric@bmdmaterials.com"
+        subtitle="Forwarded issue emails become open deficiencies"
       />
       <div className="space-y-6 p-4 md:p-6">
+        <div className="rounded-xl border-2 border-primary bg-card p-5 text-center sm:p-6">
+          <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">To report an issue, forward the email to</p>
+          <p className="mt-2 break-all text-2xl font-bold text-primary sm:text-3xl">dan+centric@bmdmaterials.com</p>
+          <button
+            type="button"
+            onClick={() => { void navigator.clipboard.writeText("dan+centric@bmdmaterials.com"); toast.success("Address copied"); }}
+            className="mt-3 inline-flex h-9 items-center rounded-md border border-border px-4 text-sm font-medium hover:bg-muted"
+          >Copy address</button>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">New here? Just forward the client's email to this address — add a short note on top with the room or job if it isn't obvious. It shows up in Open on the Board automatically. Nothing to set up.</p>
+        </div>
         <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="font-semibold">Sync email items</p>
