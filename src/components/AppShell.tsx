@@ -35,6 +35,7 @@ export function useNavItems() {
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
   if (role === "client") items.push({ to: "/client-portal", label: "Client portal", short: "Portal", icon: Briefcase });
   if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
+  if (can("view_dashboard")) items.push({ to: "/summary", label: "Summary", icon: ClipboardList });
   if (can("capture_items") || can("edit_any_item"))
     items.push({ to: "/board", label: "Board", icon: KanbanSquare });
   items.push({ to: "/floors", label: "Floors", icon: Grid3x3 });
