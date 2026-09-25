@@ -220,7 +220,7 @@ export async function pollMailbox(admin: Admin) {
     $top: "50",
     $select: "id,subject,receivedDateTime,hasAttachments,from,toRecipients,ccRecipients,body",
   });
-  const { value } = await graph<{ value: GMsg[] }>(`/me/messages?${q}`);
+  const { value } = await graph<{ value: GMsg[] }>(`/me/mailFolders/inbox/messages?${q}`);
   let created = 0;
   let cursor = since;
   for (const m of value ?? []) {
