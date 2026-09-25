@@ -79,7 +79,7 @@ Write a clear punch-list summary (under 350 words) in markdown for the site team
 - **Photo review gaps**: items marked Fixed with no after photo, open items with no before photo, and the number of CompanyCam photos still waiting in the Photo inbox.
 - **Waiting on the client**: D-numbers and what BMD is asking.
 - **Next actions**: 2-4 concrete steps, naming trades or people where the data shows them.
-Use the notes to explain what's actually happening on an item. Only use facts from the data. Do not invent items, people or dates.`;
+Formatting: each section title is a '## ' heading; inside Still open each floor is a '### Floor N' heading; every item or fact is its own '- ' bullet starting with bold D-number and room (e.g. '- **D-0013 · Room 201** — ...'). Use the notes to explain what's actually happening on an item. Only use facts from the data. Do not invent items, people or dates.`;
 
     const { streamText } = await import("ai");
     const { createOpenAI } = await import("@ai-sdk/openai");
