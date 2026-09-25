@@ -280,10 +280,12 @@ export function useAllEvents(projectId?: string) {
 }
 
 export function useProfiles() {
+  const { projectId } = useAuth();
   return useQuery({
-    queryKey: ["profiles"],
+    queryKey: ["profiles", projectId],
+    enabled: !!projectId,
     queryFn: async () =>
-      unwrap<Profile[]>(await supabase.from("profiles").select("id,email,full_name").order("email")),
+      unwrap<Profile[]>(await supabase.rpc("project_directory", { _project: projectId! })),
   });
 }
 

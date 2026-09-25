@@ -714,6 +714,14 @@ export type Database = {
         }[]
       }
       photo_path_project: { Args: { _name: string }; Returns: string }
+      project_directory: {
+        Args: { _project: string }
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+        }[]
+      }
       project_people: {
         Args: { _project: string }
         Returns: {

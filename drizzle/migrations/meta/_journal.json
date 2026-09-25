@@ -92,6 +92,13 @@
       "when": 1790303264407,
       "tag": "0012_allow_any_to_awaiting_client",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790304202221,
+      "tag": "0013_tighten_profile_role_visibility",
+      "breakpoints": true
     }
   ]
 }
