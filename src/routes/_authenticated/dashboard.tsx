@@ -4,8 +4,9 @@ import { JobOverall } from "@/components/JobOverall";
 import { EmailInbox } from "@/components/EmailInbox";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CheckCircle2, Plus, X } from "lucide-react";
+import { StatusBadge } from "@/components/badges";
+import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -24,10 +25,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ASSESSMENTS, isClosed } from "@/lib/bmd";
+import { ASSESSMENTS, isClosed, itemNo } from "@/lib/bmd";
 import { RESPONSIBLE } from "@/lib/responsible";
 import { assigneeText, peopleMap, useProjectPeople } from "@/lib/assign";
-import { clientLine, useContacts, useDeficiencies, useFloors, usePickLists, useProject } from "@/lib/data";
+import { clientLine, useContacts, useDeficiencies, useFloors, usePickLists, useProject, type DefRow } from "@/lib/data";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   validateSearch: (s: Record<string, unknown>): { welcome?: string | undefined } => ({
@@ -37,7 +38,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 function DashboardPage() {
-  const { can } = useAuth();
+  const { can, isSuperAdmin, role } = useAuth();
   const { data: project } = useProject();
   const { data: items = [] } = useDeficiencies(project?.id);
   const { data: people = [] } = useProjectPeople(project?.id);
@@ -124,7 +125,11 @@ function DashboardPage() {
   return (
     <div>
       <PageHeader title={project?.name ?? "Dashboard"} subtitle={[project?.address, clientLine(project?.client_name, contacts)].filter(Boolean).join(" · ") || undefined} />
-      {can("manage_settings") && <EmailInbox />}
+      <div className="md:hidden">
+        <MobileDashboard items={items} people={people} />
+      </div>
+      <div className="hidden md:block">
+      {(isSuperAdmin || role === "bmd_manager") && <EmailInbox />}
       {welcome && (
         <div className="mx-4 mt-4 rounded-lg border border-blush bg-card p-4 md:mx-6">
           <div className="flex items-start justify-between gap-2">
@@ -298,6 +303,82 @@ function DashboardPage() {
       </div>
       </>
       )}
+      </div>
+    </div>
+  );
+}
+
+function MobileDashboard({ items, people }: { items: DefRow[]; people: Parameters<typeof peopleMap>[0] }) {
+  const { user, can } = useAuth();
+  const [lastFloor, setLastFloor] = useState<string | null>(null);
+  useEffect(() => setLastFloor(localStorage.getItem("bmd:lastFloor")), []);
+  const today = new Date().toISOString().slice(0, 10);
+  const open = items.filter((d) => !isClosed(d.status));
+  const stats = [
+    { label: "Open", value: open.length },
+    { label: "Must fix", value: open.filter((d) => d.assessment === "must_fix").length, tone: "text-mustfix" },
+    { label: "Awaiting client", value: items.filter((d) => d.status === "awaiting_client").length },
+    { label: "Fixed today", value: items.filter((d) => d.status === "fixed" && d.updated_at.slice(0, 10) === today).length },
+  ];
+  const mine = items
+    .filter((d) => d.created_by === user?.id)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 10);
+  const attention = open.filter(
+    (d) => d.assessment === "must_fix" && (!lastFloor || d.locations?.floor_id === lastFloor),
+  );
+  const pm = peopleMap(people);
+  const Row = ({ d }: { d: DefRow }) => (
+    <li>
+      <Link to="/item/$id" params={{ id: d.id }} className="flex min-h-14 items-center gap-3 px-4 py-3 active:bg-muted">
+        <span className="shrink-0 font-mono text-sm font-semibold">{itemNo(d.item_number)}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{d.locations?.name} · {d.issue_type}</span>
+          <span className="block truncate text-xs text-muted-foreground">
+            {d.material}{assigneeText(d, pm).person || assigneeText(d, pm).trade ? ` · ${assigneeText(d, pm).person || assigneeText(d, pm).trade}` : ""}
+          </span>
+        </span>
+        <StatusBadge value={d.status} />
+      </Link>
+    </li>
+  );
+  return (
+    <div className="space-y-5 p-4">
+      {can("capture_items") && (
+        <Link to="/capture" className="flex min-h-20 items-center gap-4 rounded-xl bg-primary px-5 text-primary-foreground shadow-md active:scale-[0.99]">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-primary-foreground/15">
+            <Plus className="h-7 w-7" strokeWidth={3} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-lg font-semibold">Add a deficiency</span>
+            <span className="block text-xs opacity-80">Picks up where you left off</span>
+          </span>
+        </Link>
+      )}
+      <div className="grid grid-cols-4 gap-2">
+        {stats.map((s) => (
+          <div key={s.label} className="rounded-lg border border-border bg-card px-2 py-2.5 text-center">
+            <p className={`text-xl font-semibold ${s.tone ?? ""}`}>{s.value}</p>
+            <p className="text-[10px] leading-tight font-medium text-muted-foreground uppercase">{s.label}</p>
+          </div>
+        ))}
+      </div>
+      <section className="overflow-hidden rounded-lg border border-border bg-card">
+        <h2 className="border-b border-border px-4 py-2.5 text-sm font-semibold text-muted-foreground uppercase">Needs attention</h2>
+        {attention.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-muted-foreground">No open must-fix items{lastFloor ? " on your last floor" : ""}.</p>
+        ) : (
+          <ul className="divide-y divide-border">{attention.slice(0, 15).map((d) => <Row key={d.id} d={d} />)}</ul>
+        )}
+      </section>
+      <section className="overflow-hidden rounded-lg border border-border bg-card">
+        <h2 className="border-b border-border px-4 py-2.5 text-sm font-semibold text-muted-foreground uppercase">My recent items</h2>
+        {mine.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-muted-foreground">You haven't added any items yet.</p>
+        ) : (
+          <ul className="divide-y divide-border">{mine.map((d) => <Row key={d.id} d={d} />)}</ul>
+        )}
+      </section>
     </div>
   );
 }
