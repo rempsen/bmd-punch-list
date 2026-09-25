@@ -317,6 +317,21 @@ export type Database = {
           },
         ]
       }
+      intake_cron: {
+        Row: {
+          id: number
+          token: string
+        }
+        Insert: {
+          id?: number
+          token: string
+        }
+        Update: {
+          id?: number
+          token?: string
+        }
+        Relationships: []
+      }
       intake_examples: {
         Row: {
           active: boolean
