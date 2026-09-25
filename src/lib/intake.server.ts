@@ -182,14 +182,19 @@ export function emailText(r: { from_name?: string | null; from_email?: string | 
   return `From: ${r.from_name ?? ""} <${r.from_email ?? ""}>\nSubject: ${r.subject ?? ""}\n\n${r.body_text ?? ""}`;
 }
 
-async function loadTraining(admin: Admin) {
+async function loadTraining(admin: Admin, fromEmail?: string | null) {
   const { data: s } = await admin.from("intake_settings").select("*").eq("id", 1).maybeSingle();
-  const { data: ex } = await admin.from("intake_examples").select("email_text,corrected").eq("active", true).order("created_at", { ascending: false }).limit(8);
-  return { settings: s, examples: ex ?? [] };
+  const { data: ex } = await admin.from("intake_examples").select("email_text,corrected").eq("active", true).order("created_at", { ascending: false }).limit(40);
+  // Corrections to this same sender's past emails come first, so the AI learns each forwarder's shorthand and intent.
+  const me = (fromEmail ?? "").toLowerCase();
+  const rows = ex ?? [];
+  const mine = me ? rows.filter((e) => e.email_text.toLowerCase().includes(`<${me}>`)) : [];
+  const rest = rows.filter((e) => !mine.includes(e));
+  return { settings: s, examples: [...mine.slice(0, 6), ...rest].slice(0, 8) };
 }
 
 export async function ingestOne(admin: Admin, row: { id: string; message_id: string; from_name: string | null; from_email: string | null; subject: string | null; body_text: string | null }, hasAttachments: boolean) {
-  const { settings, examples } = await loadTraining(admin);
+  const { settings, examples } = await loadTraining(admin, row.from_email);
   const jobs = await context(admin);
   try {
     const parsed = await parseEmail(emailText(row), jobs, settings?.rules ?? "", examples);
