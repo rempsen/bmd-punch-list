@@ -105,7 +105,7 @@ export function JobsAdminPanel() {
   const addFloor = async () => {
     if (!jobId || floorNum === "") return;
     const n = Number(floorNum);
-    if (Number.isNaN(n)) return toast.error("Floor number must be a number");
+    if (Number.isNaN(n)) { toast.error("Floor number must be a number"); return; }
     if (await run(supabase.from("floors").insert({
       project_id: jobId, number: n, label: floorLabel.trim() || (n === 0 ? "Basement" : `Floor ${n}`), sort_order: n,
     }), "Floor added")) { setFloorNum(""); setFloorLabel(""); }
@@ -115,7 +115,7 @@ export function JobsAdminPanel() {
     const have = new Set(floorLocs.map((l) => l.name));
     const rows = parseRooms(rooms).filter((n) => !have.has(n))
       .map((name, i) => ({ floor_id: activeFloor.id, type: "room" as const, name, sort_order: i }));
-    if (!rows.length) return toast.info("Those rooms already exist");
+    if (!rows.length) { toast.info("Those rooms already exist"); return; }
     if (await run(supabase.from("locations").insert(rows), `${rows.length} rooms added`)) setRooms("");
   };
   const addCommon = async () => {
@@ -126,7 +126,7 @@ export function JobsAdminPanel() {
   };
   const removeLoc = async (l: Loc) => {
     if ((counts.get(l.id)?.open ?? 0) + (counts.get(l.id)?.closed ?? 0) > 0)
-      return toast.error(`${l.name} has deficiencies. Move them first.`);
+      { toast.error(`${l.name} has deficiencies. Move them first.`); return; }
     await run(supabase.from("locations").delete().eq("id", l.id), `${l.name} removed`);
   };
   const addDeficiency = () => {
@@ -323,7 +323,7 @@ function MoveDialog({ item, fromJob, onClose, onDone }: { item: Item; fromJob: s
     setBusy(true);
     const { data: n, error } = await supabase.rpc("move_deficiency", { _id: item.id, _location: loc });
     setBusy(false);
-    if (error) return toast.error(error.message);
+    if (error) { toast.error(error.message); return; }
     toast.success(job === fromJob ? `${dNo(item.item_number)} moved` : `Moved to ${jobs.find((j) => j.id === job)?.name} as ${dNo(n as number)}`);
     onDone();
     onClose();
