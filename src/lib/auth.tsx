@@ -148,6 +148,7 @@ export function useAuth() {
 /** Where a user should land inside the current job. */
 export function homeFor(role: AppRole | null): string {
   if (role === "trade") return "/my-work";
+  if (role === "bmd_field") return "/trade-portal";
   return "/dashboard";
 }
 
