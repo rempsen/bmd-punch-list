@@ -66,18 +66,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex">
         {/* Desktop sidebar */}
         <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 text-sidebar-foreground md:sticky md:top-0 md:flex md:h-screen">
-          <div className="border-b border-sidebar-border px-2 pb-4 mb-4">
-            <img src="/bmd-logo.png" alt="BMD Materials" className="w-[120px]" />
-            <p className="mt-1 text-xs text-muted-foreground">Deficiency Tracker</p>
+          <div className="mb-4 border-b border-sidebar-border px-2 pb-4">
+            <img src="/bmd-logo.png" alt="BMD Materials" className="mx-auto mb-4 w-[130px]" />
             <JobBadge />
-            {canCreateJobs && (
-              <Link
-                to="/new-job"
-                className="mt-2 flex h-10 items-center justify-center gap-1.5 rounded-md bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-              >
-                <Plus className="h-4 w-4" /> Add new job
-              </Link>
-            )}
           </div>
           <nav className="flex flex-1 flex-col gap-1">
             {nav.map((item) => (
@@ -96,6 +87,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {item.label}
               </Link>
             ))}
+            {canCreateJobs && (
+              <Link
+                to="/new-job"
+                className={cn(
+                  !nav.some((i) => i.to === "/settings") && "mt-auto",
+                  "order-last flex items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm font-medium opacity-80 transition-colors hover:bg-sidebar-accent/60",
+                )}
+              >
+                <Plus className="h-4 w-4" /> New job
+              </Link>
+            )}
           </nav>
           <Link
             to="/more"
