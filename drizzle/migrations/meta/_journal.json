@@ -148,6 +148,13 @@
       "when": 1790315652240,
       "tag": "0020_move_deficiency",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790316373899,
+      "tag": "0021_create_jobs_capability",
+      "breakpoints": true
     }
   ]
 }
