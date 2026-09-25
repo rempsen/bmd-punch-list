@@ -31,6 +31,7 @@ export function useNavItems() {
   if (role === "bmd_field") items.push({ to: "/trade-portal", label: "My items", short: "Mine", icon: Wrench });
   if (can("decide_client_items") && !can("capture_items"))
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
+  if (role === "client") items.push({ to: "/client-portal", label: "Client portal", short: "Portal", icon: Briefcase });
   if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });
   if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera });
