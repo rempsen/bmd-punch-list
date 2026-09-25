@@ -18,6 +18,7 @@ import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
 import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authenticated/client-portal'
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
+import { Route as AuthenticatedCompanycamRouteImport } from './routes/_authenticated/companycam'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenticated/email-intake'
@@ -32,6 +33,7 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
+import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 
 const IndexRoute = IndexRouteImport.update({
@@ -81,6 +83,11 @@ const AuthenticatedCompanyWorkRoute =
     path: '/company-work',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCompanycamRoute = AuthenticatedCompanycamRouteImport.update({
+  id: '/companycam',
+  path: '/companycam',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -153,6 +160,12 @@ const AuthenticatedItemIdRoute = AuthenticatedItemIdRouteImport.update({
   path: '/item/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicCompanycamWebhookRoute =
+  ApiPublicCompanycamWebhookRouteImport.update({
+    id: '/api/public/companycam/webhook',
+    path: '/api/public/companycam/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicIntakePollRoute = ApiPublicIntakePollRouteImport.update({
   id: '/api/public/intake/poll',
   path: '/api/public/intake/poll',
@@ -168,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/capture': typeof AuthenticatedCaptureRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
+  '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
@@ -182,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesByTo {
@@ -193,6 +208,7 @@ export interface FileRoutesByTo {
   '/capture': typeof AuthenticatedCaptureRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
+  '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
@@ -207,6 +223,7 @@ export interface FileRoutesByTo {
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRoutesById {
@@ -220,6 +237,7 @@ export interface FileRoutesById {
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
   '/_authenticated/client-portal': typeof AuthenticatedClientPortalRoute
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
+  '/_authenticated/companycam': typeof AuthenticatedCompanycamRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/email-intake': typeof AuthenticatedEmailIntakeRoute
@@ -234,6 +252,7 @@ export interface FileRoutesById {
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
+  '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
 }
 export interface FileRouteTypes {
@@ -247,6 +266,7 @@ export interface FileRouteTypes {
     | '/capture'
     | '/client-portal'
     | '/company-work'
+    | '/companycam'
     | '/dashboard'
     | '/decisions'
     | '/email-intake'
@@ -261,6 +281,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -272,6 +293,7 @@ export interface FileRouteTypes {
     | '/capture'
     | '/client-portal'
     | '/company-work'
+    | '/companycam'
     | '/dashboard'
     | '/decisions'
     | '/email-intake'
@@ -286,6 +308,7 @@ export interface FileRouteTypes {
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
   id:
     | '__root__'
@@ -298,6 +321,7 @@ export interface FileRouteTypes {
     | '/_authenticated/capture'
     | '/_authenticated/client-portal'
     | '/_authenticated/company-work'
+    | '/_authenticated/companycam'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
     | '/_authenticated/email-intake'
@@ -312,6 +336,7 @@ export interface FileRouteTypes {
     | '/_authenticated/trade-portal'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
+    | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
   fileRoutesById: FileRoutesById
 }
@@ -322,6 +347,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
 }
 
@@ -388,6 +414,13 @@ declare module '@tanstack/react-router' {
       path: '/company-work'
       fullPath: '/company-work'
       preLoaderRoute: typeof AuthenticatedCompanyWorkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/companycam': {
+      id: '/_authenticated/companycam'
+      path: '/companycam'
+      fullPath: '/companycam'
+      preLoaderRoute: typeof AuthenticatedCompanycamRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -488,6 +521,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedItemIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/companycam/webhook': {
+      id: '/api/public/companycam/webhook'
+      path: '/api/public/companycam/webhook'
+      fullPath: '/api/public/companycam/webhook'
+      preLoaderRoute: typeof ApiPublicCompanycamWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/intake/poll': {
       id: '/api/public/intake/poll'
       path: '/api/public/intake/poll'
@@ -503,6 +543,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
   AuthenticatedClientPortalRoute: typeof AuthenticatedClientPortalRoute
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
+  AuthenticatedCompanycamRoute: typeof AuthenticatedCompanycamRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedEmailIntakeRoute: typeof AuthenticatedEmailIntakeRoute
@@ -523,6 +564,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
   AuthenticatedClientPortalRoute: AuthenticatedClientPortalRoute,
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
+  AuthenticatedCompanycamRoute: AuthenticatedCompanycamRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedEmailIntakeRoute: AuthenticatedEmailIntakeRoute,
@@ -549,6 +591,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
 }
 export const routeTree = rootRouteImport

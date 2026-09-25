@@ -127,6 +127,13 @@
       "when": 1790309595656,
       "tag": "0017_intake_cron",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790311555662,
+      "tag": "0018_companycam_integration",
+      "breakpoints": true
     }
   ]
 }
