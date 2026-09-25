@@ -99,6 +99,13 @@
       "when": 1790304202221,
       "tag": "0013_tighten_profile_role_visibility",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790305241351,
+      "tag": "0014_trade_sees_own_verified",
+      "breakpoints": true
     }
   ]
 }

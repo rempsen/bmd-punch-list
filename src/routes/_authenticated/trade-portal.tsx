@@ -23,11 +23,12 @@ export const Route = createFileRoute("/_authenticated/trade-portal")({
   component: TradePortal,
 });
 
-type Tab = "todo" | "in_progress" | "fixed" | "all";
+type Tab = "todo" | "in_progress" | "fixed" | "done" | "all";
 const TABS: { value: Tab; label: string; match: (d: DefRow) => boolean }[] = [
   { value: "todo", label: "To start", match: (d) => d.status === "fix_required" || d.status === "open" },
   { value: "in_progress", label: "In progress", match: (d) => d.status === "in_progress" },
   { value: "fixed", label: "Fixed", match: (d) => d.status === "fixed" },
+  { value: "done", label: "Completed", match: (d) => d.status === "verified" },
   { value: "all", label: "All", match: () => true },
 ];
 
@@ -41,7 +42,7 @@ function TradePortal() {
 
   const pmap = useMemo(() => peopleMap(people), [people]);
   const company = (user ? pmap.get(user.id)?.company : null)?.trim() || "";
-  const statuses = isTrade ? ["fix_required", "in_progress", "fixed"] : ["open", "fix_required", "in_progress", "fixed"];
+  const statuses = isTrade ? ["fix_required", "in_progress", "fixed", "verified"] : ["open", "fix_required", "in_progress", "fixed", "verified"];
   const mine = useMemo(() => {
     // Trades also see work assigned to their company; BMD crews see only items assigned to them.
     const c = isTrade ? company.toLowerCase() : "";
@@ -55,13 +56,13 @@ function TradePortal() {
   const ids = useMemo(() => mine.map((i) => i.id), [mine]);
   const { data: photos = [] } = usePhotos(ids);
   const { data: urls = {} } = useSignedUrls(useMemo(() => photos.map((p) => p.storage_path), [photos]));
-  const overdue = mine.filter((i) => i.status !== "fixed" && i.due_date && i.due_date < today()).length;
+  const overdue = mine.filter((i) => i.status !== "fixed" && i.status !== "verified" && i.due_date && i.due_date < today()).length;
 
   return (
     <div>
       <PageHeader
         title={isTrade ? "Trade portal" : "My items"}
-        subtitle={`${isTrade ? company || "Your work" : "Assigned to you"} · ${mine.length} assigned${overdue ? ` · ${overdue} overdue` : ""}`}
+        subtitle={`${isTrade ? company || "Your work" : "Assigned to you"} · ${mine.filter((i) => i.status !== "verified").length} assigned${overdue ? ` · ${overdue} overdue` : ""}`}
         actions={
           isTrade ? (
             <Button variant="ghost" className="h-11" asChild>
@@ -96,9 +97,9 @@ function TradePortal() {
             return (
               <section key={g.value} className="space-y-2">
                 <h2 className="text-sm font-semibold text-muted-foreground uppercase">
-                  {g.value === "fixed" ? "Fixed — done, waiting for BMD to verify" : g.label} ({group.length})
+                  {g.value === "fixed" ? "Fixed — done, waiting for BMD to verify" : g.value === "done" ? "Completed — verified by BMD" : g.label} ({group.length})
                 </h2>
-                <ul className={`grid gap-3 lg:grid-cols-2 ${g.value === "fixed" ? "opacity-90" : ""}`}>
+                <ul className={`grid gap-3 lg:grid-cols-2 ${g.value === "fixed" || g.value === "done" ? "opacity-90" : ""}`}>
                   {group.map((d) => {
                     const before = photos.find((p) => p.deficiency_id === d.id && p.kind === "before");
                     return (
