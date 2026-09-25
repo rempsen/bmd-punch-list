@@ -37,7 +37,9 @@ type AuthValue = {
   setProjectId: (id: string | null) => void;
 };
 
-const AuthContext = createContext<AuthValue | null>(null);
+// Keep one context instance across hot reloads so the provider and consumers always match.
+const g = globalThis as { __bmdAuthCtx?: React.Context<AuthValue | null> };
+const AuthContext = (g.__bmdAuthCtx ??= createContext<AuthValue | null>(null));
 const LS_KEY = "bmd:project";
 
 const normalise = (r: string): AppRole => (r === "bmd_admin" ? "super_admin" : (r as AppRole));
