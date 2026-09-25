@@ -25,6 +25,11 @@ export type Database = {
           closed_at: string | null
           created_at: string
           created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decision_outcome:
+            | Database["public"]["Enums"]["deficiency_status"]
+            | null
           decision_reason: string | null
           decision_recommendation:
             | Database["public"]["Enums"]["deficiency_status"]
@@ -54,6 +59,11 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_outcome?:
+            | Database["public"]["Enums"]["deficiency_status"]
+            | null
           decision_reason?: string | null
           decision_recommendation?:
             | Database["public"]["Enums"]["deficiency_status"]
@@ -83,6 +93,11 @@ export type Database = {
           closed_at?: string | null
           created_at?: string
           created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_outcome?:
+            | Database["public"]["Enums"]["deficiency_status"]
+            | null
           decision_reason?: string | null
           decision_recommendation?:
             | Database["public"]["Enums"]["deficiency_status"]
