@@ -311,7 +311,7 @@ function Match({ st }: { st: St }) {
 }
 
 // ---------------- Photo inbox ----------------
-type InboxRow = { id: string; cc_photo_id: string; thumb_url: string | null; photo_url: string | null; web_url: string | null; description: string | null; tags: string[]; taken_at: string | null; creator_name: string | null; status: string; deficiency_id: string | null };
+type InboxRow = { id: string; cc_photo_id: string; thumb_url: string | null; photo_url: string | null; web_url: string | null; description: string | null; tags: string[]; taken_at: string | null; creator_name: string | null; status: string; deficiency_id: string | null; deficiencies?: { item_number: number } | null };
 
 function Inbox({ canAct }: { canAct: boolean }) {
   const { currentJob, can } = useAuth();
@@ -325,7 +325,7 @@ function Inbox({ canAct }: { canAct: boolean }) {
     queryKey: ["cc-inbox", currentJob?.id, from, to],
     enabled: !!currentJob,
     queryFn: async () => {
-      let q = supabase.from("companycam_inbox").select("*").eq("project_id", currentJob!.id);
+      let q = supabase.from("companycam_inbox").select("*, deficiencies(item_number)").eq("project_id", currentJob!.id);
       if (from) q = q.gte("taken_at", new Date(`${from}T00:00:00`).toISOString());
       if (to) q = q.lte("taken_at", new Date(`${to}T23:59:59.999`).toISOString());
       return ((await q.order("taken_at", { ascending: false }).limit(from || to ? 1000 : 200)).data ?? []) as InboxRow[];
@@ -365,10 +365,10 @@ function Inbox({ canAct }: { canAct: boolean }) {
               {r.thumb_url ? <img src={r.thumb_url} alt={r.description ?? "CompanyCam photo"} className="aspect-[4/3] w-full object-cover" loading="lazy" /> : <div className="flex aspect-[4/3] items-center justify-center bg-muted"><Camera className="h-8 w-8 text-muted-foreground" /></div>}
               <div className="space-y-2 p-3 text-sm">
                 <p className="line-clamp-2">{r.description || <span className="text-muted-foreground">No description</span>}</p>
-                <p className="text-xs text-muted-foreground">{r.creator_name ?? "Unknown"} · {fmt(r.taken_at)}</p>
+                <p className="text-xs text-muted-foreground">{r.creator_name ?? "Unknown"} · {fmt(r.taken_at)}{r.web_url && <> · <a href={r.web_url} target="_blank" rel="noreferrer" className="hover:underline">View in CompanyCam</a></>}</p>
                 {r.tags.length > 0 && <div className="flex flex-wrap gap-1">{r.tags.map((t) => <span key={t} className="rounded-full bg-muted px-2 py-0.5 text-xs">{t}</span>)}</div>}
                 {r.status !== "new" ? (
-                  <p className="text-xs font-medium">{r.status === "attached" && r.deficiency_id ? <Link to="/item/$id" params={{ id: r.deficiency_id }} className="text-primary hover:underline">Attached — open item</Link> : r.status === "ignored" ? "Ignored" : r.status}</p>
+                  <p className="text-xs font-medium">{r.status === "attached" && r.deficiency_id ? <Link to="/item/$id" params={{ id: r.deficiency_id }} className="text-primary hover:underline">Linked to {r.deficiencies ? itemNo(r.deficiencies.item_number) : "item"} — open item</Link> : r.status === "ignored" ? "Ignored" : r.status}</p>
                 ) : actions ? (
                   <div className="flex flex-wrap gap-2">
                     <Button size="sm" onClick={() => setOpen({ row: r, mode: "create" })}>Create deficiency</Button>
