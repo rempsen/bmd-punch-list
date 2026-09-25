@@ -18,6 +18,7 @@ import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
 import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authenticated/client-portal'
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
+import { Route as AuthenticatedCompanycamRouteImport } from './routes/_authenticated/companycam'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenticated/email-intake'
@@ -82,6 +83,11 @@ const AuthenticatedCompanyWorkRoute =
     path: '/company-work',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCompanycamRoute = AuthenticatedCompanycamRouteImport.update({
+  id: '/companycam',
+  path: '/companycam',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/capture': typeof AuthenticatedCaptureRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
+  '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
@@ -201,6 +208,7 @@ export interface FileRoutesByTo {
   '/capture': typeof AuthenticatedCaptureRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
+  '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
@@ -229,6 +237,7 @@ export interface FileRoutesById {
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
   '/_authenticated/client-portal': typeof AuthenticatedClientPortalRoute
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
+  '/_authenticated/companycam': typeof AuthenticatedCompanycamRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/email-intake': typeof AuthenticatedEmailIntakeRoute
@@ -257,6 +266,7 @@ export interface FileRouteTypes {
     | '/capture'
     | '/client-portal'
     | '/company-work'
+    | '/companycam'
     | '/dashboard'
     | '/decisions'
     | '/email-intake'
@@ -283,6 +293,7 @@ export interface FileRouteTypes {
     | '/capture'
     | '/client-portal'
     | '/company-work'
+    | '/companycam'
     | '/dashboard'
     | '/decisions'
     | '/email-intake'
@@ -310,6 +321,7 @@ export interface FileRouteTypes {
     | '/_authenticated/capture'
     | '/_authenticated/client-portal'
     | '/_authenticated/company-work'
+    | '/_authenticated/companycam'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
     | '/_authenticated/email-intake'
@@ -402,6 +414,13 @@ declare module '@tanstack/react-router' {
       path: '/company-work'
       fullPath: '/company-work'
       preLoaderRoute: typeof AuthenticatedCompanyWorkRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/companycam': {
+      id: '/_authenticated/companycam'
+      path: '/companycam'
+      fullPath: '/companycam'
+      preLoaderRoute: typeof AuthenticatedCompanycamRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -524,6 +543,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
   AuthenticatedClientPortalRoute: typeof AuthenticatedClientPortalRoute
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
+  AuthenticatedCompanycamRoute: typeof AuthenticatedCompanycamRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedEmailIntakeRoute: typeof AuthenticatedEmailIntakeRoute
@@ -544,6 +564,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
   AuthenticatedClientPortalRoute: AuthenticatedClientPortalRoute,
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
+  AuthenticatedCompanycamRoute: AuthenticatedCompanycamRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedEmailIntakeRoute: AuthenticatedEmailIntakeRoute,

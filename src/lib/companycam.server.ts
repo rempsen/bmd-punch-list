@@ -20,7 +20,7 @@ export async function cc<T = unknown>(path: string, init: { method?: string; bod
   const res = await fetch(`${API}${path}`, {
     method: init.method ?? "GET",
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
-    body: init.body ? JSON.stringify(init.body) : undefined,
+    body: init.body ? JSON.stringify(init.body) : null,
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`CompanyCam ${init.method ?? "GET"} ${path.split("?")[0]} failed [${res.status}]: ${text.slice(0, 300)}`);
@@ -134,7 +134,7 @@ export async function syncProject(admin: Admin, projectId: string) {
   const counts = { photosIn: 0, photosOut: 0, tasks: 0, comments: 0, errors: 0 };
   const fail = async (entity: string, e: unknown, local?: string, remote?: string) => {
     counts.errors++;
-    await log(admin, { project_id: projectId, direction: entity.endsWith("_in") ? "in" : "out", entity, local_id: local, remote_id: remote, status: "error", error: (e as Error).message });
+    await log(admin, { project_id: projectId, direction: entity.endsWith("_in") ? "in" : "out", entity, local_id: local ?? null, remote_id: remote ?? null, status: "error", error: (e as Error).message });
   };
 
   const { data: defs } = await admin.from("deficiencies").select(DEF_SELECT).eq("project_id", projectId).eq("is_sample", false);

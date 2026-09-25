@@ -33,7 +33,7 @@ export const ccStatus = createServerFn({ method: "POST" })
     try {
       const company = await cc<{ name: string }>("/company");
       let ccProject: { name: string; photo_count?: number; project_url?: string } | null = null;
-      if (proj?.companycam_project_id) ccProject = await cc(`/projects/${proj.companycam_project_id}`).catch(() => null);
+      if (proj?.companycam_project_id) ccProject = await cc<{ name: string; photo_count?: number; project_url?: string }>(`/projects/${proj.companycam_project_id}`).catch(() => null);
       return { ...base, connected: true as const, company: company?.name ?? "CompanyCam", ccProject, error: null };
     } catch (e) {
       return { ...base, connected: false as const, company: null, ccProject: null, error: (e as Error).message };
