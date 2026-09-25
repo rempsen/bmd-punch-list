@@ -318,23 +318,44 @@ function Inbox({ canAct }: { canAct: boolean }) {
   const qc = useQueryClient();
   const act = useServerFn(ccInboxAction);
   const [show, setShow] = useState<"new" | "all">("new");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [open, setOpen] = useState<{ row: InboxRow; mode: "create" | "attach" } | null>(null);
   const { data: rows = [] } = useQuery({
-    queryKey: ["cc-inbox", currentJob?.id],
+    queryKey: ["cc-inbox", currentJob?.id, from, to],
     enabled: !!currentJob,
-    queryFn: async () => ((await supabase.from("companycam_inbox").select("*").eq("project_id", currentJob!.id).order("taken_at", { ascending: false }).limit(200)).data ?? []) as InboxRow[],
+    queryFn: async () => {
+      let q = supabase.from("companycam_inbox").select("*").eq("project_id", currentJob!.id);
+      if (from) q = q.gte("taken_at", new Date(`${from}T00:00:00`).toISOString());
+      if (to) q = q.lte("taken_at", new Date(`${to}T23:59:59.999`).toISOString());
+      return ((await q.order("taken_at", { ascending: false }).limit(from || to ? 1000 : 200)).data ?? []) as InboxRow[];
+    },
   });
   const isDef = (r: InboxRow) => r.tags.some((t) => t.toLowerCase() === "deficiency");
   const shown = rows.filter((r) => show === "all" || r.status === "new").sort((a, b) => Number(isDef(b)) - Number(isDef(a)));
   const actions = canAct || can("capture_items");
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const preset = (days: number) => { const t = new Date(); const f = new Date(); f.setDate(t.getDate() - days + 1); setFrom(iso(f)); setTo(iso(t)); };
 
   return (
     <div className="mt-4">
-      <div className="mb-3 flex gap-2">
+      <div className="mb-3 flex flex-wrap items-end gap-2">
         {(["new", "all"] as const).map((k) => (
           <Button key={k} size="sm" variant={show === k ? "default" : "outline"} onClick={() => setShow(k)}>{k === "new" ? `New (${rows.filter((r) => r.status === "new").length})` : "All"}</Button>
         ))}
+        <div className="mx-1 hidden h-6 w-px bg-border sm:block" />
+        <label className="text-xs text-muted-foreground">From
+          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="ml-1 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
+        </label>
+        <label className="text-xs text-muted-foreground">To
+          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="ml-1 h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground" />
+        </label>
+        <Button size="sm" variant="outline" onClick={() => preset(1)}>Today</Button>
+        <Button size="sm" variant="outline" onClick={() => preset(7)}>Last 7 days</Button>
+        <Button size="sm" variant="outline" onClick={() => preset(30)}>Last 30 days</Button>
+        {(from || to) && <Button size="sm" variant="ghost" onClick={() => { setFrom(""); setTo(""); }}>Clear dates</Button>}
       </div>
+      {(from || to) && <p className="mb-3 text-xs text-muted-foreground">{shown.length} photo{shown.length === 1 ? "" : "s"} taken {from ? `from ${from}` : ""} {to ? `to ${to}` : ""}</p>}
       {shown.length === 0 ? (
         <p className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">No CompanyCam photos waiting. New photos on the linked CompanyCam project appear here after a sync.</p>
       ) : (
