@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     can: (cap) => isSuperAdmin || (!!currentJob && caps.has(cap)),
     canCreateJobs:
       isSuperAdmin ||
-      jobs.some((j) => perms.some((p) => p.allowed && p.capability === "manage_settings" && normalise(p.role) === j.role)),
+      jobs.some((j) => perms.some((p) => p.allowed && p.capability === "create_jobs" && normalise(p.role) === j.role)),
     refreshPermissions: () => load(session?.user.id),
     signOut: async () => {
       await supabase.auth.signOut();

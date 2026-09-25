@@ -29,7 +29,8 @@ export type Capability =
   | "export_pdf"
   | "export_excel"
   | "manage_users"
-  | "manage_settings";
+  | "manage_settings"
+  | "create_jobs";
 
 export const CAPABILITIES: { value: Capability; label: string }[] = [
   { value: "capture_items", label: "Add deficiencies" },
@@ -49,4 +50,5 @@ export const CAPABILITIES: { value: Capability; label: string }[] = [
   { value: "export_excel", label: "Export Excel / CSV" },
   { value: "manage_users", label: "Manage users" },
   { value: "manage_settings", label: "Manage settings (rooms, lists, project)" },
+  { value: "create_jobs", label: "Create new jobs" },
 ];
