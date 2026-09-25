@@ -1,5 +1,6 @@
 import { useAuth } from "@/lib/auth";
 import { AiSummary } from "@/components/AiSummary";
+import { JobOverall } from "@/components/JobOverall";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, X } from "lucide-react";
@@ -48,6 +49,7 @@ function DashboardPage() {
   const { welcome } = Route.useSearch();
   const navigate = useNavigate({ from: "/dashboard" });
 
+  const [view, setView] = useState<"deficiencies" | "overall">("deficiencies");
   const [floor, setFloor] = useState("all");
   const [assessment, setAssessment] = useState("all");
   const [material, setMaterial] = useState("all");
@@ -178,6 +180,24 @@ function DashboardPage() {
         </div>
       )}
 
+      <div role="tablist" className="flex gap-1 border-b border-border bg-card px-4 pt-3 md:px-6">
+        {(["deficiencies", "overall"] as const).map((v) => (
+          <button
+            key={v}
+            role="tab"
+            aria-selected={view === v}
+            onClick={() => setView(v)}
+            className={`min-h-11 border-b-2 px-4 text-sm font-medium ${view === v ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            {v === "deficiencies" ? "Deficiencies" : "Overall"}
+          </button>
+        ))}
+      </div>
+
+      {view === "overall" && project ? (
+        <JobOverall project={project} items={items} contacts={contacts} />
+      ) : (
+      <>
       <div className="flex flex-wrap gap-2 border-b border-border bg-card px-4 py-3 md:px-6">
         <Filter
           value={floor}
@@ -319,6 +339,8 @@ function DashboardPage() {
           </Panel>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
