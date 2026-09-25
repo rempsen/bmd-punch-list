@@ -96,13 +96,17 @@ function IntakePage() {
       <PageHeader
         title="Email intake"
         subtitle="Issues sent to dan+ingest@bmdmaterials.com"
-        actions={
-          <Button onClick={runCheck} disabled={busy}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", busy && "animate-spin")} /> {busy ? "Checking…" : "Check now"}
-          </Button>
-        }
       />
       <div className="space-y-6 p-4 md:p-6">
+        <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="font-semibold">Sync email items</p>
+            <p className="text-sm text-muted-foreground">Checked automatically every 3 hours. Sync now to pick up new issue emails straight away.</p>
+          </div>
+          <Button size="lg" onClick={runCheck} disabled={busy} className="h-12 shrink-0 px-6 text-base shadow-md">
+            <RefreshCw className={cn("mr-2 h-5 w-5", busy && "animate-spin")} /> {busy ? "Syncing…" : "Sync email items now"}
+          </Button>
+        </div>
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <div className="inline-flex rounded-md border border-border p-0.5">
             {(["review", "all"] as const).map((f) => (
