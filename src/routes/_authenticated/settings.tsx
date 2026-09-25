@@ -1,5 +1,5 @@
 import { floorLabel, floorShort } from "@/lib/data";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
@@ -197,7 +197,15 @@ function SettingsPage() {
             {isSuperAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
             {canSettings && <TabsTrigger value="project">Job details</TabsTrigger>}
             {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
+            {canSettings && <TabsTrigger value="companycam">CompanyCam</TabsTrigger>}
           </TabsList>
+
+          <TabsContent value="companycam" className="space-y-4">
+            <Card title="CompanyCam">
+              <p className="mb-3 text-sm text-muted-foreground">Connection, job linking, photo inbox, sync log and sync options for this job.</p>
+              <Link to="/companycam" className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground">Open CompanyCam settings</Link>
+            </Card>
+          </TabsContent>
 
           <TabsContent value="structure" className="space-y-4">
             <Card title="Floors">
