@@ -16,6 +16,7 @@ import {
   Building2,
   Briefcase,
   Images,
+  Sparkles,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
@@ -35,11 +36,11 @@ export function useNavItems() {
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
   if (role === "client") items.push({ to: "/client-portal", label: "Client portal", short: "Portal", icon: Briefcase });
   if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
-  if (can("view_dashboard")) items.push({ to: "/summary", label: "Summary", icon: ClipboardList });
   if (can("capture_items") || can("edit_any_item"))
     items.push({ to: "/board", label: "Board", icon: KanbanSquare });
   items.push({ to: "/floors", label: "Floors", icon: Grid3x3 });
   items.push({ to: "/list", label: "List", icon: ClipboardList });
+  if (can("view_dashboard")) items.push({ to: "/summary", label: "Summary", icon: Sparkles });
   if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera });
   if (can("export_pdf") || can("export_excel"))
     items.push({ to: "/exports", label: "Exports", icon: FileDown });
