@@ -239,77 +239,6 @@ function DashboardPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <Panel title="Open items by floor">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={byFloor}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={12} />
-                <YAxis allowDecimals={false} fontSize={12} />
-                <Tooltip cursor={false} content={({ active, payload, label }) => active && payload?.length && Number(payload[0]?.value) > 0 ? <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm">{label}: {payload[0]?.value} open</div> : null} />
-                <Bar dataKey="open" activeBar={false} fill="var(--primary)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Panel>
-
-          <Panel title="Open items by material">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={byMaterial}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={10} interval={0} angle={-20} textAnchor="end" height={60} />
-                <YAxis allowDecimals={false} fontSize={12} />
-                <Tooltip cursor={false} content={({ active, payload, label }) => active && payload?.length && Number(payload[0]?.value) > 0 ? <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm">{label}: {payload[0]?.value} open</div> : null} />
-                <Bar dataKey="open" activeBar={false} fill="var(--mustfix)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Panel>
-
-          <Panel title="Burn-down (open items over time)">
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={burndown}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" fontSize={10} />
-                <YAxis allowDecimals={false} fontSize={12} />
-                <Tooltip />
-                <Line type="monotone" dataKey="open" stroke="var(--primary)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </Panel>
-
-          <Panel title="Breakdown by issue type">
-            <ul className="space-y-2">
-              {byIssue.map(([name, count]) => (
-                <li key={name} className="flex items-center gap-3 text-sm">
-                  <span className="w-48 shrink-0 truncate">{name}</span>
-                  <span className="h-2 flex-1 rounded bg-muted">
-                    <span
-                      className="block h-2 rounded bg-primary"
-                      style={{ width: `${(count / Math.max(1, byIssue[0]?.[1] ?? 1)) * 100}%` }}
-                    />
-                  </span>
-                  <span className="w-6 text-right font-medium">{count}</span>
-                </li>
-              ))}
-              {byIssue.length === 0 && <p className="text-sm text-muted-foreground">No items.</p>}
-            </ul>
-          </Panel>
-
-          <Panel title="Open items by responsible party">
-            <ul className="space-y-2">
-              {byResp.map((r) => (
-                <li key={r.label} className="flex items-center gap-3 text-sm">
-                  <span className="w-40 shrink-0 truncate">{r.label}</span>
-                  <span className="h-2 flex-1 rounded bg-muted">
-                    <span
-                      className="block h-2 rounded bg-primary"
-                      style={{ width: `${(r.count / Math.max(1, openRows.length)) * 100}%` }}
-                    />
-                  </span>
-                  <span className="w-6 text-right font-medium">{r.count}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-
           <Panel title="Open items by assignee / trade">
             {byAssignee.length === 0 ? (
               <p className="text-sm text-muted-foreground">No open items.</p>
@@ -337,7 +266,59 @@ function DashboardPage() {
               </table>
             )}
           </Panel>
+
+          <Panel title="Breakdown by issue type">
+            <ul className="space-y-2">
+              {byIssue.map(([name, count]) => (
+                <li key={name} className="flex items-center gap-3 text-sm">
+                  <span className="w-48 shrink-0 truncate">{name}</span>
+                  <span className="h-2 flex-1 rounded bg-muted">
+                    <span
+                      className="block h-2 rounded bg-primary"
+                      style={{ width: `${(count / Math.max(1, byIssue[0]?.[1] ?? 1)) * 100}%` }}
+                    />
+                  </span>
+                  <span className="w-6 text-right font-medium">{count}</span>
+                </li>
+              ))}
+              {byIssue.length === 0 && <p className="text-sm text-muted-foreground">No items.</p>}
+            </ul>
+          </Panel>
+
+          <Panel title="Open items by material">
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={byMaterial}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" fontSize={10} interval={0} angle={-20} textAnchor="end" height={60} />
+                <YAxis allowDecimals={false} fontSize={12} />
+                <Tooltip cursor={false} content={({ active, payload, label }) => active && payload?.length && Number(payload[0]?.value) > 0 ? <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm">{label}: {payload[0]?.value} open</div> : null} />
+                <Bar dataKey="open" activeBar={false} fill="var(--mustfix)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Panel>
+
+          <Panel title="Open items by floor">
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={byFloor}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" fontSize={12} />
+                <YAxis allowDecimals={false} fontSize={12} />
+                <Tooltip cursor={false} content={({ active, payload, label }) => active && payload?.length && Number(payload[0]?.value) > 0 ? <div className="rounded-md border border-border bg-card px-3 py-2 text-sm shadow-sm">{label}: {payload[0]?.value} open</div> : null} />
+                <Bar dataKey="open" activeBar={false} fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Panel>
         </div>
+
+        <section className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-border bg-card px-4 py-2.5 text-xs">
+          <span className="font-semibold text-muted-foreground uppercase">Open by responsible party</span>
+          {byResp.map((r) => (
+            <span key={r.label} className="flex items-center gap-1.5 text-muted-foreground">
+              {r.label}
+              <span className={`rounded-full px-2 py-0.5 font-semibold ${r.count > 0 ? "bg-muted text-foreground" : "text-muted-foreground"}`}>{r.count}</span>
+            </span>
+          ))}
+        </section>
       </div>
       </>
       )}
