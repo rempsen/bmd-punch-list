@@ -2,6 +2,8 @@ import { useAuth } from "@/lib/auth";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/AppShell";
 import { AssessmentBadge, StatusBadge } from "@/components/badges";
 import { Button } from "@/components/ui/button";
@@ -58,8 +60,45 @@ function FloorsPage() {
     return map;
   }, [items]);
 
+  const itemIds = useMemo(() => items.map((i) => i.id).sort(), [items]);
+  const { data: photoRows = [] } = useQuery({
+    queryKey: ["photo-counts", project?.id, itemIds.join("|")],
+    enabled: itemIds.length > 0,
+    queryFn: async () => {
+      const out: { deficiency_id: string; kind: string }[] = [];
+      for (let i = 0; i < itemIds.length; i += 200) {
+        const { data, error } = await supabase
+          .from("deficiency_photos")
+          .select("deficiency_id,kind")
+          .in("deficiency_id", itemIds.slice(i, i + 200));
+        if (error) throw error;
+        out.push(...(data ?? []));
+      }
+      return out;
+    },
+  });
+  const photoStats = useMemo(() => {
+    const locFloor = new Map(locations.map((l) => [l.id, l.floor_id]));
+    const itemFloor = new Map(items.map((i) => [i.id, locFloor.get(i.location_id)]));
+    const perFloor = new Map<string, { before: number; after: number }>();
+    const job = { before: 0, after: 0 };
+    for (const p of photoRows) {
+      const k = p.kind === "after" ? "after" : "before";
+      job[k]++;
+      const f = itemFloor.get(p.deficiency_id);
+      if (!f) continue;
+      const s = perFloor.get(f) ?? { before: 0, after: 0 };
+      s[k]++;
+      perFloor.set(f, s);
+    }
+    return { job, perFloor };
+  }, [photoRows, items, locations]);
+  const floorStat = (id: string | null) => (id && photoStats.perFloor.get(id)) || { before: 0, after: 0 };
+  const cur = floorStat(floorId);
+
   const selectedItems = selected ? (byLocation.get(selected) ?? []) : [];
   const selectedName = locations.find((l) => l.id === selected)?.name;
+
 
   const Tile = ({ id, name }: { id: string; name: string }) => {
     const list = byLocation.get(id) ?? [];
@@ -107,11 +146,29 @@ function FloorsPage() {
             )}
           >
             {floorShort(f)}
+            {(() => {
+              const s = floorStat(f.id);
+              const n = s.before + s.after;
+              return n > 0 ? <span className="ml-1.5 text-[11px] font-medium opacity-80">· {n} 📷</span> : null;
+            })()}
           </button>
         ))}
       </div>
 
       <div className="space-y-6 p-4 md:p-6">
+        <div className="grid grid-cols-2 gap-2 sm:max-w-md">
+          <div className="rounded-lg border border-border bg-card p-3">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">Photos · whole job</div>
+            <div className="text-2xl font-bold">{photoStats.job.before + photoStats.job.after}</div>
+            <div className="text-xs text-muted-foreground">{photoStats.job.before} before · {photoStats.job.after} after</div>
+          </div>
+          <div className="rounded-lg border border-border bg-card p-3">
+            <div className="text-xs font-semibold uppercase text-muted-foreground">Photos · this floor</div>
+            <div className="text-2xl font-bold">{cur.before + cur.after}</div>
+            <div className="text-xs text-muted-foreground">{cur.before} before · {cur.after} after</div>
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           <Legend className="bg-muted border-border" label="No items" />
           <Legend className="bg-mustfix border-mustfix" label="Must fix open" />
