@@ -1,6 +1,7 @@
 import { useAuth } from "@/lib/auth";
 import { floorLabel, floorShort } from "@/lib/data";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Camera } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -149,7 +150,7 @@ function FloorsPage() {
             {(() => {
               const s = floorStat(f.id);
               const n = s.before + s.after;
-              return n > 0 ? <span className="ml-1.5 text-[11px] font-medium opacity-80">· {n} 📷</span> : null;
+              return n > 0 ? <span className="ml-1.5 inline-flex items-center gap-0.5 text-[11px] font-medium opacity-80"><Camera className="h-3 w-3" />{n}</span> : null;
             })()}
           </button>
         ))}
