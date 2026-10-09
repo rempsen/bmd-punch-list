@@ -237,7 +237,7 @@ export async function syncProject(admin: Admin, projectId: string) {
   }
 
   // Notepad summary
-  try {
+  if (opts.documents_out !== false) try {
     const open = [...byId.values()].filter((d) => !["verified", "accepted_as_is"].includes(d.status));
     const mf = open.filter((d) => d.assessment === "must_fix").length;
     const cr = open.filter((d) => d.assessment === "client_review").length;
