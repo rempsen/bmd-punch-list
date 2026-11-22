@@ -15,6 +15,7 @@ import { acceptQuote, createQuote, declineQuote, deleteQuote, reviseQuote, updat
 import { loadQuoteContext, snapshotFingerprint, type QuoteRow } from "@/lib/quotes/load";
 import { contractValue, type Presentation } from "@/lib/quotes/logic";
 import { renderQuotePdf } from "@/lib/quotes/pdf";
+import { createQuoteLink } from "@/lib/quotes/public.functions";
 import { issueQuote } from "@/lib/quotes/quotes.functions";
 
 const STATUS: Record<QuoteRow["status"], { label: string; cls: string }> = {
@@ -62,6 +63,8 @@ export function QuotesTab({ projectId }: { projectId: string }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [deciding, setDeciding] = useState<{ quote: QuoteRow; action: "accept" | "decline" } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [shared, setShared] = useState<{ number: string; url: string } | null>(null);
+  const makeLink = useServerFn(createQuoteLink);
 
   if (!canSee) return <p className="text-sm text-muted-foreground">You don't have access to pricing on this project.</p>;
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -188,6 +191,19 @@ export function QuotesTab({ projectId }: { projectId: string }) {
                 )}
                 {canSend && q.status === "sent" && (
                   <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          const { token } = await makeLink({ data: { quoteId: q.id } });
+                          setShared({ number: q.number, url: `${window.location.origin}/q/${token}` });
+                        })
+                      }
+                    >
+                      Client link
+                    </Button>
                     <Button size="sm" onClick={() => setDeciding({ quote: q, action: "accept" })}>
                       Mark accepted
                     </Button>
@@ -195,6 +211,23 @@ export function QuotesTab({ projectId }: { projectId: string }) {
                       Declined
                     </Button>
                   </>
+                )}
+                {q.status === "accepted" && q.snapshot && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        const { data } = await db.from("quote_acceptances").select("name,email,accepted_at,version_id,choices,total_cents").eq("quote_id", q.id).order("accepted_at", { ascending: false }).limit(1).maybeSingle();
+                        const a = data as { name: string; email: string; accepted_at: string; version_id: string; choices: Record<string, string>; total_cents: number } | null;
+                        if (!a) throw new Error("This quote was marked accepted by staff, so there is no online acceptance record.");
+                        renderQuotePdf(q.snapshot!, { logoDataUrl: await logo(), acceptance: { name: a.name, email: a.email, at: a.accepted_at, versionId: a.version_id, choices: a.choices, totalCents: a.total_cents } }).save(`${q.number} - accepted.pdf`);
+                      })
+                    }
+                  >
+                    Acceptance record
+                  </Button>
                 )}
                 {canSend && (q.status === "sent" || q.status === "declined") && (
                   <Button
@@ -266,6 +299,23 @@ export function QuotesTab({ projectId }: { projectId: string }) {
         </Dialog>
       )}
 
+      {shared && (
+        <Dialog open onOpenChange={(o) => !o && setShared(null)}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Private link for {shared.number}</DialogTitle>
+              <DialogDescription>Anyone with this link can view the quote and accept it, without signing in. Send it only to your client. It is shown once: creating a new link switches this one off.</DialogDescription>
+            </DialogHeader>
+            <Input readOnly value={shared.url} onFocus={(e) => e.target.select()} aria-label="Client link" />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => void run(async () => { const { error } = await db.rpc("revoke_quote_link", { _quote: quotes.find((x) => x.number === shared.number)!.id }); if (error) throw new Error(error.message); setShared(null); }, "Link switched off.")}>
+                Switch this link off
+              </Button>
+              <Button onClick={() => void navigator.clipboard.writeText(shared.url).then(() => toast.success("Link copied."), () => toast.error("Copy it from the box instead."))}>Copy link</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {draft && <QuoteEditor quote={draft} onClose={() => setEditing(null)} onChanged={refresh} />}
       {deciding && <DecisionDialog {...deciding} onClose={() => setDeciding(null)} onDone={refresh} />}
     </div>

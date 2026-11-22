@@ -37,6 +37,7 @@ import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
+import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects.index'
@@ -191,6 +192,11 @@ const AuthenticatedTradePortalRoute =
     path: '/trade-portal',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const QTokenRoute = QTokenRouteImport.update({
+  id: '/q/$token',
+  path: '/q/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
   id: '/.lovable/oauth/consent',
   path: '/.lovable/oauth/consent',
@@ -268,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
@@ -306,6 +313,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
@@ -346,6 +354,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
   '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
@@ -386,6 +395,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/summary'
     | '/trade-portal'
+    | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/item/$id'
     | '/projects/$id'
@@ -424,6 +434,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/summary'
     | '/trade-portal'
+    | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/item/$id'
     | '/projects/$id'
@@ -463,6 +474,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/summary'
     | '/_authenticated/trade-portal'
+    | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
     | '/_authenticated/projects/$id'
@@ -480,6 +492,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  QTokenRoute: typeof QTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiMsCallbackRoute: typeof ApiMsCallbackRoute
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
@@ -685,6 +698,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTradePortalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/q/$token': {
+      id: '/q/$token'
+      path: '/q/$token'
+      fullPath: '/q/$token'
+      preLoaderRoute: typeof QTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.lovable/oauth/consent': {
       id: '/.lovable/oauth/consent'
       path: '/.lovable/oauth/consent'
@@ -821,6 +841,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  QTokenRoute: QTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiMsCallbackRoute: ApiMsCallbackRoute,
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,

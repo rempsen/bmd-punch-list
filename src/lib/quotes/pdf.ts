@@ -9,7 +9,9 @@ const H = 792;
  * The branded quotation. It reads only the client-safe snapshot, so nothing internal can reach the page.
  * One price: scope and price as chosen (lump sum, by section, itemised). Several prices: one side-by-side options table.
  */
-export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; logoDataUrl?: string | null } = {}): jsPDF {
+export type AcceptanceRecord = { name: string; email: string; at: string; versionId: string; choices: Record<string, string>; totalCents: number };
+
+export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; logoDataUrl?: string | null; acceptance?: AcceptanceRecord } = {}): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: opts.compress ?? true });
   let y = M;
 
@@ -162,14 +164,25 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
   // Acceptance
   need(110);
   heading("Acceptance");
-  para(many ? "Accepted option: ______________________________" : "The above price, scope and terms are accepted.", { size: 9 });
-  y += 26;
-  doc.setDrawColor(120);
-  doc.line(M, y, M + 220, y);
-  doc.line(W / 2 + 10, y, W - M, y);
-  y += 12;
-  text("Signature", M, { size: 8, colour: 110 });
-  text("Name and date", W / 2 + 10, { size: 8, colour: 110 });
+  const acc = opts.acceptance;
+  if (acc) {
+    const v = snap.versions.find((x) => x.id === acc.versionId);
+    para(`Accepted electronically by ${acc.name} (${acc.email}) on ${new Date(acc.at).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric", timeZone: "America/Winnipeg" })}.`, { bold: true });
+    para(`${many && v ? `Option accepted: ${v.name}. ` : ""}Total accepted, including GST: $${money(acc.totalCents)}.`);
+    for (const l of (v?.sections ?? []).flatMap((s) => s.lines)) {
+      const c = acc.choices[l.id];
+      if (l.selection !== "required" && c) para(`${l.description}: ${c === "yes" ? "Yes" : c === "no" ? "No" : "Maybe"}`, { size: 9 });
+    }
+  } else {
+    para(many ? "Accepted option: ______________________________" : "The above price, scope and terms are accepted.", { size: 9 });
+    y += 26;
+    doc.setDrawColor(120);
+    doc.line(M, y, M + 220, y);
+    doc.line(W / 2 + 10, y, W - M, y);
+    y += 12;
+    text("Signature", M, { size: 8, colour: 110 });
+    text("Name and date", W / 2 + 10, { size: 8, colour: 110 });
+  }
 
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
