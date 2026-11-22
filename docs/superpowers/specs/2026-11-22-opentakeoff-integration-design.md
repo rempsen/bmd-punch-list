@@ -1,6 +1,6 @@
 # OpenTakeoff inside BMD Projects: design
 
-Date: 2026-11-22. Status: awaiting Dan's approval.
+Date: 2026-11-22. Status: awaiting Dan's approval. Revised the same day to add automatic takeoff and the assistant, after Dan pointed to Bobyard's takeoff features and asked for a company and project chat.
 
 ## Intent and why
 
@@ -16,6 +16,8 @@ He wants: the drawing filling the screen, full screen and its own window; a much
 4. Colour-coded, hatched, keyed drawings from the takeoff can be attached to a BMD quote.
 5. Every OpenTakeoff feature present in the Apache-licensed version is available, unless listed under Non-goals.
 6. BMD Projects stays private software.
+7. An estimator can start an automatic takeoff on a drawing set and come back to a proposed takeoff to review, in the manner of Bobyard: rooms found and measured, finishes read from the schedule and tied to rooms, base and transitions worked out, symbols counted, each with a confidence level.
+8. Anyone on BMD's staff can ask an assistant, in a side window, about the company, its products, customers and jobs, and inside a project about that project's plans, specifications, estimates and quotes, and get a short, precise answer that says where it came from.
 
 ## Non-goals
 
@@ -30,6 +32,9 @@ He wants: the drawing filling the screen, full screen and its own window; a much
 - Any code from OpenTakeoff commits after `84c7f48e` (tag `apache-2.0-final`) entering the BMD repository. Those are AGPL-3.0 and would oblige BMD to offer its whole app's source to everyone who logs in.
 - A takeoff that can be silently lost: by a second person saving over it, by a browser clearing its storage, or by a failed save that looks successful.
 - Costs, markups or margins reaching the takeoff workspace. It deals in quantities only.
+- An AI measurement being priced before a person has accepted it. "Set it and forget it" means the work is done unattended; it does not mean unreviewed numbers reach a quote.
+- The assistant telling someone something their own login could not show them (a field worker asking about margins; a trade or client asking about another job). It answers with the asker's permissions, never with its own.
+- The assistant stating a price, quantity, address or number it did not read from BMD's records. When it cannot find something it says so.
 - An AI key in the browser. Dan's rule: all credentials server-side.
 
 ## Constraints
@@ -90,7 +95,7 @@ Saving rules:
 - **Finishes.** OpenTakeoff "conditions" are BMD "finishes on this job". The link is a stored id, not the tag text: each finish records the id of its condition. On save, a condition with no finish creates one (tag and description only; no material or price). Renaming a condition renames its finish's tag. Deleting a condition never deletes a finish; the finish stays, shown as "no longer in the takeoff". A finish that has a condition cannot be deleted in BMD until the condition is removed in the workspace. Finishes already on the job with no condition are offered in the workspace as conditions to start from.
 - **A finish in several areas.** OpenTakeoff's per-shape label is BMD's section ("Level 2", "Corridors"). A condition "twin" (the same finish measured in another area, named "CPT-1 – Level 2") is the same finish, with the part after the dash as its section. It does not create a second finish.
 - **Quantities.** On save, the store works out totals with OpenTakeoff's own totals module and writes one row per condition and section to `takeoff_quantities`: floor SF and SY, wall SF, border SF, LF, EA, plus roll-goods order footage and seam LF where a roll layout exists. Shapes still waiting for review (dashed proposals from an import or from AI) are left out until someone accepts them.
-- **Waste.** See the open question at the end. Until Dan answers, the builder assumes: the takeoff sends measured quantities with no waste added, and waste stays where it is today, on the estimate line. A roll-goods line takes the order footage, which already includes its layout waste, with the line's own waste at zero.
+- **Waste.** Dan's decision: waste is added on the estimate. The takeoff sends measured quantities with no waste, and waste stays on the estimate line as today. The waste % on an OpenTakeoff finish is hidden or ignored. A roll-goods line takes the order footage, which already includes its layout waste, with the line's own waste at zero.
 - **The estimate.** The existing link from a line to a takeoff quantity, split by section, and the "takeoff changed" banner with Accept or Keep mine, read from `takeoff_quantities` instead of the old measuring tables.
 
 ### Feeding the quote
@@ -110,12 +115,44 @@ Saving rules:
 
 BMD's own takeoff screen and its tables (`plan_sheets`, `sheet_scales`, `takeoff_conditions`, `takeoff_shapes`) and the colour-coded sheet renderer are removed once the new workspace is live and the estimate reads from it. The only measurements in them are test data on "Test Take Off"; they are not migrated.
 
-### AI help
+### The AI connection (needed by everything below)
 
-Two later pieces, both waiting on the AI connection being proven on the live site:
+- All AI calls go through one BMD server route that holds the key and uses the strongest Claude model on offer at or above Opus 5.5, as the existing spec-reading feature does. Dan has approved any advanced Claude model and its vision input for this.
+- As of this revision the connection has never answered on the live site (it returned 400 with no reason; a fix that reports the reason is pushed but not yet published). Automatic takeoff and the assistant cannot be built further than their non-AI parts until it answers, and until it is shown to accept images.
 
-- OpenTakeoff's in-canvas agent, pointed at a BMD server route that holds the key and uses Claude Opus 5.5 or stronger. No key in the browser.
-- Claude running a first-pass takeoff through OpenTakeoff's command-line engine (53 commands at the Apache tag) from a Claude session, not from inside BMD Projects, and importing the result as dashed proposals for an estimator to accept or reject. Nothing for this is vendored in stage 1.
+### Automatic takeoff
+
+The approach is OpenTakeoff's own: the AI does not guess shapes from a picture. It reads the sheets and decides what to measure, and OpenTakeoff's measuring tools, which work from the drawing's actual linework, do the measuring. That is what keeps the numbers defensible.
+
+One button in the workspace, **Run automatic takeoff**, on the sheets the estimator ticks (default: the floor finish plans the sheet index identifies). For each sheet it:
+
+1. Reads and sets the scale from the scale note, and checks it against a printed dimension. A sheet whose scale cannot be confirmed is skipped and reported, never measured on a guess.
+2. Reads the finish schedule and legend into finishes (tag, product, colour, base), using OpenTakeoff's schedule reader, with on-device text recognition for scanned sheets.
+3. Finds each room tag, looks up its floor and base finish in the schedule, and measures the room to its wall faces with the one-click engine.
+4. Works out wall base from each room's perimeter less its door openings, transitions where two floor finishes meet, and cut-outs for columns and voids.
+5. Counts repeated symbols the estimator has given one example of (symbol sweep).
+6. Records where every assignment came from (which schedule row, which room tag) and a confidence level.
+
+Everything it produces lands as dashed proposals, grouped by room, finish and floor, with OpenTakeoff's review list filtered to low confidence first. The estimator accepts or corrects, singly or in bulk. Proposals do not reach the estimate until accepted (see Feeding the estimate).
+
+It runs in the open workspace tab and can be left running; a set takes minutes, not seconds. Closing the tab stops it, and what it has proposed so far is kept.
+
+Honest limits, to be shown in the product where they apply: it is strongest on drawings exported from CAD with real linework; on scanned or photographed drawings room measuring falls back to a weaker method and more will need correcting; it does not use models trained on BMD's trade the way Bobyard's are; aerial images are out of scope.
+
+### The assistant
+
+A side window available on every screen to signed-in BMD staff, opened from a button in the header, and inside the takeoff workspace.
+
+- **What it knows.** Nothing is memorised or trained in. It looks things up at the moment of asking, through a fixed set of read-only lookups that run as the person asking: company details (name, addresses, phone, email, hours, GST number, business number), the catalogue (products, labour rates, cost codes), clients, projects and their status, estimates, quotes and change orders, billing, and the text of project documents.
+- **Company details.** Hours and business number are added to Company settings beside the details already there, since BMD's records do not hold them today.
+- **Documents.** When a document is uploaded, or first opened in the workspace, the text of each page is stored and indexed for search, with on-device text recognition for scanned pages. In a project the assistant searches that project's pages, reads the best matches (and, for drawings, can look at the page image), and answers with the document name and page so the answer can be checked. Outside a project it can search across the projects the asker can see.
+- **Answers.** Short and precise, with sources. It can say what a spec section requires, what a prior quote included, what was quoted per square foot on a similar job, who the client contact is, what the GST number is. It does not create, change or send anything in this version: no quote is drafted, sent or altered from chat.
+- **Permissions.** Each lookup uses the asker's own login, so the database's existing rules apply: people without pricing access get no costs, margins or prices; the assistant is not offered to trades, clients or viewers.
+- **Record.** Each conversation is kept per person, with the lookups it made, so a wrong answer can be traced.
+
+### AI first pass by Claude
+
+Separately from the button above, Claude can run a first-pass takeoff through OpenTakeoff's command-line engine (53 commands at the Apache tag) from a Claude session, and import the result as dashed proposals. Nothing for this is vendored in stage 1.
 
 ## Order of work
 
@@ -125,7 +162,11 @@ Each stage ends with something Dan can open after a publish.
 2. **Estimate link.** Conditions to finishes, quantities table, estimate reads it, old takeoff retired.
 3. **Documents.** Uploads from the canvas into BMD Documents, document versions as sheet revisions, snapshots, shared libraries.
 4. **Quotes.** Marked sets saved to Documents and attached to quotes.
-5. **AI help.** The two pieces above.
+5. **Document text index.** Page text stored and searchable for every project document. No AI needed; it is the foundation for the assistant.
+6. **Assistant.** Company and project chat. Needs the AI connection answering.
+7. **Automatic takeoff.** Needs the AI connection answering and accepting images, and stages 1 and 2 live.
+
+Stages 1 to 5 do not depend on the AI connection.
 
 ## Left to the builder
 
@@ -147,8 +188,17 @@ Each stage ends with something Dan can open after a publish.
 - Libraries are company-wide, not per person.
 - Test measurements in the old takeoff are discarded.
 - Phones are out of scope for the workspace.
-- The AI first pass runs from a Claude session, not inside BMD Projects.
+- The AI first pass by Claude runs from a Claude session, not inside BMD Projects.
+- Automatic takeoff aims OpenTakeoff's measuring tools rather than having the AI draw shapes from an image, and everything it produces is a proposal.
+- The assistant only reads. It does not draft, change or send quotes.
+- The assistant is for signed-in BMD staff, pending the open question.
+
+## Decided by Dan
+
+- Build from the 10 October Apache version.
+- Waste is added on the estimate. The takeoff sends measured quantities only.
+- Opus 5.5 or later, and Claude vision, may be used.
 
 ## Open question for Dan
 
-**Where is waste set?** BMD estimate lines carry a waste % today. OpenTakeoff conditions also carry one. Using both would add waste twice. Either the estimate keeps owning waste and the takeoff sends measured quantities only (the assumption above), or the workspace owns it and the estimate line's waste is filled from the condition and locked.
+**Who may use the assistant?** Dan wrote "so anyone requesting a quote can get accurate information". This design reads that as BMD staff answering a quote request. If it means customers or the public asking the assistant directly, that is a different and much riskier product (it knows every customer, job and price) and is not in this design.
