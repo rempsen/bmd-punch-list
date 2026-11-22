@@ -14,6 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_contacts: {
+        Row: {
+          client_id: string
+          created_at: string
+          email: string | null
+          id: string
+          is_primary: boolean
+          name: string | null
+          phone_mobile: string | null
+          phone_office: string | null
+          title: string | null
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          name?: string | null
+          phone_mobile?: string | null
+          phone_office?: string | null
+          title?: string | null
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_primary?: boolean
+          name?: string | null
+          phone_mobile?: string | null
+          phone_office?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_contacts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          active: boolean
+          billing_address: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          onedrive_folder_id: string | null
+          phone: string | null
+          qbo_customer_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          billing_address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          onedrive_folder_id?: string | null
+          phone?: string | null
+          qbo_customer_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          billing_address?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          onedrive_folder_id?: string | null
+          phone?: string | null
+          qbo_customer_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       companycam_inbox: {
         Row: {
           cc_photo_id: string

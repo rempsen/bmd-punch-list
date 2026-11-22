@@ -47,6 +47,7 @@ export function useNavItems() {
   if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images });
   if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });
+  if (can("view_pipeline")) items.push({ to: "/clients", label: "Clients", icon: Building2 });
   if (can("manage_settings") || can("manage_users"))
     items.push({ to: "/settings", label: "Settings", icon: Settings });
   return items;

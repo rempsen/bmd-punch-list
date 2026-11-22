@@ -155,6 +155,13 @@
       "when": 1790316373899,
       "tag": "0021_create_jobs_capability",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795372021824,
+      "tag": "0022_clients_and_platform_capabilities",
+      "breakpoints": true
     }
   ]
 }

@@ -17,6 +17,7 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/board'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
 import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authenticated/client-portal'
+import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
 import { Route as AuthenticatedCompanycamRouteImport } from './routes/_authenticated/companycam'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -79,6 +80,11 @@ const AuthenticatedClientPortalRoute =
     path: '/client-portal',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedClientsRoute = AuthenticatedClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCompanyWorkRoute =
   AuthenticatedCompanyWorkRouteImport.update({
     id: '/company-work',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
+  '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
+  '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/_authenticated/board': typeof AuthenticatedBoardRoute
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
   '/_authenticated/client-portal': typeof AuthenticatedClientPortalRoute
+  '/_authenticated/clients': typeof AuthenticatedClientsRoute
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
   '/_authenticated/companycam': typeof AuthenticatedCompanycamRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/board'
     | '/capture'
     | '/client-portal'
+    | '/clients'
     | '/company-work'
     | '/companycam'
     | '/dashboard'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/board'
     | '/capture'
     | '/client-portal'
+    | '/clients'
     | '/company-work'
     | '/companycam'
     | '/dashboard'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/_authenticated/board'
     | '/_authenticated/capture'
     | '/_authenticated/client-portal'
+    | '/_authenticated/clients'
     | '/_authenticated/company-work'
     | '/_authenticated/companycam'
     | '/_authenticated/dashboard'
@@ -431,6 +443,13 @@ declare module '@tanstack/react-router' {
       path: '/client-portal'
       fullPath: '/client-portal'
       preLoaderRoute: typeof AuthenticatedClientPortalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/clients': {
+      id: '/_authenticated/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof AuthenticatedClientsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/company-work': {
@@ -580,6 +599,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBoardRoute: typeof AuthenticatedBoardRoute
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
   AuthenticatedClientPortalRoute: typeof AuthenticatedClientPortalRoute
+  AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
   AuthenticatedCompanycamRoute: typeof AuthenticatedCompanycamRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -603,6 +623,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBoardRoute: AuthenticatedBoardRoute,
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
   AuthenticatedClientPortalRoute: AuthenticatedClientPortalRoute,
+  AuthenticatedClientsRoute: AuthenticatedClientsRoute,
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
   AuthenticatedCompanycamRoute: AuthenticatedCompanycamRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,

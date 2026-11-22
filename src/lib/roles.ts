@@ -30,7 +30,16 @@ export type Capability =
   | "export_excel"
   | "manage_users"
   | "manage_settings"
-  | "create_jobs";
+  | "create_jobs"
+  | "view_pipeline"
+  | "manage_projects"
+  | "view_documents"
+  | "manage_documents"
+  | "view_pricing"
+  | "manage_estimates"
+  | "send_quotes"
+  | "manage_catalogue"
+  | "manage_integrations";
 
 export const CAPABILITIES: { value: Capability; label: string }[] = [
   { value: "capture_items", label: "Add deficiencies" },
@@ -51,4 +60,13 @@ export const CAPABILITIES: { value: Capability; label: string }[] = [
   { value: "manage_users", label: "Manage users" },
   { value: "manage_settings", label: "Manage settings (rooms, lists, project)" },
   { value: "create_jobs", label: "Create new jobs" },
+  { value: "view_pipeline", label: "See pipeline and clients" },
+  { value: "manage_projects", label: "Create and move projects; edit clients" },
+  { value: "view_documents", label: "See project documents" },
+  { value: "manage_documents", label: "Upload and manage documents" },
+  { value: "view_pricing", label: "See costs, markup and pricing" },
+  { value: "manage_estimates", label: "Build estimates" },
+  { value: "send_quotes", label: "Send quotes and change orders" },
+  { value: "manage_catalogue", label: "Manage materials catalogue" },
+  { value: "manage_integrations", label: "Manage integrations" },
 ];
