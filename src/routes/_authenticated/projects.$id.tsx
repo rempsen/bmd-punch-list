@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRightLeft, Hammer, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
 import { Field } from "@/components/job/fields";
+import { DocumentsTab } from "@/components/projects/DocumentsTab";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
 import { SearchSelect } from "@/components/SearchSelect";
@@ -29,7 +30,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { key: "overview", label: "Overview" },
-  { key: "documents", label: "Documents", phase: 1 },
+  { key: "documents", label: "Documents" },
   { key: "takeoff", label: "Takeoff", phase: 3 },
   { key: "estimate", label: "Estimate", phase: 2 },
   { key: "quotes", label: "Quotes", phase: 2 },
@@ -115,6 +116,7 @@ function ProjectPage() {
 
       <div className="mx-auto max-w-5xl p-4 md:p-6">
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
+        {tab === "documents" && <DocumentsTab projectId={project.id} />}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
         {tab === "activity" && <Activity projectId={project.id} />}
         {"phase" in current && (

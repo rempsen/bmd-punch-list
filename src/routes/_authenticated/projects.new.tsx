@@ -9,9 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { saveClient, useClients, useRefreshClients } from "@/lib/clients/data";
+import { checkFile, formatBytes, guessSection } from "@/lib/documents/logic";
+import { uploadDocument } from "@/lib/documents/upload";
 import { errText } from "@/lib/platform/db";
 import { createPipelineProject, useBmdStaff, useRefreshPipeline } from "@/lib/projects/data";
 import { JOB_TYPES } from "@/lib/projects/stages";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/projects/new")({
   head: () => ({ meta: [{ title: "New project — BMD Projects" }] }),
@@ -44,6 +47,18 @@ function NewProjectPage() {
   const [other, setOther] = useState("");
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const addFiles = (list: FileList) => {
+    const ok: File[] = [];
+    for (const file of Array.from(list)) {
+      const problem = checkFile(file);
+      if (problem) toast.error(problem);
+      else ok.push(file);
+    }
+    setFiles((cur) => [...cur, ...ok]);
+  };
   const set = (p: Partial<typeof blank>) => setF((cur) => ({ ...cur, ...p }));
 
   if (!canAny("manage_projects"))
@@ -80,12 +95,23 @@ function NewProjectPage() {
       });
       await refreshPermissions();
       refreshPipeline();
+      let failed = 0;
+      for (const [i, file] of files.entries()) {
+        setProgress(`Uploading ${i + 1} of ${files.length}: ${file.name}`);
+        try {
+          await uploadDocument({ projectId: id, section: guessSection(file.name, file.type), file, onProgress: () => {} }).done;
+        } catch {
+          failed += 1;
+        }
+      }
+      if (failed) toast.error(`${failed} ${failed === 1 ? "file" : "files"} did not upload. Add them again from the Documents tab.`);
       toast.success(`${f.name.trim()} created in Opportunity`);
-      void navigate({ to: "/projects/$id", params: { id } });
+      void navigate({ to: "/projects/$id", params: { id }, search: files.length ? { tab: "documents" } : {} });
     } catch (e) {
       toast.error(`Could not create the project: ${errText(e)}`);
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -171,6 +197,50 @@ function NewProjectPage() {
           </div>
         </Section>
 
+        <Section title="Plans and specs">
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+            }}
+            className={cn(
+              "flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 text-center text-sm transition-colors",
+              dragging ? "border-primary bg-primary/5" : "border-border",
+            )}
+          >
+            <span className="font-medium">Drop files here or tap to choose</span>
+            <span className="text-xs text-muted-foreground">Optional. They upload when the project is created; more can be added later.</span>
+            <input
+              type="file"
+              multiple
+              className="sr-only"
+              onChange={(e) => {
+                if (e.target.files?.length) addFiles(e.target.files);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          {files.length > 0 && (
+            <ul className="mt-3 divide-y divide-border rounded-md border border-border text-sm">
+              {files.map((file, i) => (
+                <li key={`${file.name}-${i}`} className="flex items-center gap-3 px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                  <span className="text-xs text-muted-foreground">{formatBytes(file.size)}</span>
+                  <Button variant="ghost" size="sm" onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))}>
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+
         <Section title="Notes">
           <Textarea rows={3} value={f.notes} onChange={(e) => set({ notes: e.target.value })} placeholder="Anything the estimator should know" />
         </Section>
@@ -180,7 +250,7 @@ function NewProjectPage() {
             <Link to="/projects">Cancel</Link>
           </Button>
           <Button className="h-12 px-6" disabled={busy} onClick={() => void save()}>
-            {busy ? "Creating…" : "Create project"}
+            {busy ? (progress ?? "Creating…") : "Create project"}
           </Button>
         </div>
       </div>

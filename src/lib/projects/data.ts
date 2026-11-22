@@ -61,9 +61,10 @@ export function usePipelineProject(id: string | null) {
   });
 }
 
-export function useBmdStaff() {
+export function useBmdStaff(enabled = true) {
   return useQuery({
     queryKey: ["bmd-staff"],
+    enabled,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const { data, error } = await db.rpc("bmd_staff");

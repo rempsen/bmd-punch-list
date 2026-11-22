@@ -15,6 +15,7 @@ import {
   Plus,
   Building2,
   FolderKanban,
+  FolderOpen,
   Columns3,
   Briefcase,
   Images,
@@ -52,6 +53,7 @@ export function useNavItems() {
   if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera });
   if (can("export_pdf") || can("export_excel"))
     items.push({ to: "/exports", label: "Exports", icon: FileDown });
+  if (can("view_documents")) items.push({ to: "/documents", label: "Documents", short: "Docs", icon: FolderOpen });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images });
   if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });

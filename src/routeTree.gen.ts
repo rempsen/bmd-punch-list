@@ -22,6 +22,7 @@ import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenti
 import { Route as AuthenticatedCompanycamRouteImport } from './routes/_authenticated/companycam'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
+import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenticated/email-intake'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
@@ -108,6 +109,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
 const AuthenticatedDecisionsRoute = AuthenticatedDecisionsRouteImport.update({
   id: '/decisions',
   path: '/decisions',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDocumentsRoute = AuthenticatedDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedEmailIntakeRoute =
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/documents': typeof AuthenticatedDocumentsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
@@ -263,6 +270,7 @@ export interface FileRoutesByTo {
   '/companycam': typeof AuthenticatedCompanycamRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
+  '/documents': typeof AuthenticatedDocumentsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/_authenticated/companycam': typeof AuthenticatedCompanycamRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
+  '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
   '/_authenticated/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
@@ -335,6 +344,7 @@ export interface FileRouteTypes {
     | '/companycam'
     | '/dashboard'
     | '/decisions'
+    | '/documents'
     | '/email-intake'
     | '/exports'
     | '/floors'
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/companycam'
     | '/dashboard'
     | '/decisions'
+    | '/documents'
     | '/email-intake'
     | '/exports'
     | '/floors'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
     | '/_authenticated/companycam'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
+    | '/_authenticated/documents'
     | '/_authenticated/email-intake'
     | '/_authenticated/exports'
     | '/_authenticated/floors'
@@ -528,6 +540,13 @@ declare module '@tanstack/react-router' {
       path: '/decisions'
       fullPath: '/decisions'
       preLoaderRoute: typeof AuthenticatedDecisionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/documents': {
+      id: '/_authenticated/documents'
+      path: '/documents'
+      fullPath: '/documents'
+      preLoaderRoute: typeof AuthenticatedDocumentsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/email-intake': {
@@ -682,6 +701,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCompanycamRoute: typeof AuthenticatedCompanycamRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
+  AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
   AuthenticatedEmailIntakeRoute: typeof AuthenticatedEmailIntakeRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
@@ -710,6 +730,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCompanycamRoute: AuthenticatedCompanycamRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
+  AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,
   AuthenticatedEmailIntakeRoute: AuthenticatedEmailIntakeRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
