@@ -41,6 +41,7 @@ import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects.index'
 import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects.$id'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
+import { Route as ApiMsCallbackRouteImport } from './routes/api/ms/callback'
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 
@@ -210,6 +211,11 @@ const AuthenticatedProjectsNewRoute =
     path: '/projects/new',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiMsCallbackRoute = ApiMsCallbackRouteImport.update({
+  id: '/api/ms/callback',
+  path: '/api/ms/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCompanycamWebhookRoute =
   ApiPublicCompanycamWebhookRouteImport.update({
     id: '/api/public/companycam/webhook',
@@ -253,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/item/$id': typeof AuthenticatedItemIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
+  '/api/ms/callback': typeof ApiMsCallbackRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
@@ -288,6 +295,7 @@ export interface FileRoutesByTo {
   '/item/$id': typeof AuthenticatedItemIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
+  '/api/ms/callback': typeof ApiMsCallbackRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
@@ -325,6 +333,7 @@ export interface FileRoutesById {
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
   '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/_authenticated/projects/new': typeof AuthenticatedProjectsNewRoute
+  '/api/ms/callback': typeof ApiMsCallbackRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
@@ -362,6 +371,7 @@ export interface FileRouteTypes {
     | '/item/$id'
     | '/projects/$id'
     | '/projects/new'
+    | '/api/ms/callback'
     | '/projects/'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
@@ -397,6 +407,7 @@ export interface FileRouteTypes {
     | '/item/$id'
     | '/projects/$id'
     | '/projects/new'
+    | '/api/ms/callback'
     | '/projects'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
@@ -433,6 +444,7 @@ export interface FileRouteTypes {
     | '/_authenticated/item/$id'
     | '/_authenticated/projects/$id'
     | '/_authenticated/projects/new'
+    | '/api/ms/callback'
     | '/_authenticated/projects/'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
@@ -445,6 +457,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiMsCallbackRoute: typeof ApiMsCallbackRoute
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
 }
@@ -675,6 +688,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsNewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/ms/callback': {
+      id: '/api/ms/callback'
+      path: '/api/ms/callback'
+      fullPath: '/api/ms/callback'
+      preLoaderRoute: typeof ApiMsCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/companycam/webhook': {
       id: '/api/public/companycam/webhook'
       path: '/api/public/companycam/webhook'
@@ -761,6 +781,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiMsCallbackRoute: ApiMsCallbackRoute,
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
 }

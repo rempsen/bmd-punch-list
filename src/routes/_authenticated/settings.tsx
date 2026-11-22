@@ -30,10 +30,13 @@ import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
+import { Microsoft365Panel } from "@/components/settings/Microsoft365Panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  validateSearch: (s: Record<string, unknown>): { tab?: string | undefined } => ({
+  validateSearch: (s: Record<string, unknown>): { tab?: string | undefined; ms?: string | undefined; message?: string | undefined } => ({
     tab: typeof s["tab"] === "string" ? s["tab"] : undefined,
+    ms: typeof s["ms"] === "string" ? s["ms"] : undefined,
+    message: typeof s["message"] === "string" ? s["message"].slice(0, 200) : undefined,
   }),
   component: SettingsPage,
 });
@@ -63,9 +66,11 @@ function SettingsPage() {
   const floorIds = useMemo(() => floors.map((f) => f.id), [floors]);
   const { data: locations = [] } = useLocations(floorIds);
   const { data: picks } = usePickLists();
-  const { can, isSuperAdmin, refreshPermissions } = useAuth();
+  const { can, canAny, isSuperAdmin, refreshPermissions } = useAuth();
   const canSettings = can("manage_settings");
   const canUsers = can("manage_users");
+  const canMicrosoft = canAny("send_quotes") || canAny("manage_integrations");
+  const search = Route.useSearch();
   const { data: items = [] } = useDeficiencies(project?.id);
 
   const refresh = () => {
@@ -189,7 +194,7 @@ function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle={project?.name ?? undefined} />
       <div className="p-4 md:p-6">
-        <Tabs defaultValue={Route.useSearch().tab ?? (canSettings ? "jobs" : "users")}>
+        <Tabs defaultValue={search.tab ?? (canSettings ? "jobs" : "users")}>
           <TabsList className="flex-wrap">
             {canSettings && <TabsTrigger value="jobs">Jobs admin</TabsTrigger>}
             {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
@@ -200,7 +205,14 @@ function SettingsPage() {
             {canSettings && <TabsTrigger value="project">Job details</TabsTrigger>}
             {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
             {canSettings && <TabsTrigger value="companycam">CompanyCam</TabsTrigger>}
+            {canMicrosoft && <TabsTrigger value="microsoft">Microsoft 365</TabsTrigger>}
           </TabsList>
+
+          {canMicrosoft && (
+            <TabsContent value="microsoft">
+              <Microsoft365Panel result={search.ms} message={search.message} />
+            </TabsContent>
+          )}
 
           {canSettings && (
             <TabsContent value="jobs">
