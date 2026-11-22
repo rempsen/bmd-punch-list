@@ -21,3 +21,17 @@ export function openPdf(key: string, url: string): Promise<PDFDocumentProxy> {
   }
   return doc;
 }
+
+/** The text on a page with where it sits, in the same top-left sheet points the viewer and measurements use. */
+export async function sheetText(doc: PDFDocumentProxy, pageNumber: number) {
+  const page = await doc.getPage(pageNumber);
+  const vp = page.getViewport({ scale: 1 });
+  const content = await page.getTextContent();
+  const items = content.items
+    .filter((i): i is typeof i & { str: string; transform: number[]; height: number } => "str" in i && i.str.trim() !== "")
+    .map((i) => {
+      const [x, y] = vp.convertToViewportPoint(i.transform[4] ?? 0, i.transform[5] ?? 0) as [number, number];
+      return { str: i.str, x, y, size: Math.abs(i.height) || Math.hypot(i.transform[0] ?? 0, i.transform[1] ?? 0) };
+    });
+  return { items, page: { width: vp.width, height: vp.height } };
+}

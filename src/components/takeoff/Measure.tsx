@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { hitTest, measureShape, parseFeet, polylineLength, totalsByCondition, type Shape, type ShapeKind } from "@/lib/takeoff/geometry";
 import { calibrate, COMMON_SCALES, feetPerPoint, scaleLabel, suggestScale, type Pt } from "@/lib/takeoff/scale";
 import { COLOURS, type Condition, type TakeoffActions, type TakeoffData } from "@/lib/takeoff/store";
+import { findTags, type SheetText } from "@/lib/ai/scope";
+import { sheetText } from "@/lib/takeoff/pdf";
 import { PlanViewer } from "./PlanViewer";
 
 type Mode = "pan" | "draw" | "cutout" | "calibrate" | "check";
@@ -26,6 +28,8 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
   const [suggested, setSuggested] = useState<{ ratio: number; source: string } | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
   const [adding, setAdding] = useState<{ label: string; kind: ShapeKind; section: string; finishId: string } | null>(null);
+  const [text, setText] = useState<SheetText[]>([]);
+  const [tag, setTag] = useState("");
   const undo = useRef<Step[]>([]);
   const redo = useRef<Step[]>([]);
   const [, bump] = useState(0);
@@ -44,12 +48,12 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
     setSelected(null);
     setChecked(null);
     setSuggested(null);
+    setText([]);
     let stale = false;
-    void doc.getPage(pageNumber).then(async (page) => {
-      const vp = page.getViewport({ scale: 1 });
-      const text = await page.getTextContent();
-      const items = text.items.filter((i): i is typeof i & { str: string; transform: number[] } => "str" in i).map((i) => ({ str: i.str, x: i.transform[4] ?? 0, y: i.transform[5] ?? 0 }));
-      if (!stale) setSuggested(suggestScale(items, { width: vp.width, height: vp.height }));
+    void sheetText(doc, pageNumber).then((t) => {
+      if (stale) return;
+      setText(t.items);
+      setSuggested(suggestScale(t.items, t.page));
     }, () => undefined);
     return () => {
       stale = true;
@@ -164,6 +168,7 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
     void run({ redo: () => actions.updateShape(sel.id, patch), undo: () => actions.updateShape(sel.id, before) });
   };
 
+  const found = useMemo(() => findTags(text, tag), [text, tag]);
   const drawing = mode !== "pan";
   const preview = hover && pts.length ? [...pts, hover] : pts;
   const hint =
@@ -196,6 +201,11 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
               <Button size="sm" variant={mode === "check" ? "default" : "outline"} disabled={!fpp} onClick={() => (setPts([]), setChecked(null), setMode(mode === "check" ? "pan" : "check"))}>
                 Check scale
               </Button>
+              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                Find tag
+                <input className="h-9 w-24 rounded-md border border-input bg-background px-2 text-sm text-foreground" placeholder="LVP-1" value={tag} onChange={(e) => setTag(e.target.value)} />
+                {tag.trim() && <span aria-live="polite">{found.length} here</span>}
+              </label>
               <span className="ml-auto flex">
                 <Button size="sm" variant="ghost" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={undo.current.length === 0} onClick={() => void stepBack(undo.current, redo.current, "undo")}>
                   <Undo2 className="h-4 w-4" />
@@ -245,6 +255,9 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
                       </g>
                     );
                   })}
+                  {found.map((f, i) => (
+                    <circle key={`tag-${i}`} cx={f.x} cy={f.y} r={16 * px} fill="rgba(250,204,21,0.35)" stroke="#ca8a04" strokeWidth={2 * px} />
+                  ))}
                   {preview.length > 0 && (
                     <>
                       <path d={preview.map((v, i) => `${i ? "L" : "M"}${v.x} ${v.y}`).join(" ")} fill={mode === "cutout" || condition?.kind === "area" ? "rgba(17,24,39,0.12)" : "none"} stroke="#111827" strokeWidth={2 * px} strokeDasharray={`${6 * px} ${4 * px}`} />

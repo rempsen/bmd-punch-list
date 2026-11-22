@@ -1,5 +1,6 @@
 import { Fragment, useMemo, useState } from "react";
 import { ImportDialog } from "./ImportDialog";
+import { ScopeProposals } from "./ScopeProposals";
 import { takeoffLinks, totalsByCondition } from "@/lib/takeoff/geometry";
 import { useTakeoff } from "@/lib/takeoff/store";
 import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
@@ -210,6 +211,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">This price has been {active.status === "accepted" ? "accepted" : "sent"} and is locked. Copy it as an alternate to keep working.</p>
       )}
 
+      {canEdit && <ScopeProposals projectId={projectId} finishCount={finishes.length} onAccepted={refresh} />}
       <FinishesPanel projectId={projectId} finishes={finishes} templates={templates} materials={materials} suppliers={suppliers} costCodes={costCodes} canEdit={canEdit} canAddMaterial={canAny("manage_catalogue")} onChanged={refresh} />
 
       <section className="rounded-lg border border-border bg-card">

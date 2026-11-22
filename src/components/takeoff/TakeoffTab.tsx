@@ -9,7 +9,8 @@ import { groupVersions } from "@/lib/documents/logic";
 import { signedUrl } from "@/lib/documents/upload";
 import { errText } from "@/lib/platform/db";
 import { ensureSheets, updateSheet, useRefreshSheets, useSheets, type PlanSheet } from "@/lib/takeoff/data";
-import { openPdf } from "@/lib/takeoff/pdf";
+import { suggestSheetName } from "@/lib/ai/scope";
+import { openPdf, sheetText } from "@/lib/takeoff/pdf";
 import { filterSheets, sheetLabel } from "@/lib/takeoff/view";
 import { Button } from "@/components/ui/button";
 import { useLabourRates, useMaterials, useTemplates } from "@/lib/catalogue/data";
@@ -107,6 +108,30 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
       toast.error(errText(e));
     }
   };
+  const [naming, setNaming] = useState<string | null>(null);
+  /** Fills in sheet numbers and titles from each sheet's title block, for sheets nobody has named yet. */
+  const nameSheets = async () => {
+    if (!pdf) return;
+    const todo = sheets.filter((s) => !s.sheet_number);
+    let named = 0;
+    try {
+      for (const [i, s] of todo.entries()) {
+        setNaming(`Reading sheet ${i + 1} of ${todo.length}…`);
+        const t = await sheetText(pdf, s.page_number);
+        const guess = suggestSheetName(t.items, t.page);
+        if (guess) {
+          await updateSheet(s.id, { sheet_number: guess.sheet_number, ...(guess.title && !s.title ? { title: guess.title } : {}) });
+          named++;
+        }
+      }
+      toast.success(`${named} of ${todo.length} sheets named from their title blocks.${named < todo.length ? " The rest have no readable title block; name those by hand." : ""} Check them against the drawings.`);
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setNaming(null);
+      refreshSheets();
+    }
+  };
   const exportQuantities = async () => {
     const XLSX = await import("xlsx");
     const rows = (takeoff?.shapes ?? []).map((s) => {
@@ -158,6 +183,11 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
           </label>
         )}
         <Input type="search" placeholder="Find a sheet…" aria-label="Find a sheet by number, title or page" value={query} onChange={(e) => setQuery(e.target.value)} />
+        {canEdit && pdf && sheets.some((x) => !x.sheet_number) && (
+          <Button size="sm" variant="outline" disabled={!!naming} onClick={() => void nameSheets()}>
+            {naming ?? "Name sheets from title blocks"}
+          </Button>
+        )}
         <p className="text-xs text-muted-foreground" aria-live="polite">
           {pdf ? `${shown.length} of ${pdf.numPages} sheets` : error ? "" : "Opening drawings…"}
         </p>
