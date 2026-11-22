@@ -26,6 +26,7 @@ import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { settingsGroup } from "@/lib/settings-tabs";
+import { UpdateNotice } from "@/components/UpdateNotice";
 import { cn } from "@/lib/utils";
 
 type NavItem = { to: string; label: string; short?: string; icon: typeof Camera; group?: "company"; /** For the two Settings entries: which tab to open. */ search?: { tab: string } };
@@ -149,6 +150,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </aside>
 
         <div className="flex min-h-screen w-full min-w-0 flex-col">
+          <UpdateNotice />
           {/* Mobile header */}
           <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-border bg-logo-bg px-4 py-2 text-foreground md:hidden">
             <div className="flex min-w-0 items-center gap-3">
