@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
-import { BMD, displayFor, layoutVersion, money, snapshotTotals, type QuoteSnapshot, type SnapVersion } from "./logic";
+import { companyLines, DEFAULT_COMPANY, fitLogo, isHeadingLine, type Logo } from "./branding";
+import { displayFor, layoutVersion, money, snapshotTotals, type QuoteSnapshot, type SnapVersion } from "./logic";
 
 const M = 48; // page margin, points
 const W = 612;
@@ -11,9 +12,11 @@ const H = 792;
  */
 export type AcceptanceRecord = { name: string; email: string; at: string; versionId: string; choices: Record<string, string>; totalCents: number };
 
-export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; logoDataUrl?: string | null; acceptance?: AcceptanceRecord; drawings?: { dataUrl: string; width: number; height: number; title: string }[] } = {}): jsPDF {
+export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; logo?: Logo | null; acceptance?: AcceptanceRecord; drawings?: { dataUrl: string; width: number; height: number; title: string }[] } = {}): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: opts.compress ?? true });
   let y = M;
+  // Quotes sent before company details were saved with them fall back to the defaults.
+  const company = snap.company ?? DEFAULT_COMPANY;
 
   const need = (h: number) => {
     if (y + h > H - M - 20) {
@@ -65,24 +68,29 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     y += 2;
   };
 
-  // Header
-  if (opts.logoDataUrl) {
+  // Header: logo (or the company name) on the left with the addresses under it, the document title on the right.
+  const headTop = y;
+  let logoHeight = 22;
+  let drawn = false;
+  if (opts.logo) {
+    const size = fitLogo(opts.logo.width, opts.logo.height, 170, 54);
     try {
-      doc.addImage(opts.logoDataUrl, "PNG", M, y - 6, 110, 40);
+      doc.addImage(opts.logo.dataUrl, opts.logo.dataUrl.startsWith("data:image/jpeg") ? "JPEG" : "PNG", M, y - 8, size.width, size.height);
+      logoHeight = size.height;
+      drawn = true;
     } catch {
       /* a logo that cannot be drawn must not stop the quote */
     }
-  } else text(BMD.name, M, { size: 18, bold: true });
+  }
+  if (!drawn) text(company.name, M, { size: 18, bold: true, maxWidth: 300 });
   text(snap.presentation && snap.number.startsWith("CO-") ? "CHANGE ORDER" : "QUOTATION", W - M, { size: 16, bold: true, align: "right" });
   y += 18;
   text(snap.number, W - M, { align: "right", bold: true });
   y += 13;
   text(new Date(`${snap.date}T12:00:00`).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" }), W - M, { align: "right", colour: 90 });
-  y += 22;
-  text(BMD.mailing, M, { size: 9, colour: 90 });
-  y += 12;
-  text(BMD.email, M, { size: 9, colour: 90 });
-  y += 16;
+  y = Math.max(y + 22, headTop + logoHeight + 6);
+  for (const line of companyLines(company)) y += text(line, M, { size: 9, colour: 90, maxWidth: W - 2 * M });
+  y += 4;
   rule();
 
   // Client and project
@@ -92,6 +100,7 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
   text(snap.client.name, M, { bold: true });
   y += 13;
   if (snap.client.address) y += text(snap.client.address, M, { size: 9, colour: 70, maxWidth: 240 });
+  if (snap.attention) y += text(`Attention: ${snap.attention}`, M, { size: 9, colour: 70, maxWidth: 240 });
   const leftEnd = y;
   y = top;
   text("Project", W / 2 + 10, { size: 8, colour: 110 });
@@ -156,6 +165,13 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     heading(title);
     for (const item of items) para(`•  ${item}`, { size: 9 });
   };
+  if (snap.remarks) {
+    heading("Notes");
+    for (const line of snap.remarks.split("\n")) {
+      if (line.trim()) para(line.trim(), { size: 9 });
+      else y += 5;
+    }
+  }
   list("Inclusions", snap.inclusions);
   list("Exclusions", snap.exclusions);
   list("Clarifications", snap.clarifications);
@@ -179,7 +195,7 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
       if (l.selection !== "required" && c) para(`${l.description}: ${c === "yes" ? "Yes" : c === "no" ? "No" : "Maybe"}`, { size: 9 });
     }
   } else {
-    para(many ? "Accepted option: ______________________________" : "The above price, scope and terms are accepted.", { size: 9 });
+    para(`${many ? "Accepted option: ______________________________   " : ""}The above price, scope and ${snap.conditions ? `terms, and the attached ${snap.conditions.title},` : "terms"} are accepted.`, { size: 9 });
     y += 26;
     doc.setDrawColor(120);
     doc.line(M, y, M + 220, y);
@@ -187,6 +203,24 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     y += 12;
     text("Signature", M, { size: 8, colour: 110 });
     text("Name and date", W / 2 + 10, { size: 8, colour: 110 });
+  }
+
+  // The standard terms and conditions start on a fresh page straight after the quote.
+  if (snap.conditions) {
+    doc.addPage();
+    y = M;
+    text(snap.conditions.title, M, { size: 13, bold: true, maxWidth: W - 2 * M });
+    y += 18;
+    text(`${snap.number} · ${snap.client.name}`, M, { size: 8, colour: 110 });
+    y += 16;
+    for (const line of snap.conditions.text.split("\n")) {
+      if (!line.trim()) y += 5;
+      else if (isHeadingLine(line)) {
+        need(24);
+        y += 3;
+        para(line.trim(), { size: 8.5, bold: true });
+      } else para(line.trim(), { size: 8.5 });
+    }
   }
 
   const textPages = doc.getNumberOfPages();
@@ -213,8 +247,10 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(130);
-    doc.text(`${snap.number} · ${BMD.name}`, M, H - 28);
-    doc.text(`Page ${i} of ${pages}`, W - M, H - 28, { align: "right" });
+    const footer = snap.footer ? (doc.splitTextToSize(snap.footer.replace(/\s*\n\s*/g, " · "), W - 2 * M) as string[]).slice(0, 2) : [];
+    for (const [n, line] of footer.entries()) doc.text(line, W / 2, H - 48 + n * 10, { align: "center" });
+    doc.text(`${snap.number} · ${company.name}`, M, H - 24);
+    doc.text(`Page ${i} of ${pages}`, W - M, H - 24, { align: "right" });
   }
   return doc;
 }

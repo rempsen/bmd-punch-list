@@ -24,13 +24,22 @@ async function open(token: string) {
 /** The client's view of a quote. Returns null for an unknown or revoked link. */
 export const getPublicQuote = createServerFn({ method: "GET" })
   .inputValidator(checkToken<{ token: string }>)
-  .handler(async ({ data }): Promise<PublicView | null> => {
+  .handler(async ({ data }): Promise<(PublicView & { logo: string | null }) | null> => {
     const { publicView } = await import("./public");
+    const { checkLogo } = await import("./branding");
     const found = await open(data.token);
     if (!found) return null;
+    // The uploaded company logo, if there is one. A logo that cannot be read never stops the quote from showing.
+    let logo: string | null = null;
+    try {
+      const { data: s } = await found.admin.from("quote_settings").select("logo_data_url").eq("id", 1).maybeSingle();
+      if (typeof s?.logo_data_url === "string" && !checkLogo(s.logo_data_url)) logo = s.logo_data_url;
+    } catch {
+      logo = null;
+    }
     const { data: acc } = await found.admin.from("quote_acceptances").select("name,accepted_at,version_id,total_cents").eq("quote_id", found.quote.id).order("accepted_at", { ascending: false }).limit(1).maybeSingle();
     await found.admin.from("quote_share_links").update({ last_viewed_at: new Date().toISOString() }).eq("id", found.link.id);
-    return publicView(found.quote, found.link, acc ?? null);
+    return { ...publicView(found.quote, found.link, acc ?? null), logo };
   });
 
 /** Remembers the client's yes, no and maybe answers while the quote is still open. */

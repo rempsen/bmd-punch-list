@@ -2,6 +2,7 @@
 import { shapeLine, type EstVersion } from "@/lib/estimating/data";
 import type { Rates } from "@/lib/estimating/worksheet";
 import { categoryLabel } from "@/lib/catalogue/logic";
+import { brandingFrom, SETTINGS_COLS, type Branding, type SettingsRow } from "./branding";
 import { buildSnapshot, normalizeDisplay, rollupByCostCode, unknownCostLabels, type Presentation, type QuoteDisplay, type QuoteKind, type QuoteSnapshot } from "./logic";
 
 export type QuoteStatus = "draft" | "sent" | "accepted" | "declined" | "superseded";
@@ -22,6 +23,10 @@ export type QuoteRow = {
   exclusions: string[];
   clarifications: string[];
   deposit: string | null;
+  /** Who at the client the quote is addressed to. */
+  attention: string | null;
+  /** Notes written for the client; printed on the quote. */
+  client_notes: string;
   snapshot: QuoteSnapshot | null;
   /** Internal: selling amounts by cost code for each price, saved when the quote was sent. */
   rollup: { versionId: string; lines: { costCode: string; amountCents: number; taxCode: "GST" | "HST" | "EXEMPT" | "ZERO" }[]; subtotalCents: number; taxCents: number; totalCents: number }[] | null;
@@ -36,10 +41,17 @@ export type QuoteRow = {
   created_at: string;
 };
 export const QUOTE_COLS =
-  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,display,drawing_sheet_ids,inclusions,exclusions,clarifications,deposit,snapshot,rollup,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
+  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,display,drawing_sheet_ids,inclusions,exclusions,clarifications,deposit,attention,client_notes,snapshot,rollup,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };
+
+/** The saved company details (Settings → Quotes). Kept here, free of browser-only code, because the server reads it when a quote is sent. */
+export async function loadBranding(sb: Sb): Promise<Branding> {
+  const { data, error } = await sb.from("quote_settings").select(SETTINGS_COLS).eq("id", 1).maybeSingle();
+  if (error) throw new Error(error.message);
+  return brandingFrom(data as SettingsRow | null);
+}
 
 export const todayInWinnipeg = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Winnipeg" });
 export const quoteFileName = (number: string, project: string, date: string) => `${number} - ${project.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim()} - ${date}.pdf`;
@@ -84,7 +96,11 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
   const { data: sheetRows } = quote.drawing_sheet_ids.length ? await sb.from("plan_sheets").select("id,page_number,sheet_number,title,document_id").in("id", quote.drawing_sheet_ids).order("page_number") : { data: [] };
   const drawingSheets = ((sheetRows ?? []) as SheetRow[]).map((s) => ({ ...s, label: [s.sheet_number?.trim() || `Page ${s.page_number}`, s.title?.trim()].filter(Boolean).join(" ") }));
   const date = todayInWinnipeg();
+  const branding = await loadBranding(sb);
   const snapshot = buildSnapshot({
+    branding,
+    attention: quote.attention,
+    remarks: quote.client_notes,
     number: quote.number,
     date,
     validityDays: quote.validity_days,

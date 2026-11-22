@@ -50,7 +50,7 @@ export const declineQuote = (id: string, note: string | null) => rpc("decline_qu
 export const reviseQuote = (id: string) => rpc<string>("revise_quote", { _id: id });
 export const deleteQuote = (id: string) => rpc("delete_quote", { _id: id });
 
-export type QuotePatch = Partial<Pick<QuoteRow, "validity_days" | "presentation" | "display" | "drawing_sheet_ids" | "inclusions" | "exclusions" | "clarifications" | "deposit">>;
+export type QuotePatch = Partial<Pick<QuoteRow, "validity_days" | "presentation" | "display" | "drawing_sheet_ids" | "inclusions" | "exclusions" | "clarifications" | "deposit" | "attention" | "client_notes">>;
 export async function updateQuote(id: string, patch: QuotePatch) {
   const { error } = await db.from("quotes").update(patch).eq("id", id);
   if (error) throw new Error(error.message);

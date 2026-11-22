@@ -21,6 +21,7 @@ import { contractValue, normalizeDisplay, type Presentation } from "@/lib/quotes
 import { renderQuotePdf } from "@/lib/quotes/pdf";
 import { createQuoteLink } from "@/lib/quotes/public.functions";
 import { issueQuote } from "@/lib/quotes/quotes.functions";
+import { loadLogo, useQuoteSettings } from "@/lib/quotes/settings";
 
 const STATUS: Record<QuoteRow["status"], { label: string; cls: string }> = {
   draft: { label: "Draft", cls: "bg-muted text-muted-foreground" },
@@ -45,13 +46,6 @@ function usePreparer() {
     },
   });
 }
-
-let logoCache: Promise<string | null> | null = null;
-const logo = () =>
-  (logoCache ??= fetch("/bmd-logo.png")
-    .then((r) => (r.ok ? r.blob() : null))
-    .then((b) => (b ? new Promise<string | null>((res) => Object.assign(new FileReader(), { onload: (e: ProgressEvent<FileReader>) => res(String(e.target?.result)), onerror: () => res(null) }).readAsDataURL(b)) : null))
-    .catch(() => null));
 
 /** Quotes and change orders for one project, with the contract value they add up to. */
 export function QuotesTab({ projectId }: { projectId: string }) {
@@ -234,7 +228,7 @@ export function QuotesTab({ projectId }: { projectId: string }) {
                         const { data } = await db.from("quote_acceptances").select("name,email,accepted_at,version_id,choices,total_cents").eq("quote_id", q.id).order("accepted_at", { ascending: false }).limit(1).maybeSingle();
                         const a = data as { name: string; email: string; accepted_at: string; version_id: string; choices: Record<string, string>; total_cents: number } | null;
                         if (!a) throw new Error("This quote was marked accepted by staff, so there is no online acceptance record.");
-                        renderQuotePdf(q.snapshot!, { logoDataUrl: await logo(), acceptance: { name: a.name, email: a.email, at: a.accepted_at, versionId: a.version_id, choices: a.choices, totalCents: a.total_cents } }).save(`${q.number} - accepted.pdf`);
+                        renderQuotePdf(q.snapshot!, { logo: await loadLogo(), acceptance: { name: a.name, email: a.email, at: a.accepted_at, versionId: a.version_id, choices: a.choices, totalCents: a.total_cents } }).save(`${q.number} - accepted.pdf`);
                       })
                     }
                   >
@@ -408,7 +402,8 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
   const [extra, setExtra] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const display = normalizeDisplay(quote.display, quote.presentation);
-  const stamp = JSON.stringify([quote.display, quote.drawing_sheet_ids, quote.validity_days, quote.presentation, quote.inclusions, quote.exclusions, quote.clarifications, quote.deposit, quote.version_ids]);
+  const { data: settings } = useQuoteSettings();
+  const stamp = JSON.stringify([settings?.branding, settings?.logo?.dataUrl.length, quote.attention, quote.client_notes, quote.display, quote.drawing_sheet_ids, quote.validity_days, quote.presentation, quote.inclusions, quote.exclusions, quote.clarifications, quote.deposit, quote.version_ids]);
 
   useEffect(() => {
     if (!preparer) return;
@@ -435,7 +430,7 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
             drawings.push(await renderMarkedSheet(pdfDoc, sh.page_number, shapes.filter((x) => x.sheet_id === sh.id), (conds ?? []) as any, { title: sh.label, maxWidth: c.drawingSheets.length > 4 ? 1400 : 1800 }));
           }
         }
-        const doc = renderQuotePdf(c.snapshot, { logoDataUrl: await logo(), drawings });
+        const doc = renderQuotePdf(c.snapshot, { logo: await loadLogo(), drawings });
         const blob = doc.output("blob");
         const base64 = doc.output("datauristring").split(",")[1] ?? "";
         if (stale) return;
@@ -579,6 +574,21 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
                     </ul>
                   </fieldset>
                 )}
+                <label className="block text-sm font-medium">
+                  Attention (who at the client this is addressed to)
+                  <Input className="mt-1" maxLength={200} defaultValue={quote.attention ?? ""} placeholder="e.g. Pat Lee, Project Manager" onBlur={(e) => (e.target.value.trim() || null) !== quote.attention && void save({ attention: e.target.value.trim() || null })} />
+                </label>
+                <label className="block text-sm font-medium">
+                  Notes for the client (printed under the price)
+                  <Textarea className="mt-1 min-h-24" maxLength={4000} defaultValue={quote.client_notes} onBlur={(e) => e.target.value.trim() !== quote.client_notes && void save({ client_notes: e.target.value.trim() })} />
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  The logo, company addresses, footer, short terms and the standard terms and conditions page are set once for every quote under{" "}
+                  <Link to="/settings" search={{ tab: "quotes" }} className="underline">
+                    Settings → Quotes
+                  </Link>
+                  .
+                </p>
                 <label className="block text-sm font-medium">
                   Deposit (leave blank for none)
                   <Input className="mt-1" defaultValue={quote.deposit ?? ""} placeholder="e.g. 50% on order of materials" onBlur={(e) => (e.target.value.trim() || null) !== quote.deposit && void save({ deposit: e.target.value.trim() || null })} />

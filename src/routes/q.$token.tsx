@@ -31,6 +31,7 @@ function Page() {
   return (
     <PublicQuote
       view={view}
+      logo={view.logo}
       onSave={(choices) => {
         if (timer.current) clearTimeout(timer.current);
         timer.current = setTimeout(() => void save({ data: { token, choices } }).catch(() => undefined), 600);

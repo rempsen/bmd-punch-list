@@ -1,13 +1,15 @@
 import { useMemo, useState } from "react";
-import { BMD, displayFor, layoutVersion, money, snapshotTotals, type SnapVersion } from "@/lib/quotes/logic";
+import { companyLines, DEFAULT_COMPANY, isHeadingLine } from "@/lib/quotes/branding";
+import { displayFor, layoutVersion, money, snapshotTotals, type SnapVersion } from "@/lib/quotes/logic";
 import type { AcceptCheck, AcceptInput, Choices, PublicView } from "@/lib/quotes/public";
 
-type Props = { view: PublicView; onSave: (choices: Choices) => void; onAccept: (input: AcceptInput) => Promise<AcceptCheck | { ok: true } | { ok: false; message: string; reload?: true }> };
+type Props = { view: PublicView; /** The uploaded company logo, when there is one. */ logo?: string | null; onSave: (choices: Choices) => void; onAccept: (input: AcceptInput) => Promise<AcceptCheck | { ok: true } | { ok: false; message: string; reload?: true }> };
 const day = (iso: string) => new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric" });
 
 /** The page a client sees from their private link. It is given only the client-safe quote, so there is nothing internal to hide. */
-export function PublicQuote({ view, onSave, onAccept }: Props) {
+export function PublicQuote({ view, logo, onSave, onAccept }: Props) {
   const snap = "snapshot" in view ? view.snapshot : null;
+  const company = snap?.company ?? DEFAULT_COMPANY;
   const [choices, setChoices] = useState<Choices>("choices" in view ? view.choices : {});
   const [versionId, setVersionId] = useState(snap ? (view.state === "accepted" && "accepted" in view && view.accepted ? view.accepted.versionId : snap.versions.length === 1 ? snap.versions[0]!.id : "") : "");
   const [form, setForm] = useState({ name: "", email: "", agree: false });
@@ -23,7 +25,7 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
         <p className="mt-2 text-muted-foreground">
           {view.state === "replaced" ? "This quotation has been replaced by a newer one. Please use the latest link we sent you, or contact us." : "This quotation is no longer open. Please contact us if you have questions."}
         </p>
-        <p className="mt-4 text-sm">{BMD.email}</p>
+        <p className="mt-4 text-sm">{company.email}</p>
       </Shell>
     );
   }
@@ -66,9 +68,12 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
     <Shell>
       <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
-          <img src="/bmd-logo.png" alt="BMD Materials" className="h-10" />
-          <p className="mt-2 text-xs text-muted-foreground">{BMD.mailing}</p>
-          <p className="text-xs text-muted-foreground">{BMD.email}</p>
+          <img src={logo || "/bmd-logo.png"} alt={company.name} className="max-h-14 max-w-[11rem] object-contain" />
+          <div className="mt-2 text-xs text-muted-foreground">
+            {companyLines(company).map((l) => (
+              <p key={l}>{l}</p>
+            ))}
+          </div>
         </div>
         <div className="text-right">
           <h1 className="text-xl font-semibold">{snap.number.startsWith("CO-") ? "Change order" : "Quotation"} {snap.number}</h1>
@@ -81,6 +86,7 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
           <p className="text-xs text-muted-foreground">Prepared for</p>
           <p className="font-medium">{snap.client.name}</p>
           {snap.client.address && <p className="text-sm text-muted-foreground">{snap.client.address}</p>}
+          {snap.attention && <p className="text-sm text-muted-foreground">Attention: {snap.attention}</p>}
         </div>
         <div>
           <p className="text-xs text-muted-foreground">Project</p>
@@ -91,7 +97,7 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
 
       {expired && (
         <p role="status" className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          This quotation has passed its {snap.validityDays}-day validity and can no longer be accepted here. Please contact us at {BMD.email} for a current price.
+          This quotation has passed its {snap.validityDays}-day validity and can no longer be accepted here. Please contact us at {company.email} for a current price.
         </p>
       )}
       {(view.state === "accepted" || done) && (
@@ -175,6 +181,12 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
         );
       })}
 
+      {snap.remarks && (
+        <section className="mb-4">
+          <h2 className="font-semibold">Notes</h2>
+          <p className="mt-1 whitespace-pre-line text-sm">{snap.remarks}</p>
+        </section>
+      )}
       {[["Inclusions", snap.inclusions], ["Exclusions", snap.exclusions], ["Clarifications", snap.clarifications], ["Terms", snap.terms]].map(([title, items]) =>
         (items as string[]).length ? (
           <section key={title as string} className="mb-4">
@@ -186,6 +198,15 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
             </ul>
           </section>
         ) : null,
+      )}
+
+      {snap.conditions && (
+        <section className="mb-4 rounded-lg border border-border p-4">
+          <h2 className="font-semibold">{snap.conditions.title}</h2>
+          <div className="mt-2 max-h-96 space-y-1 overflow-y-auto text-xs leading-relaxed" tabIndex={0} role="region" aria-label={snap.conditions.title}>
+            {snap.conditions.text.split("\n").map((l, i) => (l.trim() ? <p key={i} className={isHeadingLine(l) ? "pt-2 font-semibold" : undefined}>{l.trim()}</p> : null))}
+          </div>
+        </section>
       )}
 
       {!locked && (
@@ -204,15 +225,16 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
           </div>
           <label className="mt-3 flex cursor-pointer items-start gap-2 text-sm">
             <input type="checkbox" className="mt-0.5 h-5 w-5" checked={form.agree} onChange={(e) => setForm({ ...form, agree: e.target.checked })} />
-            <span>I accept the price, scope and terms shown above. Typing my name here is my signature.</span>
+            <span>I accept the price, scope and terms shown above{snap.conditions ? `, including the ${snap.conditions.title}` : ""}. Typing my name here is my signature.</span>
           </label>
-          <p className="mt-2 text-xs text-muted-foreground">This page is opened by its private link, not by signing in, so we record the name and email you type but do not verify who you are. BMD Materials may contact you to confirm.</p>
+          <p className="mt-2 text-xs text-muted-foreground">This page is opened by its private link, not by signing in, so we record the name and email you type but do not verify who you are. {company.name} may contact you to confirm.</p>
           {message && <p role="alert" className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">{message}</p>}
           <button type="button" disabled={busy} onClick={() => void accept()} className="mt-3 min-h-11 rounded-md bg-primary px-5 font-medium text-primary-foreground disabled:opacity-60">
             {busy ? "Sending…" : "Accept quotation"}
           </button>
         </section>
       )}
+      {snap.footer && <footer className="mt-8 whitespace-pre-line border-t border-border pt-3 text-center text-xs text-muted-foreground">{snap.footer}</footer>}
     </Shell>
   );
 }

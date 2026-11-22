@@ -31,6 +31,7 @@ import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
+import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
 import { Microsoft365Panel } from "@/components/settings/Microsoft365Panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -71,6 +72,7 @@ function SettingsPage() {
   const canSettings = can("manage_settings");
   const canUsers = can("manage_users");
   const canMicrosoft = canAny("send_quotes") || canAny("manage_integrations");
+  const canQuotes = canAny("send_quotes");
   const search = Route.useSearch();
   const { data: items = [] } = useDeficiencies(project?.id);
 
@@ -207,7 +209,14 @@ function SettingsPage() {
             {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
             {canSettings && <TabsTrigger value="companycam">CompanyCam</TabsTrigger>}
             {canMicrosoft && <TabsTrigger value="microsoft">Microsoft 365</TabsTrigger>}
+            {canQuotes && <TabsTrigger value="quotes">Quotes</TabsTrigger>}
           </TabsList>
+
+          {canQuotes && (
+            <TabsContent value="quotes">
+              <QuoteSettingsPanel />
+            </TabsContent>
+          )}
 
           {canMicrosoft && (
             <TabsContent value="microsoft">

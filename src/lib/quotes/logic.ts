@@ -6,6 +6,7 @@ import { priceEstimateLine } from "@/lib/estimating/assemble";
 import { totals, type TaxCode, type Uom } from "@/lib/estimating/calc";
 import type { EstVersion } from "@/lib/estimating/data";
 import { includedIds, type ClientChoice, type Rates, type Selection } from "@/lib/estimating/worksheet";
+import { brandingFrom, companyOf, DEFAULT_BRANDING, type Branding, type Company } from "./branding";
 
 export type Presentation = "lump_sum" | "by_section" | "itemised";
 export type QuoteKind = "quote" | "change_order";
@@ -32,18 +33,18 @@ export function normalizeDisplay(raw: Partial<Record<keyof QuoteDisplay, unknown
   return { groupBy: raw.groupBy === "material" || raw.groupBy === "section" ? raw.groupBy : d.groupBy, showLines: flag("showLines"), showQuantities: flag("showQuantities"), showUnitPrices: flag("showUnitPrices"), showLineAmounts: flag("showLineAmounts"), showGroupSubtotals: flag("showGroupSubtotals") };
 }
 
+/** The company's details when nothing has been saved under Settings → Quotes. Quotes read the saved details from their snapshot. */
 export const BMD = {
-  name: "BMD Materials",
-  mailing: "PO Box 69031, Winnipeg RPO Tuxedo Park, MB R3P 2G9",
-  email: "office@bmdmaterials.com",
+  name: DEFAULT_BRANDING.companyName,
+  mailing: DEFAULT_BRANDING.mailingAddress,
+  email: DEFAULT_BRANDING.email,
 };
 
-export const standingTerms = (validityDays: number, deposit: string | null) => [
+/** The short terms under the price: validity and deposit come from the quote, the rest from Settings → Quotes. */
+export const standingTerms = (validityDays: number, deposit: string | null, shortTerms: string[] = DEFAULT_BRANDING.shortTerms) => [
   `This quotation is valid for ${validityDays} days from its date.`,
   deposit ? `Deposit: ${deposit}` : "No deposit is required unless stated above.",
-  "Overdue accounts are charged interest at 2% per month.",
-  "Workmanship is warranted for one year from completion. Materials carry their manufacturer's warranty.",
-  "Prices are in Canadian dollars. GST is shown separately.",
+  ...shortTerms,
 ];
 
 export function quoteNumber(kind: QuoteKind, projectNumber: string | null, coNumber: number | null, revision: number): string {
@@ -88,6 +89,16 @@ export type QuoteSnapshot = {
   preparedBy: { name: string; email: string };
   project: { name: string; number: string | null; address: string | null };
   client: { name: string; address: string | null };
+  /** The company's own details as they stood when the quote was built. */
+  company: Company;
+  /** Who at the client the quote is addressed to. */
+  attention: string | null;
+  /** Notes written for the client on this quote, shown under the price. (Named apart from the estimate's internal notes, which never leave the office.) */
+  remarks: string;
+  /** Wording printed at the foot of every page. */
+  footer: string;
+  /** The standard terms and conditions, printed on their own page after the quote. Null when none are set up. */
+  conditions: { title: string; text: string } | null;
   inclusions: string[];
   exclusions: string[];
   clarifications: string[];
@@ -100,10 +111,11 @@ export type QuoteSnapshot = {
   versions: SnapVersion[];
 };
 
-export type SnapshotInput = Omit<QuoteSnapshot, "versions" | "terms" | "gstPct" | "hstPct" | "display" | "drawings"> & { drawings?: string[]; versions: EstVersion[]; rates: Rates; display?: QuoteDisplay; materialOf?: Record<string, string> };
+export type SnapshotInput = Omit<QuoteSnapshot, "versions" | "terms" | "gstPct" | "hstPct" | "display" | "drawings" | "company" | "attention" | "remarks" | "footer" | "conditions"> & { branding?: Branding; attention?: string | null; remarks?: string | null; drawings?: string[]; versions: EstVersion[]; rates: Rates; display?: QuoteDisplay; materialOf?: Record<string, string> };
 
 export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
   const { versions, rates, ...head } = input;
+  const brand = head.branding ?? brandingFrom(null);
   return {
     number: head.number,
     date: head.date,
@@ -113,12 +125,17 @@ export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
     preparedBy: { name: head.preparedBy.name, email: head.preparedBy.email },
     project: { name: head.project.name, number: head.project.number, address: head.project.address },
     client: { name: head.client.name, address: head.client.address },
+    company: companyOf(brand),
+    attention: head.attention?.trim() || null,
+    remarks: head.remarks?.trim() ?? "",
+    footer: brand.footer,
+    conditions: brand.termsText ? { title: brand.termsTitle, text: brand.termsText } : null,
     inclusions: [...head.inclusions],
     exclusions: [...head.exclusions],
     clarifications: [...head.clarifications],
     deposit: head.deposit,
     drawings: [...(head.drawings ?? [])],
-    terms: standingTerms(head.validityDays, head.deposit),
+    terms: standingTerms(head.validityDays, head.deposit, brand.shortTerms),
     gstPct: rates.gstPct,
     hstPct: rates.hstPct,
     versions: versions.map((v) => {
