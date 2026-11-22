@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { BMD, money, type QuoteSnapshot, type SnapVersion } from "./logic";
+import { BMD, money, snapshotTotals, type QuoteSnapshot, type SnapVersion } from "./logic";
 
 const M = 48; // page margin, points
 const W = 612;
@@ -105,7 +105,11 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
   rule();
 
   const many = snap.versions.length > 1;
-  const priceBlock = (v: SnapVersion) => {
+  // On an acceptance record the figures are those for what the client chose.
+  const acc0 = opts.acceptance;
+  const figures = (v: SnapVersion) => (acc0 && acc0.versionId === v.id ? snapshotTotals(v, acc0.choices as never, { gstPct: snap.gstPct, hstPct: snap.hstPct }) : v);
+  const priceBlock = (v0: SnapVersion) => {
+    const v = figures(v0);
     row("Subtotal", `$${money(v.subtotalCents)}`, { bold: true });
     for (const [code, cents] of Object.entries(v.taxByCode)) {
       if (cents > 0) row(`${code} ${code === "GST" ? snap.gstPct : snap.hstPct}%`, `$${money(cents)}`);
@@ -121,7 +125,7 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
         const flags = [l.selection === "optional" ? "optional, not in the total" : null, l.selection === "choose_one" ? `choose one${l.group ? ` (${l.group})` : ""}` : null, l.allowance ? "allowance" : null, l.subjectToMeasure ? "subject to final measure" : null].filter(Boolean).join("; ");
         const label = `${l.description}${l.uom === "LS" ? "" : `  —  ${qty}`}${flags ? `  (${flags})` : ""}`;
         const itemised = showPrices && snap.presentation === "itemised";
-        row(itemised && l.uom !== "LS" ? `${label}  @ $${money(l.unitPriceCents)}` : label, itemised || (showPrices && l.selection !== "required") ? `$${money(l.sellCents)}` : "", { indent: 12, size: 9 });
+        row(itemised && l.uom !== "LS" ? `${label}  ${l.unitPriceExact === false ? `about $${money(l.unitPriceCents)} per ${l.uom}` : `@ $${money(l.unitPriceCents)}`}` : label, itemised || (showPrices && l.selection !== "required") ? `$${money(l.sellCents)}` : "", { indent: 12, size: 9 });
       }
       y += 4;
     }
@@ -139,10 +143,11 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     y += 4;
     for (const v of snap.versions) {
       need(40);
-      row(v.name, `$${money(v.totalCents)}`, { bold: true, size: 11 });
+      const f = figures(v);
+      row(v.name, `$${money(f.totalCents)}`, { bold: true, size: 11 });
       if (v.description) para(v.description, { size: 9, colour: 70 });
-      row("Subtotal", `$${money(v.subtotalCents)}`, { indent: 12, size: 9 });
-      row("Tax", `$${money(v.taxCents)}`, { indent: 12, size: 9 });
+      row("Subtotal", `$${money(f.subtotalCents)}`, { indent: 12, size: 9 });
+      row("Tax", `$${money(f.taxCents)}`, { indent: 12, size: 9 });
       y += 6;
     }
     for (const v of snap.versions) {

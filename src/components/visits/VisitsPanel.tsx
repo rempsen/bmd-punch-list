@@ -55,7 +55,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
   const move = (v: Visit, to: VisitStatus) =>
     run(async () => {
       const next = applyVisitEvent(v, to);
-      if (!next) return;
+      if (!next) throw new Error("That visit is already past that point.");
       must(await db.from("install_visits").update({ status: next.status }).eq("id", v.id));
       must(await db.from("install_visit_events").insert({ visit_id: v.id, project_id: projectId, status: next.status, note: next.note }));
     }, `Marked ${LABEL[to].toLowerCase()}.`);

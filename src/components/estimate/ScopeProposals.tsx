@@ -14,7 +14,7 @@ import { signedUrl } from "@/lib/documents/upload";
 import { db, errText } from "@/lib/platform/db";
 
 type Row = { id: string; payload: Proposal; source_note: string | null };
-const MAX_PAGES_NOTE = "Long documents are read from the start up to about 60,000 characters each.";
+const MAX_PAGES_NOTE = "About 60,000 characters can be read in one go, shared between the documents you tick; you are told when one is cut short.";
 
 /** AI suggestions for the project's finishes, read from the specs. Each one waits here until someone accepts or rejects it. */
 export function ScopeProposals({ projectId, finishCount, onAccepted }: { projectId: string; finishCount: number; onAccepted: () => void }) {
@@ -43,11 +43,17 @@ export function ScopeProposals({ projectId, finishCount, onAccepted }: { project
       const { pdfTextLines } = await import("@/lib/estimating/pdf-text");
       let specText = pasted;
       const names: string[] = [];
-      for (const d of pdfs.filter((x) => picked.has(x.id))) {
+      const chosen = pdfs.filter((x) => picked.has(x.id));
+      // The reading limit is shared out, so a long first document cannot crowd out the others.
+      const share = Math.floor(58_000 / Math.max(1, chosen.length + (pasted.trim() ? 1 : 0)));
+      specText = specText.slice(0, share);
+      for (const d of chosen) {
         const buf = await (await fetch(await signedUrl(d.storage_path))).arrayBuffer();
         const lines = await pdfTextLines(buf);
         if (lines.length === 0) toast.warning(`${d.file_name} has no readable text (it may be a scan), so it was skipped.`);
-        specText += `\n\n--- ${d.file_name} ---\n${lines.join("\n")}`;
+        const text = lines.join("\n");
+        if (text.length > share) toast.warning(`${d.file_name} is long: only the first part of it was read.`);
+        specText += `\n\n--- ${d.file_name} ---\n${text.slice(0, share)}`;
         names.push(d.file_name);
       }
       setBusy("Asking AI what finishes they call for…");

@@ -35,6 +35,8 @@ export type SnapLine = {
   qty: number;
   uom: Uom;
   unitPriceCents: number;
+  /** False when quantity × unit price does not come back to the line amount to the cent; the unit price is then shown as approximate. */
+  unitPriceExact: boolean;
   sellCents: number;
   taxCode: TaxCode;
   selection: Selection;
@@ -102,6 +104,7 @@ export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
           qty: l.driver_qty,
           uom: l.driver_uom,
           unitPriceCents: l.driver_qty > 0 ? Math.round(sell / l.driver_qty) : sell,
+          unitPriceExact: l.driver_qty > 0 ? Math.round(Math.round(sell / l.driver_qty) * l.driver_qty) === sell : true,
           sellCents: sell,
           taxCode: l.tax_code,
           selection: l.selection,

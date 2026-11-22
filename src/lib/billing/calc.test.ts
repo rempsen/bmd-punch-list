@@ -57,3 +57,15 @@ describe("invoice PDF", () => {
     expect(text).not.toContain("Less ");
   });
 });
+
+describe("polish: invoice status", () => {
+  const bill = { number: "26-041-B01", kind: "progress" as const, period_note: null, lines: [{ description: "Progress", amountCents: 100000 }], gross_cents: 100000, holdback_pct: 7.5, holdback_cents: 7500, net_cents: 92500, gst_cents: 4625, total_cents: 97125, issued_at: null };
+  const head = { project: { name: "Job", number: null, address: null }, client: { name: "Client", address: null }, gstPct: 5, position: { contractCents: 100000, billedCents: 100000 } };
+  test("a draft or void bill says so across the page, so it cannot pass for an invoice", () => {
+    expect(renderBillPdf({ ...bill, status: "draft" }, head, { compress: false }).output()).toContain("DRAFT - NOT ISSUED");
+    expect(renderBillPdf({ ...bill, status: "void" }, head, { compress: false }).output()).toContain("VOID");
+    const issued = renderBillPdf({ ...bill, status: "issued" }, head, { compress: false }).output();
+    expect(issued).not.toContain("DRAFT");
+    expect(issued).not.toContain("VOID");
+  });
+});

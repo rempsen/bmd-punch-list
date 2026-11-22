@@ -196,3 +196,23 @@ describe("review fixes: quotes", () => {
     expect(snapshotFingerprint(buildSnapshot({ ...head, versions: [base], rates }))).toBe(snapshotFingerprint(d));
   });
 });
+
+describe("polish: what prints", () => {
+  test("a unit price is shown only when it multiplies out exactly; otherwise the line shows its amount alone", () => {
+    const v = version("v1", "Base", [line("x", { description: "Three of something", driver_qty: 3, driver_uom: "EA", price_basis: "fixed_sell", fixed_sell_cents: 10000 }), line("y", { description: "Four of something", driver_qty: 4, driver_uom: "EA", price_basis: "fixed_sell", fixed_sell_cents: 10000 })]);
+    const snap = buildSnapshot({ ...head, presentation: "itemised", versions: [v], rates });
+    expect(snap.versions[0]!.sections[0]!.lines.map((l) => [l.unitPriceCents, l.unitPriceExact])).toEqual([[3333, false], [2500, true]]);
+    const text = renderQuotePdf(snap, { compress: false }).output();
+    expect(text).toContain("@ $25.00");
+    expect(text).toContain("about $33.33 per EA");
+    expect(text).not.toContain("@ $33.33");
+  });
+  test("an acceptance record shows the totals for what the client chose, not the default selection", () => {
+    const v = version("v1", "Base", [line("a", { price_basis: "fixed_sell", fixed_sell_cents: 100000 }), line("opt", { description: "Optional extra", price_basis: "fixed_sell", fixed_sell_cents: 20000, selection: "optional" })]);
+    const snap = buildSnapshot({ ...head, versions: [v], rates });
+    const text = renderQuotePdf(snap, { compress: false, acceptance: { name: "Pat", email: "p@x.y", at: "2026-11-23T18:00:00Z", versionId: "v1", choices: { opt: "yes" }, totalCents: 126000 } }).output();
+    expect(text).toContain("1,200.00"); // subtotal with the option taken
+    expect(text).toContain("1,260.00");
+    expect(text).not.toContain("1,050.00"); // the default total, without the option
+  });
+});

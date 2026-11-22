@@ -24,9 +24,10 @@ export const Route = createFileRoute("/api/public/arriveping/webhook")({
         const next = applyVisitEvent(visit, ev.status);
         if (!next) return Response.json({ ok: true, ignored: "no change" });
         const { error } = await admin.from("install_visits").update({ status: next.status, ...(ev.jobId && !visit.arriveping_job_id ? { arriveping_job_id: ev.jobId } : {}) }).eq("id", visit.id);
-        if (error) return Response.json({ ok: false }, { status: 500 });
-        await admin.from("install_visit_events").insert({ visit_id: visit.id, project_id: visit.project_id, status: next.status, note: next.note, source: "arriveping", ...(ev.at && !Number.isNaN(Date.parse(ev.at)) ? { at: ev.at } : {}) });
-        return Response.json({ ok: true, status: next.status });
+        // A job id already tied to another visit is a data mix-up, not something a retry will fix: answer 200 so the sender stops.
+        if (error) return /duplicate|unique/i.test(error.message) ? Response.json({ ok: true, ignored: "job id belongs to another visit" }) : Response.json({ ok: false }, { status: 500 });
+        const { error: logError } = await admin.from("install_visit_events").insert({ visit_id: visit.id, project_id: visit.project_id, status: next.status, note: next.note, source: "arriveping", ...(ev.at && !Number.isNaN(Date.parse(ev.at)) ? { at: ev.at } : {}) });
+        return Response.json({ ok: true, status: next.status, ...(logError ? { activityLogged: false } : {}) });
       },
     },
   },

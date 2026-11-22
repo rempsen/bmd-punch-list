@@ -42,7 +42,8 @@ export function applyVisitEvent(visit: Pick<Visit, "status" | "crew">, to: Visit
 export const visitNote = (status: VisitStatus, crew: string | null) => `${NOTES[status]}${crew ? ` (${crew})` : ""}`;
 
 const cell = (v: string | null | undefined) => {
-  const s = v ?? "";
+  // A leading =, +, - or @ would be run as a formula by a spreadsheet; an apostrophe makes it plain text.
+  const s = /^[=+\-@]/.test(v ?? "") ? `'${v}` : (v ?? "");
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 /** Visits as a CSV to load into ArrivePing by hand. The Reference column is what ArrivePing should send back as external_id. */

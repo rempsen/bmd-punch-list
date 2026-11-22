@@ -13,6 +13,7 @@ import { useQuotes } from "@/lib/quotes/data";
 import { contractValue } from "@/lib/quotes/logic";
 
 type Bill = BillForPdf & { id: string; status: "draft" | "issued" | "void"; created_at: string };
+// status travels with the bill so a draft or void invoice is marked as such on the PDF.
 const STATUS = { draft: "Draft", issued: "Issued", void: "Void" } as const;
 const toCents = (s: string) => Math.round(Number(s.replace(/[$,\s]/g, "")) * 100);
 

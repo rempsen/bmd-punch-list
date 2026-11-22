@@ -37,3 +37,13 @@ describe("visit export", () => {
     expect(row).toBe(`${visit.id},26-041 Hyatt Centric,Kothari Group,"325 Broadway, Winnipeg, MB",2026-12-01T14:00:00Z,2026-12-01T22:00:00Z,Brodie + 2,Pat Client 204-555-0100,"Bring 4"" base, adhesive"`);
   });
 });
+
+describe("polish: export safety", () => {
+  test("a cell that a spreadsheet would run as a formula is exported as plain text", () => {
+    const csv = visitsCsv([{ ...visit, notes: "=HYPERLINK(\"http://x\")", crew: "+1 crew", site_contact: "@pat" }], { name: "Job", number: null, address: null, client: "-Client" });
+    const row = csv.split("\r\n")[1]!;
+    expect(row).toContain(",'+1 crew,'@pat,");
+    expect(row).toContain("\"'=HYPERLINK(\"\"http://x\"\")\"");
+    expect(row).toContain(",'-Client,");
+  });
+});

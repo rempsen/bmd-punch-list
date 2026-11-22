@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf";
 import { BMD, money } from "@/lib/quotes/logic";
 import type { BillKind } from "./calc";
 
-export type BillForPdf = { number: string; kind: BillKind; period_note: string | null; lines: { description: string; amountCents: number }[]; gross_cents: number; holdback_pct: number; holdback_cents: number; net_cents: number; gst_cents: number; total_cents: number; issued_at: string | null };
+export type BillForPdf = { number: string; kind: BillKind; period_note: string | null; lines: { description: string; amountCents: number }[]; gross_cents: number; holdback_pct: number; holdback_cents: number; net_cents: number; gst_cents: number; total_cents: number; issued_at: string | null; status?: "draft" | "issued" | "void" };
 type Head = { project: { name: string; number: string | null; address: string | null }; client: { name: string; address: string | null }; gstPct: number; position: { contractCents: number; billedCents: number } };
 
 /** The invoice for one progress bill or holdback release. */
@@ -28,6 +28,12 @@ export function renderBillPdf(bill: BillForPdf, head: Head, opts: { compress?: b
     y += 12;
   };
 
+  if (bill.status === "draft" || bill.status === "void") {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(54);
+    doc.setTextColor(225);
+    doc.text(bill.status === "draft" ? "DRAFT - NOT ISSUED" : "VOID", 306, 420, { align: "center", angle: 30 });
+  }
   if (opts.logoDataUrl) {
     try {
       doc.addImage(opts.logoDataUrl, "PNG", M, y - 6, 110, 40);

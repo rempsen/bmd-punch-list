@@ -43,6 +43,9 @@ export function suggestScale(items: { str: string; x: number; y: number }[], _pa
   const found = new Map<number, string>();
   for (const it of items) {
     const p = parseScaleText(it.str);
+    // A bare ratio is only a drawing scale when the text says so or it stands alone: "RAMP 1:12" and "SLOPE 1:20" are not scales.
+    if (p && !ARCH.test(it.str) && !(/scale/i.test(it.str) || /^\s*1\s*:\s*\d+\s*$/.test(it.str)) ) continue;
+    if (p && !ARCH.test(it.str) && !METRIC_RATIOS.includes(Math.round(p.ratio))) continue;
     if (p && !found.has(Math.round(p.ratio * 1000))) found.set(Math.round(p.ratio * 1000), it.str.trim());
   }
   if (found.size !== 1) return null;

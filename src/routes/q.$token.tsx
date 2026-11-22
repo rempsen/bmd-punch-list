@@ -11,6 +11,7 @@ export const Route = createFileRoute("/q/$token")({
     if (!view) throw notFound();
     return view;
   },
+  headers: () => ({ "Cache-Control": "no-store, private", "X-Robots-Tag": "noindex, nofollow, noarchive", "Referrer-Policy": "no-referrer" }),
   head: () => ({ meta: [{ title: "Quotation · BMD Materials" }, { name: "robots", content: "noindex, nofollow, noarchive" }, { name: "referrer", content: "no-referrer" }] }),
   notFoundComponent: () => (
     <main className="mx-auto max-w-xl p-8">

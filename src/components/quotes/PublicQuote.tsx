@@ -164,7 +164,9 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
             ))}
             <dl className="mt-3 ml-auto w-full max-w-xs text-sm">
               <div className="flex justify-between"><dt>Subtotal</dt><dd className="tabular-nums">${money(t.subtotalCents)}</dd></div>
-              <div className="flex justify-between"><dt>GST {snap.gstPct}%</dt><dd className="tabular-nums">${money(t.taxCents)}</dd></div>
+              {Object.entries(t.taxByCode).filter(([, cents]) => cents > 0).map(([code, cents]) => (
+                <div key={code} className="flex justify-between"><dt>{code} {code === "HST" ? snap.hstPct : snap.gstPct}%</dt><dd className="tabular-nums">${money(cents)}</dd></div>
+              ))}
               <div className="flex justify-between border-t border-border pt-1 text-base font-semibold"><dt>Total</dt><dd className="tabular-nums">${money(t.totalCents)}</dd></div>
               {t.maybeCents > 0 && <p className="mt-1 text-xs text-muted-foreground">Items marked Maybe (${money(t.maybeCents)} before GST) are not in this total.</p>}
             </dl>
@@ -188,7 +190,7 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
       {!locked && (
         <section className="mt-6 rounded-lg border border-border p-4">
           <h2 className="font-semibold">Accept this quotation</h2>
-          {version && <p className="mt-1 text-sm">You are accepting{snap.versions.length > 1 ? ` ${version.name}` : ""} for a total of <strong className="tabular-nums">${money(totalsFor(version).totalCents)}</strong> including GST.</p>}
+          {version && <p className="mt-1 text-sm">You are accepting{snap.versions.length > 1 ? ` ${version.name}` : ""} for a total of <strong className="tabular-nums">${money(totalsFor(version).totalCents)}</strong> including tax.</p>}
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <label className="text-sm font-medium">
               Full name
@@ -203,6 +205,7 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
             <input type="checkbox" className="mt-0.5 h-5 w-5" checked={form.agree} onChange={(e) => setForm({ ...form, agree: e.target.checked })} />
             <span>I accept the price, scope and terms shown above. Typing my name here is my signature.</span>
           </label>
+          <p className="mt-2 text-xs text-muted-foreground">This page is opened by its private link, not by signing in, so we record the name and email you type but do not verify who you are. BMD Materials may contact you to confirm.</p>
           {message && <p role="alert" className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">{message}</p>}
           <button type="button" disabled={busy} onClick={() => void accept()} className="mt-3 min-h-11 rounded-md bg-primary px-5 font-medium text-primary-foreground disabled:opacity-60">
             {busy ? "Sending…" : "Accept quotation"}

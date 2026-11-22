@@ -175,3 +175,14 @@ describe("review fixes: what counts", () => {
     expect(takeoffLinks([l("only", "General")], totals).map((x) => x.takeoffQty)).toEqual([300]);
   });
 });
+
+describe("polish: scale suggestions", () => {
+  test("a ramp slope or a stray ratio is not offered as the sheet's scale; a stated metric scale is", () => {
+    const page = { width: 100, height: 100 };
+    expect(suggestScale([{ str: "RAMP 1:12 MAX", x: 1, y: 1 }], page)).toBeNull();
+    expect(suggestScale([{ str: "SLOPE 1:20", x: 1, y: 1 }, { str: 'SCALE: 1/8" = 1\'-0"', x: 5, y: 5 }], page)).toMatchObject({ ratio: 96 });
+    expect(suggestScale([{ str: "SCALE 1:100", x: 1, y: 1 }], page)).toMatchObject({ ratio: 100 });
+    expect(suggestScale([{ str: "1:50", x: 1, y: 1 }], page)).toMatchObject({ ratio: 50 });
+    expect(parseScaleText("1:12")).toEqual({ ratio: 12 });
+  });
+});
