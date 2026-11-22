@@ -44,6 +44,7 @@ import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects.$id'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
 import { Route as ApiMsCallbackRouteImport } from './routes/api/ms/callback'
+import { Route as ApiPublicArrivepingWebhookRouteImport } from './routes/api/public/arriveping/webhook'
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 import { Route as ApiPublicOnedriveMirrorRouteImport } from './routes/api/public/onedrive/mirror'
@@ -229,6 +230,12 @@ const ApiMsCallbackRoute = ApiMsCallbackRouteImport.update({
   path: '/api/ms/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicArrivepingWebhookRoute =
+  ApiPublicArrivepingWebhookRouteImport.update({
+    id: '/api/public/arriveping/webhook',
+    path: '/api/public/arriveping/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicCompanycamWebhookRoute =
   ApiPublicCompanycamWebhookRouteImport.update({
     id: '/api/public/companycam/webhook',
@@ -281,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/projects/new': typeof AuthenticatedProjectsNewRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
+  '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -320,6 +328,7 @@ export interface FileRoutesByTo {
   '/projects/new': typeof AuthenticatedProjectsNewRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
+  '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -361,6 +370,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/new': typeof AuthenticatedProjectsNewRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
+  '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -402,6 +412,7 @@ export interface FileRouteTypes {
     | '/projects/new'
     | '/api/ms/callback'
     | '/projects/'
+    | '/api/public/arriveping/webhook'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -441,6 +452,7 @@ export interface FileRouteTypes {
     | '/projects/new'
     | '/api/ms/callback'
     | '/projects'
+    | '/api/public/arriveping/webhook'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -481,6 +493,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/new'
     | '/api/ms/callback'
     | '/_authenticated/projects/'
+    | '/api/public/arriveping/webhook'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -495,6 +508,7 @@ export interface RootRouteChildren {
   QTokenRoute: typeof QTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiMsCallbackRoute: typeof ApiMsCallbackRoute
+  ApiPublicArrivepingWebhookRoute: typeof ApiPublicArrivepingWebhookRoute
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
   ApiPublicOnedriveMirrorRoute: typeof ApiPublicOnedriveMirrorRoute
@@ -747,6 +761,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMsCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/arriveping/webhook': {
+      id: '/api/public/arriveping/webhook'
+      path: '/api/public/arriveping/webhook'
+      fullPath: '/api/public/arriveping/webhook'
+      preLoaderRoute: typeof ApiPublicArrivepingWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/companycam/webhook': {
       id: '/api/public/companycam/webhook'
       path: '/api/public/companycam/webhook'
@@ -844,6 +865,7 @@ const rootRouteChildren: RootRouteChildren = {
   QTokenRoute: QTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiMsCallbackRoute: ApiMsCallbackRoute,
+  ApiPublicArrivepingWebhookRoute: ApiPublicArrivepingWebhookRoute,
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
   ApiPublicOnedriveMirrorRoute: ApiPublicOnedriveMirrorRoute,

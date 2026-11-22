@@ -6,6 +6,7 @@ import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { BillingTab } from "@/components/billing/BillingTab";
 import { QuotesTab } from "@/components/quotes/QuotesTab";
+import { VisitsPanel } from "@/components/visits/VisitsPanel";
 import { useProjectDocuments } from "@/lib/documents/data";
 import { buildTimeline } from "@/lib/projects/timeline";
 import { useQuotes } from "@/lib/quotes/data";
@@ -127,6 +128,7 @@ function ProjectPage() {
 
       <div className={cn("mx-auto p-4 md:p-6", tab === "estimate" || tab === "takeoff" ? "max-w-7xl" : "max-w-5xl")}>
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
+        {tab === "overview" && <VisitsPanel projectId={project.id} canEdit={canEdit} project={{ name: project.name, number: project.project_number, address: project.address, client: project.client_name }} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
         {tab === "estimate" && <EstimateTab projectId={project.id} />}
         {tab === "quotes" && <QuotesTab projectId={project.id} />}
@@ -434,8 +436,15 @@ function Activity({ projectId }: { projectId: string }) {
       return (data ?? []) as { id: string; number: string; kind: string; status: string; issued_at: string | null; total_cents: number }[];
     },
   });
+  const { data: visits = [] } = useQuery({
+    queryKey: ["visit-events", projectId],
+    queryFn: async () => {
+      const { data } = await db.from("install_visit_events").select("id,note,at,source").eq("project_id", projectId);
+      return (data ?? []) as { id: string; note: string; at: string; source: string }[];
+    },
+  });
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  const entries = buildTimeline({ stages, documents, quotes, bills }, { showPrices });
+  const entries = buildTimeline({ stages, documents, quotes, bills, visits }, { showPrices });
   return (
     <Panel title="Activity">
       {entries.length === 0 ? (
