@@ -20,6 +20,8 @@ export type QuoteRow = {
   clarifications: string[];
   deposit: string | null;
   snapshot: QuoteSnapshot | null;
+  /** Internal: selling amounts by cost code for each price, saved when the quote was sent. */
+  rollup: { versionId: string; lines: { costCode: string; amountCents: number; taxCode: "GST" | "HST" | "EXEMPT" | "ZERO" }[]; subtotalCents: number; taxCents: number; totalCents: number }[] | null;
   value_cents: number | null;
   recipients: string[];
   sent_at: string | null;
@@ -31,7 +33,7 @@ export type QuoteRow = {
   created_at: string;
 };
 export const QUOTE_COLS =
-  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,inclusions,exclusions,clarifications,deposit,snapshot,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
+  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,inclusions,exclusions,clarifications,deposit,snapshot,rollup,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };

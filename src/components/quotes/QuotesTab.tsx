@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
+import { useCostCodes } from "@/lib/catalogue/data";
+import { buildQboEstimate } from "@/lib/qbo/estimate";
 import { signedUrl } from "@/lib/documents/upload";
 import { createVersion, dollars, useEstimate } from "@/lib/estimating/data";
 import { db, errText } from "@/lib/platform/db";
@@ -64,6 +66,7 @@ export function QuotesTab({ projectId }: { projectId: string }) {
   const [deciding, setDeciding] = useState<{ quote: QuoteRow; action: "accept" | "decline" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [shared, setShared] = useState<{ number: string; url: string } | null>(null);
+  const [rolling, setRolling] = useState<QuoteRow | null>(null);
   const makeLink = useServerFn(createQuoteLink);
 
   if (!canSee) return <p className="text-sm text-muted-foreground">You don't have access to pricing on this project.</p>;
@@ -212,6 +215,11 @@ export function QuotesTab({ projectId }: { projectId: string }) {
                     </Button>
                   </>
                 )}
+                {q.rollup && q.snapshot && (q.status === "sent" || q.status === "accepted") && (
+                  <Button size="sm" variant="outline" onClick={() => setRolling(q)}>
+                    QuickBooks roll-up
+                  </Button>
+                )}
                 {q.status === "accepted" && q.snapshot && (
                   <Button
                     size="sm"
@@ -316,6 +324,7 @@ export function QuotesTab({ projectId }: { projectId: string }) {
           </DialogContent>
         </Dialog>
       )}
+      {rolling && <RollupDialog quote={rolling} projectId={projectId} onClose={() => setRolling(null)} />}
       {draft && <QuoteEditor quote={draft} onClose={() => setEditing(null)} onChanged={refresh} />}
       {deciding && <DecisionDialog {...deciding} onClose={() => setDeciding(null)} onDone={refresh} />}
     </div>
@@ -588,6 +597,73 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
               {busy ? "Sending…" : "Send"}
             </Button>
           )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The estimate as it would be entered in QuickBooks: one line per cost code, adding up to the quote. Shown for manual entry until QuickBooks is connected. */
+function RollupDialog({ quote, projectId, onClose }: { quote: QuoteRow; projectId: string; onClose: () => void }) {
+  const { data: costCodes = [] } = useCostCodes();
+  const { data: client } = useQuery({
+    queryKey: ["quote-client-qbo", projectId],
+    queryFn: async () => {
+      const { data } = await db.from("projects").select("name,client:clients(name,qbo_customer_id)").eq("id", projectId).maybeSingle();
+      return data as { name: string; client: { name: string; qbo_customer_id: string | null } | null } | null;
+    },
+  });
+  const versionId = quote.accepted_version_id ?? quote.version_ids[0]!;
+  const rollup = quote.rollup?.find((r) => r.versionId === versionId) ?? null;
+  const version = quote.snapshot?.versions.find((v) => v.id === versionId) ?? null;
+  if (!rollup || !version) return null;
+  const built = buildQboEstimate({ number: quote.number, projectName: client?.name ?? "", customerQboId: client?.client?.qbo_customer_id ?? null, rollup, version, costCodes });
+  const name = (code: string) => costCodes.find((c) => c.code === code)?.name ?? "";
+  const copy = () => void navigator.clipboard.writeText(rollup.lines.map((l) => [l.costCode, name(l.costCode), (l.amountCents / 100).toFixed(2), l.taxCode].join("\t")).join("\n")).then(() => toast.success("Copied. Paste into a spreadsheet or straight into the estimate."), () => toast.error("Could not copy."));
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>QuickBooks roll-up for {quote.number}</DialogTitle>
+          <DialogDescription>
+            {client?.client?.name ?? "No client"} · {version.name}
+            {quote.status !== "accepted" && " (not yet accepted)"}. One line per cost code, markup included. QuickBooks is not connected yet, so enter these by hand; nothing is posted from here.
+          </DialogDescription>
+        </DialogHeader>
+        {quote.accepted_value_cents != null && quote.accepted_value_cents !== rollup.subtotalCents && (
+          <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+            The client's choices set the accepted price at {dollars(quote.accepted_value_cents)} before GST, which differs from these lines. Adjust the optional items before entering the estimate.
+          </p>
+        )}
+        {!built.ok && <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">{built.message}</p>}
+        <table className="w-full text-sm">
+          <thead className="text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="py-1">Cost code</th>
+              <th>QuickBooks item</th>
+              <th className="text-right">Amount</th>
+              <th className="pl-3">Tax</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rollup.lines.map((l) => (
+              <tr key={`${l.costCode}-${l.taxCode}`}>
+                <td className="py-1.5">{l.costCode || <span className="text-amber-700">none</span>}</td>
+                <td>{name(l.costCode) || <span className="text-amber-700">not linked</span>}</td>
+                <td className="text-right tabular-nums">{dollars(l.amountCents)}</td>
+                <td className="pl-3">{l.taxCode}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="font-medium">
+            <tr><td colSpan={2} className="pt-2">Subtotal</td><td className="pt-2 text-right tabular-nums">{dollars(rollup.subtotalCents)}</td><td /></tr>
+            <tr><td colSpan={2}>GST</td><td className="text-right tabular-nums">{dollars(rollup.taxCents)}</td><td /></tr>
+            <tr><td colSpan={2}>Total</td><td className="text-right tabular-nums">{dollars(rollup.totalCents)}</td><td /></tr>
+          </tfoot>
+        </table>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+          <Button onClick={copy}>Copy lines</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
