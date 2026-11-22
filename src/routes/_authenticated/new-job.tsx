@@ -8,6 +8,7 @@ import { ContactFields, DetailsFields, Field, ScopePicker } from "@/components/j
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/platform/db";
 import { useAuth } from "@/lib/auth";
 import {
   BUILDING_TYPES,
@@ -39,8 +40,10 @@ export const Route = createFileRoute("/_authenticated/new-job")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  validateSearch: (s: Record<string, unknown>): { draft?: string | undefined } => ({
+  validateSearch: (s: Record<string, unknown>): { draft?: string | undefined; project?: string | undefined } => ({
     draft: typeof s["draft"] === "string" ? s["draft"] : undefined,
+    // Set-up-site mode: add floors and rooms to a project that already exists in the pipeline.
+    project: typeof s["project"] === "string" ? s["project"] : undefined,
   }),
   component: NewJobPage,
 });
@@ -50,12 +53,13 @@ const STEPS = ["Job details", "Client", "Scopes", "Building", "Review"];
 const COMMONISH = new Set(["Vestibule", "Lobby", "Common area", "Corridor", "Stairwell", "Elevator lobby"]);
 
 function NewJobPage() {
-  const { canCreateJobs, refreshPermissions, setProjectId } = useAuth();
-  const { draft: draftParam } = Route.useSearch();
+  const { canCreateJobs, canAny, refreshPermissions, setProjectId } = useAuth();
+  const { draft: draftParam, project: siteFor } = Route.useSearch();
+  const firstStep = siteFor ? 3 : 1;
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [d, setD] = useState<WizardData>(emptyWizard);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(siteFor ? 3 : 1);
   const [draftId, setDraftId] = useState<string | null>(draftParam ?? null);
   const [busy, setBusy] = useState(false);
 
@@ -74,10 +78,30 @@ function NewJobPage() {
       });
   }, [draftParam]);
 
+  useEffect(() => {
+    if (!siteFor) return;
+    void supabase
+      .from("projects")
+      .select("name,client_name,project_scopes(scope,other_text)")
+      .eq("id", siteFor)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const sc = (data.project_scopes ?? []) as { scope: string; other_text: string | null }[];
+        setD((cur) => ({
+          ...cur,
+          name: data.name,
+          client_company: data.client_name ?? "",
+          scopes: sc.map((x) => x.scope),
+          other_scope: sc.find((x) => x.scope === "other")?.other_text ?? "",
+        }));
+      });
+  }, [siteFor]);
+
   const set = (p: Partial<WizardData>) => setD((cur) => ({ ...cur, ...p }));
   const counts = useMemo(() => summarise(d), [d]);
 
-  if (!canCreateJobs)
+  if (!(siteFor ? canAny("manage_projects") : canCreateJobs))
     return (
       <div>
         <PageHeader title="New job" />
@@ -117,7 +141,7 @@ function NewJobPage() {
   };
 
   const create = async () => {
-    for (const s of [1, 2, 4]) {
+    for (const s of siteFor ? [4] : [1, 2, 4]) {
       const e = validate(s);
       if (e) {
         setStep(s);
@@ -126,7 +150,10 @@ function NewJobPage() {
       }
     }
     setBusy(true);
-    const { data: id, error } = await supabase.rpc("create_job", { _job: buildPayload(d) as never });
+    const { data: newId, error } = siteFor
+      ? await db.rpc("setup_project_site", { _project: siteFor, _job: buildPayload(d) })
+      : await supabase.rpc("create_job", { _job: buildPayload(d) as never });
+    const id = siteFor ?? newId;
     if (error) {
       setBusy(false);
       toast.error(error.message);
@@ -137,19 +164,21 @@ function NewJobPage() {
     setProjectId(id as string);
     qc.removeQueries();
     setBusy(false);
-    toast.success(`${d.name} created`);
+    toast.success(siteFor ? `${d.name} site set up` : `${d.name} created`);
     void navigate({ to: "/dashboard", search: { welcome: "1" } });
   };
 
   return (
     <div>
       <PageHeader
-        title="New job"
+        title={siteFor ? "Set up site" : "New job"}
         subtitle={d.name || "Set up a job in five steps"}
         actions={
-          <Button variant="outline" className="h-10" onClick={() => void saveDraft()}>
-            Save draft
-          </Button>
+          siteFor ? undefined : (
+            <Button variant="outline" className="h-10" onClick={() => void saveDraft()}>
+              Save draft
+            </Button>
+          )
         }
       />
       <ol className="flex gap-1 overflow-x-auto border-b border-border bg-card px-4 py-3 md:px-6">
@@ -159,7 +188,7 @@ function NewJobPage() {
             <li key={label} className="flex flex-1 items-center gap-2">
               <button
                 type="button"
-                onClick={() => n < step && setStep(n)}
+                onClick={() => n < step && n >= firstStep && setStep(n)}
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-semibold",
                   n === step ? "border-primary bg-primary text-primary-foreground" : n < step ? "border-primary text-primary" : "border-border text-muted-foreground",
@@ -231,10 +260,10 @@ function NewJobPage() {
 
         {step === 4 && <BuildingStep d={d} set={set} counts={counts} />}
 
-        {step === 5 && <Review d={d} counts={counts} goto={setStep} />}
+        {step === 5 && <Review d={d} counts={counts} goto={(n) => setStep(Math.max(firstStep, n))} />}
 
         <div className="sticky bottom-20 flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-3 shadow-sm md:bottom-4">
-          <Button variant="outline" className="h-12" disabled={step === 1} onClick={() => setStep((s) => s - 1)}>
+          <Button variant="outline" className="h-12" disabled={step === firstStep} onClick={() => setStep((s) => s - 1)}>
             Back
           </Button>
           <span className="text-xs text-muted-foreground">
@@ -246,12 +275,12 @@ function NewJobPage() {
             </Button>
           ) : (
             <Button className="h-12 px-6" disabled={busy} onClick={() => void create()}>
-              {busy ? "Creating…" : "Create job"}
+              {busy ? "Creating…" : siteFor ? "Set up site" : "Create job"}
             </Button>
           )}
         </div>
         <p className="text-center text-xs">
-          <Link to="/jobs" className="text-muted-foreground hover:underline">
+          <Link to={siteFor ? "/projects" : "/jobs"} className="text-muted-foreground hover:underline">
             Cancel
           </Link>
         </p>

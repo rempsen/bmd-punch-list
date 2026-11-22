@@ -162,6 +162,13 @@
       "when": 1795372021824,
       "tag": "0022_clients_and_platform_capabilities",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795372081824,
+      "tag": "0023_project_stages_numbering_assignment",
+      "breakpoints": true
     }
   ]
 }

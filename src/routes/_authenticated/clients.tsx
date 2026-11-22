@@ -28,9 +28,9 @@ export const Route = createFileRoute("/_authenticated/clients")({
 const errText = (e: unknown) => (e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e));
 
 function ClientsPage() {
-  const { can } = useAuth();
-  const canSee = can("view_pipeline");
-  const canEdit = can("manage_projects");
+  const { canAny } = useAuth();
+  const canSee = canAny("view_pipeline");
+  const canEdit = canAny("manage_projects");
   const { data: clients = [], isLoading, error } = useClients();
   const refresh = useRefreshClients();
   const [q, setQ] = useState("");

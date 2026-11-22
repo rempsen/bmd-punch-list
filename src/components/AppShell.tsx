@@ -14,6 +14,7 @@ import {
   ArrowLeftRight,
   Plus,
   Building2,
+  FolderKanban,
   Briefcase,
   Images,
   Sparkles,
@@ -26,7 +27,7 @@ import { cn } from "@/lib/utils";
 type NavItem = { to: string; label: string; short?: string; icon: typeof Camera };
 
 export function useNavItems() {
-  const { can, role } = useAuth();
+  const { can, canAny, role } = useAuth();
   const items: NavItem[] = [];
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench });
@@ -47,7 +48,10 @@ export function useNavItems() {
   if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images });
   if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });
-  if (can("view_pipeline")) items.push({ to: "/clients", label: "Clients", icon: Building2 });
+  if (canAny("view_pipeline")) {
+    items.push({ to: "/projects", label: "Projects", icon: FolderKanban });
+    items.push({ to: "/clients", label: "Clients", icon: Building2 });
+  }
   if (can("manage_settings") || can("manage_users"))
     items.push({ to: "/settings", label: "Settings", icon: Settings });
   return items;
@@ -57,7 +61,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = useNavItems();
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const onJobs = pathname.startsWith("/jobs") || pathname.startsWith("/new-job");
+  const onJobs = ["/jobs", "/new-job", "/projects", "/clients", "/pipeline"].some((p) => pathname.startsWith(p));
   if (!loading && jobsLoaded && !currentJob && !onJobs) return <Navigate to="/jobs" replace />;
 
 
