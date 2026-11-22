@@ -55,6 +55,12 @@ describe("asking the AI gateway", () => {
       expect(f.calls).toHaveLength(1);
     }
   });
+  test("a gateway that only speaks the Anthropic message form is still reached", async () => {
+    const f = fake((c) => (c.url.endsWith("/messages") ? { status: 200, json: { content: [{ type: "text", text: "native" }] } } : { status: 404, text: "Not found" }));
+    const r = await askGateway(f.fetchFn, ["a/claude-fable-5.1"], ask);
+    expect(r).toMatchObject({ ok: true, text: "native", form: "messages" });
+    expect(f.calls.at(-1)!.body).toMatchObject({ system: "S", max_tokens: 100, messages: [{ role: "user", content: "P" }] });
+  });
   test("a form already known to work is asked first", async () => {
     const f = fake((c) => (c.url.endsWith("/responses") ? { status: 200, json: { output_text: "ok" } } : { status: 400 }));
     const r = await askGateway(f.fetchFn, ["a/claude-fable-5.1"], ask, { preferForm: "responses" });

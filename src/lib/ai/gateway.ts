@@ -14,6 +14,7 @@ const FORMS: { name: string; path: string; body: (model: string, a: Ask) => Reco
   { name: "chat", path: "/chat/completions", body: (model, a) => ({ model, max_tokens: a.maxTokens ?? 8000, messages: [{ role: "system", content: a.system }, { role: "user", content: a.prompt }] }) },
   { name: "chat (newer token limit)", path: "/chat/completions", body: (model, a) => ({ model, max_completion_tokens: a.maxTokens ?? 8000, messages: [{ role: "system", content: a.system }, { role: "user", content: a.prompt }] }) },
   { name: "responses", path: "/responses", body: (model, a) => ({ model, instructions: a.system, input: a.prompt, max_output_tokens: Math.max(16, a.maxTokens ?? 8000) }) },
+  { name: "messages", path: "/messages", body: (model, a) => ({ model, max_tokens: a.maxTokens ?? 8000, system: a.system, messages: [{ role: "user", content: a.prompt }] }) },
   { name: "chat (no token limit)", path: "/chat/completions", body: (model, a) => ({ model, messages: [{ role: "user", content: `${a.system}\n\n${a.prompt}` }] }) },
 ];
 
