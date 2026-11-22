@@ -11,6 +11,8 @@ export type TakeoffActions = {
   setScale: (sheetId: string, feetPerPoint: number, provenance: ScaleRow["provenance"]) => Promise<void>;
   addCondition: (c: Omit<Condition, "id" | "project_id" | "sort_order">) => Promise<string>;
   removeCondition: (id: string) => Promise<void>;
+  /** Changes a condition's colour. Conditions for the same finish change together, so one material is one colour everywhere. */
+  setColour?: (id: string, colour: string) => Promise<void>;
   /** Saves a new shape, or puts back one that was removed (same id). */
   putShape: (s: Shape) => Promise<void>;
   updateShape: (id: string, patch: Partial<Pick<Shape, "vertices" | "cutouts" | "openings_ft" | "multiplier" | "section" | "needs_checking">>) => Promise<void>;
@@ -59,6 +61,11 @@ export function useTakeoffActions(projectId: string, data: TakeoffData | undefin
     setScale: async (sheetId, feetPerPoint, provenance) => void done(await db.rpc("set_sheet_scale", { _sheet: sheetId, _feet_per_point: feetPerPoint, _provenance: provenance })),
     addCondition: async (c) => done<{ id: string }>(await db.from("takeoff_conditions").insert({ ...c, project_id: projectId, sort_order: (data?.conditions.length ?? 0) + 1 }).select("id").single()).id,
     removeCondition: async (id) => void done(await db.from("takeoff_conditions").delete().eq("id", id)),
+    setColour: async (id, colour) => {
+      const c = data?.conditions.find((x) => x.id === id);
+      const q = db.from("takeoff_conditions").update({ colour });
+      done(await (c?.finish_id ? q.eq("project_id", projectId).eq("finish_id", c.finish_id) : q.eq("id", id)));
+    },
     putShape: async (s) => void done(await db.from("takeoff_shapes").upsert({ id: s.id, project_id: projectId, sheet_id: s.sheet_id, condition_id: s.condition_id, kind: s.kind, vertices: s.vertices, cutouts: s.cutouts, openings_ft: s.openings_ft, multiplier: s.multiplier, section: s.section, qty: qty(s), scale_feet_per_point: s.scale_feet_per_point, needs_checking: !!s.needs_checking })),
     updateShape: async (id, patch) => {
       const cur = data?.shapes.find((x) => x.id === id);

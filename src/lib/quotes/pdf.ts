@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { BMD, money, snapshotTotals, type QuoteSnapshot, type SnapVersion } from "./logic";
+import { BMD, displayFor, layoutVersion, money, snapshotTotals, type QuoteSnapshot, type SnapVersion } from "./logic";
 
 const M = 48; // page margin, points
 const W = 612;
@@ -11,7 +11,7 @@ const H = 792;
  */
 export type AcceptanceRecord = { name: string; email: string; at: string; versionId: string; choices: Record<string, string>; totalCents: number };
 
-export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; logoDataUrl?: string | null; acceptance?: AcceptanceRecord } = {}): jsPDF {
+export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; logoDataUrl?: string | null; acceptance?: AcceptanceRecord; drawings?: { dataUrl: string; width: number; height: number; title: string }[] } = {}): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: opts.compress ?? true });
   let y = M;
 
@@ -116,17 +116,12 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     }
     row("Total", `$${money(v.totalCents)}`, { bold: true, size: 12 });
   };
-  const scope = (v: SnapVersion, showPrices: boolean) => {
-    for (const s of v.sections) {
+  const scope = (v: SnapVersion) => {
+    for (const g of layoutVersion(v, snap.display ?? displayFor(snap.presentation))) {
+      if (g.lines.length === 0 && g.subtotalCents == null) continue;
       need(30);
-      row(s.name, showPrices && snap.presentation !== "lump_sum" ? `$${money(s.subtotalCents)}` : "", { bold: true });
-      for (const l of s.lines) {
-        const qty = `${l.qty.toLocaleString("en-CA")} ${l.uom}`;
-        const flags = [l.selection === "optional" ? "optional, not in the total" : null, l.selection === "choose_one" ? `choose one${l.group ? ` (${l.group})` : ""}` : null, l.allowance ? "allowance" : null, l.subjectToMeasure ? "subject to final measure" : null].filter(Boolean).join("; ");
-        const label = `${l.description}${l.uom === "LS" ? "" : `  —  ${qty}`}${flags ? `  (${flags})` : ""}`;
-        const itemised = showPrices && snap.presentation === "itemised";
-        row(itemised && l.uom !== "LS" ? `${label}  ${l.unitPriceExact === false ? `about $${money(l.unitPriceCents)} per ${l.uom}` : `@ $${money(l.unitPriceCents)}`}` : label, itemised || (showPrices && l.selection !== "required") ? `$${money(l.sellCents)}` : "", { indent: 12, size: 9 });
-      }
+      row(`${g.name}${g.quantity ? `  (${g.quantity})` : ""}`, g.subtotalCents != null ? `$${money(g.subtotalCents)}` : "", { bold: true });
+      for (const l of g.lines) row(`${l.text}${l.note ? `  (${l.note})` : ""}`, l.amountCents != null ? `$${money(l.amountCents)}` : "", { indent: 12, size: 9 });
       y += 4;
     }
   };
@@ -134,7 +129,7 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
   if (!many) {
     const v = snap.versions[0]!;
     heading("Scope of work");
-    scope(v, true);
+    scope(v);
     rule();
     priceBlock(v);
   } else {
@@ -152,7 +147,7 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     }
     for (const v of snap.versions) {
       heading(`${v.name}: scope of work`);
-      scope(v, true);
+      scope(v);
     }
   }
 
@@ -164,6 +159,11 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
   list("Inclusions", snap.inclusions);
   list("Exclusions", snap.exclusions);
   list("Clarifications", snap.clarifications);
+  if ((snap.drawings ?? []).length > 0) {
+    need(30);
+    y += 6;
+    para(`Colour-coded drawings attached: ${snap.drawings.join(", ")}`, { size: 9 });
+  }
   list("Terms", snap.terms);
 
   // Acceptance
@@ -189,7 +189,25 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
     text("Name and date", W / 2 + 10, { size: 8, colour: 110 });
   }
 
-  const pages = doc.getNumberOfPages();
+  const textPages = doc.getNumberOfPages();
+  // Each colour-coded drawing on its own page, turned to suit the sheet and fitted inside the margins.
+  for (const d of opts.drawings ?? []) {
+    const wide = d.width >= d.height;
+    doc.addPage("letter", wide ? "landscape" : "portrait");
+    const pw = wide ? H : W;
+    const ph = wide ? W : H;
+    const k = Math.min((pw - 2 * 30) / d.width, (ph - 30 - 50) / d.height);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(20);
+    doc.text(d.title, 30, 28);
+    try {
+      doc.addImage(d.dataUrl, "JPEG", (pw - d.width * k) / 2, 38, d.width * k, d.height * k);
+    } catch {
+      doc.text("This drawing could not be added.", 30, 60);
+    }
+  }
+  const pages = textPages;
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setFont("helvetica", "normal");

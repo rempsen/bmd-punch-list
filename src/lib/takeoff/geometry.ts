@@ -152,3 +152,21 @@ export function carryForward(oldSheets: SheetLike[], newSheets: SheetLike[], sha
   const copies = shapes.filter((s) => sheetMap[s.sheet_id]).map((s): Shape => ({ ...s, id: newId(), sheet_id: sheetMap[s.sheet_id]!, vertices: s.vertices.map((v) => ({ ...v })), cutouts: s.cutouts.map((c) => c.map((v) => ({ ...v }))), needs_checking: true }));
   return { shapes: copies, sheetMap, unmatched };
 }
+
+type LegendCondition = { id: string; label: string; kind: ShapeKind; colour: string; finish_id: string | null };
+export type LegendEntry = { id: string; label: string; colour: string; kind: ShapeKind; quantity: string };
+const whole = (n: number) => Math.round(n).toLocaleString("en-CA");
+
+/** The colour key for a set of measurements (usually one sheet): what each colour is and how much of it there is. */
+export function legendFor(shapes: Shape[], conditions: LegendCondition[]): LegendEntry[] {
+  const totals = totalsByCondition(shapes);
+  return conditions
+    .filter((c) => totals[c.id])
+    .map((c) => {
+      const t = totals[c.id]!;
+      return { id: c.id, label: c.label, colour: c.colour, kind: c.kind, quantity: c.kind === "area" ? `${whole(t.sf)} SF` : c.kind === "linear" ? `${whole(t.lf)} LF` : `${whole(t.ea)} EA` };
+    });
+}
+
+/** The colour a new condition should take: the one already used for the same finish, else the next free colour. */
+export const sharedColour = (conditions: { finish_id: string | null; colour: string }[], finishId: string | null, fallback: string) => (finishId ? conditions.find((c) => c.finish_id === finishId)?.colour : undefined) ?? fallback;

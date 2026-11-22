@@ -1,7 +1,8 @@
 /** Loads a quote with everything needed to show or send it. Works with the browser client and the signed-in server client alike. */
 import { shapeLine, type EstVersion } from "@/lib/estimating/data";
 import type { Rates } from "@/lib/estimating/worksheet";
-import { buildSnapshot, rollupByCostCode, unknownCostLabels, type Presentation, type QuoteKind, type QuoteSnapshot } from "./logic";
+import { categoryLabel } from "@/lib/catalogue/logic";
+import { buildSnapshot, normalizeDisplay, rollupByCostCode, unknownCostLabels, type Presentation, type QuoteDisplay, type QuoteKind, type QuoteSnapshot } from "./logic";
 
 export type QuoteStatus = "draft" | "sent" | "accepted" | "declined" | "superseded";
 export type QuoteRow = {
@@ -15,6 +16,8 @@ export type QuoteRow = {
   version_ids: string[];
   validity_days: number;
   presentation: Presentation;
+  display: Partial<QuoteDisplay> | null;
+  drawing_sheet_ids: string[];
   inclusions: string[];
   exclusions: string[];
   clarifications: string[];
@@ -33,7 +36,7 @@ export type QuoteRow = {
   created_at: string;
 };
 export const QUOTE_COLS =
-  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,inclusions,exclusions,clarifications,deposit,snapshot,rollup,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
+  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,display,drawing_sheet_ids,inclusions,exclusions,clarifications,deposit,snapshot,rollup,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };
@@ -65,12 +68,29 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
   );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const versions = (rows as any[]).map((v): EstVersion => ({ ...v, default_markup_pct: Number(v.default_markup_pct), lines: (v.lines as unknown[]).map(shapeLine).sort((a, b) => a.sort_order - b.sort_order) }));
+  // The kind of material behind each line, for quotes grouped by material: the finish's catalogue category, else window coverings by cost code.
+  const { data: fin } = await sb.from("project_finishes").select("id,material:catalogue_materials(category)").eq("project_id", quote.project_id);
+  const categoryOf = new Map(((fin ?? []) as { id: string; material: { category: string } | null }[]).map((f) => [f.id, f.material?.category ?? null]));
+  const materialOf: Record<string, string> = {};
+  for (const v of versions) {
+    for (const l of v.lines) {
+      const cat = l.finish_id ? categoryOf.get(l.finish_id) : null;
+      if (cat) materialOf[l.id] = categoryLabel(cat);
+      else if (l.cost_code === "02-100") materialOf[l.id] = "Window coverings";
+    }
+  }
+  // The drawing sheets chosen to go with the quote, in sheet order.
+  type SheetRow = { id: string; page_number: number; sheet_number: string | null; title: string | null; document_id: string };
+  const { data: sheetRows } = quote.drawing_sheet_ids.length ? await sb.from("plan_sheets").select("id,page_number,sheet_number,title,document_id").in("id", quote.drawing_sheet_ids).order("page_number") : { data: [] };
+  const drawingSheets = ((sheetRows ?? []) as SheetRow[]).map((s) => ({ ...s, label: [s.sheet_number?.trim() || `Page ${s.page_number}`, s.title?.trim()].filter(Boolean).join(" ") }));
   const date = todayInWinnipeg();
   const snapshot = buildSnapshot({
     number: quote.number,
     date,
     validityDays: quote.validity_days,
     presentation: quote.presentation,
+    display: normalizeDisplay(quote.display, quote.presentation),
+    materialOf,
     preparedBy,
     project: { name: project.name, number: project.project_number, address: project.address },
     client: { name: project.client?.name ?? "", address: project.client?.billing_address ?? null },
@@ -78,6 +98,7 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
     exclusions: quote.exclusions,
     clarifications: quote.clarifications,
     deposit: quote.deposit,
+    drawings: drawingSheets.map((s) => s.label),
     versions,
     rates,
   });
@@ -86,6 +107,7 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
     snapshot,
     rollup: versions.map((v) => ({ versionId: v.id, ...rollupByCostCode(v, rates) })),
     unknown: unknownCostLabels(versions, rates),
+    drawingSheets,
     versions,
     fileName: quoteFileName(quote.number, project.name, date),
     projectName: project.name,

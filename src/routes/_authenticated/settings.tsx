@@ -30,6 +30,7 @@ import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
+import { AiModelPanel } from "@/components/settings/AiModelPanel";
 import { Microsoft365Panel } from "@/components/settings/Microsoft365Panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -211,6 +212,7 @@ function SettingsPage() {
           {canMicrosoft && (
             <TabsContent value="microsoft">
               <Microsoft365Panel result={search.ms} message={search.message} />
+              <AiModelPanel />
             </TabsContent>
           )}
 

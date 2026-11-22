@@ -116,6 +116,19 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
       setBringing(false);
     }
   };
+  const downloadMarked = async () => {
+    if (!pdf || !sheet || !takeoff) return;
+    try {
+      const { renderMarkedSheet } = await import("@/lib/takeoff/markup");
+      const { jsPDF } = await import("jspdf");
+      const m = await renderMarkedSheet(pdf, sheet.page_number, takeoff.shapes.filter((s) => s.sheet_id === sheet.id), takeoff.conditions, { title: sheetLabel(sheet), maxWidth: 2400 });
+      const out = new jsPDF({ unit: "pt", format: [m.width, m.height], orientation: m.width >= m.height ? "landscape" : "portrait" });
+      out.addImage(m.dataUrl, "JPEG", 0, 0, m.width, m.height);
+      out.save(`${sheetLabel(sheet)} - colour-coded.pdf`);
+    } catch (e) {
+      toast.error(errText(e));
+    }
+  };
   const [naming, setNaming] = useState<string | null>(null);
   /** Fills in sheet numbers and titles from each sheet's title block, for sheets nobody has named yet. */
   const nameSheets = async () => {
@@ -231,6 +244,11 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
             <p className="pb-2 text-xs text-muted-foreground">
               Page {sheet.page_number} of {pdf?.numPages ?? "…"}
             </p>
+            {sheet && (takeoff?.shapes ?? []).some((s) => s.sheet_id === sheet.id) && (
+              <Button size="sm" variant="outline" className="mb-1" onClick={() => void downloadMarked()}>
+                Download colour-coded sheet
+              </Button>
+            )}
             {(takeoff?.shapes.length ?? 0) > 0 && (
               <Button size="sm" variant="outline" className="mb-1" onClick={() => void exportQuantities().catch((e) => toast.error(errText(e)))}>
                 Export quantities

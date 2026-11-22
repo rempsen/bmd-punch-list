@@ -216,3 +216,71 @@ describe("polish: what prints", () => {
     expect(text).not.toContain("1,050.00"); // the default total, without the option
   });
 });
+
+import { displayFor, layoutVersion, normalizeDisplay } from "./logic";
+describe("what a quote shows", () => {
+  const carpetA = line("c1", { section: "Level 2", description: "CPT-1 corridor carpet", driver_qty: 100, driver_uom: "SY", price_basis: "fixed_sell", fixed_sell_cents: 500000 });
+  const carpetB = line("c2", { section: "Level 3", description: "CPT-1 corridor carpet", driver_qty: 50, driver_uom: "SY", price_basis: "fixed_sell", fixed_sell_cents: 250000 });
+  const tile = line("t1", { section: "Level 2", description: "PT-1 lobby tile", driver_qty: 400, driver_uom: "SF", price_basis: "fixed_sell", fixed_sell_cents: 800000 });
+  const prep = line("p1", { section: "Level 2", description: "Floor prep", driver_qty: 1, driver_uom: "LS", price_basis: "fixed_sell", fixed_sell_cents: 100000 });
+  const opt = line("o1", { section: "Level 3", description: "Stair nosing", driver_qty: 20, driver_uom: "LF", price_basis: "fixed_sell", fixed_sell_cents: 40000, selection: "optional" });
+  const v = version("v1", "Base", [carpetA, tile, prep, carpetB, opt]);
+  const materialOf = { c1: "Carpet tile", c2: "Carpet tile", t1: "Floor tile" };
+  const snap = (display: Parameters<typeof normalizeDisplay>[0]) => buildSnapshot({ ...head, display: normalizeDisplay(display, "by_section"), materialOf, versions: [v], rates });
+
+  test("the three presets: one lump sum, a subtotal per section, every line priced", () => {
+    expect(displayFor("lump_sum")).toEqual({ groupBy: "section", showLines: true, showQuantities: true, showUnitPrices: false, showLineAmounts: false, showGroupSubtotals: false });
+    expect(displayFor("by_section")).toMatchObject({ showGroupSubtotals: true, showLineAmounts: false });
+    expect(displayFor("itemised")).toMatchObject({ showUnitPrices: true, showLineAmounts: true, showGroupSubtotals: true });
+    expect(normalizeDisplay({ groupBy: "nonsense", showLines: "yes", extra: 1 } as never, "itemised")).toEqual(displayFor("itemised"));
+    expect(normalizeDisplay(null, "lump_sum")).toEqual(displayFor("lump_sum"));
+  });
+  test("grouped by material: all the carpet together with its total quantity and price, tile separately, the rest under other items", () => {
+    const s = snap({ groupBy: "material", showLines: true, showQuantities: true, showUnitPrices: false, showLineAmounts: false, showGroupSubtotals: true });
+    expect(s.versions[0]!.sections[0]!.lines[0]!.material).toBe("Carpet tile");
+    const groups = layoutVersion(s.versions[0]!, s.display);
+    expect(groups.map((g) => [g.name, g.quantity, g.subtotalCents])).toEqual([["Carpet tile", "150 SY", 750000], ["Floor tile", "400 SF", 800000], ["Other items", null, 100000]]);
+    expect(groups[0]!.lines.map((l) => [l.text, l.amountCents])).toEqual([["CPT-1 corridor carpet · 100 SY", null], ["CPT-1 corridor carpet · 50 SY", null]]);
+    // The optional line is not in any subtotal, but always shows its own price so the client can decide.
+    expect(groups[2]!.lines.map((l) => [l.text, l.amountCents, l.note])).toEqual([["Floor prep", null, null], ["Stair nosing · 20 LF", 40000, "optional, not in the total"]]);
+  });
+  test("descriptions only: no quantities, no prices, no subtotals, just the scope and one total", () => {
+    const s = snap({ groupBy: "section", showLines: true, showQuantities: false, showUnitPrices: false, showLineAmounts: false, showGroupSubtotals: false });
+    const groups = layoutVersion(s.versions[0]!, s.display);
+    expect(groups.map((g) => [g.name, g.quantity, g.subtotalCents])).toEqual([["Level 2", null, null], ["Level 3", null, null]]);
+    expect(groups[0]!.lines.map((l) => l.text)).toEqual(["CPT-1 corridor carpet", "PT-1 lobby tile", "Floor prep"]);
+    const text = renderQuotePdf(s, { compress: false }).output();
+    expect(text).not.toContain("100 SY");
+    expect(text).not.toContain("5,000.00");
+    expect(text).toContain("16,500.00"); // the one total before GST (the optional line is not in it)
+  });
+  test("totals only: group names and their prices with the lines hidden", () => {
+    const s = snap({ groupBy: "material", showLines: false, showQuantities: true, showUnitPrices: false, showLineAmounts: false, showGroupSubtotals: true });
+    const groups = layoutVersion(s.versions[0]!, s.display);
+    expect(groups.map((g) => g.lines.map((l) => l.text))).toEqual([[], [], ["Stair nosing · 20 LF"]]);
+    const text = renderQuotePdf(s, { compress: false }).output();
+    expect(text).toContain("Carpet tile");
+    expect(text).toContain("7,500.00");
+    expect(text).not.toContain("CPT-1 corridor carpet");
+  });
+  test("fully detailed: quantity, unit price and amount on every line", () => {
+    const s = snap(displayFor("itemised"));
+    const l = layoutVersion(s.versions[0]!, s.display)[0]!.lines[0]!;
+    expect([l.text, l.amountCents]).toEqual(["CPT-1 corridor carpet · 100 SY @ $50.00", 500000]);
+  });
+});
+
+describe("colour-coded drawings on a quote", () => {
+  const JPEG = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/yQALCAABAAEBAREA/8wABgAQEAX/2gAIAQEAAD8A0s8g/9k=";
+  test("when drawings are included they are named on the quote and each gets its own page; when they are not, nothing changes", () => {
+    const plain = buildSnapshot({ ...head, versions: [base], rates });
+    expect(plain.drawings).toEqual([]);
+    expect(renderQuotePdf(plain, { compress: false }).getNumberOfPages()).toBe(1);
+    const withDrawings = buildSnapshot({ ...head, drawings: ["ID-201 Level 2 Finish Plan", "ID-301"], versions: [base], rates });
+    const doc = renderQuotePdf(withDrawings, { compress: false, drawings: [{ dataUrl: JPEG, width: 1800, height: 1200, title: "ID-201 Level 2 Finish Plan" }, { dataUrl: JPEG, width: 1200, height: 1800, title: "ID-301" }] });
+    expect(doc.getNumberOfPages()).toBe(3);
+    const text = doc.output();
+    expect(text).toContain("Colour-coded drawings attached: ID-201 Level 2 Finish Plan, ID-301");
+    expect(snapshotFingerprint(plain)).not.toBe(snapshotFingerprint(withDrawings));
+  });
+});

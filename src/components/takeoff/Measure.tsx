@@ -3,7 +3,7 @@ import type { PDFDocumentProxy } from "pdfjs-dist";
 import { Redo2, Ruler, Trash2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { hitTest, measureShape, parseFeet, polylineLength, totalsByCondition, type Shape, type ShapeKind } from "@/lib/takeoff/geometry";
+import { hitTest, legendFor, measureShape, parseFeet, polylineLength, sharedColour, totalsByCondition, type Shape, type ShapeKind } from "@/lib/takeoff/geometry";
 import { calibrate, COMMON_SCALES, feetPerPoint, scaleLabel, suggestScale, type Pt } from "@/lib/takeoff/scale";
 import { COLOURS, type Condition, type TakeoffActions, type TakeoffData } from "@/lib/takeoff/store";
 import { findTags, type SheetText } from "@/lib/ai/scope";
@@ -181,6 +181,7 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
   };
 
   const found = useMemo(() => findTags(text, tag), [text, tag]);
+  const legend = useMemo(() => legendFor(sheetShapes, data.conditions), [sheetShapes, data.conditions]);
   const drawing = mode !== "pan";
   const preview = hover && pts.length ? [...pts, hover] : pts;
   const hint =
@@ -237,7 +238,21 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
         <p className="min-h-5 text-xs text-muted-foreground" aria-live="polite">
           {hint ?? checked ?? (suggested && !fpp ? `This sheet says "${suggested.source}". Check it against a known dimension after accepting.` : "")}
         </p>
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+        <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
+          {legend.length > 0 && (
+            <div className="pointer-events-none absolute left-2 top-2 z-10 max-w-[60%] rounded-md border border-border bg-card/95 p-2 text-xs shadow-sm">
+              <p className="font-semibold">Colour key</p>
+              <ul className="mt-1 space-y-0.5">
+                {legend.map((e) => (
+                  <li key={e.id} className="flex items-center gap-1.5">
+                    <span aria-hidden className={`inline-block h-3 w-3 shrink-0 ${e.kind === "count" ? "rounded-full" : "rounded-sm"}`} style={{ background: e.colour }} />
+                    <span className="truncate">{e.label}</span>
+                    <span className="ml-auto pl-2 tabular-nums text-muted-foreground">{e.quantity}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <PlanViewer
             doc={doc}
             pageNumber={pageNumber}
@@ -296,7 +311,11 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
               return (
                 <li key={c.id} className={`rounded-md border p-2 ${active ? "border-primary ring-1 ring-primary" : "border-border"}`}>
                   <div className="flex items-start gap-2">
-                    <span aria-hidden className="mt-1 h-3 w-3 shrink-0 rounded-sm" style={{ background: c.colour }} />
+                    {canEdit && actions.setColour ? (
+                      <input type="color" aria-label={`Colour for ${c.label}`} title="Change colour" value={c.colour} onChange={(e) => void actions.setColour!(c.id, e.target.value).catch(err)} className="mt-0.5 h-6 w-6 shrink-0 cursor-pointer rounded-sm border border-border bg-transparent p-0" />
+                    ) : (
+                      <span aria-hidden className="mt-1 h-3 w-3 shrink-0 rounded-sm" style={{ background: c.colour }} />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{c.label}</p>
                       <p className="text-xs tabular-nums text-muted-foreground">{totalText(c.kind, t)}</p>
@@ -324,7 +343,7 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!adding.label.trim()) return;
-                  void actions.addCondition({ finish_id: adding.finishId || null, label: adding.label.trim(), kind: adding.kind, colour: COLOURS[data.conditions.length % COLOURS.length]!, default_section: adding.section.trim() || null }).then((id) => (setAdding(null), setConditionId(id)), err);
+                  void actions.addCondition({ finish_id: adding.finishId || null, label: adding.label.trim(), kind: adding.kind, colour: sharedColour(data.conditions, adding.finishId || null, COLOURS[new Set(data.conditions.map((c) => c.colour)).size % COLOURS.length]!), default_section: adding.section.trim() || null }).then((id) => (setAdding(null), setConditionId(id)), err);
                 }}
               >
                 {finishes.length > 0 && (

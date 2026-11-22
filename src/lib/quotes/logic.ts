@@ -10,6 +10,28 @@ import { includedIds, type ClientChoice, type Rates, type Selection } from "@/li
 export type Presentation = "lump_sum" | "by_section" | "itemised";
 export type QuoteKind = "quote" | "change_order";
 
+/** What a quote shows the client. Each switch only hides or shows; the total never changes. */
+export type QuoteDisplay = {
+  /** Group the scope by section (floor, area) or by material (all the carpet together, all the tile together). */
+  groupBy: "section" | "material";
+  showLines: boolean;
+  showQuantities: boolean;
+  showUnitPrices: boolean;
+  showLineAmounts: boolean;
+  showGroupSubtotals: boolean;
+};
+export function displayFor(p: Presentation): QuoteDisplay {
+  const all = p === "itemised";
+  return { groupBy: "section", showLines: true, showQuantities: true, showUnitPrices: all, showLineAmounts: all, showGroupSubtotals: p !== "lump_sum" };
+}
+/** A saved display setting, with anything missing or malformed taken from the preset. */
+export function normalizeDisplay(raw: Partial<Record<keyof QuoteDisplay, unknown>> | null | undefined, preset: Presentation): QuoteDisplay {
+  const d = displayFor(preset);
+  if (!raw || typeof raw !== "object") return d;
+  const flag = (k: Exclude<keyof QuoteDisplay, "groupBy">) => (typeof raw[k] === "boolean" ? (raw[k] as boolean) : d[k]);
+  return { groupBy: raw.groupBy === "material" || raw.groupBy === "section" ? raw.groupBy : d.groupBy, showLines: flag("showLines"), showQuantities: flag("showQuantities"), showUnitPrices: flag("showUnitPrices"), showLineAmounts: flag("showLineAmounts"), showGroupSubtotals: flag("showGroupSubtotals") };
+}
+
 export const BMD = {
   name: "BMD Materials",
   mailing: "PO Box 69031, Winnipeg RPO Tuxedo Park, MB R3P 2G9",
@@ -39,6 +61,8 @@ export type SnapLine = {
   unitPriceExact: boolean;
   sellCents: number;
   taxCode: TaxCode;
+  /** The kind of material, for grouping (e.g. "Carpet tile"). Null when the line is not tied to one. */
+  material: string | null;
   selection: Selection;
   group: string | null;
   allowance: boolean;
@@ -60,6 +84,7 @@ export type QuoteSnapshot = {
   date: string;
   validityDays: number;
   presentation: Presentation;
+  display: QuoteDisplay;
   preparedBy: { name: string; email: string };
   project: { name: string; number: string | null; address: string | null };
   client: { name: string; address: string | null };
@@ -67,13 +92,15 @@ export type QuoteSnapshot = {
   exclusions: string[];
   clarifications: string[];
   deposit: string | null;
+  /** Names of the colour-coded drawing sheets sent with the quote. */
+  drawings: string[];
   terms: string[];
   gstPct: number;
   hstPct: number;
   versions: SnapVersion[];
 };
 
-export type SnapshotInput = Omit<QuoteSnapshot, "versions" | "terms" | "gstPct" | "hstPct"> & { versions: EstVersion[]; rates: Rates };
+export type SnapshotInput = Omit<QuoteSnapshot, "versions" | "terms" | "gstPct" | "hstPct" | "display" | "drawings"> & { drawings?: string[]; versions: EstVersion[]; rates: Rates; display?: QuoteDisplay; materialOf?: Record<string, string> };
 
 export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
   const { versions, rates, ...head } = input;
@@ -82,6 +109,7 @@ export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
     date: head.date,
     validityDays: head.validityDays,
     presentation: head.presentation,
+    display: normalizeDisplay(head.display, head.presentation),
     preparedBy: { name: head.preparedBy.name, email: head.preparedBy.email },
     project: { name: head.project.name, number: head.project.number, address: head.project.address },
     client: { name: head.client.name, address: head.client.address },
@@ -89,6 +117,7 @@ export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
     exclusions: [...head.exclusions],
     clarifications: [...head.clarifications],
     deposit: head.deposit,
+    drawings: [...(head.drawings ?? [])],
     terms: standingTerms(head.validityDays, head.deposit),
     gstPct: rates.gstPct,
     hstPct: rates.hstPct,
@@ -107,6 +136,7 @@ export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
           unitPriceExact: l.driver_qty > 0 ? Math.round(Math.round(sell / l.driver_qty) * l.driver_qty) === sell : true,
           sellCents: sell,
           taxCode: l.tax_code,
+          material: head.materialOf?.[l.id] ?? null,
           selection: l.selection,
           group: l.selection_group,
           allowance: l.is_allowance,
@@ -223,3 +253,45 @@ export async function issueQuoteFlow(deps: IssueDeps, input: IssueInput): Promis
 }
 
 export const money = (cents: number) => (cents / 100).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+
+export type LayoutLine = { line: SnapLine; text: string; amountCents: number | null; note: string | null };
+export type LayoutGroup = { name: string; quantity: string | null; subtotalCents: number | null; lines: LayoutLine[] };
+const OTHER = "Other items";
+const qtyText = (n: number, uom: string) => `${n.toLocaleString("en-CA", { maximumFractionDigits: 2 })} ${uom}`;
+
+/**
+ * One price laid out the way the quote's display settings ask. The PDF and the client page both draw from this,
+ * so they always agree. Optional and choose-one lines always appear with their own price: the client has to decide on them.
+ */
+export function layoutVersion(v: SnapVersion, display: QuoteDisplay, included: Set<string> = snapshotTotals(v, {}, { gstPct: 0, hstPct: 0 }).included): LayoutGroup[] {
+  const groups = new Map<string, { lines: SnapLine[] }>();
+  for (const s of v.sections) {
+    for (const l of s.lines) {
+      const key = display.groupBy === "material" ? (l.material ?? OTHER) : s.name;
+      if (!groups.has(key)) groups.set(key, { lines: [] });
+      groups.get(key)!.lines.push(l);
+    }
+  }
+  const names = [...groups.keys()].sort((a, b) => (display.groupBy === "material" ? Number(a === OTHER) - Number(b === OTHER) : 0));
+  return names.map((name) => {
+    const all = groups.get(name)!.lines;
+    const counted = all.filter((l) => included.has(l.id));
+    const measured = counted.filter((l) => l.uom !== "LS");
+    const sameUnit = measured.length > 0 && measured.length === counted.length && measured.every((l) => l.uom === measured[0]!.uom);
+    return {
+      name,
+      quantity: display.groupBy === "material" && display.showQuantities && sameUnit ? qtyText(measured.reduce((n, l) => n + l.qty, 0), measured[0]!.uom) : null,
+      subtotalCents: display.showGroupSubtotals ? counted.reduce((n, l) => n + l.sellCents, 0) : null,
+      lines: all
+        .filter((l) => display.showLines || l.selection !== "required")
+        .map((l) => {
+          const measuredLine = l.uom !== "LS";
+          const qty = display.showQuantities && measuredLine ? ` · ${qtyText(l.qty, l.uom)}` : "";
+          const unit = display.showUnitPrices && measuredLine ? (l.unitPriceExact === false ? ` about $${money(l.unitPriceCents)} per ${l.uom}` : ` @ $${money(l.unitPriceCents)}`) : "";
+          const flags = [l.selection === "optional" ? "optional, not in the total" : null, l.selection === "choose_one" ? `choose one${l.group ? ` (${l.group})` : ""}` : null, l.allowance ? "allowance" : null, l.subjectToMeasure ? "subject to final measure" : null].filter(Boolean);
+          return { line: l, text: `${l.description}${qty}${unit}`, amountCents: display.showLineAmounts || l.selection !== "required" ? l.sellCents : null, note: flags.length ? flags.join("; ") : null };
+        }),
+    };
+  });
+}

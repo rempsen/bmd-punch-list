@@ -17,25 +17,11 @@ export const proposeScope = createServerFn({ method: "POST" })
     const sb = context.supabase as any;
     const { data: ok } = await sb.rpc("has_capability", { _capability: "manage_estimates" });
     if (ok !== true) throw new Error("Not allowed");
-    const key = process.env["LOVABLE_API_KEY"];
-    if (!key) throw new Error("AI is not set up for this app.");
     const req = buildScopeRequest(data);
-
-    const { generateText } = await import("ai");
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    const { createLovableAiGatewayRunIdFetch } = await import("@/lib/ai-gateway.server");
-    const lovable = createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" }, fetch: createLovableAiGatewayRunIdFetch().fetch });
-    let text: string;
-    try {
-      text = (await generateText({ model: lovable.responses("openai/gpt-6-astra"), system: req.system, prompt: req.prompt, providerOptions: { openai: { store: false } } })).text;
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (/402|credit/i.test(msg)) throw new Error("AI credits have run out. Add credits in Settings → Plans & credits.");
-      if (/429|rate/i.test(msg)) throw new Error("AI is busy right now. Please try again in a minute.");
-      throw new Error("The documents could not be read by AI just now. Please try again.");
-    }
+    const { askStrongModel } = await import("./model.server");
+    const { text, model } = await askStrongModel(req);
     const proposals = parseProposals(text);
-    if (proposals.length === 0) return { added: 0 };
+    if (proposals.length === 0) return { added: 0, model };
     const { data: existing } = await sb.from("project_finishes").select("tag").eq("project_id", data.projectId);
     const have = new Set(((existing ?? []) as { tag: string }[]).map((f) => f.tag.toLowerCase()));
     const fresh = proposals.filter((p) => !have.has(p.tag.toLowerCase()));
@@ -43,5 +29,27 @@ export const proposeScope = createServerFn({ method: "POST" })
       const { error } = await sb.from("ai_proposals").insert(fresh.map((p) => ({ project_id: data.projectId, kind: "finish", payload: p, source_note: data.sourceNote?.slice(0, 200) ?? null })));
       if (error) throw new Error(error.message);
     }
-    return { added: fresh.length, alreadyHad: proposals.length - fresh.length };
+    return { added: fresh.length, alreadyHad: proposals.length - fresh.length, model };
+  });
+
+/** Which model the AI features will use, with a one-word test call. For the Settings screen. */
+export const aiModelStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ok } = await (context.supabase as any).rpc("has_capability", { _capability: "manage_integrations" });
+    if (ok !== true) throw new Error("Not allowed");
+    const { askStrongModel, availableModels } = await import("./model.server");
+    const { chooseModel, meetsMinimum, MINIMUM_LABEL } = await import("./model");
+    const key = process.env["LOVABLE_API_KEY"];
+    if (!key) return { ok: false as const, message: "AI is not set up for this app." };
+    try {
+      const ids = await availableModels(key);
+      const chosen = chooseModel(ids);
+      if (!chosen) return { ok: false as const, message: `The AI connection offers nothing at ${MINIMUM_LABEL} or stronger.`, claude: ids.filter((i) => /claude/i.test(i)) };
+      const reply = await askStrongModel({ system: "Reply with the single word OK.", prompt: "Reply OK.", maxTokens: 20 });
+      return { ok: true as const, model: chosen, reply: reply.text.trim().slice(0, 40), qualifying: ids.filter(meetsMinimum) };
+    } catch (e) {
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e) };
+    }
   });

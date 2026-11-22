@@ -17,7 +17,7 @@ import { createVersion, dollars, useEstimate } from "@/lib/estimating/data";
 import { db, errText } from "@/lib/platform/db";
 import { acceptQuote, createQuote, declineQuote, deleteQuote, reviseQuote, updateQuote, useClauses, useQuotes, useRefreshQuotes, type Clause, type QuotePatch } from "@/lib/quotes/data";
 import { loadQuoteContext, snapshotFingerprint, type QuoteRow } from "@/lib/quotes/load";
-import { contractValue, type Presentation } from "@/lib/quotes/logic";
+import { contractValue, normalizeDisplay, type Presentation } from "@/lib/quotes/logic";
 import { renderQuotePdf } from "@/lib/quotes/pdf";
 import { createQuoteLink } from "@/lib/quotes/public.functions";
 import { issueQuote } from "@/lib/quotes/quotes.functions";
@@ -407,7 +407,8 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
   const [mail, setMail] = useState({ to: "", cc: "", subject: "", message: "" });
   const [extra, setExtra] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const stamp = JSON.stringify([quote.validity_days, quote.presentation, quote.inclusions, quote.exclusions, quote.clarifications, quote.deposit, quote.version_ids]);
+  const display = normalizeDisplay(quote.display, quote.presentation);
+  const stamp = JSON.stringify([quote.display, quote.drawing_sheet_ids, quote.validity_days, quote.presentation, quote.inclusions, quote.exclusions, quote.clarifications, quote.deposit, quote.version_ids]);
 
   useEffect(() => {
     if (!preparer) return;
@@ -416,10 +417,29 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
     void (async () => {
       try {
         const c = await loadQuoteContext(db, quote.id, preparer);
-        const doc = renderQuotePdf(c.snapshot, { logoDataUrl: await logo() });
+        // Colour-coded drawings are drawn here from the plans and this project's measurements, then added as pages.
+        const drawings = [];
+        if (c.drawingSheets.length) {
+          const [{ renderMarkedSheet }, { openPdf }, { signedUrl: sign }] = await Promise.all([import("@/lib/takeoff/markup"), import("@/lib/takeoff/pdf"), import("@/lib/documents/upload")]);
+          const { data: docRows } = await db.from("project_documents").select("id,storage_path").in("id", [...new Set(c.drawingSheets.map((x) => x.document_id))]);
+          const pathOf = new Map(((docRows ?? []) as { id: string; storage_path: string }[]).map((d) => [d.id, d.storage_path]));
+          const { data: t } = await db.from("takeoff_shapes").select("id,sheet_id,condition_id,kind,vertices,cutouts,openings_ft,multiplier,section,scale_feet_per_point").in("sheet_id", c.drawingSheets.map((x) => x.id));
+          const { data: conds } = await db.from("takeoff_conditions").select("id,label,kind,colour,finish_id").eq("project_id", quote.project_id).order("sort_order");
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const shapes = ((t ?? []) as any[]).map((r) => ({ ...r, cutouts: r.cutouts ?? [], openings_ft: Number(r.openings_ft), multiplier: Number(r.multiplier), scale_feet_per_point: Number(r.scale_feet_per_point) }));
+          for (const sh of c.drawingSheets) {
+            const path = pathOf.get(sh.document_id);
+            if (!path) continue;
+            const pdfDoc = await openPdf(sh.document_id, await sign(path));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            drawings.push(await renderMarkedSheet(pdfDoc, sh.page_number, shapes.filter((x) => x.sheet_id === sh.id), (conds ?? []) as any, { title: sh.label, maxWidth: c.drawingSheets.length > 4 ? 1400 : 1800 }));
+          }
+        }
+        const doc = renderQuotePdf(c.snapshot, { logoDataUrl: await logo(), drawings });
         const blob = doc.output("blob");
         const base64 = doc.output("datauristring").split(",")[1] ?? "";
         if (stale) return;
+        if (base64.length > 3_900_000) throw new Error("With these drawings the PDF is too large to email (about 3 MB is the limit). Untick some drawings, or send the drawings separately.");
         url = URL.createObjectURL(blob);
         setCtx(c);
         setPdf({ url, base64, blob });
@@ -448,6 +468,16 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
   const { data: takeoff } = useTakeoff(quote.project_id);
   const moved = ctx && takeoff ? ctx.versions.flatMap((v) => takeoffLinks(v.lines, totalsByCondition(takeoff.counted ?? takeoff.shapes)).filter((l) => l.changed).map((l) => `${v.name}: ${v.lines.find((x) => x.id === l.lineId)?.description ?? "line"} (priced at ${l.pricedQty.toLocaleString("en-CA")}, takeoff now ${l.takeoffQty.toLocaleString("en-CA")})`)) : [];
   const blocked = !!ctx && (ctx.unknown.length > 0 || moved.length > 0);
+  // Sheets of the current drawings that have something measured on them.
+  const { data: projectSheets = [] } = useQuery({
+    queryKey: ["quote-sheets", quote.project_id],
+    queryFn: async () => {
+      const { data } = await db.from("plan_sheets").select("id,page_number,sheet_number,title").eq("project_id", quote.project_id).order("page_number");
+      return (data ?? []) as { id: string; page_number: number; sheet_number: string | null; title: string | null }[];
+    },
+  });
+  const live = new Set((takeoff?.counted ?? []).map((x) => x.sheet_id));
+  const measuredSheets = projectSheets.filter((x) => live.has(x.id)).map((x) => ({ id: x.id, label: [x.sheet_number?.trim() || `Page ${x.page_number}`, x.title?.trim()].filter(Boolean).join(" ") }));
   const list = (s: string) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
 
   const issue = async (withEmail: boolean) => {
@@ -494,11 +524,11 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
               <>
                 <div className="flex gap-3">
                   <label className="text-sm font-medium">
-                    Show prices
-                    <select className={`${field} mt-1 block w-44`} value={quote.presentation} onChange={(e) => void save({ presentation: e.target.value as Presentation })}>
+                    Start from
+                    <select className={`${field} mt-1 block w-44`} value={quote.presentation} onChange={(e) => void save({ presentation: e.target.value as Presentation, display: null })}>
                       <option value="lump_sum">One lump sum</option>
-                      <option value="by_section">Subtotal per section</option>
-                      <option value="itemised">Every line priced</option>
+                      <option value="by_section">Subtotals, no line prices</option>
+                      <option value="itemised">Everything priced</option>
                     </select>
                   </label>
                   <label className="text-sm font-medium">
@@ -506,6 +536,49 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
                     <input type="number" min={1} max={365} className={`${field} mt-1 block w-24`} defaultValue={quote.validity_days} onBlur={(e) => Number(e.target.value) !== quote.validity_days && Number(e.target.value) >= 1 && void save({ validity_days: Math.min(365, Math.round(Number(e.target.value))) })} />
                   </label>
                 </div>
+                <fieldset className="rounded-md border border-border p-3">
+                  <legend className="px-1 text-sm font-medium">What the client sees</legend>
+                  <label className="block text-sm">
+                    Group the scope by
+                    <select className={`${field} ml-2`} value={display.groupBy} onChange={(e) => void save({ display: { ...display, groupBy: e.target.value as "section" | "material" } })}>
+                      <option value="section">Section (floor or area)</option>
+                      <option value="material">Material (carpet, tile, LVP…)</option>
+                    </select>
+                  </label>
+                  <div className="mt-2 grid gap-1.5">
+                    {(
+                      [
+                        ["showLines", "Each line's description"],
+                        ["showQuantities", "Quantities"],
+                        ["showUnitPrices", "Unit prices"],
+                        ["showLineAmounts", "A price on each line"],
+                        ["showGroupSubtotals", display.groupBy === "material" ? "A total for each material" : "A subtotal for each section"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <label key={key} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+                        <input type="checkbox" className="h-4 w-4" checked={display[key]} onChange={(e) => void save({ display: { ...display, [key]: e.target.checked } })} />
+                        {label}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">These only hide or show. The total is always shown and never changes. Optional and choose-one items always show their own price.</p>
+                </fieldset>
+                {measuredSheets.length > 0 && (
+                  <fieldset className="rounded-md border border-border p-3">
+                    <legend className="px-1 text-sm font-medium">Colour-coded drawings</legend>
+                    <p className="text-xs text-muted-foreground">Tick the sheets to attach. Each is added as a page showing the measured areas in colour with a key. Leave all unticked to send the quote without drawings.</p>
+                    <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto">
+                      {measuredSheets.map((sh) => (
+                        <li key={sh.id}>
+                          <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+                            <input type="checkbox" className="h-4 w-4" checked={quote.drawing_sheet_ids.includes(sh.id)} onChange={(e) => void save({ drawing_sheet_ids: e.target.checked ? [...quote.drawing_sheet_ids, sh.id] : quote.drawing_sheet_ids.filter((x) => x !== sh.id) })} />
+                            <span className="truncate">{sh.label}</span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </fieldset>
+                )}
                 <label className="block text-sm font-medium">
                   Deposit (leave blank for none)
                   <Input className="mt-1" defaultValue={quote.deposit ?? ""} placeholder="e.g. 50% on order of materials" onBlur={(e) => (e.target.value.trim() || null) !== quote.deposit && void save({ deposit: e.target.value.trim() || null })} />

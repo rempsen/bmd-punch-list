@@ -186,3 +186,27 @@ describe("polish: scale suggestions", () => {
     expect(parseScaleText("1:12")).toEqual({ ratio: 12 });
   });
 });
+
+import { legendFor, sharedColour } from "./geometry";
+describe("colour key", () => {
+  const conditions = [
+    { id: "c1", label: "LVP-1 guest rooms", kind: "area" as const, colour: "#2563eb", finish_id: "f1" },
+    { id: "c2", label: "Rubber base", kind: "linear" as const, colour: "#dc2626", finish_id: null },
+    { id: "c3", label: "Floor drains", kind: "count" as const, colour: "#16a34a", finish_id: null },
+    { id: "c4", label: "CPT-1 corridors", kind: "area" as const, colour: "#d97706", finish_id: "f2" },
+  ];
+  test("the key lists what is drawn on the sheet, each with its colour and quantity, in the order they were set up", () => {
+    const shapes = [shape({ id: "a", condition_id: "c1" }), shape({ id: "b", condition_id: "c1", multiplier: 2 }), shape({ id: "l", condition_id: "c2", kind: "linear", vertices: [{ x: 0, y: 0 }, { x: 90, y: 0 }] }), shape({ id: "n", condition_id: "c3", kind: "count", vertices: [{ x: 1, y: 1 }, { x: 2, y: 2 }] })];
+    expect(legendFor(shapes, conditions)).toEqual([
+      { id: "c1", label: "LVP-1 guest rooms", colour: "#2563eb", kind: "area", quantity: "900 SF" },
+      { id: "c2", label: "Rubber base", colour: "#dc2626", kind: "linear", quantity: "10 LF" },
+      { id: "c3", label: "Floor drains", colour: "#16a34a", kind: "count", quantity: "2 EA" },
+    ]);
+    expect(legendFor([], conditions)).toEqual([]);
+  });
+  test("a new condition for a finish that is already being measured takes that finish's colour, so one material is one colour on every sheet", () => {
+    expect(sharedColour(conditions, "f1", "#000000")).toBe("#2563eb");
+    expect(sharedColour(conditions, "f9", "#000000")).toBe("#000000");
+    expect(sharedColour(conditions, null, "#000000")).toBe("#000000");
+  });
+});

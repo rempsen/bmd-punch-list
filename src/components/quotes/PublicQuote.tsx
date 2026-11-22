@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BMD, money, snapshotTotals, type SnapVersion } from "@/lib/quotes/logic";
+import { BMD, displayFor, layoutVersion, money, snapshotTotals, type SnapVersion } from "@/lib/quotes/logic";
 import type { AcceptCheck, AcceptInput, Choices, PublicView } from "@/lib/quotes/public";
 
 type Props = { view: PublicView; onSave: (choices: Choices) => void; onAccept: (input: AcceptInput) => Promise<AcceptCheck | { ok: true } | { ok: false; message: string; reload?: true }> };
@@ -121,22 +121,23 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
               <p className="text-lg font-semibold tabular-nums">${money(t.totalCents)}</p>
             </div>
             {v.description && <p className="text-sm text-muted-foreground">{v.description}</p>}
-            {v.sections.map((s) => (
-              <div key={s.name} className="mt-3">
+            {layoutVersion(v, snap.display ?? displayFor(snap.presentation), t.included).filter((g) => g.lines.length > 0 || g.subtotalCents != null).map((g) => (
+              <div key={g.name} className="mt-3">
                 <div className="flex justify-between border-b border-border pb-1 text-sm font-medium">
-                  <h3>{s.name}</h3>
-                  {snap.presentation !== "lump_sum" && <span className="tabular-nums">${money(t.sectionCents[s.name] ?? 0)}</span>}
+                  <h3>
+                    {g.name}
+                    {g.quantity && <span className="font-normal text-muted-foreground"> · {g.quantity}</span>}
+                  </h3>
+                  {g.subtotalCents != null && <span className="tabular-nums">${money(g.subtotalCents)}</span>}
                 </div>
                 <ul>
-                  {s.lines.map((l) => {
-                    const showPrice = snap.presentation === "itemised" || l.selection !== "required";
+                  {g.lines.map(({ line: l, text, amountCents }) => {
                     const members = l.selection === "choose_one" ? (groups.get(l.group ?? l.id) ?? []) : [];
                     const picked = l.selection === "choose_one" && withDefaults(v)[l.id] === "yes";
                     return (
                       <li key={l.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border/60 py-2 text-sm">
                         <span className="min-w-0 flex-1">
-                          {l.description}
-                          {l.uom !== "LS" && <span className="text-muted-foreground"> · {l.qty.toLocaleString("en-CA", { maximumFractionDigits: 2 })} {l.uom}</span>}
+                          {text}
                           {l.allowance && <span className="text-muted-foreground"> · allowance</span>}
                           {l.subjectToMeasure && <span className="text-muted-foreground"> · subject to final measure</span>}
                         </span>
@@ -155,7 +156,7 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
                             <span className="text-muted-foreground">{l.group ?? "Choose one"}</span>
                           </label>
                         )}
-                        {showPrice && <span className="w-28 text-right tabular-nums">${money(l.sellCents)}</span>}
+                        {amountCents != null && <span className="w-28 text-right tabular-nums">${money(amountCents)}</span>}
                       </li>
                     );
                   })}
