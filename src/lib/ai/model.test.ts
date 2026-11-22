@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chooseModel, meetsMinimum } from "./model";
+import { chooseModel, meetsMinimum, rankModels } from "./model";
 
 describe("AI model standard", () => {
   test("the strongest available Claude model is chosen, never one below Opus 5.5", () => {
@@ -19,5 +19,12 @@ describe("AI model standard", () => {
     expect(meetsMinimum("anthropic/claude-sonnet-5.5")).toBe(false);
     expect(meetsMinimum("anthropic/claude-fable-5.1")).toBe(true);
     expect(meetsMinimum("openai/gpt-6-astra")).toBe(false);
+  });
+});
+
+describe("models to try, strongest first", () => {
+  test("every model at or above the standard is listed in order of strength, and nothing weaker", () => {
+    expect(rankModels(["openai/gpt-6-astra", "anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5", "anthropic/claude-fable-5.1", "anthropic/claude-opus-5"])).toEqual(["anthropic/claude-fable-5.1", "anthropic/claude-opus-5.5"]);
+    expect(rankModels([])).toEqual([]);
   });
 });

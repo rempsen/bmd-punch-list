@@ -12,6 +12,21 @@ export function itemsToLines(items: TextItem[]): string[] {
   return rows.sort((a, b) => b.y - a.y).map((r) => r.parts.sort((a, b) => a.x - b.x).map((p) => p.s).join(" ").replace(/\s+/g, " ").trim());
 }
 
+/** The text of each page, in page order. A scanned page comes back as an empty string. */
+export async function pdfTextPages(data: ArrayBuffer): Promise<string[]> {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
+  const doc = await pdfjs.getDocument({ data }).promise;
+  const out: string[] = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    const content = await page.getTextContent();
+    out.push(itemsToLines(content.items.filter((i): i is typeof i & TextItem => "str" in i) as TextItem[]).join("\n"));
+    page.cleanup();
+  }
+  return out;
+}
+
 export async function pdfTextLines(data: ArrayBuffer): Promise<string[]> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;

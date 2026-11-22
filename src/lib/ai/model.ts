@@ -11,8 +11,10 @@ function rank(id: string): number | null {
 }
 export const meetsMinimum = (id: string) => rank(id) != null;
 
-export function chooseModel(available: string[]): string | null {
+/** Every model that meets the standard, strongest first. */
+export function rankModels(available: string[]): string[] {
   const ranked = available.map((id) => ({ id, r: rank(id) })).filter((x): x is { id: string; r: number } => x.r != null);
-  return ranked.sort((a, b) => b.r - a.r)[0]?.id ?? null;
+  return ranked.sort((a, b) => b.r - a.r).map((x) => x.id);
 }
+export const chooseModel = (available: string[]): string | null => rankModels(available)[0] ?? null;
 export const MINIMUM_LABEL = "Claude Opus 5.5";

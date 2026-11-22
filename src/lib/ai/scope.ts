@@ -4,7 +4,9 @@
  */
 export type Proposal = { tag: string; product: string; manufacturer: string | null; colour: string | null; appliesTo: string | null; specRef: string | null; confidence: number };
 
-const LIMIT = 60_000;
+/** The most text sent in one request. Long documents are narrowed to their relevant pages before this (see pages.ts). */
+export const READ_LIMIT = 200_000;
+const LIMIT = READ_LIMIT;
 const looksBinary = (s: string) => /^\s*%PDF-/.test(s) || /^\s*data:[\w/+.-]+;base64,/i.test(s) || /[\u0000-\u0008]/.test(s.slice(0, 2000));
 
 export function buildScopeRequest(input: { specText: string; scheduleText: string }): { system: string; prompt: string } {
@@ -17,6 +19,7 @@ export function buildScopeRequest(input: { specText: string; scheduleText: strin
       "You read construction specifications and finish schedules for a flooring, tile and window covering contractor. List the floor, wall base, tile and window covering finishes the documents call for. Use only what the text says. Never invent a product, manufacturer or colour: leave a field null when the text does not state it. Reply with a JSON array only.",
     prompt: [
       'Return a JSON array. Each item: {"tag": finish tag as written (e.g. LVP-1), "product": product or product line, "manufacturer": string or null, "colour": string or null, "appliesTo": rooms or areas it applies to or null, "specRef": section or page reference or null, "confidence": number from 0 to 1}.',
+      "The text is taken from the project documents. Each document starts with a line like --- file name --- and each page with [page N]. Only the pages that mention flooring, base, tile or window coverings may be included, so do not assume a missing page says anything. For specRef give the spec section if stated, otherwise the page.",
       spec ? `SPECIFICATION TEXT:\n${spec}` : "",
       schedule ? `FINISH SCHEDULE TEXT:\n${schedule}` : "",
     ].filter(Boolean).join("\n\n"),

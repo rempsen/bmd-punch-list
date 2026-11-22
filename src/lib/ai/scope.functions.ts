@@ -47,9 +47,10 @@ export const aiModelStatus = createServerFn({ method: "POST" })
       const ids = await availableModels(key);
       const chosen = chooseModel(ids);
       if (!chosen) return { ok: false as const, message: `The AI connection offers nothing at ${MINIMUM_LABEL} or stronger.`, claude: ids.filter((i) => /claude/i.test(i)) };
-      const reply = await askStrongModel({ system: "Reply with the single word OK.", prompt: "Reply OK.", maxTokens: 20 });
-      return { ok: true as const, model: chosen, reply: reply.text.trim().slice(0, 40), qualifying: ids.filter(meetsMinimum) };
+      const reply = await askStrongModel({ system: "Reply with the single word OK.", prompt: "Reply OK.", maxTokens: 32 });
+      return { ok: true as const, model: reply.model, reply: reply.text.trim().slice(0, 40), qualifying: ids.filter(meetsMinimum), skipped: reply.attempts.map((a) => `${a.model} (${a.form}): ${a.status} ${a.detail}`).slice(0, 6) };
     } catch (e) {
-      return { ok: false as const, message: e instanceof Error ? e.message : String(e) };
+      const attempts = e && typeof e === "object" && "attempts" in e && Array.isArray((e as { attempts: unknown }).attempts) ? (e as { attempts: { model: string; form: string; status: number; detail: string }[] }).attempts : [];
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e), tried: attempts.map((a) => `${a.model} (${a.form}): ${a.status} ${a.detail}`).slice(0, 12) };
     }
   });

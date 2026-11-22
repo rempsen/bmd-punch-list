@@ -14,7 +14,7 @@ describe("scope proposals from specs", () => {
     expect(() => buildScopeRequest({ specText: "%PDF-1.7 \u0000\u0001 binary", scheduleText: "" })).toThrow("Send the text of the document, not the file itself.");
     expect(() => buildScopeRequest({ specText: "data:application/pdf;base64,JVBERi0x", scheduleText: "" })).toThrow("Send the text of the document, not the file itself.");
     expect(() => buildScopeRequest({ specText: " ", scheduleText: "" })).toThrow("There is no text to read.");
-    expect(buildScopeRequest({ specText: "x".repeat(500_000), scheduleText: "" }).prompt.length).toBeLessThan(130_000);
+    expect(buildScopeRequest({ specText: "x".repeat(900_000), scheduleText: "" }).prompt.length).toBeLessThan(205_000);
   });
   test("reads the model's answer, keeping only well-formed proposals", () => {
     const text = 'Here you go:\n```json\n[{"tag":"LVP-1","product":"Terrain II","manufacturer":"Shaw Contract","colour":"Dune","appliesTo":"Guest rooms","specRef":"09 65 19 2.1","confidence":0.9},{"tag":"","product":"x"},{"tag":"RB-1","product":"Rubber base 4 in","confidence":7},"junk",{"tag":"lvp-1","product":"duplicate"}]\n```';

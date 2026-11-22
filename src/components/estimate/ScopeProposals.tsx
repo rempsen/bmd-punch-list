@@ -6,7 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { proposalToFinish, type Proposal } from "@/lib/ai/scope";
+import { pageRanges, selectPages } from "@/lib/ai/pages";
+import { proposalToFinish, READ_LIMIT, type Proposal } from "@/lib/ai/scope";
 import { proposeScope } from "@/lib/ai/scope.functions";
 import { useProjectDocuments } from "@/lib/documents/data";
 import { groupVersions } from "@/lib/documents/logic";
@@ -14,7 +15,7 @@ import { signedUrl } from "@/lib/documents/upload";
 import { db, errText } from "@/lib/platform/db";
 
 type Row = { id: string; payload: Proposal; source_note: string | null };
-const MAX_PAGES_NOTE = "About 60,000 characters can be read in one go, shared between the documents you tick; you are told when one is cut short.";
+const MAX_PAGES_NOTE = "Long documents are searched page by page, and the pages that mention flooring, base, tile, window coverings or a finish schedule are the ones read. You are told which pages were read and if any did not fit.";
 
 /** AI suggestions for the project's finishes, read from the specs. Each one waits here until someone accepts or rejects it. */
 export function ScopeProposals({ projectId, finishCount, onAccepted }: { projectId: string; finishCount: number; onAccepted: () => void }) {
@@ -40,25 +41,35 @@ export function ScopeProposals({ projectId, finishCount, onAccepted }: { project
   const read = async () => {
     setBusy("Reading the documents…");
     try {
-      const { pdfTextLines } = await import("@/lib/estimating/pdf-text");
-      let specText = pasted;
+      const { pdfTextPages } = await import("@/lib/estimating/pdf-text");
       const names: string[] = [];
+      const notes: string[] = [];
       const chosen = pdfs.filter((x) => picked.has(x.id));
-      // The reading limit is shared out, so a long first document cannot crowd out the others.
-      const share = Math.floor(58_000 / Math.max(1, chosen.length + (pasted.trim() ? 1 : 0)));
-      specText = specText.slice(0, share);
-      for (const d of chosen) {
+      let specText = pasted.trim().slice(0, Math.floor(READ_LIMIT / 3));
+      // The allowance is shared out. What a short document does not use is passed on to the ones after it.
+      let left = READ_LIMIT - 4_000 - specText.length;
+      for (const [i, d] of chosen.entries()) {
+        setBusy(`Reading ${d.file_name}…`);
         const buf = await (await fetch(await signedUrl(d.storage_path))).arrayBuffer();
-        const lines = await pdfTextLines(buf);
-        if (lines.length === 0) toast.warning(`${d.file_name} has no readable text (it may be a scan), so it was skipped.`);
-        const text = lines.join("\n");
-        if (text.length > share) toast.warning(`${d.file_name} is long: only the first part of it was read.`);
-        specText += `\n\n--- ${d.file_name} ---\n${text.slice(0, share)}`;
+        const pages = await pdfTextPages(buf);
+        const share = Math.floor(left / (chosen.length - i));
+        const pick = selectPages(pages, share - d.file_name.length - 20);
+        if (pick.pages.length === 0) {
+          toast.warning(`${d.file_name} has no readable text (it may be a scan), so it was skipped.`);
+          continue;
+        }
+        if (pick.cut && pick.relevant === 0) notes.push(`${d.file_name}: nothing in its ${pick.total} pages mentions flooring, base, tile or window coverings, so only the first pages were read.`);
+        else if (pick.cut) notes.push(`${d.file_name}: read the ${pick.pages.length} of ${pick.total} pages that mention flooring, base, tile, window coverings or a finish schedule (pages ${pageRanges(pick.pages)}).${pick.leftOut ? ` ${pick.leftOut} more such pages did not fit; run it again with this document on its own to read them.` : ""}`);
+        const block = `\n\n--- ${d.file_name} ---\n${pick.text}`;
+        specText += block;
+        left -= block.length;
         names.push(d.file_name);
       }
+      if (!specText.trim()) throw new Error("There was no readable text in what you chose. Tick a document that has text, or paste the spec text.");
+      for (const n of notes) toast.message(n, { duration: 15_000 });
       setBusy("Asking AI what finishes they call for…");
       const res = await run({ data: { projectId, specText, scheduleText: "", sourceNote: names.join(", ") || "pasted text" } });
-      toast.success(res.added ? `${res.added} suggested finishes to review.` : "No new finishes were found in that text.");
+      toast.success(res.added ? `${res.added} suggested finishes to review${res.alreadyHad ? ` (${res.alreadyHad} more are already on this job)` : ""}. Read by ${res.model}.` : res.alreadyHad ? `It found ${res.alreadyHad} finishes, all already on this job.` : "No finishes were found in what was read.");
       refresh();
       setOpen(false);
     } catch (e) {
