@@ -34,7 +34,8 @@ export const msStore: MsStore = {
 export function msGraph() {
   const env = msEnv();
   if (!env) throw new Error("Microsoft 365 is not set up yet.");
-  return createGraph({ fetch, env, store: msStore, keyMaterial: msKeyMaterial() });
+  // The host's fetch must be called bare; handing it over as a property makes it throw "Illegal invocation".
+  return createGraph({ fetch: (input, init) => fetch(input, init), env, store: msStore, keyMaterial: msKeyMaterial() });
 }
 
 export const getAccessToken = (userId: string): Promise<string> => msGraph().getAccessToken(userId);

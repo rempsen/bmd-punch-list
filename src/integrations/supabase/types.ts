@@ -10,10 +10,217 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
+      assembly_template_components: {
+        Row: {
+          catalogue_material_id: string | null
+          cost_uom: string | null
+          id: string
+          kind: string
+          label: string
+          labour_rate_id: string | null
+          on_gross: boolean
+          pst_applies: boolean
+          qty_per_driver: number
+          round_up: boolean
+          sort_order: number
+          source: string
+          template_id: string
+          unit_cost_cents: number | null
+          waste_pct: number | null
+        }
+        Insert: {
+          catalogue_material_id?: string | null
+          cost_uom?: string | null
+          id?: string
+          kind: string
+          label: string
+          labour_rate_id?: string | null
+          on_gross?: boolean
+          pst_applies?: boolean
+          qty_per_driver?: number
+          round_up?: boolean
+          sort_order?: number
+          source: string
+          template_id: string
+          unit_cost_cents?: number | null
+          waste_pct?: number | null
+        }
+        Update: {
+          catalogue_material_id?: string | null
+          cost_uom?: string | null
+          id?: string
+          kind?: string
+          label?: string
+          labour_rate_id?: string | null
+          on_gross?: boolean
+          pst_applies?: boolean
+          qty_per_driver?: number
+          round_up?: boolean
+          sort_order?: number
+          source?: string
+          template_id?: string
+          unit_cost_cents?: number | null
+          waste_pct?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assembly_template_components_catalogue_material_id_fkey"
+            columns: ["catalogue_material_id"]
+            isOneToOne: false
+            referencedRelation: "catalogue_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assembly_template_components_labour_rate_id_fkey"
+            columns: ["labour_rate_id"]
+            isOneToOne: false
+            referencedRelation: "labour_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assembly_template_components_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "assembly_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assembly_templates: {
+        Row: {
+          active: boolean
+          category: string
+          cost_code: string | null
+          created_at: string
+          default_waste_pct: number
+          driver_uom: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          category?: string
+          cost_code?: string | null
+          created_at?: string
+          default_waste_pct?: number
+          driver_uom?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          cost_code?: string | null
+          created_at?: string
+          default_waste_pct?: number
+          driver_uom?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assembly_templates_cost_code_fkey"
+            columns: ["cost_code"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
+      catalogue_materials: {
+        Row: {
+          active: boolean
+          category: string
+          colour: string | null
+          cost_code: string | null
+          cost_uom: string
+          coverage_per_purchase_unit: number | null
+          created_at: string
+          default_waste_pct: number
+          id: string
+          manufacturer: string | null
+          name: string
+          notes: string | null
+          price_date: string | null
+          price_source: string | null
+          product_line: string | null
+          pst_applies: boolean
+          purchase_uom: string
+          sku: string | null
+          supplier_id: string | null
+          unit_cost_cents: number | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string
+          colour?: string | null
+          cost_code?: string | null
+          cost_uom?: string
+          coverage_per_purchase_unit?: number | null
+          created_at?: string
+          default_waste_pct?: number
+          id?: string
+          manufacturer?: string | null
+          name: string
+          notes?: string | null
+          price_date?: string | null
+          price_source?: string | null
+          product_line?: string | null
+          pst_applies?: boolean
+          purchase_uom?: string
+          sku?: string | null
+          supplier_id?: string | null
+          unit_cost_cents?: number | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          colour?: string | null
+          cost_code?: string | null
+          cost_uom?: string
+          coverage_per_purchase_unit?: number | null
+          created_at?: string
+          default_waste_pct?: number
+          id?: string
+          manufacturer?: string | null
+          name?: string
+          notes?: string | null
+          price_date?: string | null
+          price_source?: string | null
+          product_line?: string | null
+          pst_applies?: boolean
+          purchase_uom?: string
+          sku?: string | null
+          supplier_id?: string | null
+          unit_cost_cents?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogue_materials_cost_code_fkey"
+            columns: ["cost_code"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "catalogue_materials_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_contacts: {
         Row: {
           client_id: string
@@ -278,6 +485,27 @@ export type Database = {
           secret?: string | null
           url?: string | null
           webhook_id?: string | null
+        }
+        Relationships: []
+      }
+      cost_codes: {
+        Row: {
+          code: string
+          name: string
+          qbo_item_id: string | null
+          sort_order: number
+        }
+        Insert: {
+          code: string
+          name: string
+          qbo_item_id?: string | null
+          sort_order?: number
+        }
+        Update: {
+          code?: string
+          name?: string
+          qbo_item_id?: string | null
+          sort_order?: number
         }
         Relationships: []
       }
@@ -708,6 +936,44 @@ export type Database = {
         }
         Relationships: []
       }
+      labour_rates: {
+        Row: {
+          active: boolean
+          cost_code: string | null
+          created_at: string
+          id: string
+          name: string
+          unit_cost_cents: number | null
+          uom: string
+        }
+        Insert: {
+          active?: boolean
+          cost_code?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          unit_cost_cents?: number | null
+          uom?: string
+        }
+        Update: {
+          active?: boolean
+          cost_code?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          unit_cost_cents?: number | null
+          uom?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labour_rates_cost_code_fkey"
+            columns: ["cost_code"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["code"]
+          },
+        ]
+      }
       locations: {
         Row: {
           created_at: string
@@ -742,6 +1008,99 @@ export type Database = {
             columns: ["floor_id"]
             isOneToOne: false
             referencedRelation: "floors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ms_connections: {
+        Row: {
+          account_email: string
+          connected_at: string
+          is_library_connection: boolean
+          last_error: string | null
+          onedrive_root_item_id: string | null
+          onedrive_root_path: string | null
+          refresh_token_enc: string
+          scopes: string | null
+          user_id: string
+        }
+        Insert: {
+          account_email: string
+          connected_at?: string
+          is_library_connection?: boolean
+          last_error?: string | null
+          onedrive_root_item_id?: string | null
+          onedrive_root_path?: string | null
+          refresh_token_enc: string
+          scopes?: string | null
+          user_id: string
+        }
+        Update: {
+          account_email?: string
+          connected_at?: string
+          is_library_connection?: boolean
+          last_error?: string | null
+          onedrive_root_item_id?: string | null
+          onedrive_root_path?: string | null
+          refresh_token_enc?: string
+          scopes?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      onedrive_mirror_queue: {
+        Row: {
+          action: string
+          attempts: number
+          created_at: string
+          document_id: string | null
+          id: string
+          last_error: string | null
+          next_attempt_at: string
+          next_offset: number
+          project_id: string
+          status: string
+          upload_url: string | null
+        }
+        Insert: {
+          action: string
+          attempts?: number
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          next_offset?: number
+          project_id: string
+          status?: string
+          upload_url?: string | null
+        }
+        Update: {
+          action?: string
+          attempts?: number
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          next_offset?: number
+          project_id?: string
+          status?: string
+          upload_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onedrive_mirror_queue_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onedrive_mirror_queue_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -861,11 +1220,74 @@ export type Database = {
           },
         ]
       }
+      project_documents: {
+        Row: {
+          catalogue_material_id: string | null
+          created_at: string
+          file_name: string
+          id: string
+          mime: string | null
+          mirror_error: string | null
+          mirror_status: string
+          note: string | null
+          onedrive_item_id: string | null
+          project_id: string
+          section: Database["public"]["Enums"]["document_section"]
+          size_bytes: number
+          storage_path: string
+          uploaded_by: string | null
+          version: number
+        }
+        Insert: {
+          catalogue_material_id?: string | null
+          created_at?: string
+          file_name: string
+          id?: string
+          mime?: string | null
+          mirror_error?: string | null
+          mirror_status?: string
+          note?: string | null
+          onedrive_item_id?: string | null
+          project_id: string
+          section: Database["public"]["Enums"]["document_section"]
+          size_bytes: number
+          storage_path: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Update: {
+          catalogue_material_id?: string | null
+          created_at?: string
+          file_name?: string
+          id?: string
+          mime?: string | null
+          mirror_error?: string | null
+          mirror_status?: string
+          note?: string | null
+          onedrive_item_id?: string | null
+          project_id?: string
+          section?: Database["public"]["Enums"]["document_section"]
+          size_bytes?: number
+          storage_path?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_members: {
         Row: {
           added_by: string | null
           created_at: string
           id: string
+          job_roles: Database["public"]["Enums"]["job_role"][]
           project_id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
@@ -874,6 +1296,7 @@ export type Database = {
           added_by?: string | null
           created_at?: string
           id?: string
+          job_roles?: Database["public"]["Enums"]["job_role"][]
           project_id: string
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
@@ -882,6 +1305,7 @@ export type Database = {
           added_by?: string | null
           created_at?: string
           id?: string
+          job_roles?: Database["public"]["Enums"]["job_role"][]
           project_id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
@@ -895,6 +1319,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      project_number_counters: {
+        Row: {
+          last_seq: number
+          year: number
+        }
+        Insert: {
+          last_seq: number
+          year: number
+        }
+        Update: {
+          last_seq?: number
+          year?: number
+        }
+        Relationships: []
       }
       project_scopes: {
         Row: {
@@ -928,12 +1367,52 @@ export type Database = {
           },
         ]
       }
+      project_stage_events: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          from_stage: Database["public"]["Enums"]["project_stage"] | null
+          id: string
+          note: string | null
+          project_id: string
+          to_stage: Database["public"]["Enums"]["project_stage"]
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          from_stage?: Database["public"]["Enums"]["project_stage"] | null
+          id?: string
+          note?: string | null
+          project_id: string
+          to_stage: Database["public"]["Enums"]["project_stage"]
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          from_stage?: Database["public"]["Enums"]["project_stage"] | null
+          id?: string
+          note?: string | null
+          project_id?: string
+          to_stage?: Database["public"]["Enums"]["project_stage"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_stage_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           address: string | null
           archived_at: string | null
+          bid_due_date: string | null
           building_type: string | null
           city: string | null
+          client_id: string | null
           client_name: string | null
           companycam_last_sync_at: string | null
           companycam_options: Json
@@ -941,12 +1420,22 @@ export type Database = {
           companycam_project_url: string | null
           companycam_sync_enabled: boolean
           created_at: string
+          estimated_value_cents: number | null
           id: string
+          job_type: string | null
+          lost_note: string | null
+          lost_reason: string | null
           name: string
           notes: string | null
+          onedrive_folder_id: string | null
+          onedrive_parent_item_id: string | null
+          onedrive_parent_path: string | null
           po_number: string | null
           postal_code: string | null
+          project_number: string | null
           province: string | null
+          stage: Database["public"]["Enums"]["project_stage"]
+          stage_entered_at: string
           start_date: string | null
           street: string | null
           target_date: string | null
@@ -954,8 +1443,10 @@ export type Database = {
         Insert: {
           address?: string | null
           archived_at?: string | null
+          bid_due_date?: string | null
           building_type?: string | null
           city?: string | null
+          client_id?: string | null
           client_name?: string | null
           companycam_last_sync_at?: string | null
           companycam_options?: Json
@@ -963,12 +1454,22 @@ export type Database = {
           companycam_project_url?: string | null
           companycam_sync_enabled?: boolean
           created_at?: string
+          estimated_value_cents?: number | null
           id?: string
+          job_type?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name: string
           notes?: string | null
+          onedrive_folder_id?: string | null
+          onedrive_parent_item_id?: string | null
+          onedrive_parent_path?: string | null
           po_number?: string | null
           postal_code?: string | null
+          project_number?: string | null
           province?: string | null
+          stage?: Database["public"]["Enums"]["project_stage"]
+          stage_entered_at?: string
           start_date?: string | null
           street?: string | null
           target_date?: string | null
@@ -976,8 +1477,10 @@ export type Database = {
         Update: {
           address?: string | null
           archived_at?: string | null
+          bid_due_date?: string | null
           building_type?: string | null
           city?: string | null
+          client_id?: string | null
           client_name?: string | null
           companycam_last_sync_at?: string | null
           companycam_options?: Json
@@ -985,17 +1488,35 @@ export type Database = {
           companycam_project_url?: string | null
           companycam_sync_enabled?: boolean
           created_at?: string
+          estimated_value_cents?: number | null
           id?: string
+          job_type?: string | null
+          lost_note?: string | null
+          lost_reason?: string | null
           name?: string
           notes?: string | null
+          onedrive_folder_id?: string | null
+          onedrive_parent_item_id?: string | null
+          onedrive_parent_path?: string | null
           po_number?: string | null
           postal_code?: string | null
+          project_number?: string | null
           province?: string | null
+          stage?: Database["public"]["Enums"]["project_stage"]
+          stage_entered_at?: string
           start_date?: string | null
           street?: string | null
           target_date?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_permissions: {
         Row: {
@@ -1014,6 +1535,66 @@ export type Database = {
           allowed?: boolean
           capability?: string
           role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      suppliers: {
+        Row: {
+          account_number: string | null
+          active: boolean
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+        }
+        Insert: {
+          account_number?: string | null
+          active?: boolean
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Update: {
+          account_number?: string | null
+          active?: boolean
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      tax_settings: {
+        Row: {
+          gst_pct: number
+          hst_pct: number
+          id: number
+          pst_pct: number
+          updated_at: string
+        }
+        Insert: {
+          gst_pct?: number
+          hst_pct?: number
+          id?: number
+          pst_pct?: number
+          updated_at?: string
+        }
+        Update: {
+          gst_pct?: number
+          hst_pct?: number
+          id?: number
+          pst_pct?: number
           updated_at?: string
         }
         Relationships: []
@@ -1111,7 +1692,20 @@ export type Database = {
         }
         Returns: string
       }
+      bmd_staff: {
+        Args: never
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+        }[]
+      }
+      can_project_documents: {
+        Args: { _project: string; _write: boolean }
+        Returns: boolean
+      }
       create_job: { Args: { _job: Json }; Returns: string }
+      create_pipeline_project: { Args: { _p: Json }; Returns: string }
       create_project: {
         Args: { _address: string; _client: string; _name: string }
         Returns: string
@@ -1128,6 +1722,7 @@ export type Database = {
         }[]
       }
       deficiency_project: { Args: { _def: string }; Returns: string }
+      document_path_project: { Args: { _name: string }; Returns: string }
       expire_old_invites: { Args: never; Returns: undefined }
       floor_project: { Args: { _floor: string }; Returns: string }
       has_capability:
@@ -1163,12 +1758,22 @@ export type Database = {
         Args: { _id: string; _location: string }
         Returns: number
       }
+      move_project_stage: {
+        Args: {
+          _note?: string
+          _project: string
+          _reason?: string
+          _to_stage: Database["public"]["Enums"]["project_stage"]
+        }
+        Returns: undefined
+      }
       my_projects: {
         Args: never
         Returns: {
           address: string
           archived_at: string
           client_name: string
+          has_site: boolean
           id: string
           name: string
           open_count: number
@@ -1199,6 +1804,7 @@ export type Database = {
         Returns: undefined
       }
       reset_role_permissions: { Args: never; Returns: undefined }
+      retry_mirror: { Args: { _id: string }; Returns: undefined }
       set_member_role: {
         Args: {
           _company?: string
@@ -1208,12 +1814,28 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_project_job_role: {
+        Args: {
+          _job_role: Database["public"]["Enums"]["job_role"]
+          _project: string
+          _user: string
+        }
+        Returns: undefined
+      }
+      set_project_onedrive_parent: {
+        Args: { _item_id: string; _path: string; _project: string }
+        Returns: undefined
+      }
       set_user_role: {
         Args: {
           _company?: string
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: undefined
+      }
+      setup_project_site: {
+        Args: { _job: Json; _project: string }
         Returns: undefined
       }
     }
@@ -1235,9 +1857,26 @@ export type Database = {
         | "in_progress"
         | "fixed"
         | "verified"
+      document_section:
+        | "plans"
+        | "specifications"
+        | "vendor"
+        | "quotes_sent"
+        | "contract"
+        | "photos"
+        | "other"
+      job_role: "estimator" | "project_lead" | "site_lead" | "other"
       location_type: "room" | "common_area"
       photo_kind: "before" | "after"
       pick_kind: "area" | "material" | "issue_type"
+      project_stage:
+        | "opportunity"
+        | "estimating"
+        | "quote_out"
+        | "won"
+        | "in_progress"
+        | "closed"
+        | "lost"
       responsible_party: "bmd" | "trade" | "client" | "unassigned"
     }
     CompositeTypes: {
@@ -1385,9 +2024,28 @@ export const Constants = {
         "fixed",
         "verified",
       ],
+      document_section: [
+        "plans",
+        "specifications",
+        "vendor",
+        "quotes_sent",
+        "contract",
+        "photos",
+        "other",
+      ],
+      job_role: ["estimator", "project_lead", "site_lead", "other"],
       location_type: ["room", "common_area"],
       photo_kind: ["before", "after"],
       pick_kind: ["area", "material", "issue_type"],
+      project_stage: [
+        "opportunity",
+        "estimating",
+        "quote_out",
+        "won",
+        "in_progress",
+        "closed",
+        "lost",
+      ],
       responsible_party: ["bmd", "trade", "client", "unassigned"],
     },
   },
