@@ -147,7 +147,7 @@ export function QuoteSettingsPanel() {
         </div>
       </section>
 
-      <div className="sticky bottom-2 flex items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-sm">
+      <div className="sticky bottom-24 z-10 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-card p-3 shadow-sm md:bottom-2">
         <Button disabled={busy || !dirty} onClick={() => void save()}>
           {busy ? "Saving…" : "Save quote settings"}
         </Button>

@@ -94,7 +94,7 @@ function CataloguePage() {
       <div className="p-4 md:p-6">
         {error && <p className="mb-3 text-sm text-destructive">Could not load the catalogue: {errText(error)}</p>}
         <Tabs defaultValue="materials">
-          <TabsList className="flex-wrap">
+          <TabsList className="flex h-auto flex-wrap justify-start gap-1">
             <TabsTrigger value="materials">Materials</TabsTrigger>
             <TabsTrigger value="labour">Labour</TabsTrigger>
             <TabsTrigger value="assemblies">Assemblies</TabsTrigger>

@@ -198,7 +198,7 @@ function SettingsPage() {
       <PageHeader title="Settings" subtitle={project?.name ?? undefined} />
       <div className="p-4 md:p-6">
         <Tabs defaultValue={search.tab ?? (canSettings ? "jobs" : "users")}>
-          <TabsList className="flex-wrap">
+          <TabsList className="flex h-auto flex-wrap justify-start gap-1">
             {canSettings && <TabsTrigger value="jobs">Jobs admin</TabsTrigger>}
             {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
             {canSettings && <TabsTrigger value="lists">Pick lists</TabsTrigger>}
