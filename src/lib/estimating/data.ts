@@ -57,7 +57,7 @@ export type EstVersion = {
 const num = (v: unknown) => (v == null ? null : Number(v));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function shapeLine(r: any): EstLine {
+export function shapeLine(r: any): EstLine {
   return {
     ...r,
     driver_qty: Number(r.driver_qty),

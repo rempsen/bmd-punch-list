@@ -52,7 +52,9 @@ export function EstimateTab({ projectId }: { projectId: string }) {
 
   const estimates = versions.filter((v) => v.kind === "estimate");
   const [activeId, setActiveId] = useState<string | null>(null);
-  const active = estimates.find((v) => v.id === activeId) ?? estimates[0] ?? null;
+  // Change orders are priced on the same worksheet, listed after the estimate prices.
+  const shown = useMemo(() => [...estimates, ...versions.filter((v) => v.kind === "change_order")], [versions]); // eslint-disable-line react-hooks/exhaustive-deps
+  const active = shown.find((v) => v.id === activeId) ?? shown[0] ?? null;
   const [dialog, setDialog] = useState<"add" | "paste" | "windows" | "refresh" | "swap" | null>(null);
   const [comparing, setComparing] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -62,7 +64,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
 
   const rates: Rates | null = tax ? { pstPct: tax.pst_pct, gstPct: tax.gst_pct, hstPct: tax.hst_pct } : null;
   const catalogue = useMemo(() => catalogueView(materials, labour), [materials, labour]);
-  const summaries = useMemo(() => (rates ? Object.fromEntries(estimates.map((v) => [v.id, versionSummary(v.lines, rates)])) : {}), [estimates, rates]);
+  const summaries = useMemo(() => (rates ? Object.fromEntries(shown.map((v) => [v.id, versionSummary(v.lines, rates)])) : {}), [shown, rates]);
 
   if (!canSee) return <p className="text-sm text-muted-foreground">You don't have access to pricing on this project.</p>;
   if (isLoading || !rates) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -122,7 +124,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-stretch gap-3">
-        {estimates.map((v) => {
+        {shown.map((v) => {
           const s = summaries[v.id]!;
           return (
             <button
@@ -137,6 +139,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
             >
               <p className="text-sm font-semibold">
                 {v.name}
+                {v.kind === "change_order" && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">Change order</span>}
                 {v.locked && <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{v.status === "accepted" ? "Accepted" : "Sent"}</span>}
               </p>
               {v.description && <p className="truncate text-xs text-muted-foreground">{v.description}</p>}

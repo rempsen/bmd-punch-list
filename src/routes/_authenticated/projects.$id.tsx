@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRightLeft, Hammer, LayoutDashboard } from "lucide-react
 import { toast } from "sonner";
 import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
+import { QuotesTab } from "@/components/quotes/QuotesTab";
 import { DocumentsTab } from "@/components/projects/DocumentsTab";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
@@ -35,7 +36,7 @@ const TABS = [
   { key: "documents", label: "Documents" },
   { key: "takeoff", label: "Takeoff", phase: 3 },
   { key: "estimate", label: "Estimate" },
-  { key: "quotes", label: "Quotes", phase: 2 },
+  { key: "quotes", label: "Quotes" },
   { key: "site", label: "Site" },
   { key: "billing", label: "Billing", phase: 4 },
   { key: "activity", label: "Activity" },
@@ -120,6 +121,7 @@ function ProjectPage() {
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
         {tab === "estimate" && <EstimateTab projectId={project.id} />}
+        {tab === "quotes" && <QuotesTab projectId={project.id} />}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
         {tab === "activity" && <Activity projectId={project.id} />}
         {"phase" in current && (
