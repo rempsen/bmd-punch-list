@@ -21,7 +21,8 @@ describe("progress billing", () => {
     { kind: "holdback_release" as const, status: "issued" as const, gross_cents: 100000, holdback_cents: 0 },
   ];
   test("where the job stands: billed, held back, released and left to bill; void bills do not count", () => {
-    expect(billingPosition(10000000, bills)).toEqual({ contractCents: 10000000, billedCents: 7000000, remainingCents: 3000000, heldCents: 525000, releasedCents: 100000, holdbackOwingCents: 425000 });
+    // Holdback is only held once its bill is issued: the draft's 750.00 is not there to release yet.
+    expect(billingPosition(10000000, bills)).toEqual({ contractCents: 10000000, billedCents: 7000000, remainingCents: 3000000, heldCents: 450000, releasedCents: 100000, holdbackOwingCents: 350000 });
   });
   test("billed to date can never exceed the current contract", () => {
     const pos = billingPosition(10000000, bills);
@@ -32,8 +33,8 @@ describe("progress billing", () => {
   });
   test("a holdback release cannot be more than is being held", () => {
     const pos = billingPosition(10000000, bills);
-    expect(checkNewBill(pos, "holdback_release", 425000)).toBeNull();
-    expect(checkNewBill(pos, "holdback_release", 425001)).toBe("Only $4,250.00 of holdback is being held.");
+    expect(checkNewBill(pos, "holdback_release", 350000)).toBeNull();
+    expect(checkNewBill(pos, "holdback_release", 350001)).toBe("Only $3,500.00 of holdback is being held.");
   });
   test("bills are numbered per project", () => {
     expect(billNumber("26-041", 1)).toBe("26-041-B01");

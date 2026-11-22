@@ -23,7 +23,8 @@ export function billingPosition(contractCents: number, bills: BillLike[]): Posit
   const live = bills.filter((b) => b.status !== "void");
   const progress = live.filter((b) => b.kind === "progress");
   const billedCents = progress.reduce((s, b) => s + b.gross_cents, 0);
-  const heldCents = progress.reduce((s, b) => s + b.holdback_cents, 0);
+  // Holdback is only there to release once the bill that held it has been issued.
+  const heldCents = progress.filter((b) => b.status === "issued").reduce((s, b) => s + b.holdback_cents, 0);
   const releasedCents = live.filter((b) => b.kind === "holdback_release").reduce((s, b) => s + b.gross_cents, 0);
   return { contractCents, billedCents, remainingCents: contractCents - billedCents, heldCents, releasedCents, holdbackOwingCents: heldCents - releasedCents };
 }

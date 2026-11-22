@@ -17,10 +17,18 @@ export async function hashToken(token: string): Promise<string> {
 
 export type PublicView =
   | { state: "replaced" | "closed"; number: string }
-  | { state: "open" | "accepted"; number: string; revision: number; snapshot: QuoteSnapshot; choices: Choices; accepted: { name: string; at: string; versionId: string; totalCents: number } | null };
+  | { state: "open" | "accepted"; number: string; revision: number; snapshot: QuoteSnapshot; choices: Choices; expired: boolean; accepted: { name: string; at: string; versionId: string; totalCents: number } | null };
 
 /** Everything the client's browser is given. Built from the frozen client-safe snapshot and nothing else. */
-export function publicView(quote: QuoteForLink, link: { choices: Record<string, unknown> | null }, acceptance: Acceptance | null): PublicView {
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Winnipeg" });
+/** The last day a quote can be accepted (its date plus its validity), as YYYY-MM-DD. */
+export function lastValidDay(snap: QuoteSnapshot): string {
+  const d = new Date(`${snap.date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + snap.validityDays);
+  return d.toISOString().slice(0, 10);
+}
+
+export function publicView(quote: QuoteForLink, link: { choices: Record<string, unknown> | null }, acceptance: Acceptance | null, now: string = today()): PublicView {
   if (quote.status === "superseded") return { state: "replaced", number: quote.number };
   if (!quote.snapshot || (quote.status !== "sent" && quote.status !== "accepted")) return { state: "closed", number: quote.number };
   return {
@@ -29,6 +37,7 @@ export function publicView(quote: QuoteForLink, link: { choices: Record<string, 
     revision: quote.revision,
     snapshot: quote.snapshot,
     choices: cleanChoices(quote.snapshot, link.choices ?? {}),
+    expired: quote.status === "sent" && now > lastValidDay(quote.snapshot),
     accepted: quote.status === "accepted" && acceptance ? { name: acceptance.name, at: acceptance.accepted_at, versionId: acceptance.version_id, totalCents: acceptance.total_cents } : null,
   };
 }
@@ -47,10 +56,11 @@ export type AcceptInput = { versionId: string; choices: Record<string, unknown>;
 export type AcceptCheck = { ok: true; versionId: string; valueCents: number; totalCents: number; choices: Choices } | { ok: false; message: string; reload?: true };
 
 /** Decides whether an acceptance stands, from the stored quote alone. The browser's figures are only compared, never used. */
-export function checkAcceptance(quote: QuoteForLink, input: AcceptInput): AcceptCheck {
+export function checkAcceptance(quote: QuoteForLink, input: AcceptInput, now: string = today()): AcceptCheck {
   const stale: AcceptCheck = { ok: false, reload: true, message: "This quotation has changed since you opened it. Reload the page to see the current one." };
   if (quote.status !== "sent" || !quote.snapshot || input.revision !== quote.revision) return stale;
   const snap = quote.snapshot;
+  if (now > lastValidDay(snap)) return { ok: false, message: `This quotation expired on ${new Date(`${lastValidDay(snap)}T12:00:00Z`).toLocaleDateString("en-CA", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" })}. Please contact us for a current price.` };
   const version = snap.versions.find((v) => v.id === input.versionId);
   if (!version) return { ok: false, message: "Choose which option you are accepting." };
   if (input.name.trim().length < 2) return { ok: false, message: "Type your full name to accept." };

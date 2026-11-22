@@ -98,7 +98,29 @@ export function BillingTab({ projectId }: { projectId: string }) {
             <dd className="text-lg font-semibold tabular-nums">{dollars(cents as number)}</dd>
           </div>
         ))}
-        <p className="col-span-full text-xs text-muted-foreground">Before GST. The contract is the accepted quote plus accepted change orders.</p>
+        <p className="col-span-full text-xs text-muted-foreground">
+          Before GST. The contract is the accepted quote plus accepted change orders.
+          {canBill && (
+            <label className="ml-2 inline-flex items-center gap-1">
+              Holdback on this job
+              <input
+                key={holdbackPct}
+                type="number"
+                min={0}
+                max={50}
+                step={0.5}
+                defaultValue={holdbackPct}
+                aria-label="Holdback percent for this job"
+                className="h-8 w-16 rounded-md border border-input bg-background px-1 text-right text-sm text-foreground"
+                onBlur={(e) => {
+                  const pct = Number(e.target.value);
+                  if (pct !== holdbackPct && pct >= 0 && pct <= 50) void run(() => db.rpc("set_project_holdback", { _project: projectId, _pct: pct }), `Holdback set to ${pct}% for new bills.`).then(() => void qc.invalidateQueries({ queryKey: ["bill-project", projectId] }));
+                }}
+              />
+              %
+            </label>
+          )}
+        </p>
       </dl>
 
       {canBill && !kind && (

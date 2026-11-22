@@ -139,6 +139,14 @@ export function unknownCostLabels(versions: EstVersion[], rates: Rates): string[
   const out: string[] = [];
   for (const v of versions) {
     for (const l of v.lines) {
+      if (l.price_basis === "margin" && l.margin_pct == null) {
+        out.push(`${v.name}: ${l.description} (no margin set)`);
+        continue;
+      }
+      if (l.price_basis === "fixed_sell" && l.fixed_sell_cents == null) {
+        out.push(`${v.name}: ${l.description} (no selling price set)`);
+        continue;
+      }
       const p = priceEstimateLine(l, l.components, rates);
       if (p.error) out.push(`${v.name}: ${l.description} (${p.error})`);
       else if (p.unknown) out.push(`${v.name}: ${l.description} (${p.unknownLabels.join(", ")})`);

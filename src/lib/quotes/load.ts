@@ -86,11 +86,26 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
     snapshot,
     rollup: versions.map((v) => ({ versionId: v.id, ...rollupByCostCode(v, rates) })),
     unknown: unknownCostLabels(versions, rates),
+    versions,
     fileName: quoteFileName(quote.number, project.name, date),
     projectName: project.name,
     clientName: project.client?.name ?? "",
   };
 }
 
-/** A fingerprint of the figures a preview showed, so a send can be refused if the estimate changed underneath it. */
-export const snapshotFingerprint = (s: QuoteSnapshot) => [s.number, s.presentation, s.validityDays, ...s.versions.map((v) => `${v.id}:${v.subtotalCents}:${v.totalCents}`), s.inclusions.length, s.exclusions.length, s.clarifications.length, s.deposit ?? ""].join("|");
+/**
+ * A fingerprint of everything the client would see, except the date and who prepared it.
+ * A send is refused when it differs from the preview, so the emailed PDF and the stored quote cannot drift apart.
+ */
+export function snapshotFingerprint(s: QuoteSnapshot): string {
+  const { date: _date, preparedBy: _by, ...rest } = s;
+  const text = JSON.stringify(rest);
+  let a = 0x811c9dc5;
+  let b = 5381;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193) >>> 0;
+    b = (Math.imul(b, 33) + c) >>> 0;
+  }
+  return `${text.length}-${a.toString(16)}-${b.toString(16)}`;
+}

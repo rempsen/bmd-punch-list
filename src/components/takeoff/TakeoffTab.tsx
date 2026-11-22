@@ -69,13 +69,17 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
   const { data: materials = [] } = useMaterials(canPrice);
   const { data: labour = [] } = useLabourRates(canPrice);
   const refreshEstimate = useRefreshEstimate(projectId);
-  const totals = useMemo(() => totalsByCondition(takeoff?.shapes ?? []), [takeoff?.shapes]);
+  const counted = takeoff?.counted ?? takeoff?.shapes ?? [];
+  const totals = useMemo(() => totalsByCondition(counted), [takeoff?.counted, takeoff?.shapes]); // eslint-disable-line react-hooks/exhaustive-deps
   // A newer upload of the same drawing file: offer to bring the earlier measurements across once.
   const previous = current ? (previousOf.get(current.id) ?? null) : null;
   const { data: previousSheets = [] } = useSheets(previous?.id ?? null);
   const oldShapes = (takeoff?.shapes ?? []).filter((s) => previousSheets.some((p) => p.id === s.sheet_id));
   const hasOwn = (takeoff?.shapes ?? []).some((s) => sheets.some((p) => p.id === s.sheet_id));
+  const [bringing, setBringing] = useState(false);
   const bringForward = async () => {
+    if (bringing) return;
+    setBringing(true);
     const r = carryForward(previousSheets, sheets, oldShapes);
     try {
       for (const [from, to] of Object.entries(r.sheetMap)) {
@@ -94,18 +98,22 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
   const toEstimate = async (c: Condition) => {
     if (!target) return void toast.error("There is no open price to add to. Start the estimate on the Estimate tab first.");
     if (target.lines.some((l) => l.takeoff_condition_id === c.id)) return void toast.info(`"${c.label}" is already on ${target.name}. Its quantity is updated from the Estimate tab.`);
-    const uom = c.kind === "area" ? "SF" : c.kind === "linear" ? "LF" : "EA";
     const section = c.default_section || "General";
-    const qty = totals[c.id] ? qtyFor(totals[c.id]!, uom, section) : 0;
     const finish = finishes.find((f) => f.id === c.finish_id);
     const template = finish && templates.find((t) => t.id === finish.assembly_template_id);
-    const base = finish && template && uom === "SF" ? lineFromFinish({ versionId: target.id, finish, template, catalogue: catalogueView(materials, labour), qty, section, markupPct: target.default_markup_pct, source: "takeoff" }).item : simpleLine({ versionId: target.id, kind: "misc", section, description: c.label, qty, uom, unitCostCents: null, pst: false, markupPct: target.default_markup_pct, costCode: null });
+    // The quantity goes in the unit the line is priced in: an assembly priced per SY takes square yards, not square feet.
+    const fits = template && (c.kind === "area" ? template.driver_uom === "SF" || template.driver_uom === "SY" : c.kind === "linear" ? template.driver_uom === "LF" : template.driver_uom === "EA");
+    const uom = fits ? template.driver_uom : c.kind === "area" ? "SF" : c.kind === "linear" ? "LF" : "EA";
+    const qty = totals[c.id] ? qtyFor(totals[c.id]!, uom, section) : 0;
+    const base = finish && template && fits ? lineFromFinish({ versionId: target.id, finish, template, catalogue: catalogueView(materials, labour), qty, section, markupPct: target.default_markup_pct, source: "takeoff" }).item : simpleLine({ versionId: target.id, kind: "misc", section, description: c.label, qty, uom, unitCostCents: null, pst: false, markupPct: target.default_markup_pct, costCode: null });
     try {
       await saveLines([{ ...base, line: { ...base.line, source: "takeoff", takeoff_condition_id: c.id } }]);
       refreshEstimate();
       toast.success(`${c.label}: ${qty.toLocaleString("en-CA")} ${uom} added to ${target.name}.`);
     } catch (e) {
       toast.error(errText(e));
+    } finally {
+      setBringing(false);
     }
   };
   const [naming, setNaming] = useState<string | null>(null);
@@ -134,7 +142,7 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
   };
   const exportQuantities = async () => {
     const XLSX = await import("xlsx");
-    const rows = (takeoff?.shapes ?? []).map((s) => {
+    const rows = counted.map((s) => {
       const c = takeoff!.conditions.find((x) => x.id === s.condition_id);
       const sh = sheets.find((x) => x.id === s.sheet_id);
       const m = measureShape(s);
@@ -235,7 +243,7 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
             <span className="min-w-0 flex-1">
               These are newer drawings than version {previous.version}, which has {oldShapes.length} measurements. Bring them across to the sheets with the same number? The earlier version is left as it is.
             </span>
-            <Button size="sm" variant="outline" className="bg-white" onClick={() => void bringForward()}>
+            <Button size="sm" variant="outline" className="bg-white" disabled={bringing} onClick={() => void bringForward()}>
               Bring measurements forward
             </Button>
           </div>

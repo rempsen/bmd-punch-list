@@ -37,7 +37,10 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
   const scale = data.scales.find((s) => s.sheet_id === sheetId && !s.region) ?? null;
   const fpp = scale?.feet_per_point ?? null;
   const sheetShapes = useMemo(() => data.shapes.filter((s) => s.sheet_id === sheetId), [data.shapes, sheetId]);
-  const totals = useMemo(() => totalsByCondition(data.shapes), [data.shapes]);
+  const totals = useMemo(() => totalsByCondition(data.counted ?? data.shapes), [data.counted, data.shapes]);
+  // Counting marks are written one after another from a local copy, so quick clicks never overwrite each other.
+  const counts = useRef(new Map<string, { id: string; vertices: Pt[] }>());
+  const writes = useRef<Promise<unknown>>(Promise.resolve());
   const condition = data.conditions.find((c) => c.id === conditionId) ?? null;
   const colourOf = (id: string) => data.conditions.find((c) => c.id === id)?.colour ?? "#2563eb";
   const sel = sheetShapes.find((s) => s.id === selected) ?? null;
@@ -49,6 +52,7 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
     setChecked(null);
     setSuggested(null);
     setText([]);
+    counts.current.clear();
     let stale = false;
     void sheetText(doc, pageNumber).then((t) => {
       if (stale) return;
@@ -133,13 +137,21 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
     }
     if (mode === "draw" && condition?.kind === "count") {
       if (!sheetId || !fpp) return;
+      const key = `${sheetId}:${condition.id}`;
       const existing = sheetShapes.find((s) => s.condition_id === condition.id && s.kind === "count");
-      if (existing) {
-        const before = existing.vertices;
-        return void run({ redo: () => actions.updateShape(existing.id, { vertices: [...before, p] }), undo: () => actions.updateShape(existing.id, { vertices: before }) });
-      }
-      const shape: Shape = { id: crypto.randomUUID(), sheet_id: sheetId, condition_id: condition.id, kind: "count", vertices: [p], cutouts: [], openings_ft: 0, multiplier: 1, section: condition.default_section, scale_feet_per_point: fpp };
-      return void run({ redo: () => actions.putShape(shape), undo: () => actions.removeShape(shape.id) });
+      const cur = counts.current.get(key) ?? (existing ? { id: existing.id, vertices: existing.vertices } : null);
+      const shape: Shape = { id: cur?.id ?? crypto.randomUUID(), sheet_id: sheetId, condition_id: condition.id, kind: "count", vertices: [...(cur?.vertices ?? []), p], cutouts: [], openings_ft: existing?.openings_ft ?? 0, multiplier: existing?.multiplier ?? 1, section: existing?.section ?? condition.default_section, scale_feet_per_point: fpp };
+      const before = cur?.vertices ?? null;
+      counts.current.set(key, { id: shape.id, vertices: shape.vertices });
+      const queue = (fn: () => Promise<void>) => (writes.current = writes.current.then(fn, fn)) as Promise<void>;
+      return void run({
+        redo: () => queue(() => actions.putShape(shape)),
+        undo: () => {
+          if (before) counts.current.set(key, { id: shape.id, vertices: before });
+          else counts.current.delete(key);
+          return queue(() => (before ? actions.putShape({ ...shape, vertices: before }) : actions.removeShape(shape.id)));
+        },
+      });
     }
     // A double-click arrives as two presses; the second lands on the first and is ignored.
     if (last && Math.hypot(p.x - last.x, p.y - last.y) < 0.5) return;

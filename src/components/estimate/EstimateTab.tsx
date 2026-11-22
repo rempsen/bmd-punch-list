@@ -164,7 +164,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
             onClick={() => {
               const name = window.prompt("Name for the alternate", `Alternate ${estimates.length}`);
               if (name == null) return;
-              const description = window.prompt("What is different about it? (optional)", "") ?? "";
+              const description = window.prompt("What is different about it? The client sees this on the quote, so keep it to what they should read (optional).", "") ?? "";
               void run(async () => setActiveId(await copyVersion(active.id, name, description || null)), "Alternate created");
             }}
           >
@@ -179,7 +179,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       </div>
 
       {canEdit && !active.locked && takeoff && (() => {
-        const moved = takeoffLinks(active.lines, totalsByCondition(takeoff.shapes)).filter((l) => l.changed);
+        const moved = takeoffLinks(active.lines, totalsByCondition(takeoff.counted ?? takeoff.shapes)).filter((l) => l.changed);
         if (moved.length === 0) return null;
         return (
           <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

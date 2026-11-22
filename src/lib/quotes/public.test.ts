@@ -90,3 +90,13 @@ describe("tokens", () => {
     expect(await hashToken(a)).not.toContain(a);
   });
 });
+
+describe("review fixes: expiry", () => {
+  test("a quote past its validity cannot be accepted online and the page says so", () => {
+    // Dated 2026-11-22, valid 30 days: the last day is 2026-12-22.
+    expect(checkAcceptance(quote, { ...good, expectedTotalCents: total }, "2026-12-22")).toMatchObject({ ok: true });
+    expect(checkAcceptance(quote, { ...good, expectedTotalCents: total }, "2026-12-23")).toEqual({ ok: false, message: "This quotation expired on December 22, 2026. Please contact us for a current price." });
+    expect(publicView(quote, { choices: {} }, null, "2026-12-23")).toMatchObject({ state: "open", expired: true });
+    expect(publicView(quote, { choices: {} }, null, "2026-11-30")).toMatchObject({ expired: false });
+  });
+});

@@ -46,6 +46,7 @@ export const issueQuote = createServerFn({ method: "POST" })
     } catch (e) {
       return fail(e instanceof Error ? e.message : "Could not load the quote");
     }
+    if (ctx.unknown.length > 0) return fail(`This quote cannot be sent yet: ${ctx.unknown.slice(0, 3).join("; ")}${ctx.unknown.length > 3 ? ` and ${ctx.unknown.length - 3} more` : ""}.`);
     if (snapshotFingerprint(ctx.snapshot) !== data.fingerprint) return fail("The estimate changed since this preview. Preview the quote again before sending.");
 
     return issueQuoteFlow(

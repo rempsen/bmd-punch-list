@@ -27,7 +27,8 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
       </Shell>
     );
   }
-  const locked = view.state === "accepted" || done;
+  const expired = "expired" in view && view.expired;
+  const locked = view.state === "accepted" || done || expired;
   const choose = (next: Choices) => {
     setChoices(next);
     setMessage(null);
@@ -88,6 +89,11 @@ export function PublicQuote({ view, onSave, onAccept }: Props) {
         </div>
       </section>
 
+      {expired && (
+        <p role="status" className="mb-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          This quotation has passed its {snap.validityDays}-day validity and can no longer be accepted here. Please contact us at {BMD.email} for a current price.
+        </p>
+      )}
       {(view.state === "accepted" || done) && (
         <p role="status" className="mb-4 rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
           {view.state === "accepted" && view.accepted ? `Accepted by ${view.accepted.name} on ${day(view.accepted.at)}. Total $${money(view.accepted.totalCents)}.` : "Thank you. Your acceptance has been recorded and we will be in touch to schedule the work."}

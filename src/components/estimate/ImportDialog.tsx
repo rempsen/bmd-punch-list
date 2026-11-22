@@ -30,6 +30,7 @@ export function ImportDialog({ version, onClose, onDone }: { version: EstVersion
   const [off, setOff] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ack, setAck] = useState(false);
   const chosen = useMemo(() => parsed?.rows.filter((r) => !off.has(r.sourceRef)) ?? [], [parsed, off]);
   const rec = parsed ? reconcile(chosen, parsed.sourceCents) : null;
   const unknown = chosen.filter((r) => r.materialCostCents == null || r.labourCostCents == null).length;
@@ -39,8 +40,11 @@ export function ImportDialog({ version, onClose, onDone }: { version: EstVersion
     setBusy(true);
     setError(null);
     try {
-      setParsed(await parseFile(file));
-      setOff(new Set());
+      const next = await parseFile(file);
+      setParsed(next);
+      // A row with no selling price in the file is left out unless someone ticks it on purpose.
+      setOff(new Set(next.rows.filter((r) => /Selling price is missing/.test(r.issue ?? "")).map((r) => r.sourceRef)));
+      setAck(false);
     } catch (e) {
       setParsed(null);
       setError(errText(e));
@@ -164,7 +168,13 @@ export function ImportDialog({ version, onClose, onDone }: { version: EstVersion
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={busy || chosen.length === 0} onClick={() => void apply()}>
+          {rec && Math.abs(rec.differenceCents) > 100 && (
+            <label className="mr-auto flex cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4" checked={ack} onChange={(e) => setAck(e.target.checked)} />
+              Import even though the lines differ from the source total by {dollars(rec.differenceCents)}
+            </label>
+          )}
+          <Button disabled={busy || chosen.length === 0 || (!!rec && Math.abs(rec.differenceCents) > 100 && !ack)} onClick={() => void apply()}>
             {busy ? "Working…" : `Import ${chosen.length} lines`}
           </Button>
         </DialogFooter>

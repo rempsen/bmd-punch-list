@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { useCostCodes } from "@/lib/catalogue/data";
+import { takeoffLinks, totalsByCondition } from "@/lib/takeoff/geometry";
+import { useTakeoff } from "@/lib/takeoff/store";
 import { buildQboEstimate } from "@/lib/qbo/estimate";
 import { signedUrl } from "@/lib/documents/upload";
 import { createVersion, dollars, useEstimate } from "@/lib/estimating/data";
@@ -200,6 +202,8 @@ export function QuotesTab({ projectId }: { projectId: string }) {
                       disabled={busy}
                       onClick={() =>
                         void run(async () => {
+                          const { data: live } = await db.from("quote_share_links").select("id").eq("quote_id", q.id).is("revoked_at", null).limit(1);
+                          if ((live ?? []).length > 0 && !window.confirm(`${q.number} already has a client link. Making a new one switches the old link off, so anyone you sent it to will see "not available". Make a new link?`)) return;
                           const { token } = await makeLink({ data: { quoteId: q.id } });
                           setShared({ number: q.number, url: `${window.location.origin}/q/${token}` });
                         })
@@ -440,7 +444,10 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
     }
   };
   const byKind = useMemo(() => (k: Clause["kind"]) => library.filter((c) => c.kind === k), [library]);
-  const blocked = ctx && ctx.unknown.length > 0;
+  // A takeoff that moved after pricing must be accepted or detached on the Estimate tab before the quote goes out.
+  const { data: takeoff } = useTakeoff(quote.project_id);
+  const moved = ctx && takeoff ? ctx.versions.flatMap((v) => takeoffLinks(v.lines, totalsByCondition(takeoff.counted ?? takeoff.shapes)).filter((l) => l.changed).map((l) => `${v.name}: ${v.lines.find((x) => x.id === l.lineId)?.description ?? "line"} (priced at ${l.pricedQty.toLocaleString("en-CA")}, takeoff now ${l.takeoffQty.toLocaleString("en-CA")})`)) : [];
+  const blocked = !!ctx && (ctx.unknown.length > 0 || moved.length > 0);
   const list = (s: string) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
 
   const issue = async (withEmail: boolean) => {
@@ -559,9 +566,20 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
                 <p className="text-xs text-muted-foreground">Sends from your own Outlook mailbox with the PDF attached, and shows in your Sent Items.</p>
               </>
             )}
-            {blocked && (
+            {moved.length > 0 && (
               <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                <p className="font-medium">This quote can't be sent yet: a cost is still unknown.</p>
+                <p className="font-medium">The takeoff changed after these lines were priced.</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {moved.slice(0, 6).map((m, i) => (
+                    <li key={i}>{m}</li>
+                  ))}
+                </ul>
+                <p className="mt-1">On the Estimate tab, accept the new quantity or stop the line following the takeoff, then come back.</p>
+              </div>
+            )}
+            {ctx && ctx.unknown.length > 0 && (
+              <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-medium">This quote can't be sent yet: a cost or price is still missing.</p>
                 <ul className="mt-1 list-disc pl-5">
                   {ctx.unknown.slice(0, 6).map((u, i) => (
                     <li key={i}>{u}</li>
@@ -580,7 +598,7 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
           <Button variant="ghost" onClick={step === "send" ? () => setStep("edit") : onClose}>
             {step === "send" ? "Back" : "Close"}
           </Button>
-          <Button variant="outline" disabled={!pdf} onClick={download}>
+          <Button variant="outline" disabled={!pdf || blocked} title={blocked ? "Fix the items listed before this quote can leave the building" : undefined} onClick={download}>
             Download PDF
           </Button>
           {step === "edit" ? (

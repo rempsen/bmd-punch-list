@@ -180,3 +180,19 @@ describe("quote file name and fingerprint", () => {
     expect(snapshotFingerprint(a)).not.toBe(snapshotFingerprint(b));
   });
 });
+
+describe("review fixes: quotes", () => {
+  test("a line with no margin or no selling price set is named as a blocker, not quoted at cost or at zero", () => {
+    const v = version("v1", "Base", [line("m", { description: "Margin line", price_basis: "margin", margin_pct: null }), line("f", { description: "Fixed line", price_basis: "fixed_sell", fixed_sell_cents: null }), line("ok", {})]);
+    expect(unknownCostLabels([v], rates)).toEqual(["Base: Margin line (no margin set)", "Base: Fixed line (no selling price set)"]);
+  });
+  test("the fingerprint changes when any client-visible wording changes, not only the totals", () => {
+    const a = buildSnapshot({ ...head, exclusions: ["Floor levelling beyond 1/8 in."], versions: [base], rates });
+    const b = buildSnapshot({ ...head, exclusions: ["Floor levelling beyond 1/4 in."], versions: [base], rates });
+    const c = buildSnapshot({ ...head, versions: [{ ...base, lines: base.lines.map((l, i) => (i === 0 ? { ...l, description: "Different words" } : l)) }], rates });
+    const d = buildSnapshot({ ...head, date: "2026-12-25", preparedBy: { name: "Brian", email: "b@x.y" }, versions: [base], rates });
+    expect(snapshotFingerprint(a)).not.toBe(snapshotFingerprint(b));
+    expect(snapshotFingerprint(a)).not.toBe(snapshotFingerprint(c));
+    expect(snapshotFingerprint(buildSnapshot({ ...head, versions: [base], rates }))).toBe(snapshotFingerprint(d));
+  });
+});

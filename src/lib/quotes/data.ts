@@ -41,7 +41,7 @@ export function useRefreshQuotes(projectId: string | null) {
 
 async function rpc<T = null>(fn: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await db.rpc(fn, args);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(/quotes_one_accepted_key/.test(error.message) ? "Another revision of this quote has already been accepted." : error.message);
   return data as T;
 }
 export const createQuote = (projectId: string, versionIds: string[]) => rpc<string>("create_quote", { _project: projectId, _version_ids: versionIds });

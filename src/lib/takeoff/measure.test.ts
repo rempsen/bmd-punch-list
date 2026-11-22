@@ -155,3 +155,23 @@ describe("drawing revisions", () => {
     expect(r.unmatched).toEqual(["A-102"]);
   });
 });
+
+import { countedShapes } from "./geometry";
+describe("review fixes: what counts", () => {
+  const docs = [{ id: "d1", section: "plans", file_name: "Plans.pdf", version: 1 }, { id: "d2", section: "plans", file_name: "plans.pdf", version: 2 }, { id: "d3", section: "plans", file_name: "Interiors.pdf", version: 1 }];
+  const sheets = [{ id: "o1", document_id: "d1" }, { id: "n1", document_id: "d2" }, { id: "i1", document_id: "d3" }];
+  test("measurements on a superseded drawing version are kept but not counted, so a revision does not double the quantity", () => {
+    const old = shape({ id: "old", sheet_id: "o1" });
+    const carried = carryForward([{ id: "o1", page_number: 1, sheet_number: "A-101" }], [{ id: "n1", page_number: 1, sheet_number: "A-101" }], [old], () => "new").shapes;
+    const all = [old, ...carried, shape({ id: "other", sheet_id: "i1" })];
+    expect(countedShapes(all, sheets, docs).map((s) => s.id)).toEqual(["new", "other"]);
+    expect(totalsByCondition(countedShapes(all, sheets, docs))["c1"]!.sf).toBeCloseTo(600, 1);
+    expect(totalsByCondition(countedShapes([old], sheets, docs))["c1"]).toBeUndefined();
+  });
+  test("when a condition's lines are split by section, a section with nothing measured gets zero, not the whole total", () => {
+    const totals = totalsByCondition([shape({ id: "a", section: "Level 2" })]);
+    const l = (id: string, section: string) => ({ id, takeoff_condition_id: "c1", detached: false, driver_qty: 0, driver_uom: "SF" as const, section });
+    expect(takeoffLinks([l("l2", "Level 2"), l("l3", "Level 3")], totals).map((x) => x.takeoffQty)).toEqual([300, 0]);
+    expect(takeoffLinks([l("only", "General")], totals).map((x) => x.takeoffQty)).toEqual([300]);
+  });
+});

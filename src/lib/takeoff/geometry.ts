@@ -75,15 +75,29 @@ export function qtyFor(total: ConditionTotal, uom: string, section: string): num
 /**
  * Estimate lines fed by the takeoff, with the quantity they were priced at and what the takeoff says now.
  * A changed line keeps its priced quantity until the estimator accepts the new one. Detached lines are left out.
+ * When a condition's lines are split by section, each takes only its own section: one with nothing measured is zero.
  */
 export function takeoffLinks(lines: LinkedLine[], totals: Record<string, ConditionTotal>) {
-  return lines
-    .filter((l) => l.takeoff_condition_id && !l.detached)
-    .map((l) => {
-      const t = totals[l.takeoff_condition_id!];
-      const takeoffQty = t ? qtyFor(t, l.driver_uom, l.section) : 0;
-      return { lineId: l.id, pricedQty: l.driver_qty, takeoffQty, changed: Math.abs(takeoffQty - l.driver_qty) > 0.005 };
-    });
+  const linked = lines.filter((l) => l.takeoff_condition_id && !l.detached);
+  return linked.map((l) => {
+    const t = totals[l.takeoff_condition_id!];
+    const split = !!t && linked.some((x) => x.takeoff_condition_id === l.takeoff_condition_id && t.bySection[x.section]);
+    const takeoffQty = !t ? 0 : split && !t.bySection[l.section] ? 0 : qtyFor(t, l.driver_uom, l.section);
+    return { lineId: l.id, pricedQty: l.driver_qty, takeoffQty, changed: Math.abs(takeoffQty - l.driver_qty) > 0.005 };
+  });
+}
+
+/**
+ * The measurements that count toward quantities: those on the newest version of each drawing file.
+ * Measurements on an earlier version stay on record but are not added in, so a drawing revision never doubles a quantity.
+ */
+export function countedShapes(shapes: Shape[], sheets: { id: string; document_id: string }[], docs: { id: string; section: string; file_name: string; version: number }[]): Shape[] {
+  const newest = new Map<string, number>();
+  const key = (d: { section: string; file_name: string }) => `${d.section}|${d.file_name.toLowerCase()}`;
+  for (const d of docs) newest.set(key(d), Math.max(newest.get(key(d)) ?? 0, d.version));
+  const current = new Set(docs.filter((d) => d.version === newest.get(key(d))).map((d) => d.id));
+  const live = new Set(sheets.filter((s) => current.has(s.document_id)).map((s) => s.id));
+  return shapes.filter((s) => live.has(s.sheet_id));
 }
 
 /** A typed length in feet: 16, 16', 16' 6", 16-6, 6", 3 m, 3000mm. Null when it is not a positive length. */
