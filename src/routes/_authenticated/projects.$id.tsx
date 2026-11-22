@@ -1,10 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { ArrowLeft, ArrowRightLeft, Hammer, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
 import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { QuotesTab } from "@/components/quotes/QuotesTab";
+
+// The plan viewer brings pdf.js with it, so it is fetched only when the Takeoff tab is opened.
+const TakeoffTab = lazy(() => import("@/components/takeoff/TakeoffTab"));
 import { DocumentsTab } from "@/components/projects/DocumentsTab";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
@@ -34,7 +37,7 @@ import { cn } from "@/lib/utils";
 const TABS = [
   { key: "overview", label: "Overview" },
   { key: "documents", label: "Documents" },
-  { key: "takeoff", label: "Takeoff", phase: 3 },
+  { key: "takeoff", label: "Takeoff" },
   { key: "estimate", label: "Estimate" },
   { key: "quotes", label: "Quotes" },
   { key: "site", label: "Site" },
@@ -117,11 +120,16 @@ function ProjectPage() {
         </nav>
       </header>
 
-      <div className={cn("mx-auto p-4 md:p-6", tab === "estimate" ? "max-w-7xl" : "max-w-5xl")}>
+      <div className={cn("mx-auto p-4 md:p-6", tab === "estimate" || tab === "takeoff" ? "max-w-7xl" : "max-w-5xl")}>
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
         {tab === "estimate" && <EstimateTab projectId={project.id} />}
         {tab === "quotes" && <QuotesTab projectId={project.id} />}
+        {tab === "takeoff" && (
+          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
+            <TakeoffTab projectId={project.id} />
+          </Suspense>
+        )}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
         {tab === "activity" && <Activity projectId={project.id} />}
         {"phase" in current && (
