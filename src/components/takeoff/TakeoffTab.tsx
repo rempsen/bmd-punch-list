@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useLabourRates, useMaterials, useTemplates } from "@/lib/catalogue/data";
 import { catalogueView, saveLines, useEstimate, useFinishes, useRefreshEstimate } from "@/lib/estimating/data";
 import { lineFromFinish, simpleLine } from "@/lib/estimating/lines";
-import { measureShape, qtyFor, totalsByCondition } from "@/lib/takeoff/geometry";
+import { carryForward, measureShape, qtyFor, totalsByCondition } from "@/lib/takeoff/geometry";
 import { useTakeoff, useTakeoffActions, type Condition } from "@/lib/takeoff/store";
 import { Measure } from "./Measure";
 
@@ -24,6 +24,7 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
   const { canAny } = useAuth();
   const canEdit = canAny("manage_estimates") || canAny("manage_documents");
   const { data: docs = [], isLoading } = useProjectDocuments(projectId);
+  const previousOf = useMemo(() => new Map(groupVersions(docs).plans.map((e) => [e.latest.id, e.older[0] ?? null])), [docs]);
   const plans = useMemo(() => groupVersions(docs).plans.map((e) => e.latest).filter((d) => d.mime === "application/pdf" || /\.pdf$/i.test(d.file_name)), [docs]);
   const [docId, setDocId] = useState<string | null>(null);
   const current = plans.find((d) => d.id === docId) ?? plans[0] ?? null;
@@ -68,6 +69,24 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
   const { data: labour = [] } = useLabourRates(canPrice);
   const refreshEstimate = useRefreshEstimate(projectId);
   const totals = useMemo(() => totalsByCondition(takeoff?.shapes ?? []), [takeoff?.shapes]);
+  // A newer upload of the same drawing file: offer to bring the earlier measurements across once.
+  const previous = current ? (previousOf.get(current.id) ?? null) : null;
+  const { data: previousSheets = [] } = useSheets(previous?.id ?? null);
+  const oldShapes = (takeoff?.shapes ?? []).filter((s) => previousSheets.some((p) => p.id === s.sheet_id));
+  const hasOwn = (takeoff?.shapes ?? []).some((s) => sheets.some((p) => p.id === s.sheet_id));
+  const bringForward = async () => {
+    const r = carryForward(previousSheets, sheets, oldShapes);
+    try {
+      for (const [from, to] of Object.entries(r.sheetMap)) {
+        const sc = takeoff!.scales.find((x) => x.sheet_id === from && !x.region);
+        if (sc && !takeoff!.scales.some((x) => x.sheet_id === to && !x.region)) await actions.setScale(to, sc.feet_per_point, sc.provenance);
+      }
+      for (const s of r.shapes) await actions.putShape(s);
+      toast.success(`${r.shapes.length} measurements brought forward and marked for checking.${r.unmatched.length ? ` No matching sheet for: ${r.unmatched.join(", ")}.` : ""}`);
+    } catch (e) {
+      toast.error(errText(e));
+    }
+  };
   const target = versions.find((v) => v.kind === "estimate" && !v.locked) ?? null;
 
   /** Puts a condition's quantity on the open estimate price as a line that follows the takeoff. */
@@ -179,6 +198,16 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
                 Export quantities
               </Button>
             )}
+          </div>
+        )}
+        {canEstimate && previous && oldShapes.length > 0 && !hasOwn && sheets.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+            <span className="min-w-0 flex-1">
+              These are newer drawings than version {previous.version}, which has {oldShapes.length} measurements. Bring them across to the sheets with the same number? The earlier version is left as it is.
+            </span>
+            <Button size="sm" variant="outline" className="bg-white" onClick={() => void bringForward()}>
+              Bring measurements forward
+            </Button>
           </div>
         )}
         <div className="min-h-0 flex-1">

@@ -6,6 +6,10 @@ import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { BillingTab } from "@/components/billing/BillingTab";
 import { QuotesTab } from "@/components/quotes/QuotesTab";
+import { useProjectDocuments } from "@/lib/documents/data";
+import { buildTimeline } from "@/lib/projects/timeline";
+import { useQuotes } from "@/lib/quotes/data";
+import { useQuery } from "@tanstack/react-query";
 
 // The plan viewer brings pdf.js with it, so it is fetched only when the Takeoff tab is opened.
 const TakeoffTab = lazy(() => import("@/components/takeoff/TakeoffTab"));
@@ -416,32 +420,34 @@ function SiteTab({ project, canEdit }: { project: PipelineProject; canEdit: bool
 }
 
 function Activity({ projectId }: { projectId: string }) {
-  const { data: events = [], isLoading } = useStageEvents(projectId);
+  const { canAny } = useAuth();
+  const showPrices = canAny("view_pricing");
+  const { data: stages = [], isLoading } = useStageEvents(projectId);
   const { data: staff = [] } = useBmdStaff();
+  const { data: documents = [] } = useProjectDocuments(projectId);
+  const { data: quotes = [] } = useQuotes(projectId, showPrices);
+  const { data: bills = [] } = useQuery({
+    queryKey: ["bills-activity", projectId],
+    enabled: showPrices,
+    queryFn: async () => {
+      const { data } = await db.from("progress_bills").select("id,number,kind,status,issued_at,total_cents").eq("project_id", projectId);
+      return (data ?? []) as { id: string; number: string; kind: string; status: string; issued_at: string | null; total_cents: number }[];
+    },
+  });
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  const entries = buildTimeline({ stages, documents, quotes, bills }, { showPrices });
   return (
     <Panel title="Activity">
-      {events.length === 0 ? (
+      {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">Nothing recorded yet.</p>
       ) : (
         <ol className="space-y-3">
-          {events.map((e) => (
+          {entries.map((e) => (
             <li key={e.id} className="border-l-2 border-border pl-3 text-sm">
-              <p>
-                {e.from_stage ? (
-                  <>
-                    Moved from <strong>{stageLabel(e.from_stage)}</strong> to <strong>{stageLabel(e.to_stage)}</strong>
-                  </>
-                ) : (
-                  <>
-                    Created in <strong>{stageLabel(e.to_stage)}</strong>
-                  </>
-                )}
-              </p>
+              <p>{e.text}</p>
               <p className="text-xs text-muted-foreground">
-                {new Date(e.changed_at).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}
-                {e.changed_by ? ` · ${staffName(staff, e.changed_by) ?? "Someone"}` : ""}
-                {e.note ? ` · ${e.note}` : ""}
+                {new Date(e.at).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" })}
+                {e.by ? ` · ${staffName(staff, e.by) ?? "Someone"}` : ""}
               </p>
             </li>
           ))}

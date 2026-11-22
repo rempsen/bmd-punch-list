@@ -137,3 +137,21 @@ describe("drawing helpers", () => {
     expect(hitTest([area, shape({ id: "base", kind: "linear", vertices: [{ x: 100, y: 150 }, { x: 280, y: 150 }] })], { x: 150, y: 151 }, 6)).toBe("base");
   });
 });
+
+import { carryForward } from "./geometry";
+describe("drawing revisions", () => {
+  const oldSheets = [{ id: "o1", page_number: 1, sheet_number: "A-101", title: null }, { id: "o2", page_number: 2, sheet_number: "A-102", title: null }, { id: "o3", page_number: 3, sheet_number: null, title: null }];
+  const newSheets = [{ id: "n1", page_number: 1, sheet_number: "A-100", title: null }, { id: "n2", page_number: 2, sheet_number: "a-101 ", title: null }, { id: "n3", page_number: 3, sheet_number: null, title: null }];
+  const shapes = [shape({ id: "s1", sheet_id: "o1" }), shape({ id: "s2", sheet_id: "o2" }), shape({ id: "s3", sheet_id: "o3" }), shape({ id: "s4", sheet_id: "elsewhere" })];
+  test("measurements move to the sheet with the same number, marked as needing a check; the old ones are untouched", () => {
+    const frozen = JSON.stringify(shapes);
+    let n = 0;
+    const r = carryForward(oldSheets, newSheets, shapes, () => `new${++n}`);
+    expect(JSON.stringify(shapes)).toBe(frozen);
+    expect(r.shapes.map((s) => [s.id, s.sheet_id, s.needs_checking])).toEqual([["new1", "n2", true], ["new2", "n3", true]]);
+    expect(r.shapes[0]!.vertices).toEqual(shapes[0]!.vertices);
+    expect(r.shapes[0]!.vertices).not.toBe(shapes[0]!.vertices);
+    expect(r.sheetMap).toEqual({ o1: "n2", o3: "n3" });
+    expect(r.unmatched).toEqual(["A-102"]);
+  });
+});

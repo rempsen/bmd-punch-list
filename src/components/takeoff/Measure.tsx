@@ -207,6 +207,11 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
             </>
           )}
         </div>
+        {sheetShapes.some((x) => x.needs_checking) && (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-900">
+            {sheetShapes.filter((x) => x.needs_checking).length} measurement(s) on this sheet came from the previous drawings (dashed outline). Click each one and confirm it still fits.
+          </p>
+        )}
         <p className="min-h-5 text-xs text-muted-foreground" aria-live="polite">
           {hint ?? checked ?? (suggested && !fpp ? `This sheet says "${suggested.source}". Check it against a known dimension after accepting.` : "")}
         </p>
@@ -226,14 +231,14 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
                     const on = s.id === selected;
                     const d = s.vertices.map((v, i) => `${i ? "L" : "M"}${v.x} ${v.y}`).join(" ");
                     if (s.kind === "count") return s.vertices.map((v, i) => <circle key={`${s.id}-${i}`} cx={v.x} cy={v.y} r={(on ? 8 : 6) * px} fill={c} stroke="#fff" strokeWidth={1.5 * px} />);
-                    if (s.kind === "linear") return <path key={s.id} d={d} fill="none" stroke={c} strokeWidth={(on ? 5 : 3) * px} strokeLinecap="round" strokeLinejoin="round" />;
+                    if (s.kind === "linear") return <path key={s.id} d={d} fill="none" stroke={c} strokeWidth={(on ? 5 : 3) * px} strokeLinecap="round" strokeLinejoin="round" {...(s.needs_checking ? { strokeDasharray: `${8 * px} ${5 * px}` } : {})} />;
                     const holes = s.cutouts.map((h) => h.map((v, i) => `${i ? "L" : "M"}${v.x} ${v.y}`).join(" ") + " Z").join(" ");
                     const m = measureShape(s);
                     const cx = s.vertices.reduce((n, v) => n + v.x, 0) / s.vertices.length;
                     const cy = s.vertices.reduce((n, v) => n + v.y, 0) / s.vertices.length;
                     return (
                       <g key={s.id}>
-                        <path d={`${d} Z ${holes}`} fillRule="evenodd" fill={c} fillOpacity={on ? 0.45 : 0.25} stroke={c} strokeWidth={(on ? 3 : 1.5) * px} />
+                        <path d={`${d} Z ${holes}`} fillRule="evenodd" fill={c} fillOpacity={on ? 0.45 : 0.25} stroke={c} strokeWidth={(on ? 3 : 1.5) * px} {...(s.needs_checking ? { strokeDasharray: `${8 * px} ${5 * px}` } : {})} />
                         <text x={cx} y={cy} fontSize={12 * px} textAnchor="middle" fill="#111" stroke="#fff" strokeWidth={3 * px} paintOrder="stroke">
                           {num(m.sf)} SF{s.multiplier !== 1 ? ` (×${s.multiplier})` : ""}
                         </text>
@@ -363,6 +368,14 @@ export function Measure({ doc, pageNumber, sheetId, data, actions, canEdit, cond
                   Section
                   <input key={`${sel.id}-s-${sel.section}`} defaultValue={sel.section ?? ""} onBlur={(e) => (e.target.value.trim() || null) !== sel.section && patchSelected({ section: e.target.value.trim() || null })} className="mt-1 block h-10 w-full rounded-md border border-input bg-background px-2 text-sm" />
                 </label>
+                {sel.needs_checking && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                    Brought forward from the previous drawings. Check it still fits this sheet.
+                    <Button size="sm" variant="outline" className="mt-1.5 bg-white" onClick={() => void actions.updateShape(sel.id, { needs_checking: false }).catch(err)}>
+                      It fits: mark checked
+                    </Button>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {sel.kind === "area" && (
                     <Button size="sm" variant={mode === "cutout" ? "default" : "outline"} onClick={() => (setPts([]), setMode(mode === "cutout" ? "pan" : "cutout"))}>

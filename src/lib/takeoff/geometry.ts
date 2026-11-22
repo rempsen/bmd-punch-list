@@ -14,6 +14,8 @@ export type Shape = {
   multiplier: number;
   section: string | null;
   scale_feet_per_point: number;
+  /** Brought forward from an earlier drawing revision and not yet confirmed against the new sheet. */
+  needs_checking?: boolean;
 };
 
 export function polygonArea(pts: Pt[]): number {
@@ -116,4 +118,23 @@ export function hitTest(shapes: Shape[], p: Pt, tolerance: number): string | nul
   for (const s of shapes) if (s.kind === "linear" && s.vertices.some((v, i) => i > 0 && distToSegment(p, s.vertices[i - 1]!, v) <= tolerance)) return s.id;
   for (const s of [...shapes].reverse()) if (s.kind === "area" && inside(p, s.vertices) && !s.cutouts.some((c) => inside(p, c))) return s.id;
   return null;
+}
+
+type SheetLike = { id: string; page_number: number; sheet_number: string | null };
+/**
+ * Copies measurements from one drawing revision to the next. A sheet matches by its sheet number; sheets with no number
+ * on either side match by page. The copies are marked as needing a check. Nothing on the old revision is changed.
+ */
+export function carryForward(oldSheets: SheetLike[], newSheets: SheetLike[], shapes: Shape[], newId: () => string = () => crypto.randomUUID()) {
+  const key = (s: SheetLike) => (s.sheet_number?.trim() ? `n:${s.sheet_number.trim().toLowerCase()}` : `p:${s.page_number}`);
+  const byKey = new Map(newSheets.map((s) => [key(s), s.id]));
+  const sheetMap: Record<string, string> = {};
+  const unmatched: string[] = [];
+  for (const o of oldSheets) {
+    const to = byKey.get(key(o));
+    if (to) sheetMap[o.id] = to;
+    else if (shapes.some((s) => s.sheet_id === o.id)) unmatched.push(o.sheet_number?.trim() || `Page ${o.page_number}`);
+  }
+  const copies = shapes.filter((s) => sheetMap[s.sheet_id]).map((s): Shape => ({ ...s, id: newId(), sheet_id: sheetMap[s.sheet_id]!, vertices: s.vertices.map((v) => ({ ...v })), cutouts: s.cutouts.map((c) => c.map((v) => ({ ...v }))), needs_checking: true }));
+  return { shapes: copies, sheetMap, unmatched };
 }

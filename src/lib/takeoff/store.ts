@@ -12,7 +12,7 @@ export type TakeoffActions = {
   removeCondition: (id: string) => Promise<void>;
   /** Saves a new shape, or puts back one that was removed (same id). */
   putShape: (s: Shape) => Promise<void>;
-  updateShape: (id: string, patch: Partial<Pick<Shape, "vertices" | "cutouts" | "openings_ft" | "multiplier" | "section">>) => Promise<void>;
+  updateShape: (id: string, patch: Partial<Pick<Shape, "vertices" | "cutouts" | "openings_ft" | "multiplier" | "section" | "needs_checking">>) => Promise<void>;
   removeShape: (id: string) => Promise<void>;
 };
 
@@ -22,7 +22,7 @@ const qty = (s: Shape) => {
   return s.kind === "area" ? m.sf : s.kind === "linear" ? m.lf : m.ea;
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const shapeFromRow = (r: any): Shape => ({ id: r.id, sheet_id: r.sheet_id, condition_id: r.condition_id, kind: r.kind, vertices: r.vertices, cutouts: r.cutouts ?? [], openings_ft: Number(r.openings_ft), multiplier: Number(r.multiplier), section: r.section, scale_feet_per_point: Number(r.scale_feet_per_point) });
+const shapeFromRow = (r: any): Shape => ({ id: r.id, sheet_id: r.sheet_id, condition_id: r.condition_id, kind: r.kind, vertices: r.vertices, cutouts: r.cutouts ?? [], openings_ft: Number(r.openings_ft), multiplier: Number(r.multiplier), section: r.section, scale_feet_per_point: Number(r.scale_feet_per_point), needs_checking: !!r.needs_checking });
 
 export function useTakeoff(projectId: string | null, enabled = true) {
   return useQuery({
@@ -31,7 +31,7 @@ export function useTakeoff(projectId: string | null, enabled = true) {
     queryFn: async (): Promise<TakeoffData> => {
       const [c, s, sc] = await Promise.all([
         db.from("takeoff_conditions").select("id,project_id,finish_id,label,kind,colour,default_section,sort_order").eq("project_id", projectId!).order("sort_order").order("created_at"),
-        db.from("takeoff_shapes").select("id,sheet_id,condition_id,kind,vertices,cutouts,openings_ft,multiplier,section,scale_feet_per_point").eq("project_id", projectId!).order("created_at"),
+        db.from("takeoff_shapes").select("id,sheet_id,condition_id,kind,vertices,cutouts,openings_ft,multiplier,section,scale_feet_per_point,needs_checking").eq("project_id", projectId!).order("created_at"),
         db.from("sheet_scales").select("id,sheet_id,region,feet_per_point,provenance").eq("project_id", projectId!),
       ]);
       const err = c.error ?? s.error ?? sc.error;
@@ -62,7 +62,7 @@ export function useTakeoffActions(projectId: string, data: TakeoffData | undefin
     },
     addCondition: async (c) => done<{ id: string }>(await db.from("takeoff_conditions").insert({ ...c, project_id: projectId, sort_order: (data?.conditions.length ?? 0) + 1 }).select("id").single()).id,
     removeCondition: async (id) => void done(await db.from("takeoff_conditions").delete().eq("id", id)),
-    putShape: async (s) => void done(await db.from("takeoff_shapes").upsert({ id: s.id, project_id: projectId, sheet_id: s.sheet_id, condition_id: s.condition_id, kind: s.kind, vertices: s.vertices, cutouts: s.cutouts, openings_ft: s.openings_ft, multiplier: s.multiplier, section: s.section, qty: qty(s), scale_feet_per_point: s.scale_feet_per_point })),
+    putShape: async (s) => void done(await db.from("takeoff_shapes").upsert({ id: s.id, project_id: projectId, sheet_id: s.sheet_id, condition_id: s.condition_id, kind: s.kind, vertices: s.vertices, cutouts: s.cutouts, openings_ft: s.openings_ft, multiplier: s.multiplier, section: s.section, qty: qty(s), scale_feet_per_point: s.scale_feet_per_point, needs_checking: !!s.needs_checking })),
     updateShape: async (id, patch) => {
       const cur = data?.shapes.find((x) => x.id === id);
       done(await db.from("takeoff_shapes").update({ ...patch, ...(cur ? { qty: qty({ ...cur, ...patch }) } : {}) }).eq("id", id));
