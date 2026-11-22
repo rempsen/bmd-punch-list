@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRightLeft, Hammer, LayoutDashboard } from "lucide-react
 import { toast } from "sonner";
 import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
+import { BillingTab } from "@/components/billing/BillingTab";
 import { QuotesTab } from "@/components/quotes/QuotesTab";
 
 // The plan viewer brings pdf.js with it, so it is fetched only when the Takeoff tab is opened.
@@ -41,7 +42,7 @@ const TABS = [
   { key: "estimate", label: "Estimate" },
   { key: "quotes", label: "Quotes" },
   { key: "site", label: "Site" },
-  { key: "billing", label: "Billing", phase: 4 },
+  { key: "billing", label: "Billing" },
   { key: "activity", label: "Activity" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -125,6 +126,7 @@ function ProjectPage() {
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
         {tab === "estimate" && <EstimateTab projectId={project.id} />}
         {tab === "quotes" && <QuotesTab projectId={project.id} />}
+        {tab === "billing" && <BillingTab projectId={project.id} />}
         {tab === "takeoff" && (
           <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
             <TakeoffTab projectId={project.id} />
@@ -132,12 +134,6 @@ function ProjectPage() {
         )}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
         {tab === "activity" && <Activity projectId={project.id} />}
-        {"phase" in current && (
-          <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
-            <p className="font-medium">{current.label}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Coming in phase {current.phase}.</p>
-          </div>
-        )}
       </div>
 
       {moving && (
