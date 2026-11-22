@@ -46,7 +46,7 @@ export const QUOTE_COLS =
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };
 
-/** The saved company details (Settings → Quotes). Kept here, free of browser-only code, because the server reads it when a quote is sent. */
+/** The saved company details (Company settings → Quotes). Kept here, free of browser-only code, because the server reads it when a quote is sent. */
 export async function loadBranding(sb: Sb): Promise<Branding> {
   const { data, error } = await sb.from("quote_settings").select(SETTINGS_COLS).eq("id", 1).maybeSingle();
   if (error) throw new Error(error.message);

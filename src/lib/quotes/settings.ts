@@ -1,4 +1,4 @@
-/** Reading and saving the company's quote settings (Settings → Quotes), and the logo that goes on every quote. */
+/** Reading and saving the company's quote settings (Company settings → Quotes), and the logo that goes on every quote. */
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import { brandingFrom, checkLogo, LOGO_MAX_CHARS, SETTINGS_COLS, type Branding, type Logo, type SettingsRow } from "./branding";
@@ -17,7 +17,7 @@ const builtInLogo = () =>
     .then((url) => (url ? measure(url) : null))
     .catch(() => null);
 
-/** The logo for a quote: the one uploaded under Settings → Quotes, else the built-in BMD logo. Browser only. */
+/** The logo for a quote: the one uploaded under Company settings → Quotes, else the built-in BMD logo. Browser only. */
 export async function loadLogo(): Promise<Logo | null> {
   try {
     const { data } = await db.from("quote_settings").select("logo_data_url,logo_width,logo_height").eq("id", 1).maybeSingle();

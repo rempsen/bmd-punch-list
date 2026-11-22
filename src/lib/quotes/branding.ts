@@ -1,6 +1,6 @@
 /**
  * The company's own details on a quote: name, addresses, contact, footer wording, short terms and the standard
- * terms and conditions. Set once under Settings → Quotes and frozen into each quote when it is sent.
+ * terms and conditions. Set once under Company settings → Quotes and frozen into each quote when it is sent.
  */
 export type Branding = {
   companyName: string;

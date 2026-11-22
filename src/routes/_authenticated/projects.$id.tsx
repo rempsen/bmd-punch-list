@@ -402,7 +402,7 @@ function SiteTab({ project, canEdit }: { project: PipelineProject; canEdit: bool
             <LayoutDashboard className="mr-2 h-4 w-4" /> Open site tracker
           </Button>
         ) : (
-          <p className="mt-3 text-sm">You aren't on this job's site team yet. Ask an admin to add you in Settings → Users.</p>
+          <p className="mt-3 text-sm">You aren't on this job's site team yet. Ask an admin to add you in Job settings → Users on this job.</p>
         )}
       </Panel>
     );

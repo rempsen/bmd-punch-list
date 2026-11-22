@@ -95,7 +95,7 @@ function JobsPage() {
         ) : jobs.length === 0 ? (
           <div className="rounded-lg border border-border bg-card p-6 text-sm">
             <p className="font-medium">You haven't been added to a job yet.</p>
-            <p className="mt-1 text-muted-foreground">Ask your BMD admin to add you to a job in Settings → Users.</p>
+            <p className="mt-1 text-muted-foreground">Ask your BMD admin to add you to a job in Job settings → Users on this job.</p>
           </div>
         ) : (
           <>

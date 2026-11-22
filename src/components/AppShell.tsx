@@ -25,12 +25,15 @@ import {
 import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
+import { settingsGroup } from "@/lib/settings-tabs";
 import { cn } from "@/lib/utils";
 
-type NavItem = { to: string; label: string; short?: string; icon: typeof Camera; group?: "company" };
+type NavItem = { to: string; label: string; short?: string; icon: typeof Camera; group?: "company"; /** For the two Settings entries: which tab to open. */ search?: { tab: string } };
+/** The two Settings entries share one page, so each is lit only when its own kind of settings is open. */
+const isActive = (item: NavItem, pathname: string, tab: string | undefined) => pathname.startsWith(item.to) && (!item.search || settingsGroup(tab) === settingsGroup(item.search.tab));
 
 export function useNavItems() {
-  const { can, canAny, role } = useAuth();
+  const { can, canAny, role, isSuperAdmin } = useAuth();
   const items: NavItem[] = [];
   // Company-wide areas for BMD staff. Trades, clients and viewers never see these.
   if (canAny("view_pipeline")) {
@@ -59,8 +62,11 @@ export function useNavItems() {
   if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images });
   if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });
+  // Settings come in two kinds. Company settings sit with the company-wide areas; job settings sit with the current job.
+  const companyTab = canAny("send_quotes") ? "quotes" : canAny("manage_integrations") ? "microsoft" : isSuperAdmin ? "allusers" : can("manage_settings") ? "projects" : null;
+  if (companyTab) items.push({ to: "/settings", search: { tab: companyTab }, label: "Company settings", short: "Company", icon: Settings, group: "company" });
   if (can("manage_settings") || can("manage_users"))
-    items.push({ to: "/settings", label: "Settings", icon: Settings });
+    items.push({ to: "/settings", search: { tab: can("manage_settings") ? "project" : "users" }, label: "Job settings", short: "Job", icon: Settings });
   return items;
 }
 
@@ -70,6 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const jobNav = nav.filter((i) => i.group !== "company");
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const tabNow = useRouterState({ select: (s) => (s.location.search as { tab?: string }).tab });
   const onJobs = ["/jobs", "/new-job", "/projects", "/clients", "/pipeline", "/catalogue"].some((p) => pathname.startsWith(p));
   if (!loading && jobsLoaded && !currentJob && !onJobs) return <Navigate to="/jobs" replace />;
 
@@ -85,11 +92,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               <nav aria-label="BMD Projects" className="mb-3 flex flex-col gap-1">
                 {company.map((item) => (
                   <Link
-                    key={item.to}
+                    key={item.label}
                     to={item.to}
+                    {...(item.search ? { search: item.search } : {})}
                     className={cn(
                       "flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-medium transition-colors",
-                      pathname.startsWith(item.to)
+                      isActive(item, pathname, tabNow)
                         ? "border-blush bg-sidebar-accent text-sidebar-accent-foreground"
                         : "border-transparent opacity-80 hover:bg-sidebar-accent/60",
                     )}
@@ -105,12 +113,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           <nav aria-label="Current job" className="flex flex-1 flex-col gap-1 overflow-y-auto">
             {jobNav.map((item) => (
               <Link
-                key={item.to}
+                key={item.label}
                 to={item.to}
+                {...(item.search ? { search: item.search } : {})}
                 className={cn(
                   item.to === "/settings" && "mt-auto",
                   "flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-medium transition-colors",
-                  pathname.startsWith(item.to)
+                  isActive(item, pathname, tabNow)
                     ? "border-blush bg-sidebar-accent text-sidebar-accent-foreground"
                     : "border-transparent opacity-80 hover:bg-sidebar-accent/60",
                 )}
@@ -123,7 +132,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 to="/new-job"
                 className={cn(
-                  !nav.some((i) => i.to === "/settings") && "mt-auto",
+                  !jobNav.some((i) => i.to === "/settings") && "mt-auto",
                   "order-last flex items-center gap-3 rounded-md border-l-2 border-transparent px-3 py-2.5 text-sm font-medium opacity-80 transition-colors hover:bg-sidebar-accent/60",
                 )}
               >

@@ -31,6 +31,7 @@ import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
+import { settingsHeading } from "@/lib/settings-tabs";
 import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
 import { Microsoft365Panel } from "@/components/settings/Microsoft365Panel";
 
@@ -73,7 +74,27 @@ function SettingsPage() {
   const canUsers = can("manage_users");
   const canMicrosoft = canAny("send_quotes") || canAny("manage_integrations");
   const canQuotes = canAny("send_quotes");
+  const navigate = Route.useNavigate();
+  // Company-wide settings first, then the settings of the job that is open. Each list holds only what this person may open.
+  const companyTabs = ([
+    [canQuotes, "quotes", "Quotes"],
+    [canMicrosoft, "microsoft", "Microsoft 365 & AI"],
+    [isSuperAdmin, "allusers", "All users"],
+    [isSuperAdmin, "roles", "Roles"],
+    [canSettings, "projects", "All jobs"],
+    [canSettings, "jobs", "Jobs admin"],
+  ] as const).filter(([ok]) => ok).map(([, value, label]) => [value, label] as const);
+  const jobTabs = ([
+    [canSettings, "project", "Job details"],
+    [canSettings, "structure", "Floors & rooms"],
+    [canSettings, "lists", "Pick lists"],
+    [canUsers, "users", "Users on this job"],
+    [canSettings, "companycam", "CompanyCam"],
+  ] as const).filter(([ok]) => ok).map(([, value, label]) => [value, label] as const);
+  const allowed = [...companyTabs, ...jobTabs].map(([value]) => value as string);
   const search = Route.useSearch();
+  const tab = search.tab && allowed.includes(search.tab) ? search.tab : (allowed[0] ?? "jobs");
+  const heading = settingsHeading(tab, project?.name);
   const { data: items = [] } = useDeficiencies(project?.id);
 
   const refresh = () => {
@@ -195,22 +216,33 @@ function SettingsPage() {
 
   return (
     <div>
-      <PageHeader title="Settings" subtitle={project?.name ?? undefined} />
+      <PageHeader title={heading.title} subtitle={heading.subtitle} />
       <div className="p-4 md:p-6">
-        <Tabs defaultValue={search.tab ?? (canSettings ? "jobs" : "users")}>
-          <TabsList className="flex h-auto flex-wrap justify-start gap-1">
-            {canSettings && <TabsTrigger value="jobs">Jobs admin</TabsTrigger>}
-            {canSettings && <TabsTrigger value="structure">Floors &amp; rooms</TabsTrigger>}
-            {canSettings && <TabsTrigger value="lists">Pick lists</TabsTrigger>}
-            {canUsers && <TabsTrigger value="users">Users</TabsTrigger>}
-            {isSuperAdmin && <TabsTrigger value="allusers">All users</TabsTrigger>}
-            {isSuperAdmin && <TabsTrigger value="roles">Roles</TabsTrigger>}
-            {canSettings && <TabsTrigger value="project">Job details</TabsTrigger>}
-            {canSettings && <TabsTrigger value="projects">All jobs</TabsTrigger>}
-            {canSettings && <TabsTrigger value="companycam">CompanyCam</TabsTrigger>}
-            {canMicrosoft && <TabsTrigger value="microsoft">Microsoft 365</TabsTrigger>}
-            {canQuotes && <TabsTrigger value="quotes">Quotes</TabsTrigger>}
-          </TabsList>
+        <Tabs value={tab} onValueChange={(v) => void navigate({ search: (prev) => ({ ...prev, tab: v, ms: undefined, message: undefined }), replace: true })}>
+          {companyTabs.length > 0 && (
+            <div className="mb-3">
+              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company settings · apply to every job</h2>
+              <TabsList className="flex h-auto flex-wrap justify-start gap-1">
+                {companyTabs.map(([value, label]) => (
+                  <TabsTrigger key={value} value={value}>
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          )}
+          {jobTabs.length > 0 && (
+            <div className="mb-4">
+              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Job settings · {project?.name ?? "no job selected"}</h2>
+              <TabsList className="flex h-auto flex-wrap justify-start gap-1">
+                {jobTabs.map(([value, label]) => (
+                  <TabsTrigger key={value} value={value}>
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          )}
 
           {canQuotes && (
             <TabsContent value="quotes">

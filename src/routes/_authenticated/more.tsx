@@ -41,8 +41,9 @@ function MorePage() {
         <div className="grid gap-2 sm:grid-cols-2">
           {nav.map((item) => (
             <Link
-              key={item.to}
+              key={item.label}
               to={item.to}
+              {...(item.search ? { search: item.search } : {})}
               className="flex min-h-[60px] items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium"
             >
               <item.icon className="h-5 w-5 text-primary" />

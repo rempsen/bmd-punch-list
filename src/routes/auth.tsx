@@ -135,7 +135,7 @@ function AuthPage() {
         </button>
         <p className="mt-4 text-center text-xs text-muted-foreground">
           You'll see the jobs your BMD admin invited you to. If you don't see a job, ask your BMD
-          admin to add you in Settings → Users.
+          admin to add you in Job settings → Users on this job.
         </p>
       </div>
     </div>

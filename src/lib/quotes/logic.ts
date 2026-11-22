@@ -33,14 +33,14 @@ export function normalizeDisplay(raw: Partial<Record<keyof QuoteDisplay, unknown
   return { groupBy: raw.groupBy === "material" || raw.groupBy === "section" ? raw.groupBy : d.groupBy, showLines: flag("showLines"), showQuantities: flag("showQuantities"), showUnitPrices: flag("showUnitPrices"), showLineAmounts: flag("showLineAmounts"), showGroupSubtotals: flag("showGroupSubtotals") };
 }
 
-/** The company's details when nothing has been saved under Settings → Quotes. Quotes read the saved details from their snapshot. */
+/** The company's details when nothing has been saved under Company settings → Quotes. Quotes read the saved details from their snapshot. */
 export const BMD = {
   name: DEFAULT_BRANDING.companyName,
   mailing: DEFAULT_BRANDING.mailingAddress,
   email: DEFAULT_BRANDING.email,
 };
 
-/** The short terms under the price: validity and deposit come from the quote, the rest from Settings → Quotes. */
+/** The short terms under the price: validity and deposit come from the quote, the rest from Company settings → Quotes. */
 export const standingTerms = (validityDays: number, deposit: string | null, shortTerms: string[] = DEFAULT_BRANDING.shortTerms) => [
   `This quotation is valid for ${validityDays} days from its date.`,
   deposit ? `Deposit: ${deposit}` : "No deposit is required unless stated above.",

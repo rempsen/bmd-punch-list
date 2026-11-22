@@ -585,7 +585,7 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
                 <p className="text-xs text-muted-foreground">
                   The logo, company addresses, footer, short terms and the standard terms and conditions page are set once for every quote under{" "}
                   <Link to="/settings" search={{ tab: "quotes" }} className="underline">
-                    Settings → Quotes
+                    Company settings → Quotes
                   </Link>
                   .
                 </p>

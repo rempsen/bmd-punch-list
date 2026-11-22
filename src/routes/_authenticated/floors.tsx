@@ -202,8 +202,8 @@ function FloorsPage() {
               {isAdmin && (
                 <>
                   {" "}
-                  <Link to="/settings" className="font-medium text-primary underline-offset-4 hover:underline">
-                    Add rooms in Settings
+                  <Link to="/settings" search={{ tab: "structure" }} className="font-medium text-primary underline-offset-4 hover:underline">
+                    Add rooms in Job settings
                   </Link>
                 </>
               )}

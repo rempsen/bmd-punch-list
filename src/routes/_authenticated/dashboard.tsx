@@ -143,8 +143,8 @@ function DashboardPage() {
           </div>
           <ol className="mt-3 grid gap-2 sm:grid-cols-3">
             {[
-              { to: "/settings" as const, search: { tab: "users" }, label: "Invite users", hint: "Settings → Users" },
-              { to: "/settings" as const, search: { tab: "lists" }, label: "Review pick lists", hint: "Settings → Pick lists" },
+              { to: "/settings" as const, search: { tab: "users" }, label: "Invite users", hint: "Job settings → Users on this job" },
+              { to: "/settings" as const, search: { tab: "lists" }, label: "Review pick lists", hint: "Job settings → Pick lists" },
               { to: "/capture" as const, search: undefined, label: "Add a deficiency", hint: "Log the first deficiency" },
             ].map((c) => (
               <li key={c.label}>
