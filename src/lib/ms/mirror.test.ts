@@ -260,9 +260,63 @@ describe("matchClientFolders", () => {
         ],
         folders,
       ),
-    ).toEqual([{ clientId: "c1", clientName: "Kothari Group", folderId: "f1", folderName: "KOTHARI GROUP" }]);
+    ).toEqual([{ clientId: "c1", clientName: "Kothari Group", folderId: "f1", folderName: "KOTHARI GROUP", confidence: "exact" }]);
   });
   test("an ambiguous name is left for a person to decide", () => {
     expect(matchClientFolders([{ id: "c1", name: "Acme", onedrive_folder_id: null }], folders)).toEqual([]);
+  });
+});
+
+describe("matchClientFolders: near matches from the real Customers folder", () => {
+  const names = ["31 Colchester - Dave and Marisa Hochman", "Allard Condos", "Bost Construction", "Brian and Gail", "Britewater Living Riverbend Construction", "Bull & Filly", "Chisick, Dan", "Direct Focus", "Edgecorp", "Grace Anne", "Hofer", "Jim Patison Collison Center", "Kaebe Custome Homes", "Kotahri", "Launch Construction", "Nemy", "NEXUS HOMES", "Ray Wan Tuxedo", "Sigfusson 525 Bower", "Thiessen Construction", "Weinstein", "PCL", "MRH", "Patrick Payne Supply Only", "One Time Clients"];
+  const folders = names.map((name, i) => ({ id: `f${i}`, name }));
+  const c = (name: string, onedrive_folder_id: string | null = null) => ({ id: name, name, onedrive_folder_id });
+  const pick = (clients: ReturnType<typeof c>[]) => matchClientFolders(clients, folders).map((p) => `${p.clientName} -> ${p.folderName} (${p.confidence})`);
+
+  test("an exact name is marked exact; '&' and 'and' are the same word", () => {
+    expect(pick([c("Bull and Filly")])).toEqual(["Bull and Filly -> Bull & Filly (exact)"]);
+  });
+  test("reordered names, dropped company words, extra words and small typos are offered as likely", () => {
+    expect(
+      pick([c("Dan Chisick"), c("EdgeCorp Group"), c("Rick Hofer"), c("Adam Nemy"), c("Michael & Erin Weinstein"), c("Brian & Gail Chornoboy"), c("Riverbend Construction"), c("Kaebe Homes"), c("Allard development inc"), c("Dorect Focus"), c("Jim Pattison Collision & Glass"), c("Bosk Construction"), c("David Hochman"), c("Heida & Skuli Sigfusson"), c("Ray Wan Architect")]),
+    ).toEqual([
+      "Dan Chisick -> Chisick, Dan (likely)",
+      "EdgeCorp Group -> Edgecorp (likely)",
+      "Rick Hofer -> Hofer (likely)",
+      "Adam Nemy -> Nemy (likely)",
+      "Michael & Erin Weinstein -> Weinstein (likely)",
+      "Brian & Gail Chornoboy -> Brian and Gail (likely)",
+      "Riverbend Construction -> Britewater Living Riverbend Construction (likely)",
+      "Kaebe Homes -> Kaebe Custome Homes (likely)",
+      "Allard development inc -> Allard Condos (likely)",
+      "Dorect Focus -> Direct Focus (likely)",
+      "Jim Pattison Collision & Glass -> Jim Patison Collison Center (likely)",
+      "Bosk Construction -> Bost Construction (likely)",
+      "David Hochman -> 31 Colchester - Dave and Marisa Hochman (likely)",
+      "Heida & Skuli Sigfusson -> Sigfusson 525 Bower (likely)",
+      "Ray Wan Architect -> Ray Wan Tuxedo (likely)",
+    ]);
+  });
+  test("two clients that fit one folder equally are both offered; a closer fit wins outright", () => {
+    expect(pick([c("Kothari Trail"), c("Kothari Place")])).toEqual(["Kothari Trail -> Kotahri (likely)", "Kothari Place -> Kotahri (likely)"]);
+    expect(pick([c("Kothari Group"), c("Kothari Trail")])).toEqual(["Kothari Group -> Kotahri (likely)"]);
+  });
+  test("company words, short first names and unrelated names are not a match", () => {
+    expect(pick([c("Bockstael Construction"), c("Emmett Leo Homes"), c("Dan Rosenblat"), c("Winnipeg Blue Bombers"), c("Procast")])).toEqual([]);
+  });
+  test("a short name that is the whole folder name is offered", () => {
+    expect(pick([c("MRH Management")])).toEqual(["MRH Management -> MRH (likely)"]);
+  });
+  test("a look-alike word with a different first letter, or a generic word, is not a match", () => {
+    expect(pick([c("Jayne Steeves"), c("Lev Zenter"), c("UNKNOWN CUSTOMER"), c("General Client"), c("Women's Enterprise Center")])).toEqual([]);
+  });
+  test("a folder goes only to the client that fits it best", () => {
+    expect(pick([c("Jim Pattison Collision & Glass"), c("Jim Fettes"), c("Patrick Payne"), c("Patrick Collison")])).toEqual([
+      "Jim Pattison Collision & Glass -> Jim Patison Collison Center (likely)",
+      "Patrick Payne -> Patrick Payne Supply Only (likely)",
+    ]);
+  });
+  test("a folder already linked to a client is not offered to another", () => {
+    expect(pick([c("Grace Anne", "f9"), c("Grace Christian Church")])).toEqual([]);
   });
 });
