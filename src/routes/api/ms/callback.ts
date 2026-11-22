@@ -50,8 +50,10 @@ export const Route = createFileRoute("/api/ms/callback")({
           await saveConnection({ user_id: payload.userId, account_email: email, refresh_token_enc: tokens.refreshTokenEnc, scopes: SCOPES.join(" "), library: payload.kind === "library" });
           return back(origin, { ms: "connected" });
         } catch (e) {
-          console.error("[ms callback]", (e as Error).message);
-          return fail("Could not finish connecting Microsoft 365. Try again.");
+          // Microsoft's own wording (an AADSTS code and a sentence) says what to fix and holds nothing secret.
+          const reason = ((e as Error).message || "").split("\n")[0]!.replace(/Trace ID.*$/i, "").slice(0, 160);
+          console.error("[ms callback]", reason);
+          return fail(`Could not finish connecting Microsoft 365. ${reason}`.trim());
         }
       },
     },
