@@ -1,6 +1,6 @@
 {
-  "name": "BMD Deficiency Tracker",
-  "short_name": "BMD Tracker",
+  "name": "BMD Projects",
+  "short_name": "BMD Projects",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F9FAFA",

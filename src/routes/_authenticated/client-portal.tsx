@@ -14,9 +14,9 @@ import { useSignedUrls } from "@/lib/photos";
 export const Route = createFileRoute("/_authenticated/client-portal")({
   head: () => ({
     meta: [
-      { title: "Client portal — BMD Deficiency Tracker" },
+      { title: "Client portal — BMD Projects" },
       { name: "description", content: "Review items BMD has sent for your decision and accept or request a fix." },
-      { property: "og:title", content: "Client portal — BMD Deficiency Tracker" },
+      { property: "og:title", content: "Client portal — BMD Projects" },
       { property: "og:description", content: "Review items BMD has sent for your decision and accept or request a fix." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

@@ -243,7 +243,7 @@ export async function syncProject(admin: Admin, projectId: string) {
     const cr = open.filter((d) => d.assessment === "client_review").length;
     await cc(`/projects/${ccId}/notepad`, {
       method: "PUT",
-      body: { notepad: `BMD Deficiency Tracker — ${open.length} open (${mf} must fix, ${cr} client review), last sync ${new Date().toLocaleString("en-CA", { timeZone: "America/Winnipeg" })}` },
+      body: { notepad: `BMD Projects — ${open.length} open (${mf} must fix, ${cr} client review), last sync ${new Date().toLocaleString("en-CA", { timeZone: "America/Winnipeg" })}` },
     });
   } catch (e) {
     await fail("notepad_out", e);

@@ -32,9 +32,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/new-job")({
   head: () => ({
     meta: [
-      { title: "New job — BMD Deficiency Tracker" },
+      { title: "New job — BMD Projects" },
       { name: "description", content: "Set up a new BMD job: details, client, scopes and building layout." },
-      { property: "og:title", content: "New job — BMD Deficiency Tracker" },
+      { property: "og:title", content: "New job — BMD Projects" },
       { property: "og:description", content: "Guided setup for a new BMD Materials job." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

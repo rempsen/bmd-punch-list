@@ -15,6 +15,7 @@ import {
   Plus,
   Building2,
   FolderKanban,
+  Columns3,
   Briefcase,
   Images,
   Sparkles,
@@ -24,11 +25,17 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-type NavItem = { to: string; label: string; short?: string; icon: typeof Camera };
+type NavItem = { to: string; label: string; short?: string; icon: typeof Camera; group?: "company" };
 
 export function useNavItems() {
   const { can, canAny, role } = useAuth();
   const items: NavItem[] = [];
+  // Company-wide areas for BMD staff. Trades, clients and viewers never see these.
+  if (canAny("view_pipeline")) {
+    items.push({ to: "/pipeline", label: "Pipeline", icon: Columns3, group: "company" });
+    items.push({ to: "/projects", label: "Projects", icon: FolderKanban, group: "company" });
+    items.push({ to: "/clients", label: "Clients", icon: Building2, group: "company" });
+  }
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench });
   if (isTrade) items.push({ to: "/trade-portal", label: "Trade portal", short: "Portal", icon: Briefcase });
@@ -48,10 +55,6 @@ export function useNavItems() {
   if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images });
   if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });
-  if (canAny("view_pipeline")) {
-    items.push({ to: "/projects", label: "Projects", icon: FolderKanban });
-    items.push({ to: "/clients", label: "Clients", icon: Building2 });
-  }
   if (can("manage_settings") || can("manage_users"))
     items.push({ to: "/settings", label: "Settings", icon: Settings });
   return items;
@@ -59,6 +62,8 @@ export function useNavItems() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const nav = useNavItems();
+  const company = nav.filter((i) => i.group === "company");
+  const jobNav = nav.filter((i) => i.group !== "company");
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const onJobs = ["/jobs", "/new-job", "/projects", "/clients", "/pipeline"].some((p) => pathname.startsWith(p));
@@ -72,10 +77,29 @@ export function AppShell({ children }: { children: ReactNode }) {
         <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 text-sidebar-foreground md:sticky md:top-0 md:flex md:h-screen">
           <div className="mb-4 border-b border-sidebar-border px-2 pb-4">
             <img src="/bmd-logo.png" alt="BMD Materials" className="mx-auto mb-4 w-[130px]" />
+            {company.length > 0 && (
+              <nav aria-label="BMD Projects" className="mb-3 flex flex-col gap-1">
+                {company.map((item) => (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-medium transition-colors",
+                      pathname.startsWith(item.to)
+                        ? "border-blush bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "border-transparent opacity-80 hover:bg-sidebar-accent/60",
+                    )}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
             <JobBadge />
           </div>
-          <nav className="flex flex-1 flex-col gap-1">
-            {nav.map((item) => (
+          <nav aria-label="Current job" className="flex flex-1 flex-col gap-1 overflow-y-auto">
+            {jobNav.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}

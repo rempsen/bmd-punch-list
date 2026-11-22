@@ -7,12 +7,12 @@ export const Route = createFileRoute("/")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "BMD Deficiency Tracker" },
+      { title: "BMD Projects" },
       {
         name: "description",
         content: "Punch list and deficiency tracking for BMD Materials flooring and tile jobs.",
       },
-      { property: "og:title", content: "BMD Deficiency Tracker" },
+      { property: "og:title", content: "BMD Projects" },
       {
         property: "og:description",
         content: "Capture, track and close flooring and tile deficiencies from the field.",

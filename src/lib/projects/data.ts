@@ -119,3 +119,56 @@ export const staffName = (staff: Staff[], id: string | undefined) => {
 };
 
 export const holderOf = (p: PipelineProject, role: JobRole) => p.members.find((m) => m.job_roles.includes(role))?.user_id;
+
+export type StageEvent = {
+  id: string;
+  from_stage: ProjectStage | null;
+  to_stage: ProjectStage;
+  changed_by: string | null;
+  changed_at: string;
+  note: string | null;
+};
+
+export function useStageEvents(projectId: string | null) {
+  return useQuery({
+    queryKey: ["pipeline-project", projectId, "events"],
+    enabled: !!projectId,
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("project_stage_events")
+        .select("id,from_stage,to_stage,changed_by,changed_at,note")
+        .eq("project_id", projectId!)
+        .order("changed_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as StageEvent[];
+    },
+  });
+}
+
+export type ProjectDetailsInput = {
+  name: string;
+  bid_due_date: string | null;
+  job_type: string | null;
+  estimated_value_cents: number | null;
+  notes: string | null;
+};
+
+export async function saveProjectDetails(id: string, input: ProjectDetailsInput) {
+  if (!input.name.trim()) throw new Error("Project name is required");
+  const { error } = await db.from("projects").update({ ...input, name: input.name.trim() }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export const money = (cents: number | null) =>
+  cents == null ? "—" : (cents / 100).toLocaleString("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
+
+export const shortDate = (d: string | null) =>
+  d ? new Date(d.length === 10 ? `${d}T12:00:00` : d).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" }) : "—";
+
+export const initials = (name: string | null) =>
+  (name ?? "?")
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");

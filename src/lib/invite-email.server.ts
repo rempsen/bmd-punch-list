@@ -16,7 +16,7 @@ ${bodyHtml}
 ${button ? `<p style="margin:24px 0"><a href="${button.href}" style="display:inline-block;background:#1b2a4a;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:6px;font-weight:bold">${esc(button.label)}</a></p>
 <p style="font-size:12px;color:#6b7280">Or paste this link into your browser:<br>${esc(button.href)}</p>` : ""}
 </td></tr>
-<tr><td style="padding:16px 28px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb">BMD Materials · Deficiency Tracker</td></tr>
+<tr><td style="padding:16px 28px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb">BMD Materials · BMD Projects</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -73,14 +73,14 @@ export function inviteEmail(p: {
   const html = layout(
     `You're invited to ${p.jobName}`,
     `<p>${esc(hi)}</p>
-<p><strong>${esc(p.inviterName)}</strong> has invited you to the BMD Deficiency Tracker for <strong>${esc(p.jobName)}</strong>${p.jobAddress ? `, ${esc(p.jobAddress)}` : ""}.</p>
+<p><strong>${esc(p.inviterName)}</strong> has invited you to BMD Projects for <strong>${esc(p.jobName)}</strong>${p.jobAddress ? `, ${esc(p.jobAddress)}` : ""}.</p>
 <p>Your access: <strong>${esc(p.roleLabel)}</strong></p>
 <p>Create your account with this email address (${esc(p.email)}) to get started. This invitation expires in 14 days.</p>`,
     { href, label: "Create your account" },
   );
   const text = `${hi}
 
-${p.inviterName} has invited you to the BMD Deficiency Tracker for ${where}.
+${p.inviterName} has invited you to BMD Projects for ${where}.
 Your access: ${p.roleLabel}
 
 Create your account with ${p.email} here:
@@ -88,7 +88,7 @@ ${href}
 
 This invitation expires in 14 days.
 — BMD Materials`;
-  return { subject: `You're invited to the BMD Deficiency Tracker – ${p.jobName}`, html, text };
+  return { subject: `You're invited to BMD Projects – ${p.jobName}`, html, text };
 }
 
 export function addedEmail(p: {
@@ -103,14 +103,14 @@ export function addedEmail(p: {
   const html = layout(
     `You've been added to ${p.jobName}`,
     `<p>${esc(hi)}</p>
-<p><strong>${esc(p.inviterName)}</strong> added you to <strong>${esc(p.jobName)}</strong>${p.jobAddress ? `, ${esc(p.jobAddress)}` : ""} on the BMD Deficiency Tracker.</p>
+<p><strong>${esc(p.inviterName)}</strong> added you to <strong>${esc(p.jobName)}</strong>${p.jobAddress ? `, ${esc(p.jobAddress)}` : ""} on BMD Projects.</p>
 <p>Your access: <strong>${esc(p.roleLabel)}</strong></p>
 <p>Sign in with your existing account and choose the job from "Choose a job".</p>`,
     { href, label: "Open the tracker" },
   );
   const text = `${hi}
 
-${p.inviterName} added you to ${p.jobName}${p.jobAddress ? ` (${p.jobAddress})` : ""} on the BMD Deficiency Tracker.
+${p.inviterName} added you to ${p.jobName}${p.jobAddress ? ` (${p.jobAddress})` : ""} on BMD Projects.
 Your access: ${p.roleLabel}
 
 Sign in with your existing account: ${href}

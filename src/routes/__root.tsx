@@ -79,9 +79,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "BMD Deficiency Tracker" },
-      { name: "application-name", content: "BMD Deficiency Tracker" },
-      { name: "apple-mobile-web-app-title", content: "BMD Deficiency Tracker" },
+      { title: "BMD Projects" },
+      { name: "application-name", content: "BMD Projects" },
+      { name: "apple-mobile-web-app-title", content: "BMD Projects" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "theme-color", content: "#F9FAFA" },
       {
@@ -89,7 +89,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "Flooring and tile punch list tracking for BMD Materials.",
       },
       { name: "author", content: "BMD Materials" },
-      { property: "og:title", content: "BMD Deficiency Tracker" },
+      { property: "og:title", content: "BMD Projects" },
       {
         property: "og:description",
         content: "Flooring and tile punch list tracking for BMD Materials.",

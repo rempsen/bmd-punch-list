@@ -74,14 +74,14 @@ function NewProjectPage() {
     }
     setBusy(true);
     try {
-      await createPipelineProject({
+      const id = await createPipelineProject({
         ...f,
         scopes: scopes.map((s) => ({ scope: s, other_text: s === "other" ? other.trim() || null : null })),
       });
       await refreshPermissions();
       refreshPipeline();
       toast.success(`${f.name.trim()} created in Opportunity`);
-      void navigate({ to: "/projects" });
+      void navigate({ to: "/projects/$id", params: { id } });
     } catch (e) {
       toast.error(`Could not create the project: ${errText(e)}`);
     } finally {

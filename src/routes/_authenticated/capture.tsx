@@ -25,7 +25,7 @@ import { useProjectPeople } from "@/lib/assign";
 import { loadLastResp, saveLastResp, normResp, normText, type Responsible } from "@/lib/responsible";
 
 export const Route = createFileRoute("/_authenticated/capture")({
-  head: () => ({ meta: [{ title: "Add a deficiency — BMD Deficiency Tracker" }] }),
+  head: () => ({ meta: [{ title: "Add a deficiency — BMD Projects" }] }),
   component: CapturePage,
 });
 

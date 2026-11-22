@@ -72,9 +72,9 @@ export const Route = createFileRoute("/_authenticated/list")({
   }),
   head: () => ({
     meta: [
-      { title: "All items — BMD Deficiency Tracker" },
+      { title: "All items — BMD Projects" },
       { name: "description", content: "Search, filter, sort and assign every deficiency on the job." },
-      { property: "og:title", content: "All items — BMD Deficiency Tracker" },
+      { property: "og:title", content: "All items — BMD Projects" },
       { property: "og:description", content: "Search, filter, sort and assign every deficiency on the job." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

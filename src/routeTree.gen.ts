@@ -31,12 +31,14 @@ import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/m
 import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated/my-work'
 import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated/new-job'
 import { Route as AuthenticatedPhotosRouteImport } from './routes/_authenticated/photos'
+import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects.index'
+import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects.$id'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
@@ -154,6 +156,11 @@ const AuthenticatedPhotosRoute = AuthenticatedPhotosRouteImport.update({
   path: '/photos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
+  id: '/pipeline',
+  path: '/pipeline',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -186,6 +193,11 @@ const AuthenticatedProjectsIndexRoute =
     path: '/projects/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedProjectsIdRoute = AuthenticatedProjectsIdRouteImport.update({
+  id: '/projects/$id',
+  path: '/projects/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedProjectsNewRoute =
   AuthenticatedProjectsNewRouteImport.update({
     id: '/projects/new',
@@ -226,11 +238,13 @@ export interface FileRoutesByFullPath {
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
   '/photos': typeof AuthenticatedPhotosRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
@@ -258,11 +272,13 @@ export interface FileRoutesByTo {
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
   '/photos': typeof AuthenticatedPhotosRoute
+  '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
+  '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
@@ -292,11 +308,13 @@ export interface FileRoutesById {
   '/_authenticated/my-work': typeof AuthenticatedMyWorkRoute
   '/_authenticated/new-job': typeof AuthenticatedNewJobRoute
   '/_authenticated/photos': typeof AuthenticatedPhotosRoute
+  '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
+  '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/_authenticated/projects/new': typeof AuthenticatedProjectsNewRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
@@ -326,11 +344,13 @@ export interface FileRouteTypes {
     | '/my-work'
     | '/new-job'
     | '/photos'
+    | '/pipeline'
     | '/settings'
     | '/summary'
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/projects/$id'
     | '/projects/new'
     | '/projects/'
     | '/api/public/companycam/webhook'
@@ -358,11 +378,13 @@ export interface FileRouteTypes {
     | '/my-work'
     | '/new-job'
     | '/photos'
+    | '/pipeline'
     | '/settings'
     | '/summary'
     | '/trade-portal'
     | '/.lovable/oauth/consent'
     | '/item/$id'
+    | '/projects/$id'
     | '/projects/new'
     | '/projects'
     | '/api/public/companycam/webhook'
@@ -391,11 +413,13 @@ export interface FileRouteTypes {
     | '/_authenticated/my-work'
     | '/_authenticated/new-job'
     | '/_authenticated/photos'
+    | '/_authenticated/pipeline'
     | '/_authenticated/settings'
     | '/_authenticated/summary'
     | '/_authenticated/trade-portal'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
+    | '/_authenticated/projects/$id'
     | '/_authenticated/projects/new'
     | '/_authenticated/projects/'
     | '/api/public/companycam/webhook'
@@ -569,6 +593,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPhotosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/pipeline': {
+      id: '/_authenticated/pipeline'
+      path: '/pipeline'
+      fullPath: '/pipeline'
+      preLoaderRoute: typeof AuthenticatedPipelineRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -609,6 +640,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/projects/'
       preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/projects/$id': {
+      id: '/_authenticated/projects/$id'
+      path: '/projects/$id'
+      fullPath: '/projects/$id'
+      preLoaderRoute: typeof AuthenticatedProjectsIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/projects/new': {
@@ -653,10 +691,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMyWorkRoute: typeof AuthenticatedMyWorkRoute
   AuthenticatedNewJobRoute: typeof AuthenticatedNewJobRoute
   AuthenticatedPhotosRoute: typeof AuthenticatedPhotosRoute
+  AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSummaryRoute: typeof AuthenticatedSummaryRoute
   AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
+  AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
   AuthenticatedProjectsNewRoute: typeof AuthenticatedProjectsNewRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
 }
@@ -679,10 +719,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMyWorkRoute: AuthenticatedMyWorkRoute,
   AuthenticatedNewJobRoute: AuthenticatedNewJobRoute,
   AuthenticatedPhotosRoute: AuthenticatedPhotosRoute,
+  AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSummaryRoute: AuthenticatedSummaryRoute,
   AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
+  AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
   AuthenticatedProjectsNewRoute: AuthenticatedProjectsNewRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
 }

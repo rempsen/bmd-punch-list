@@ -17,9 +17,9 @@ import { checkMailboxNow, reparseEmail, saveIntakeCorrection } from "@/lib/intak
 export const Route = createFileRoute("/_authenticated/email-intake")({
   head: () => ({
     meta: [
-      { title: "Email intake — BMD Deficiency Tracker" },
+      { title: "Email intake — BMD Projects" },
       { name: "description", content: "Issues emailed to dan+centric@bmdmaterials.com, turned into open deficiencies." },
-      { property: "og:title", content: "Email intake — BMD Deficiency Tracker" },
+      { property: "og:title", content: "Email intake — BMD Projects" },
       { property: "og:description", content: "Issues emailed in, turned into open deficiencies." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

@@ -14,10 +14,10 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Authorize access · BMD Deficiency Tracker" },
-      { name: "description", content: "Approve an assistant's access to BMD Deficiency Tracker." },
-      { property: "og:title", content: "Authorize access · BMD Deficiency Tracker" },
-      { property: "og:description", content: "Approve an assistant's access to BMD Deficiency Tracker." },
+      { title: "Authorize access · BMD Projects" },
+      { name: "description", content: "Approve an assistant's access to BMD Projects." },
+      { property: "og:title", content: "Authorize access · BMD Projects" },
+      { property: "og:description", content: "Approve an assistant's access to BMD Projects." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },

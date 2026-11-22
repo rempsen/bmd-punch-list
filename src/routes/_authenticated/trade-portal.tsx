@@ -12,9 +12,9 @@ import { useSignedUrls } from "@/lib/photos";
 export const Route = createFileRoute("/_authenticated/trade-portal")({
   head: () => ({
     meta: [
-      { title: "Trade portal — BMD Deficiency Tracker" },
+      { title: "Trade portal — BMD Projects" },
       { name: "description", content: "Items assigned to you or your company, with progress updates." },
-      { property: "og:title", content: "Trade portal — BMD Deficiency Tracker" },
+      { property: "og:title", content: "Trade portal — BMD Projects" },
       { property: "og:description", content: "Items assigned to you or your company, with progress updates." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

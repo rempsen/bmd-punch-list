@@ -23,9 +23,9 @@ import {
 export const Route = createFileRoute("/_authenticated/companycam")({
   head: () => ({
     meta: [
-      { title: "CompanyCam — BMD Deficiency Tracker" },
+      { title: "CompanyCam — BMD Projects" },
       { name: "description", content: "Link jobs to CompanyCam, sync deficiency photos and tasks, and review incoming jobsite photos." },
-      { property: "og:title", content: "CompanyCam — BMD Deficiency Tracker" },
+      { property: "og:title", content: "CompanyCam — BMD Projects" },
       { property: "og:description", content: "Two-way CompanyCam photo and task sync for BMD jobs." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

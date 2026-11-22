@@ -15,9 +15,9 @@ import { useSignedUrls } from "@/lib/photos";
 export const Route = createFileRoute("/_authenticated/company-work")({
   head: () => ({
     meta: [
-      { title: "Company items — BMD Deficiency Tracker" },
+      { title: "Company items — BMD Projects" },
       { name: "description", content: "Items assigned to your company, with status, due dates and photos." },
-      { property: "og:title", content: "Company items — BMD Deficiency Tracker" },
+      { property: "og:title", content: "Company items — BMD Projects" },
       { property: "og:description", content: "Items assigned to your company, with status, due dates and photos." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

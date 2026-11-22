@@ -11,9 +11,9 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/_authenticated/jobs")({
   head: () => ({
     meta: [
-      { title: "Choose a job — BMD Deficiency Tracker" },
+      { title: "Choose a job — BMD Projects" },
       { name: "description", content: "Pick the job you want to work on." },
-      { property: "og:title", content: "Choose a job — BMD Deficiency Tracker" },
+      { property: "og:title", content: "Choose a job — BMD Projects" },
       { property: "og:description", content: "Pick the job you want to work on." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

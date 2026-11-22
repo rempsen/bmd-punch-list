@@ -13,6 +13,7 @@ export type Job = {
   archived_at: string | null;
   role: AppRole | null;
   open_count: number;
+  has_site?: boolean;
 };
 
 type AuthValue = {
@@ -50,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [perms, setPerms] = useState<{ role: string; capability: string; allowed: boolean }[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
+  // Every project the user belongs to. Pipeline projects without floors and rooms are not site jobs yet.
+  const [allJobs, setJobs] = useState<Job[]>([]);
   const [jobsLoaded, setJobsLoaded] = useState(false);
   const [projectId, setProjectIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,8 +77,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setJobsLoaded(true);
     setProjectIdState((cur) => {
       const stored = cur ?? (typeof window !== "undefined" ? localStorage.getItem(LS_KEY) : null);
-      if (stored && list.some((x) => x.id === stored)) return stored;
-      const active = list.filter((x) => !x.archived_at);
+      if (stored && list.some((x) => x.id === stored && x.has_site !== false)) return stored;
+      const active = list.filter((x) => !x.archived_at && x.has_site !== false);
       return active.length === 1 ? active[0]!.id : null;
     });
   }, []);
@@ -111,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(LS_KEY);
   }, []);
 
+  const jobs = useMemo(() => allJobs.filter((j) => j.has_site !== false), [allJobs]);
   const currentJob = jobs.find((j) => j.id === projectId) ?? null;
   const role: AppRole | null = currentJob?.role ?? (isSuperAdmin ? "super_admin" : null);
   const caps = useMemo(
@@ -128,9 +131,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     can: (cap) => isSuperAdmin || (!!currentJob && caps.has(cap)),
     canCreateJobs:
       isSuperAdmin ||
-      jobs.some((j) => perms.some((p) => p.allowed && p.capability === "create_jobs" && normalise(p.role) === j.role)),
+      allJobs.some((j) => perms.some((p) => p.allowed && p.capability === "create_jobs" && normalise(p.role) === j.role)),
     canAny: (cap) =>
-      isSuperAdmin || jobs.some((j) => perms.some((p) => p.allowed && p.capability === cap && normalise(p.role) === j.role)),
+      isSuperAdmin || allJobs.some((j) => perms.some((p) => p.allowed && p.capability === cap && normalise(p.role) === j.role)),
     refreshPermissions: () => load(session?.user.id),
     signOut: async () => {
       await supabase.auth.signOut();

@@ -9,13 +9,13 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in · BMD Deficiency Tracker" },
+      { title: "Sign in · BMD Projects" },
       {
         name: "description",
         content:
           "Sign in to the BMD Materials deficiency tracker for flooring and tile punch list work.",
       },
-      { property: "og:title", content: "Sign in · BMD Deficiency Tracker" },
+      { property: "og:title", content: "Sign in · BMD Projects" },
       {
         property: "og:description",
         content: "Field and office access to BMD Materials punch list tracking.",
@@ -78,7 +78,7 @@ function AuthPage() {
     <div className="flex min-h-screen items-center justify-center bg-logo-bg px-4 py-10">
       <div className="w-full max-w-sm rounded-xl border border-border bg-logo-bg p-6 shadow-lg">
         <img src="/bmd-logo.png" alt="BMD Materials" className="mx-auto w-[220px]" />
-        <h1 className="mt-2 text-center text-lg font-semibold tracking-tight">Deficiency Tracker</h1>
+        <h1 className="mt-2 text-center text-lg font-semibold tracking-tight">BMD Projects</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {mode === "signin" ? "Sign in to continue." : "Create your account."}
         </p>

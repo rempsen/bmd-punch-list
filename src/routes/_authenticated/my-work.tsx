@@ -21,9 +21,9 @@ import { today, WorkCard } from "@/components/TradeWork";
 export const Route = createFileRoute("/_authenticated/my-work")({
   head: () => ({
     meta: [
-      { title: "My work — BMD Deficiency Tracker" },
+      { title: "My work — BMD Projects" },
       { name: "description", content: "Trade dashboard: assigned items, due dates and work log." },
-      { property: "og:title", content: "My work — BMD Deficiency Tracker" },
+      { property: "og:title", content: "My work — BMD Projects" },
       { property: "og:description", content: "Trade dashboard: assigned items, due dates and work log." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

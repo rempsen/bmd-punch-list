@@ -15,9 +15,9 @@ import { ccProjectPhotos } from "@/lib/companycam.functions";
 export const Route = createFileRoute("/_authenticated/photos")({
   head: () => ({
     meta: [
-      { title: "Job photos — BMD Deficiency Tracker" },
+      { title: "Job photos — BMD Projects" },
       { name: "description", content: "Every photo on the job: CompanyCam jobsite photos next to deficiency photos uploaded in the tracker." },
-      { property: "og:title", content: "Job photos — BMD Deficiency Tracker" },
+      { property: "og:title", content: "Job photos — BMD Projects" },
       { property: "og:description", content: "CompanyCam and tracker photos side by side for each job." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
