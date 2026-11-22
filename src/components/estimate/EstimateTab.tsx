@@ -1,4 +1,5 @@
 import { Fragment, useMemo, useState } from "react";
+import { ImportDialog } from "./ImportDialog";
 import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { selectCls } from "@/components/catalogue/fields";
@@ -55,7 +56,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   // Change orders are priced on the same worksheet, listed after the estimate prices.
   const shown = useMemo(() => [...estimates, ...versions.filter((v) => v.kind === "change_order")], [versions]); // eslint-disable-line react-hooks/exhaustive-deps
   const active = shown.find((v) => v.id === activeId) ?? shown[0] ?? null;
-  const [dialog, setDialog] = useState<"add" | "paste" | "windows" | "refresh" | "swap" | null>(null);
+  const [dialog, setDialog] = useState<"add" | "paste" | "windows" | "refresh" | "swap" | "import" | null>(null);
   const [comparing, setComparing] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -193,6 +194,9 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                 <Button variant="outline" className="h-10" onClick={() => setDialog("windows")}>
                   Window schedule
                 </Button>
+                <Button variant="outline" className="h-10" onClick={() => setDialog("import")}>
+                  Import prices
+                </Button>
                 <Button variant="outline" className="h-10" onClick={() => setDialog("paste")}>
                   <ClipboardPaste className="mr-1.5 h-4 w-4" /> Paste quantities
                 </Button>
@@ -319,6 +323,16 @@ export function EstimateTab({ projectId }: { projectId: string }) {
 
       {dialog === "add" && <AddLineDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} costCodes={costCodes} sections={sections} onClose={() => setDialog(null)} onAdd={(items, note) => save(items, note).then(() => setDialog(null))} />}
       {dialog === "windows" && <WindowScheduleDialog version={active} sections={sections} onClose={() => setDialog(null)} onAdd={(items) => save(items, `${items.length} window types added`).then(() => setDialog(null))} />}
+      {dialog === "import" && (
+        <ImportDialog
+          version={active}
+          onClose={() => setDialog(null)}
+          onDone={() => {
+            refresh();
+            setDialog(null);
+          }}
+        />
+      )}
       {dialog === "paste" && <PasteDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} onClose={() => setDialog(null)} onAdd={(items) => save(items, `${items.length} lines added`).then(() => setDialog(null))} />}
       {dialog === "swap" && <SwapFinishDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} rates={rates} onClose={() => setDialog(null)} onApply={(items, note) => save(items, note).then(() => setDialog(null))} />}
       {dialog === "refresh" && <RefreshDialog version={active} catalogue={catalogue} rates={rates} onClose={() => setDialog(null)} onApply={(items) => save(items, "Prices refreshed").then(() => setDialog(null))} />}
