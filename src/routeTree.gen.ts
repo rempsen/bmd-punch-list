@@ -16,6 +16,7 @@ import { Route as McpRouteImport } from './routes/mcp'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedBoardRouteImport } from './routes/_authenticated/board'
 import { Route as AuthenticatedCaptureRouteImport } from './routes/_authenticated/capture'
+import { Route as AuthenticatedCatalogueRouteImport } from './routes/_authenticated/catalogue'
 import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authenticated/client-portal'
 import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
@@ -79,6 +80,11 @@ const AuthenticatedBoardRoute = AuthenticatedBoardRouteImport.update({
 const AuthenticatedCaptureRoute = AuthenticatedCaptureRouteImport.update({
   id: '/capture',
   path: '/capture',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedCatalogueRoute = AuthenticatedCatalogueRouteImport.update({
+  id: '/catalogue',
+  path: '/catalogue',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedClientPortalRoute =
@@ -241,6 +247,7 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/catalogue': typeof AuthenticatedCatalogueRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
   '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
@@ -278,6 +285,7 @@ export interface FileRoutesByTo {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/board': typeof AuthenticatedBoardRoute
   '/capture': typeof AuthenticatedCaptureRoute
+  '/catalogue': typeof AuthenticatedCatalogueRoute
   '/client-portal': typeof AuthenticatedClientPortalRoute
   '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
@@ -317,6 +325,7 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/board': typeof AuthenticatedBoardRoute
   '/_authenticated/capture': typeof AuthenticatedCaptureRoute
+  '/_authenticated/catalogue': typeof AuthenticatedCatalogueRoute
   '/_authenticated/client-portal': typeof AuthenticatedClientPortalRoute
   '/_authenticated/clients': typeof AuthenticatedClientsRoute
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/board'
     | '/capture'
+    | '/catalogue'
     | '/client-portal'
     | '/clients'
     | '/company-work'
@@ -393,6 +403,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/board'
     | '/capture'
+    | '/catalogue'
     | '/client-portal'
     | '/clients'
     | '/company-work'
@@ -431,6 +442,7 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/board'
     | '/_authenticated/capture'
+    | '/_authenticated/catalogue'
     | '/_authenticated/client-portal'
     | '/_authenticated/clients'
     | '/_authenticated/company-work'
@@ -524,6 +536,13 @@ declare module '@tanstack/react-router' {
       path: '/capture'
       fullPath: '/capture'
       preLoaderRoute: typeof AuthenticatedCaptureRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/catalogue': {
+      id: '/_authenticated/catalogue'
+      path: '/catalogue'
+      fullPath: '/catalogue'
+      preLoaderRoute: typeof AuthenticatedCatalogueRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/client-portal': {
@@ -735,6 +754,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedBoardRoute: typeof AuthenticatedBoardRoute
   AuthenticatedCaptureRoute: typeof AuthenticatedCaptureRoute
+  AuthenticatedCatalogueRoute: typeof AuthenticatedCatalogueRoute
   AuthenticatedClientPortalRoute: typeof AuthenticatedClientPortalRoute
   AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
@@ -764,6 +784,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBoardRoute: AuthenticatedBoardRoute,
   AuthenticatedCaptureRoute: AuthenticatedCaptureRoute,
+  AuthenticatedCatalogueRoute: AuthenticatedCatalogueRoute,
   AuthenticatedClientPortalRoute: AuthenticatedClientPortalRoute,
   AuthenticatedClientsRoute: AuthenticatedClientsRoute,
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,

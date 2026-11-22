@@ -15,6 +15,7 @@ import {
   Plus,
   Building2,
   FolderKanban,
+  BookOpen,
   FolderOpen,
   Columns3,
   Briefcase,
@@ -36,6 +37,7 @@ export function useNavItems() {
     items.push({ to: "/pipeline", label: "Pipeline", icon: Columns3, group: "company" });
     items.push({ to: "/projects", label: "Projects", icon: FolderKanban, group: "company" });
     items.push({ to: "/clients", label: "Clients", icon: Building2, group: "company" });
+    if (canAny("view_pricing")) items.push({ to: "/catalogue", label: "Catalogue", icon: BookOpen, group: "company" });
   }
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench });
@@ -68,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const jobNav = nav.filter((i) => i.group !== "company");
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const onJobs = ["/jobs", "/new-job", "/projects", "/clients", "/pipeline"].some((p) => pathname.startsWith(p));
+  const onJobs = ["/jobs", "/new-job", "/projects", "/clients", "/pipeline", "/catalogue"].some((p) => pathname.startsWith(p));
   if (!loading && jobsLoaded && !currentJob && !onJobs) return <Navigate to="/jobs" replace />;
 
 
