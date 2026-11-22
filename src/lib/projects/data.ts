@@ -21,12 +21,14 @@ export type PipelineProject = {
   created_at: string;
   members: { user_id: string; job_roles: JobRole[] }[];
   floorCount: number;
+  onedrive_folder_id: string | null;
+  onedrive_parent_path: string | null;
 };
 
 export type Staff = { id: string; full_name: string | null; email: string | null };
 
 const COLS =
-  "id,name,project_number,client_id,client_name,address,stage,stage_entered_at,bid_due_date,estimated_value_cents,lost_reason,lost_note,job_type,notes,archived_at,created_at,project_members(user_id,job_roles),floors(count)";
+  "id,name,project_number,client_id,client_name,address,stage,stage_entered_at,bid_due_date,estimated_value_cents,lost_reason,lost_note,job_type,notes,archived_at,created_at,onedrive_folder_id,onedrive_parent_path,project_members(user_id,job_roles),floors(count)";
 
 type Raw = Omit<PipelineProject, "members" | "floorCount"> & {
   project_members: PipelineProject["members"] | null;

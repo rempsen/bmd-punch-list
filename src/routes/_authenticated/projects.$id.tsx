@@ -7,11 +7,12 @@ import { DocumentsTab } from "@/components/projects/DocumentsTab";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
 import { SearchSelect } from "@/components/SearchSelect";
+import { OneDriveFolderPicker } from "@/components/settings/OneDriveFolderPicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
-import { errText } from "@/lib/platform/db";
+import { db, errText } from "@/lib/platform/db";
 import {
   holderOf,
   money,
@@ -282,6 +283,7 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
           )}
         </Panel>
       </div>
+      <div className="space-y-4">
       <Panel title="BMD team">
         <div className="space-y-3">
           {JOB_ROLES.filter((r) => r.value !== "other").map((r) => {
@@ -308,7 +310,46 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
           })}
         </div>
       </Panel>
+      <OneDrivePlacement project={project} canEdit={canEdit} onChanged={onChanged} />
+      </div>
     </div>
+  );
+}
+
+/** Where the project's documents are copied in OneDrive. The parent can be chosen until the folder exists. */
+function OneDrivePlacement({ project, canEdit, onChanged }: { project: PipelineProject; canEdit: boolean; onChanged: () => void }) {
+  const [picking, setPicking] = useState(false);
+  return (
+    <Panel title="OneDrive">
+      <p className="text-sm text-muted-foreground">
+        {project.onedrive_folder_id
+          ? "Documents are copied to this project's OneDrive folder."
+          : project.onedrive_parent_path
+            ? `Will be created under ${project.onedrive_parent_path}.`
+            : "Will be created under the client's folder."}
+      </p>
+      {canEdit && !project.onedrive_folder_id && (
+        <Button variant="outline" size="sm" className="mt-3" onClick={() => setPicking(true)}>
+          Place under another folder
+        </Button>
+      )}
+      {picking && (
+        <OneDriveFolderPicker
+          title="OneDrive parent folder"
+          description="For a client with sub-customer folders, open the one this project belongs under."
+          onClose={() => setPicking(false)}
+          onPick={async (itemId, path) => {
+            const { error } = await db.rpc("set_project_onedrive_parent", { _project: project.id, _item_id: itemId, _path: path });
+            if (error) toast.error(error.message);
+            else {
+              toast.success("OneDrive folder set");
+              setPicking(false);
+              onChanged();
+            }
+          }}
+        />
+      )}
+    </Panel>
   );
 }
 

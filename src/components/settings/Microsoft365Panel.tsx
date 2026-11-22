@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { CheckCircle2, Mail, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
+import { OneDriveMirrorPanel } from "@/components/settings/OneDriveMirrorPanel";
 import { Button } from "@/components/ui/button";
 import { msConnectStart, msDisconnect, msSendTest, msStatus } from "@/lib/ms/ms.functions";
 import { errText } from "@/lib/platform/db";
@@ -130,14 +131,14 @@ export function Microsoft365Panel({ result, message }: { result?: string | undef
           {s.library ? (
             <>
               <Status email={s.library.account_email} since={s.library.connected_at} problem={s.library.last_error} />
-              <p className="mt-1 text-sm text-muted-foreground">Folder: {s.library.onedrive_root_path ?? "not chosen yet"}</p>
             </>
           ) : (
             <p className="mt-2 text-sm">Not connected.</p>
           )}
           <Button className="mt-3 h-11" variant={s.library ? "outline" : "default"} disabled={!!busy || !s.configured} onClick={() => void connect("library")}>
-            {busy === "library" ? "Opening Microsoft…" : s.library ? "Use my account instead" : "Connect my OneDrive as the library"}
+            {busy === "library" ? "Opening Microsoft…" : s.library ? (s.library.isMe ? "Reconnect the library account" : "Use my account instead") : "Connect my OneDrive as the library"}
           </Button>
+          {s.library && <OneDriveMirrorPanel rootPath={s.library.onedrive_root_path} />}
         </Box>
       )}
     </div>

@@ -6,7 +6,7 @@ const base: PipelineProject = {
   id: "x", name: "X", project_number: "26-001", client_id: "c1", client_name: "Acme", address: null,
   stage: "opportunity", stage_entered_at: "2026-11-01T00:00:00Z", bid_due_date: null, estimated_value_cents: null,
   lost_reason: null, lost_note: null, job_type: null, notes: null, archived_at: null, created_at: "2026-10-01T00:00:00Z",
-  members: [], floorCount: 0,
+  members: [], floorCount: 0, onedrive_folder_id: null, onedrive_parent_path: null,
 };
 const p = (o: Partial<PipelineProject>): PipelineProject => ({ ...base, ...o });
 const none: Filters = { assignee: "", clientId: "", jobType: "", due: "any", text: "" };

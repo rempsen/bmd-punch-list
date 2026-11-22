@@ -287,7 +287,14 @@ function Entry({
             {current ? d.file_name : `Version ${d.version}`}
           </button>
           <p className="truncate text-xs text-muted-foreground">
-            {[current && d.version > 1 ? `Version ${d.version}` : null, formatBytes(d.size_bytes), shortDate(d.created_at), uploader(d.uploaded_by), d.note]
+            {[
+              current && d.version > 1 ? `Version ${d.version}` : null,
+              formatBytes(d.size_bytes),
+              shortDate(d.created_at),
+              uploader(d.uploaded_by),
+              d.note,
+              d.mirror_status === "done" ? "In OneDrive" : d.mirror_status === "failed" ? "OneDrive copy failed" : null,
+            ]
               .filter(Boolean)
               .join(" · ")}
           </p>
