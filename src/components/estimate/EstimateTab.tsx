@@ -1,7 +1,8 @@
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ClipboardPaste, Copy, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { selectCls } from "@/components/catalogue/fields";
+import { CompareView, SwapFinishDialog } from "@/components/estimate/alternates";
 import { AddLineDialog, PasteDialog, RefreshDialog, WindowScheduleDialog } from "@/components/estimate/dialogs";
 import { FinishesPanel } from "@/components/estimate/FinishesPanel";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,8 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const estimates = versions.filter((v) => v.kind === "estimate");
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = estimates.find((v) => v.id === activeId) ?? estimates[0] ?? null;
-  const [dialog, setDialog] = useState<"add" | "paste" | "windows" | "refresh" | null>(null);
+  const [dialog, setDialog] = useState<"add" | "paste" | "windows" | "refresh" | "swap" | null>(null);
+  const [comparing, setComparing] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState({ waste: "", markup: "" });
@@ -161,7 +163,14 @@ export function EstimateTab({ projectId }: { projectId: string }) {
             <Copy className="mr-2 h-4 w-4" /> Copy as alternate
           </Button>
         )}
+        {estimates.length > 1 && (
+          <Button variant={comparing ? "default" : "outline"} className="h-auto min-h-11" aria-pressed={comparing} onClick={() => setComparing((c) => !c)}>
+            Compare
+          </Button>
+        )}
       </div>
+
+      {comparing && estimates.length > 1 && <CompareView versions={[...estimates].sort((a, b) => Number(b.is_base) - Number(a.is_base))} rates={rates} />}
 
       {active.locked && (
         <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">This price has been {active.status === "accepted" ? "accepted" : "sent"} and is locked. Copy it as an alternate to keep working.</p>
@@ -183,6 +192,9 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                 </Button>
                 <Button variant="outline" className="h-10" onClick={() => setDialog("paste")}>
                   <ClipboardPaste className="mr-1.5 h-4 w-4" /> Paste quantities
+                </Button>
+                <Button variant="outline" className="h-10" onClick={() => setDialog("swap")}>
+                  <ArrowLeftRight className="mr-1.5 h-4 w-4" /> Swap finish
                 </Button>
                 <Button variant="outline" className="h-10" onClick={() => setDialog("refresh")}>
                   <RefreshCw className="mr-1.5 h-4 w-4" /> Refresh prices
@@ -305,6 +317,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       {dialog === "add" && <AddLineDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} costCodes={costCodes} sections={sections} onClose={() => setDialog(null)} onAdd={(items, note) => save(items, note).then(() => setDialog(null))} />}
       {dialog === "windows" && <WindowScheduleDialog version={active} sections={sections} onClose={() => setDialog(null)} onAdd={(items) => save(items, `${items.length} window types added`).then(() => setDialog(null))} />}
       {dialog === "paste" && <PasteDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} onClose={() => setDialog(null)} onAdd={(items) => save(items, `${items.length} lines added`).then(() => setDialog(null))} />}
+      {dialog === "swap" && <SwapFinishDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} rates={rates} onClose={() => setDialog(null)} onApply={(items, note) => save(items, note).then(() => setDialog(null))} />}
       {dialog === "refresh" && <RefreshDialog version={active} catalogue={catalogue} rates={rates} onClose={() => setDialog(null)} onApply={(items) => save(items, "Prices refreshed").then(() => setDialog(null))} />}
     </div>
   );
