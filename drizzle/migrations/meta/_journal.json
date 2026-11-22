@@ -239,6 +239,13 @@
       "when": 1795372681824,
       "tag": "0033_plan_sheets",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795372741824,
+      "tag": "0034_takeoff",
+      "breakpoints": true
     }
   ]
 }

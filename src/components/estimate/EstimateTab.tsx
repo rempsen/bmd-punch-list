@@ -1,5 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { ImportDialog } from "./ImportDialog";
+import { takeoffLinks, totalsByCondition } from "@/lib/takeoff/geometry";
+import { useTakeoff } from "@/lib/takeoff/store";
 import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { selectCls } from "@/components/catalogue/fields";
@@ -50,6 +52,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const { data: costCodes = [] } = useCostCodes(canSee);
   const { data: tax } = useTaxSettings(canSee);
   const refresh = useRefreshEstimate(projectId);
+  const { data: takeoff } = useTakeoff(projectId, canSee);
 
   const estimates = versions.filter((v) => v.kind === "estimate");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -174,6 +177,33 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         )}
       </div>
 
+      {canEdit && !active.locked && takeoff && (() => {
+        const moved = takeoffLinks(active.lines, totalsByCondition(takeoff.shapes)).filter((l) => l.changed);
+        if (moved.length === 0) return null;
+        return (
+          <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-medium">The takeoff has changed since these lines were priced. Each keeps its priced quantity until you accept the new one.</p>
+            <ul className="mt-2 space-y-1.5">
+              {moved.map((m) => {
+                const line = active.lines.find((l) => l.id === m.lineId)!;
+                return (
+                  <li key={m.lineId} className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-0 flex-1">
+                      {line.description}: priced at {m.pricedQty.toLocaleString("en-CA")} {line.driver_uom}, takeoff now {m.takeoffQty.toLocaleString("en-CA")} {line.driver_uom}
+                    </span>
+                    <Button size="sm" variant="outline" className="h-9 bg-white" disabled={busy} onClick={() => void save([{ id: line.id, row_version: line.row_version, line: { driver_qty: m.takeoffQty } }], "Quantity updated from the takeoff")}>
+                      Accept {m.takeoffQty.toLocaleString("en-CA")}
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-9" disabled={busy} onClick={() => void save([{ id: line.id, row_version: line.row_version, line: { detached: true } }], "Line no longer follows the takeoff")}>
+                      Keep mine, stop following
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })()}
       {comparing && estimates.length > 1 && <CompareView versions={[...estimates].sort((a, b) => Number(b.is_base) - Number(a.is_base))} rates={rates} />}
 
       {active.locked && (

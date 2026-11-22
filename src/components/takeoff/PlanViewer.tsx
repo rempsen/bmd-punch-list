@@ -12,7 +12,7 @@ type Props = {
   /** When set, dragging does not pan (a drawing tool has the pointer). The middle button and two fingers still do. */
   toolActive?: boolean;
   onPageSize?: (size: Size, rotation: number) => void;
-  onPointer?: (kind: "down" | "move" | "up" | "dblclick", pt: { x: number; y: number }, e: React.PointerEvent | React.MouseEvent) => void;
+  onPointer?: (kind: "down" | "move" | "up" | "dblclick" | "click", pt: { x: number; y: number }, e: React.PointerEvent | React.MouseEvent) => void;
 };
 
 /**
@@ -138,8 +138,13 @@ export function PlanViewer({ doc, pageNumber, overlay, toolActive, onPageSize, o
   };
   const up = (e: React.PointerEvent) => {
     pointers.current.delete(e.pointerId);
-    if (drag.current) drag.current = null;
-    else if (view) onPointer?.("up", toPage(local(e)), e);
+    const d = drag.current;
+    if (d) {
+      drag.current = null;
+      const p = local(e);
+      // A press that did not move is a click on the sheet, not a pan.
+      if (view && !d.pinch && Math.hypot(p.x - d.x, p.y - d.y) < 4) onPointer?.("click", toPage(p), e);
+    } else if (view) onPointer?.("up", toPage(local(e)), e);
   };
 
   const k = view && drawn ? view.scale / drawn.scale : 1;

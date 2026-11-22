@@ -11,7 +11,13 @@ import { errText } from "@/lib/platform/db";
 import { ensureSheets, updateSheet, useRefreshSheets, useSheets, type PlanSheet } from "@/lib/takeoff/data";
 import { openPdf } from "@/lib/takeoff/pdf";
 import { filterSheets, sheetLabel } from "@/lib/takeoff/view";
-import { PlanViewer } from "./PlanViewer";
+import { Button } from "@/components/ui/button";
+import { useLabourRates, useMaterials, useTemplates } from "@/lib/catalogue/data";
+import { catalogueView, saveLines, useEstimate, useFinishes, useRefreshEstimate } from "@/lib/estimating/data";
+import { lineFromFinish, simpleLine } from "@/lib/estimating/lines";
+import { measureShape, qtyFor, totalsByCondition } from "@/lib/takeoff/geometry";
+import { useTakeoff, useTakeoffActions, type Condition } from "@/lib/takeoff/store";
+import { Measure } from "./Measure";
 
 /** Plans for one project: pick a drawing set, find a sheet, look at it closely. Measuring builds on this. */
 export default function TakeoffTab({ projectId }: { projectId: string }) {
@@ -50,6 +56,52 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
     if (!pdf || !current || !sheetsLoaded || sheets.length >= pdf.numPages) return;
     ensureSheets(projectId, current.id, pdf.numPages, sheets.map((s) => s.page_number)).then(refreshSheets, (e) => toast.error(errText(e)));
   }, [pdf, current?.id, sheetsLoaded, sheets.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const canPrice = canAny("view_pricing");
+  const canEstimate = canAny("manage_estimates");
+  const { data: takeoff } = useTakeoff(projectId);
+  const actions = useTakeoffActions(projectId, takeoff);
+  const { data: versions = [] } = useEstimate(projectId, canPrice);
+  const { data: finishes = [] } = useFinishes(projectId, canPrice);
+  const { data: templates = [] } = useTemplates(canPrice);
+  const { data: materials = [] } = useMaterials(canPrice);
+  const { data: labour = [] } = useLabourRates(canPrice);
+  const refreshEstimate = useRefreshEstimate(projectId);
+  const totals = useMemo(() => totalsByCondition(takeoff?.shapes ?? []), [takeoff?.shapes]);
+  const target = versions.find((v) => v.kind === "estimate" && !v.locked) ?? null;
+
+  /** Puts a condition's quantity on the open estimate price as a line that follows the takeoff. */
+  const toEstimate = async (c: Condition) => {
+    if (!target) return void toast.error("There is no open price to add to. Start the estimate on the Estimate tab first.");
+    if (target.lines.some((l) => l.takeoff_condition_id === c.id)) return void toast.info(`"${c.label}" is already on ${target.name}. Its quantity is updated from the Estimate tab.`);
+    const uom = c.kind === "area" ? "SF" : c.kind === "linear" ? "LF" : "EA";
+    const section = c.default_section || "General";
+    const qty = totals[c.id] ? qtyFor(totals[c.id]!, uom, section) : 0;
+    const finish = finishes.find((f) => f.id === c.finish_id);
+    const template = finish && templates.find((t) => t.id === finish.assembly_template_id);
+    const base = finish && template && uom === "SF" ? lineFromFinish({ versionId: target.id, finish, template, catalogue: catalogueView(materials, labour), qty, section, markupPct: target.default_markup_pct, source: "takeoff" }).item : simpleLine({ versionId: target.id, kind: "misc", section, description: c.label, qty, uom, unitCostCents: null, pst: false, markupPct: target.default_markup_pct, costCode: null });
+    try {
+      await saveLines([{ ...base, line: { ...base.line, source: "takeoff", takeoff_condition_id: c.id } }]);
+      refreshEstimate();
+      toast.success(`${c.label}: ${qty.toLocaleString("en-CA")} ${uom} added to ${target.name}.`);
+    } catch (e) {
+      toast.error(errText(e));
+    }
+  };
+  const exportQuantities = async () => {
+    const XLSX = await import("xlsx");
+    const rows = (takeoff?.shapes ?? []).map((s) => {
+      const c = takeoff!.conditions.find((x) => x.id === s.condition_id);
+      const sh = sheets.find((x) => x.id === s.sheet_id);
+      const m = measureShape(s);
+      return { Measuring: c?.label ?? "", Section: s.section ?? "", Sheet: sh ? sheetLabel(sh) : "", Repeats: s.multiplier, SF: +m.sf.toFixed(2), SY: +m.sy.toFixed(2), LF: +m.lf.toFixed(2), EA: m.ea };
+    });
+    const summary = (takeoff?.conditions ?? []).map((c) => ({ Measuring: c.label, SF: +(totals[c.id]?.sf ?? 0).toFixed(2), SY: +(totals[c.id]?.sy ?? 0).toFixed(2), LF: +(totals[c.id]?.lf ?? 0).toFixed(2), EA: totals[c.id]?.ea ?? 0 }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "Totals");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Measurements");
+    XLSX.writeFile(wb, "takeoff-quantities.xlsx");
+  };
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
   if (!current) {
@@ -122,10 +174,37 @@ export default function TakeoffTab({ projectId }: { projectId: string }) {
             <p className="pb-2 text-xs text-muted-foreground">
               Page {sheet.page_number} of {pdf?.numPages ?? "…"}
             </p>
+            {(takeoff?.shapes.length ?? 0) > 0 && (
+              <Button size="sm" variant="outline" className="mb-1" onClick={() => void exportQuantities().catch((e) => toast.error(errText(e)))}>
+                Export quantities
+              </Button>
+            )}
           </div>
         )}
-        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
-          {error ? <p className="p-6 text-sm text-destructive">Could not open {current.file_name}: {error}</p> : pdf ? <PlanViewer doc={pdf} pageNumber={pageNumber} onPageSize={(size, rotation) => sheet && sheet.width_pt == null && void save({ width_pt: size.width, height_pt: size.height, rotation })} /> : <p className="p-6 text-sm text-muted-foreground">Opening drawings…</p>}
+        <div className="min-h-0 flex-1">
+          {error ? (
+            <p className="p-6 text-sm text-destructive">Could not open {current.file_name}: {error}</p>
+          ) : pdf && takeoff ? (
+            <Measure
+              doc={pdf}
+              pageNumber={pageNumber}
+              sheetId={sheet && !sheet.id.startsWith("p") ? sheet.id : null}
+              data={takeoff}
+              actions={actions}
+              canEdit={canEstimate}
+              finishes={finishes}
+              onPageSize={(size, rotation) => sheet && sheet.width_pt == null && void save({ width_pt: size.width, height_pt: size.height, rotation })}
+              conditionExtra={(c) =>
+                canEstimate && (
+                  <Button size="sm" variant="outline" onClick={() => void toEstimate(c)}>
+                    To estimate
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <p className="p-6 text-sm text-muted-foreground">Opening drawings…</p>
+          )}
         </div>
       </section>
     </div>
