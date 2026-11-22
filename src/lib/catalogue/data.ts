@@ -18,6 +18,7 @@ export type Material = {
   unit_cost_cents: number | null;
   purchase_uom: Uom;
   coverage_per_purchase_unit: number | null;
+  coverage_uom: Uom | null;
   pst_applies: boolean;
   default_waste_pct: number;
   cost_code: string | null;
@@ -73,7 +74,7 @@ export const useSuppliers = list<Supplier>("suppliers", "suppliers", "id,name,co
 export const useCostCodes = list<CostCode>("cost-codes", "cost_codes", "code,name,qbo_item_id", "sort_order");
 export const useLabourRates = list<LabourRate>("labour", "labour_rates", "id,name,uom,unit_cost_cents,cost_code,active", "name");
 const MATERIAL_COLS =
-  "id,category,name,manufacturer,product_line,colour,sku,supplier_id,cost_uom,unit_cost_cents,purchase_uom,coverage_per_purchase_unit,pst_applies,default_waste_pct,cost_code,active,price_date,price_source,notes";
+  "id,category,name,manufacturer,product_line,colour,sku,supplier_id,cost_uom,unit_cost_cents,purchase_uom,coverage_per_purchase_unit,coverage_uom,pst_applies,default_waste_pct,cost_code,active,price_date,price_source,notes";
 export const useMaterials = list<Material>("materials", "catalogue_materials", MATERIAL_COLS, "name");
 
 const COMPONENT_COLS = "id,kind,label,source,catalogue_material_id,labour_rate_id,unit_cost_cents,cost_uom,qty_per_driver,waste_pct,round_up,pst_applies,on_gross,sort_order";

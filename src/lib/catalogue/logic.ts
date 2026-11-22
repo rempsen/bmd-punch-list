@@ -79,6 +79,8 @@ export type MaterialInput = {
   cost_uom: Uom;
   purchase_uom: Uom;
   coverage_per_purchase_unit: number | null;
+  /** Unit the coverage is measured in (SF per carton, SF per pail). */
+  coverage_uom: Uom | null;
   unit_cost_cents: number | null;
 };
 
@@ -135,6 +137,7 @@ export function parseMaterialRows(rows: Record<string, unknown>[]): { rows: Mate
       // Priced by area but packed by the carton: the price unit stays, the purchase unit becomes the carton.
       purchase_uom: coverage && (costUom === "SF" || costUom === "SY" || costUom === "LF") ? "carton" : costUom,
       coverage_per_purchase_unit: coverage,
+      coverage_uom: coverage ? (costUom === "SY" || costUom === "LF" ? costUom : "SF") : null,
       unit_cost_cents: cents,
     });
   });

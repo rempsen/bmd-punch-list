@@ -194,7 +194,7 @@ export function AssemblyDialog({
                       <Trash2 className="mr-1.5 h-4 w-4" /> Remove
                     </Button>
                   </div>
-                  <F label={`Quantity per ${driver}`} hint="In the item's own price unit. One pail per 250 SF is 0.004." className="sm:col-span-3">
+                  <F label={`Quantity per ${driver}`} hint="Usually 1. Coverage per carton or pail comes from the material itself." className="sm:col-span-3">
                     <Input className="h-11" inputMode="decimal" value={r.qty} onChange={(e) => patch(i, { qty: e.target.value })} />
                   </F>
                   <F label="Waste %" hint="Blank uses the default." className="sm:col-span-2">

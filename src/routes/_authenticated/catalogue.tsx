@@ -162,7 +162,7 @@ function CataloguePage() {
                         </td>
                         <td className={td}>
                           {m.purchase_uom}
-                          {m.coverage_per_purchase_unit ? ` (${m.coverage_per_purchase_unit} ${m.cost_uom})` : ""}
+                          {m.coverage_per_purchase_unit ? ` (${m.coverage_per_purchase_unit} ${m.coverage_uom ?? m.cost_uom})` : ""}
                         </td>
                         <td className={`${td} tabular-nums`}>{m.default_waste_pct}%</td>
                         <td className={td}>{m.cost_code ?? "—"}</td>

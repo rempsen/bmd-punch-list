@@ -64,7 +64,7 @@ describe("parseMaterialRows", () => {
 describe("planMaterialImport", () => {
   const m = (o: Partial<MaterialInput>): MaterialInput => ({
     name: "X", category: "other", manufacturer: null, product_line: null, colour: null, sku: null, cost_uom: "EA", purchase_uom: "EA",
-    coverage_per_purchase_unit: null, unit_cost_cents: 100, ...o,
+    coverage_per_purchase_unit: null, coverage_uom: null, unit_cost_cents: 100, ...o,
   });
   const existing = [
     { id: "a", name: "Dante Pro 2.0", sku: "DP-AS", colour: "Acacia Sereno", unit_cost_cents: 250 },

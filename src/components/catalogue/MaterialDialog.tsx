@@ -42,6 +42,7 @@ export function MaterialDialog({
     price: centsToInput(m.unit_cost_cents ?? null),
     purchase_uom: (m.purchase_uom ?? "SF") as Uom,
     coverage: m.coverage_per_purchase_unit == null ? "" : String(m.coverage_per_purchase_unit),
+    coverage_uom: (m.coverage_uom ?? "SF") as Uom,
     pst_applies: m.pst_applies ?? true,
     waste: String(m.default_waste_pct ?? 0),
     cost_code: m.cost_code ?? null,
@@ -51,7 +52,8 @@ export function MaterialDialog({
   });
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<typeof f>) => setF((cur) => ({ ...cur, ...p }));
-  const packed = f.purchase_uom !== f.cost_uom;
+  // Cartons, rolls and pails need to know how much floor one of them covers.
+  const packed = f.purchase_uom !== f.cost_uom || ["carton", "roll", "pail"].includes(f.purchase_uom);
 
   const save = async () => {
     const price = f.price.trim() === "" ? null : parseMoneyCents(f.price);
@@ -61,7 +63,7 @@ export function MaterialDialog({
     }
     const coverage = f.coverage.trim() === "" ? null : Number(f.coverage);
     if (packed && !(coverage && coverage > 0)) {
-      toast.error(`Enter how many ${f.cost_uom} one ${f.purchase_uom} covers`);
+      toast.error(`Enter how much one ${f.purchase_uom} covers`);
       return;
     }
     const waste = Number(f.waste || 0);
@@ -84,6 +86,7 @@ export function MaterialDialog({
         unit_cost_cents: price,
         purchase_uom: f.purchase_uom,
         coverage_per_purchase_unit: packed ? coverage : null,
+        coverage_uom: packed ? f.coverage_uom : null,
         pst_applies: f.pst_applies,
         default_waste_pct: waste,
         cost_code: f.cost_code,
@@ -156,9 +159,18 @@ export function MaterialDialog({
           <F label="Bought by" hint="Same as the price unit unless it comes packed, such as LVP priced per SF and bought by the carton.">
             <UomSelect value={f.purchase_uom} onChange={(v) => set({ purchase_uom: v as Uom })} />
           </F>
-          <F label={packed ? `${f.cost_uom} per ${f.purchase_uom}` : "Coverage"} hint={packed ? "Used to round the order up to whole units." : "Not needed."}>
-            <Input className="h-11" inputMode="decimal" disabled={!packed} value={packed ? f.coverage : ""} onChange={(e) => set({ coverage: e.target.value })} />
-          </F>
+          <div className="grid grid-cols-2 gap-3">
+            <F label={`One ${f.purchase_uom} covers`} hint={packed ? "Used to work out how many to order." : "Not needed."}>
+              <Input className="h-11" inputMode="decimal" disabled={!packed} value={packed ? f.coverage : ""} onChange={(e) => set({ coverage: e.target.value })} />
+            </F>
+            <F label="Measured in">
+              <select className={selectCls} disabled={!packed} value={f.coverage_uom} onChange={(e) => set({ coverage_uom: e.target.value as Uom })}>
+                {AREA.map((u) => (
+                  <option key={u}>{u}</option>
+                ))}
+              </select>
+            </F>
+          </div>
           <F label="Default waste %">
             <Input className="h-11" inputMode="decimal" value={f.waste} onChange={(e) => set({ waste: e.target.value })} />
           </F>

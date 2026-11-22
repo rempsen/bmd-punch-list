@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRightLeft, Hammer, LayoutDashboard } from "lucide-react";
 import { toast } from "sonner";
 import { Field } from "@/components/job/fields";
+import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { DocumentsTab } from "@/components/projects/DocumentsTab";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
@@ -33,7 +34,7 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "documents", label: "Documents" },
   { key: "takeoff", label: "Takeoff", phase: 3 },
-  { key: "estimate", label: "Estimate", phase: 2 },
+  { key: "estimate", label: "Estimate" },
   { key: "quotes", label: "Quotes", phase: 2 },
   { key: "site", label: "Site" },
   { key: "billing", label: "Billing", phase: 4 },
@@ -115,9 +116,10 @@ function ProjectPage() {
         </nav>
       </header>
 
-      <div className="mx-auto max-w-5xl p-4 md:p-6">
+      <div className={cn("mx-auto p-4 md:p-6", tab === "estimate" ? "max-w-7xl" : "max-w-5xl")}>
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
+        {tab === "estimate" && <EstimateTab projectId={project.id} />}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
         {tab === "activity" && <Activity projectId={project.id} />}
         {"phase" in current && (
