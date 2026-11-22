@@ -233,19 +233,90 @@ export async function processQueue(deps: MirrorDeps, now: Date, limits: { maxIte
   return out;
 }
 
-/** Proposes client ↔ existing folder pairs by name, ignoring case, punctuation and spacing. Nothing is saved until an admin confirms. */
+const COMPANY_WORDS = new Set(["and", "the", "of", "by", "ltd", "inc", "corp", "co", "group", "construction", "contracting", "homes", "builders", "development", "developments", "management", "center", "centre", "client", "clients", "customer", "customers", "custom", "custome", "supply", "only", "one", "time"]);
+
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) row[j] = Math.min(prev[j]! + 1, row[j - 1]! + 1, prev[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = row;
+  }
+  return prev[b.length]!;
+}
+
+/** The words that identify a name: lower case, "&" read as "and", company words dropped. */
+function nameWords(name: string): string[] {
+  const all = name.toLowerCase().replace(/&/g, " and ").split(/[^a-z0-9]+/).filter(Boolean);
+  const kept = all.filter((w) => !COMPANY_WORDS.has(w));
+  return kept.length > 0 ? kept : all;
+}
+
+/** Same word, allowing one slip in a word of four or more letters and two in seven or more. Typos rarely change the first letter; look-alikes ("Jayne", "Payne") do. */
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  const short = Math.min(a.length, b.length);
+  if (short < 4 || a[0] !== b[0]) return false;
+  return editDistance(a, b) <= (short >= 7 ? 2 : 1);
+}
+
+export type FolderProposal = { clientId: string; clientName: string; folderId: string; folderName: string; confidence: "exact" | "likely" };
+
+/**
+ * Proposes client ↔ existing folder pairs by name. Nothing is saved until an admin confirms.
+ * "exact" is the same name ignoring case, punctuation and spacing. "likely" shares a distinctive word with the
+ * folder (reordered names, a dropped "Ltd" or "Construction", extra words, a small typo) and is for a person to check.
+ */
 export function matchClientFolders(
   clients: { id: string; name: string; onedrive_folder_id: string | null }[],
   folders: { id: string; name: string }[],
-): { clientId: string; clientName: string; folderId: string; folderName: string }[] {
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+): FolderProposal[] {
+  const norm = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
+  const taken = new Set(clients.map((c) => c.onedrive_folder_id).filter(Boolean));
+  const free = folders.filter((f) => !taken.has(f.id));
   const byName = new Map<string, { id: string; name: string }[]>();
-  for (const f of folders) byName.set(norm(f.name), [...(byName.get(norm(f.name)) ?? []), f]);
-  const out = [];
+  for (const f of free) byName.set(norm(f.name), [...(byName.get(norm(f.name)) ?? []), f]);
+
+  const exact = new Map<string, FolderProposal>();
   for (const c of clients) {
     if (c.onedrive_folder_id) continue;
     const hits = byName.get(norm(c.name)) ?? [];
-    if (hits.length === 1) out.push({ clientId: c.id, clientName: c.name, folderId: hits[0]!.id, folderName: hits[0]!.name });
+    if (hits.length === 1) exact.set(c.id, { clientId: c.id, clientName: c.name, folderId: hits[0]!.id, folderName: hits[0]!.name, confidence: "exact" });
+  }
+  const exactFolders = new Set([...exact.values()].map((p) => p.folderId));
+  const open = free.filter((f) => !exactFolders.has(f.id) && (byName.get(norm(f.name)) ?? []).length === 1).map((f) => ({ ...f, words: nameWords(f.name) }));
+
+  type Cand = { clientId: string; folder: (typeof open)[number]; shared: number; share: number };
+  const better = (a: Cand, b: Cand | undefined) => !b || a.shared > b.shared || (a.shared === b.shared && a.share > b.share);
+  const level = (a: Cand, b: Cand) => a.shared === b.shared && a.share === b.share;
+  const likely = new Map<string, Cand>();
+  for (const c of clients) {
+    if (c.onedrive_folder_id || exact.has(c.id)) continue;
+    const words = nameWords(c.name);
+    let best: Cand[] = [];
+    for (const f of open) {
+      const shared = words.filter((w) => f.words.some((x) => sameWord(w, x)));
+      if (shared.length === 0) continue;
+      // A short word alone ("Dan") says nothing about whose folder it is, unless it is the whole name on one side ("MRH"); two together ("Ray Wan") do.
+      const whole = shared.length === words.length || shared.length === f.words.length;
+      if (shared.length < 2 && !whole && !shared.some((w) => w.length >= 4)) continue;
+      const cand = { clientId: c.id, folder: f, shared: shared.length, share: shared.length / Math.max(words.length, f.words.length) };
+      if (better(cand, best[0])) best = [cand];
+      else if (level(cand, best[0]!)) best.push(cand);
+    }
+    // Two equally good folders: leave it to a person rather than guess.
+    if (best.length === 1) likely.set(c.id, best[0]!);
+  }
+  // A folder is offered only to the client(s) that fit it best; a tie is shown to a person as two rows.
+  const topForFolder = new Map<string, Cand>();
+  for (const cand of likely.values()) if (better(cand, topForFolder.get(cand.folder.id))) topForFolder.set(cand.folder.id, cand);
+
+  const out: FolderProposal[] = [];
+  for (const c of clients) {
+    const hit = exact.get(c.id);
+    const cand = likely.get(c.id);
+    if (hit) out.push(hit);
+    else if (cand && level(cand, topForFolder.get(cand.folder.id)!)) out.push({ clientId: c.id, clientName: c.name, folderId: cand.folder.id, folderName: cand.folder.name, confidence: "likely" });
   }
   return out;
 }

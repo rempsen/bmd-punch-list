@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { msConfirmClientFolders, msMatchClientFolders, msSetRoot } from "@/lib/ms/ms.functions";
 import { db, errText } from "@/lib/platform/db";
 
-type Proposal = { clientId: string; clientName: string; folderId: string; folderName: string };
+type Proposal = { clientId: string; clientName: string; folderId: string; folderName: string; confidence: "exact" | "likely" };
 type QueueItem = { id: string; action: string; status: string; attempts: number; last_error: string | null; project: { name: string } | null; document: { file_name: string } | null };
 
 /** Library folder, client folder matching and mirror health. Shown once the library account is connected. */
@@ -45,7 +45,7 @@ export function OneDriveMirrorPanel({ rootPath }: { rootPath: string | null }) {
     try {
       const res = await matchFn();
       setMatch(res);
-      setTicked(new Set(res.proposals.map((p) => p.clientId)));
+      setTicked(new Set(res.proposals.filter((p) => p.confidence === "exact").map((p) => p.clientId)));
     } catch (e) {
       toast.error(errText(e));
     } finally {
@@ -142,7 +142,7 @@ export function OneDriveMirrorPanel({ rootPath }: { rootPath: string | null }) {
             <DialogHeader>
               <DialogTitle>Match client folders</DialogTitle>
               <DialogDescription>
-                {match.folderCount} folders in the library, {match.matched} of {match.clientCount} clients already matched. Tick the pairs that are right.
+                {match.folderCount} folders in the library, {match.matched} of {match.clientCount} clients already matched. Exact names are ticked for you; names that only look similar are left unticked, so tick the ones that are right.
                 Clients left unmatched get a new folder when their first project is created.
               </DialogDescription>
             </DialogHeader>
@@ -166,7 +166,10 @@ export function OneDriveMirrorPanel({ rootPath }: { rootPath: string | null }) {
                       />
                       <span className="min-w-0 flex-1">
                         <span className="font-medium">{p.clientName}</span>
-                        <span className="block truncate text-xs text-muted-foreground">Folder: {p.folderName}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          Folder: {p.folderName}
+                          {p.confidence === "likely" ? " · similar name, please check" : ""}
+                        </span>
                       </span>
                     </label>
                   </li>
