@@ -2,7 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const WEBHOOK_URL = "https://bmd-punch-list.lovable.app/api/public/companycam/webhook";
+import { appOrigin } from "@/lib/app-url";
+
+const WEBHOOK_PATH = "/api/public/companycam/webhook";
 const uuid = /^[0-9a-f-]{36}$/;
 type Sb = { rpc: (fn: string, args: object) => PromiseLike<{ data: unknown }> };
 
@@ -158,6 +160,9 @@ export const ccWebhook = createServerFn({ method: "POST" })
       return { ok: true };
     }
     if (cur?.webhook_id) await cc(`/webhooks/${cur.webhook_id}`, { method: "DELETE" }).catch(() => null);
+    // Registered at the address the person is on (or the primary address, when one is set), so re-registering after a move to a new address points CompanyCam at it.
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const WEBHOOK_URL = `${appOrigin(getRequest().url)}${WEBHOOK_PATH}`;
     const wh = await cc<{ id: string | number; token?: string; secret?: string }>("/webhooks", { method: "POST", body: { url: WEBHOOK_URL, scopes: WEBHOOK_SCOPES, enabled: true } });
     await a.from("companycam_webhook").upsert({ id: 1, webhook_id: String(wh.id), secret: wh.token ?? wh.secret ?? null, url: WEBHOOK_URL, created_at: new Date().toISOString() });
     return { ok: true, id: String(wh.id) };

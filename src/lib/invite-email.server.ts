@@ -1,11 +1,12 @@
-const APP_URL = "https://bmd-punch-list.lovable.app";
+import { appOrigin } from "@/lib/app-url";
+
 const FROM = "BMD Materials <noreply@bmdmaterials.com>";
-const LOGO = `${APP_URL}/bmd-logo.png`;
 
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-function layout(title: string, bodyHtml: string, button?: { href: string; label: string }) {
+function layout(appUrl: string, title: string, bodyHtml: string, button?: { href: string; label: string }) {
+  const LOGO = `${appUrl}/bmd-logo.png`;
   return `<!doctype html><html><body style="margin:0;background:#F9FAFA;font-family:Arial,Helvetica,sans-serif;color:#1b2a4a">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFA;padding:24px 0"><tr><td align="center">
 <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e7eb;border-radius:8px">
@@ -66,11 +67,14 @@ export function inviteEmail(p: {
   jobAddress: string | null;
   roleLabel: string;
   inviteeName: string | null;
+  /** The address the person sending the invite is on; links in the email go to the same site. */
+  requestUrl?: string | null;
 }) {
+  const APP_URL = appOrigin(p.requestUrl);
   const href = `${APP_URL}/auth?invite=${encodeURIComponent(p.token)}&email=${encodeURIComponent(p.email)}`;
   const where = p.jobAddress ? `${p.jobName} (${p.jobAddress})` : p.jobName;
   const hi = p.inviteeName ? `Hi ${p.inviteeName},` : "Hi,";
-  const html = layout(
+  const html = layout(APP_URL, 
     `You're invited to ${p.jobName}`,
     `<p>${esc(hi)}</p>
 <p><strong>${esc(p.inviterName)}</strong> has invited you to BMD Projects for <strong>${esc(p.jobName)}</strong>${p.jobAddress ? `, ${esc(p.jobAddress)}` : ""}.</p>
@@ -97,10 +101,12 @@ export function addedEmail(p: {
   jobAddress: string | null;
   roleLabel: string;
   name: string | null;
+  requestUrl?: string | null;
 }) {
+  const APP_URL = appOrigin(p.requestUrl);
   const href = `${APP_URL}/jobs`;
   const hi = p.name ? `Hi ${p.name},` : "Hi,";
-  const html = layout(
+  const html = layout(APP_URL, 
     `You've been added to ${p.jobName}`,
     `<p>${esc(hi)}</p>
 <p><strong>${esc(p.inviterName)}</strong> added you to <strong>${esc(p.jobName)}</strong>${p.jobAddress ? `, ${esc(p.jobAddress)}` : ""} on BMD Projects.</p>

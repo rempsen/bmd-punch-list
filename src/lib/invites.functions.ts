@@ -25,7 +25,9 @@ export const sendInvite = createServerFn({ method: "POST" })
       sb.from("projects").select("name,address").eq("id", inv.project_id).maybeSingle(),
       sb.from("profiles").select("full_name,email").eq("id", context.userId).maybeSingle(),
     ]);
+    const { getRequest } = await import("@tanstack/react-start/server");
     const msg = inviteEmail({
+      requestUrl: getRequest().url,
       email: inv.email,
       token: inv.invite_token,
       inviterName: me?.full_name || me?.email || "BMD Materials",
@@ -71,7 +73,9 @@ export const notifyAddedToJob = createServerFn({ method: "POST" })
       sb.from("project_members").select("role").eq("project_id", data.projectId).eq("user_id", data.userId).maybeSingle(),
     ]);
     if (!them?.email || !member) throw new Error("That person isn't on this job");
+    const { getRequest } = await import("@tanstack/react-start/server");
     const msg = addedEmail({
+      requestUrl: getRequest().url,
       inviterName: me?.full_name || me?.email || "BMD Materials",
       jobName: job?.name ?? "BMD job",
       jobAddress: job?.address ?? null,
