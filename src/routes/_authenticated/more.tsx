@@ -3,6 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Plus } from "lucide-react";
 import { PageHeader, useNavItems } from "@/components/AppShell";
+import { ChangePassword } from "@/components/ChangePassword";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -61,6 +62,7 @@ function MorePage() {
             <LogOut className="mr-2 h-4 w-4" /> Sign out
           </Button>
         </div>
+        <ChangePassword email={user?.email} />
       </div>
     </div>
   );
