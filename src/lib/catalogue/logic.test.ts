@@ -85,3 +85,22 @@ describe("planMaterialImport", () => {
     expect(plan.unchanged).toBe(1);
   });
 });
+
+import { costEdit } from "./logic";
+describe("typing a cost straight into the catalogue table", () => {
+  test("a dollar amount is saved in cents", () => {
+    expect(costEdit("1.75", null)).toEqual({ kind: "save", cents: 175 });
+    expect(costEdit(" $2,400 ", 100)).toEqual({ kind: "save", cents: 240000 });
+  });
+  test("blank means the price is unknown, never zero", () => {
+    expect(costEdit("", 175)).toEqual({ kind: "save", cents: null });
+    expect(costEdit("  ", null)).toEqual({ kind: "same" });
+  });
+  test("an unchanged amount is not saved again", () => {
+    expect(costEdit("1.75", 175)).toEqual({ kind: "same" });
+  });
+  test("anything that is not an amount is refused", () => {
+    expect(costEdit("abc", 175)).toEqual({ kind: "invalid" });
+    expect(costEdit("-4", null)).toEqual({ kind: "invalid" });
+  });
+});

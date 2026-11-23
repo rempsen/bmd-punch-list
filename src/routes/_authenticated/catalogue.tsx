@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import { Plus, Upload } from "lucide-react";
+import { Pencil, Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AssemblyDialog } from "@/components/catalogue/AssemblyDialog";
-import { CostCodeSelect, F, MoneyInput, Unknown, UomSelect, selectCls } from "@/components/catalogue/fields";
+import { CostCell, CostCodeSelect, DeleteButton, F, MoneyInput, Unknown, UomSelect, selectCls } from "@/components/catalogue/fields";
 import { MaterialDialog } from "@/components/catalogue/MaterialDialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -143,6 +143,7 @@ function CataloguePage() {
                       <th className={th}>Bought by</th>
                       <th className={th}>Waste</th>
                       <th className={th}>Cost code</th>
+                      {canEdit && <th className={th} />}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -157,7 +158,7 @@ function CataloguePage() {
                         <td className={td}>{categoryLabel(m.category)}</td>
                         <td className={td}>{supplierName(m.supplier_id)}</td>
                         <td className={`${td} whitespace-nowrap tabular-nums`}>
-                          {m.unit_cost_cents == null ? <Unknown /> : priceLabel(m.unit_cost_cents, m.cost_uom)}
+                          {canEdit ? <CostCell kind="material" id={m.id} name={m.name} cents={m.unit_cost_cents} uom={m.cost_uom} onSaved={refresh} /> : m.unit_cost_cents == null ? <Unknown /> : priceLabel(m.unit_cost_cents, m.cost_uom)}
                           {m.unit_cost_cents != null && <div className="text-xs text-muted-foreground">{m.pst_applies ? "plus PST" : "PST included"}</div>}
                         </td>
                         <td className={td}>
@@ -166,6 +167,13 @@ function CataloguePage() {
                         </td>
                         <td className={`${td} tabular-nums`}>{m.default_waste_pct}%</td>
                         <td className={td}>{m.cost_code ?? "—"}</td>
+                        {canEdit && (
+                          <td className={`${td} text-right`}>
+                            <Button variant="outline" size="sm" className="h-9" onClick={() => setMaterial(m)} aria-label={`Edit ${m.name}`}>
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Edit
+                            </Button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -176,7 +184,8 @@ function CataloguePage() {
 
           <TabsContent value="labour" className="space-y-3">
             {canEdit && (
-              <div className="flex justify-end">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">Type a cost in the table and press Enter to save it. Use Edit to change the name, unit or cost code, or to delete.</p>
                 <Button className="h-11" onClick={() => setRate("new")}>
                   <Plus className="mr-2 h-4 w-4" /> New labour rate
                 </Button>
@@ -189,6 +198,7 @@ function CataloguePage() {
                     <th className={th}>Labour</th>
                     <th className={th}>Cost</th>
                     <th className={th}>Cost code</th>
+                    {canEdit && <th className={th} />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -199,8 +209,15 @@ function CataloguePage() {
                           {l.name}
                         </button>
                       </td>
-                      <td className={`${td} tabular-nums`}>{l.unit_cost_cents == null ? <Unknown /> : priceLabel(l.unit_cost_cents, l.uom)}</td>
+                      <td className={`${td} tabular-nums`}>{canEdit ? <CostCell kind="labour" id={l.id} name={l.name} cents={l.unit_cost_cents} uom={l.uom} onSaved={refresh} /> : l.unit_cost_cents == null ? <Unknown /> : priceLabel(l.unit_cost_cents, l.uom)}</td>
                       <td className={td}>{l.cost_code ?? "—"}</td>
+                      {canEdit && (
+                          <td className={`${td} text-right`}>
+                            <Button variant="outline" size="sm" className="h-9" onClick={() => setRate(l)} aria-label={`Edit ${l.name}`}>
+                              <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden /> Edit
+                            </Button>
+                          </td>
+                        )}
                     </tr>
                   ))}
                 </tbody>
@@ -223,6 +240,11 @@ function CataloguePage() {
                     <p className="font-semibold">
                       {t.name}
                       {!t.active && <span className="ml-2 text-xs font-normal text-muted-foreground">inactive</span>}
+                      {canEdit && (
+                        <span className="float-right inline-flex items-center text-xs font-medium text-primary">
+                          <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden /> Edit
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Measured in {t.driver_uom} · waste {t.default_waste_pct}% · {t.cost_code ?? "no cost code"}
@@ -255,6 +277,11 @@ function CataloguePage() {
                     <button type="button" onClick={() => setSupplier(s)} className="flex min-h-14 w-full flex-wrap items-center gap-x-4 px-4 py-3 text-left hover:bg-muted/60">
                       <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
                       <span className="truncate text-sm text-muted-foreground">{[s.contact_name, s.email, s.phone].filter(Boolean).join(" · ")}</span>
+                      {canEdit && (
+                        <span className="inline-flex items-center text-xs font-medium text-primary">
+                          <Pencil className="mr-1 h-3.5 w-3.5" aria-hidden /> Edit
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -339,6 +366,7 @@ function LabourDialog({ rate, costCodes, canEdit, onClose, onSaved }: { rate: La
           )}
         </fieldset>
         <DialogFooter>
+          {canEdit && rate && <DeleteButton kind="labour" id={rate.id} name={rate.name} onDeleted={onSaved} />}
           <Button variant="ghost" onClick={onClose}>
             {canEdit ? "Cancel" : "Close"}
           </Button>
@@ -408,6 +436,7 @@ function SupplierDialog({ supplier, canEdit, onClose, onSaved }: { supplier: Sup
           </F>
         </fieldset>
         <DialogFooter>
+          {canEdit && supplier && <DeleteButton kind="supplier" id={supplier.id} name={supplier.name} onDeleted={onSaved} />}
           <Button variant="ghost" onClick={onClose}>
             {canEdit ? "Cancel" : "Close"}
           </Button>

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { CostCodeSelect, F, MoneyInput, UomSelect, selectCls } from "@/components/catalogue/fields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DeleteButton } from "@/components/catalogue/fields";
 import { Input } from "@/components/ui/input";
 import { centsToInput, saveTemplate, type CostCode, type LabourRate, type Material, type Template, type TemplateComponent } from "@/lib/catalogue/data";
 import { CATEGORIES, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
@@ -226,6 +227,7 @@ export function AssemblyDialog({
           </div>
         </fieldset>
         <DialogFooter>
+          {canEdit && template && <DeleteButton kind="assembly" id={template.id} name={template.name} onDeleted={onSaved} />}
           <Button variant="ghost" onClick={onClose}>
             {canEdit ? "Cancel" : "Close"}
           </Button>

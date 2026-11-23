@@ -163,3 +163,12 @@ export function planMaterialImport(incoming: MaterialInput[], existing: Existing
   }
   return { inserts, priceChanges, unchanged };
 }
+
+/** What typing in a cost cell means: save an amount, clear it to "unknown" (blank is never zero), leave it, or refuse it. */
+export function costEdit(input: string, current: number | null): { kind: "save"; cents: number | null } | { kind: "same" } | { kind: "invalid" } {
+  const text = input.trim();
+  if (text === "") return current == null ? { kind: "same" } : { kind: "save", cents: null };
+  const cents = parseMoneyCents(text);
+  if (cents == null) return { kind: "invalid" };
+  return cents === current ? { kind: "same" } : { kind: "save", cents };
+}

@@ -1,7 +1,11 @@
-import { cloneElement, useId, type ReactElement } from "react";
+import { cloneElement, useEffect, useId, useState, type ReactElement } from "react";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import type { CostCode } from "@/lib/catalogue/data";
-import { UOMS } from "@/lib/catalogue/logic";
+import { centsToInput, deleteCatalogueItem, setUnitCost, type CostCode } from "@/lib/catalogue/data";
+import { costEdit, UOMS } from "@/lib/catalogue/logic";
+import { errText } from "@/lib/platform/db";
 import { cn } from "@/lib/utils";
 
 export const selectCls = "h-11 w-full rounded-md border border-input bg-background px-3 text-sm disabled:opacity-50";
@@ -61,4 +65,75 @@ export function MoneyInput({ value, onChange, disabled, id }: { value: string; o
 
 export function Unknown() {
   return <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900">Price unknown</span>;
+}
+
+/** A cost typed straight into the catalogue table. Enter or leaving the box saves it; blank means the price is unknown. */
+export function CostCell({ kind, id, name, cents, uom, onSaved }: { kind: "material" | "labour"; id: string; name: string; cents: number | null; uom: string; onSaved: () => void }) {
+  const [text, setText] = useState(centsToInput(cents));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setText(centsToInput(cents)), [cents]);
+  const commit = async () => {
+    const edit = costEdit(text, cents);
+    if (edit.kind === "same") return setText(centsToInput(cents));
+    if (edit.kind === "invalid") {
+      toast.error("Enter the cost as a dollar amount, or leave it blank if unknown");
+      return setText(centsToInput(cents));
+    }
+    setBusy(true);
+    try {
+      await setUnitCost(kind, id, edit.cents);
+      toast.success(edit.cents == null ? `${name}: cost cleared` : `${name}: cost saved`);
+      onSaved();
+    } catch (e) {
+      toast.error(`Could not save: ${errText(e)}`);
+      setText(centsToInput(cents));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className="relative">
+        <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+        <input
+          inputMode="decimal"
+          aria-label={`Cost of ${name} per ${uom}`}
+          placeholder="Add cost"
+          disabled={busy}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => void commit()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "Escape") setText(centsToInput(cents));
+          }}
+          className={cn("h-10 w-28 rounded-md border bg-background pl-6 pr-2 text-right text-sm tabular-nums", cents == null && text === "" ? "border-amber-400 bg-amber-50 placeholder:text-amber-800" : "border-input")}
+        />
+      </span>
+      <span className="text-xs text-muted-foreground">/ {uom}</span>
+    </span>
+  );
+}
+
+/** Delete, for an item's editing window. Asks first; an item still in use is refused with the reason. */
+export function DeleteButton({ kind, id, name, onDeleted }: { kind: "material" | "labour" | "assembly" | "supplier"; id: string; name: string; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    if (!window.confirm(`Delete ${name} from the catalogue? This cannot be undone. Estimates already priced keep their own costs.`)) return;
+    setBusy(true);
+    try {
+      await deleteCatalogueItem(kind, id);
+      toast.success(`${name} deleted`);
+      onDeleted();
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button type="button" variant="ghost" className="mr-auto text-destructive hover:text-destructive" disabled={busy} onClick={() => void run()}>
+      <Trash2 className="mr-2 h-4 w-4" aria-hidden /> Delete
+    </Button>
+  );
 }

@@ -196,3 +196,15 @@ export const priceLabel = (cents: number | null, uom: string) =>
   cents == null ? "Unknown" : `${(cents / 100).toLocaleString("en-CA", { style: "currency", currency: "CAD" })} / ${uom}`;
 
 export const centsToInput = (cents: number | null) => (cents == null ? "" : (cents / 100).toFixed(2));
+
+/** Sets one cost from the catalogue table. A material's price date moves to today when a price is entered. */
+export async function setUnitCost(kind: "material" | "labour", id: string, cents: number | null) {
+  const row = kind === "material" ? { unit_cost_cents: cents, updated_at: new Date().toISOString(), ...(cents != null ? { price_date: new Date().toISOString().slice(0, 10) } : {}) } : { unit_cost_cents: cents };
+  check((await db.from(kind === "material" ? "catalogue_materials" : "labour_rates").update(row).eq("id", id)).error);
+}
+
+/** Deletes a catalogue item that nothing uses. One still in use is refused with the reason, so it can be made inactive instead. */
+export async function deleteCatalogueItem(kind: "material" | "labour" | "assembly" | "supplier", id: string) {
+  const { error } = await db.rpc("delete_catalogue_item", { _kind: kind, _id: id });
+  if (error) throw new Error(/IN_USE:/.test(error.message) ? `This can't be deleted: it is ${error.message.replace(/^.*IN_USE:\s*/, "")}` : error.message);
+}
