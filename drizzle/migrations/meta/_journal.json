@@ -365,6 +365,13 @@
       "when": 1795466563922,
       "tag": "0051_sync_import",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795475821569,
+      "tag": "0052_vendor_supplies",
+      "breakpoints": true
     }
   ]
 }

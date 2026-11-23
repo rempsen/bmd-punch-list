@@ -110,9 +110,11 @@ describe("what each QuickBooks item is to BMD", () => {
 describe("telling material suppliers from everyone else", () => {
   test("lines for products or supplies-and-materials accounts count as materials; subcontractors and freight do not", () => {
     const items = [{ Id: "95", Type: "NonInventory", Name: "Mipolam" }, { Id: "3", Type: "Service", Name: "01-26 - Install Flooring" }];
-    const accounts = [{ Id: "50", AccountType: "Cost of Goods Sold", AccountSubType: "SuppliesMaterialsCogs" }, { Id: "60", AccountType: "Expense" }, { Id: "15", AccountType: "Cost of Goods Sold", AccountSubType: "CostOfLaborCos" }];
+    const accounts = [{ Id: "50", AccountType: "Cost of Goods Sold", AccountSubType: "SuppliesMaterialsCogs" }, { Id: "60", AccountType: "Expense" }, { Id: "15", AccountType: "Cost of Goods Sold", AccountSubType: "CostOfLaborCos" }, { Id: "12", AccountType: "Cost of Goods Sold", AccountSubType: "ShippingFreightDeliveryCos", FullyQualifiedName: "Freight & Delivery" }];
+    const freight = vendorEvidence([{ VendorRef: { value: "5" }, Line: [{ AccountBasedExpenseLineDetail: { AccountRef: { value: "12" } } }] }], items, accounts);
+    expect(freight.get("5")).toEqual({ material_lines: 0, labour_lines: 0, other_lines: 1, last_purchase: null });
     const sub = vendorEvidence([{ VendorRef: { value: "4" }, Line: [{ AccountBasedExpenseLineDetail: { AccountRef: { value: "15" } } }, { ItemBasedExpenseLineDetail: { ItemRef: { value: "3" } } }] }], items, accounts);
-    expect(sub.get("4")).toEqual({ material_lines: 0, other_lines: 2, last_purchase: null });
+    expect(sub.get("4")).toEqual({ material_lines: 0, labour_lines: 2, other_lines: 0, last_purchase: null });
     const e = vendorEvidence(
       [
         { TxnDate: "2025-03-01", VendorRef: { value: "7" }, Line: [{ ItemBasedExpenseLineDetail: { ItemRef: { value: "95" } } }, { AccountBasedExpenseLineDetail: { AccountRef: { value: "50" } } }] },
@@ -122,12 +124,12 @@ describe("telling material suppliers from everyone else", () => {
       items,
       accounts,
     );
-    expect(e.get("7")).toEqual({ material_lines: 2, other_lines: 0, last_purchase: "2025-03-01" });
-    expect(e.get("8")).toEqual({ material_lines: 0, other_lines: 1, last_purchase: "2026-02-01" });
+    expect(e.get("7")).toEqual({ material_lines: 2, labour_lines: 0, other_lines: 0, last_purchase: "2025-03-01" });
+    expect(e.get("8")).toEqual({ material_lines: 0, labour_lines: 0, other_lines: 1, last_purchase: "2026-02-01" });
     expect(e.has("9")).toBe(false);
   });
   test("a vendor with no purchases is staged with zero, and without evidence nothing is claimed", () => {
-    expect(stageVendor({ Id: "7", DisplayName: "Shell" }, new Map()).data["purchases"]).toEqual({ material_lines: 0, other_lines: 0, last_purchase: null });
+    expect(stageVendor({ Id: "7", DisplayName: "Shell" }, new Map()).data["purchases"]).toEqual({ material_lines: 0, labour_lines: 0, other_lines: 0, last_purchase: null });
     expect(stageVendor({ Id: "7", DisplayName: "Shell" }).data["purchases"]).toBeUndefined();
   });
 });

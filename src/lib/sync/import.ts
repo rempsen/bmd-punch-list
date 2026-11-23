@@ -28,6 +28,16 @@ export type Action = {
   kept?: string[];
 };
 
+export type Supplies = "materials" | "labour" | "both";
+type Purchases = { material_lines?: number; labour_lines?: number; other_lines?: number };
+/** What a vendor supplies, from its purchase lines: both when the smaller side is at least a fifth of the larger. */
+export function suppliesFrom(p: Purchases | undefined): Supplies {
+  const m = p?.material_lines ?? 0;
+  const l = p?.labour_lines ?? 0;
+  if (m > 0 && l > 0 && Math.min(m, l) * 5 >= Math.max(m, l)) return "both";
+  return l > m ? "labour" : "materials";
+}
+
 const key = (s: unknown) => String(s ?? "").trim().toLowerCase();
 const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 const cents = (v: unknown) => (typeof v === "number" && v > 0 ? Math.round(v) : null);
@@ -70,8 +80,12 @@ export function planImport(staged: StagedRow[], existing: Existing): Action[] {
       const m = free("supplier", existing.suppliers, (s) => key(s.name) === key(r.name));
       if (m) {
         taken.add(`supplier|${m.id}`);
-        out.push(linkAction(kind, r, m.name, m.id, fill(m, incoming)));
-      } else out.push({ op: "create", kind, external_id: r.external_id, name: r.name, bmd_id: null, fields: { name: r.name, ...incoming, active: d["active"] !== false } });
+        const f = fill(m, incoming);
+        // Only purchase history can say a vendor BMD already has also supplies the other thing.
+        const p = d["purchases"] as Purchases | undefined;
+        const seen = (p?.material_lines ?? 0) + (p?.labour_lines ?? 0) > 0;
+        out.push(linkAction(kind, r, m.name, m.id, seen ? { ...f, fields: { ...f.fields, supplies: suppliesFrom(p) } } : f));
+      } else out.push({ op: "create", kind, external_id: r.external_id, name: r.name, bmd_id: null, fields: { name: r.name, ...incoming, active: d["active"] !== false, supplies: suppliesFrom(d["purchases"] as Purchases | undefined) } });
     } else if (kind === "material") {
       const sku = text(d["sku"]);
       const m = (sku ? free("material", existing.materials, (x) => key(x.sku) === key(sku)) : undefined) ?? free("material", existing.materials, (x) => key(x.name) === key(r.name));
@@ -134,7 +148,7 @@ const JOB_LINE = /\b(suite|unit|lot|phase)\s*#?\s*\d/i;          // "… Gimli A
 
 /**
  * Where each row of the dry run starts. Linking to what BMD already has is always ticked: it adds nothing.
- * New records start ticked only when they look like catalogue material: a supplier BMD has bought materials from,
+ * New records start ticked only when they look like catalogue material: a vendor BMD has bought materials or labour from,
  * or one a product names as its vendor; a product that is not a tax, billing, charge or one-job line. Everything stays
  * held, so anything left unticked can be brought in later.
  */
@@ -155,16 +169,19 @@ export function suggestPicks(plan: Action[], staged: StagedRow[]): Map<string, I
       continue;
     }
     if (a.kind === "supplier") {
-      const p = d["purchases"] as { material_lines?: number; other_lines?: number } | undefined;
+      const p = d["purchases"] as Purchases | undefined;
       if (named.has(a.external_id)) picks.set(k, { on: true, why: "a product names it as its vendor" });
       else if (!p) picks.set(k, { on: false, why: "no purchase history read yet" });
       else {
         const m = p.material_lines ?? 0;
+        const l = p.labour_lines ?? 0;
         const o = p.other_lines ?? 0;
-        // Mostly materials: a supplier. A card company or a pharmacy with the odd supplies line is not.
-        if (m > 0 && m >= o) picks.set(k, { on: true, why: `${m} material purchase line${m === 1 ? "" : "s"}` });
-        else if (m > 0) picks.set(k, { on: false, why: `mostly not materials (${m} of ${m + o} lines)` });
-        else picks.set(k, { on: false, why: o > 0 ? "bought from, but never materials" : "never bought from in 3 years" });
+        const what = (n: number, word: string) => `${n} ${word} line${n === 1 ? "" : "s"}`;
+        const lines = [m && what(m, "material"), l && what(l, "labour")].filter(Boolean).join(", ");
+        // Mostly materials or labour: a supplier or a subcontractor. A card company or a pharmacy with the odd supplies line is not.
+        if (m + l > 0 && m + l >= o) picks.set(k, { on: true, why: lines });
+        else if (m + l > 0) picks.set(k, { on: false, why: `mostly not materials or labour (${m + l} of ${m + l + o} lines)` });
+        else picks.set(k, { on: false, why: o > 0 ? "bought from, but never materials or labour" : "never bought from in 3 years" });
       }
     } else if (TAX_LINE.test(a.name.trim())) picks.set(k, { on: false, why: "a tax line" });
     else if (BILLING_LINE.test(a.name)) picks.set(k, { on: false, why: "looks like a billing line" });

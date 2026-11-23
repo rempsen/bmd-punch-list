@@ -3,7 +3,16 @@ import type { Uom } from "@/lib/estimating/calc";
 import { db } from "@/lib/platform/db";
 import { planMaterialImport, type Category, type MaterialInput } from "./logic";
 
-export type Supplier = { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; account_number: string | null; notes: string | null; active: boolean };
+/** What a vendor supplies BMD: materials, labour (an installer or other subcontractor), or both. */
+export type Supplies = "materials" | "labour" | "both";
+export const SUPPLIES: { value: Supplies; label: string; short: string }[] = [
+  { value: "materials", label: "Materials", short: "Materials" },
+  { value: "labour", label: "Labour (installer or subcontractor)", short: "Labour" },
+  { value: "both", label: "Materials and labour", short: "Both" },
+];
+/** Vendors that can sell BMD materials: the ones to offer when a product's supplier is picked. */
+export const sellsMaterials = (s: { supplies: Supplies }) => s.supplies !== "labour";
+export type Supplier = { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; account_number: string | null; notes: string | null; active: boolean; supplies: Supplies };
 export type CostCode = { code: string; name: string; qbo_item_id: string | null };
 export type Material = {
   id: string;
@@ -72,7 +81,7 @@ const list = <T,>(key: string, table: string, select: string, order: string) =>
     });
   };
 
-export const useSuppliers = list<Supplier>("suppliers", "suppliers", "id,name,contact_name,email,phone,account_number,notes,active", "name");
+export const useSuppliers = list<Supplier>("suppliers", "suppliers", "id,name,contact_name,email,phone,account_number,notes,active,supplies", "name");
 export const useCostCodes = list<CostCode>("cost-codes", "cost_codes", "code,name,qbo_item_id", "sort_order");
 export const useLabourRates = list<LabourRate>("labour", "labour_rates", "id,name,uom,unit_cost_cents,cost_code,active,uom_confirmed", "name");
 const MATERIAL_COLS =

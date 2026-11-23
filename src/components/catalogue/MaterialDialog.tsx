@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeleteButton } from "@/components/catalogue/fields";
 import { Input } from "@/components/ui/input";
-import { centsToInput, saveMaterial, type CostCode, type Material, type Supplier } from "@/lib/catalogue/data";
+import { centsToInput, saveMaterial, sellsMaterials, type CostCode, type Material, type Supplier } from "@/lib/catalogue/data";
 import { CATEGORIES, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
 import type { Uom } from "@/lib/estimating/calc";
 import { errText } from "@/lib/platform/db";
@@ -129,7 +129,7 @@ export function MaterialDialog({
           <F label="Supplier">
             <select className={selectCls} value={f.supplier_id} onChange={(e) => set({ supplier_id: e.target.value })}>
               <option value="">Not set</option>
-              {suppliers.filter((s) => s.active || s.id === f.supplier_id).map((s) => (
+              {suppliers.filter((s) => (s.active && sellsMaterials(s)) || s.id === f.supplier_id).map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
