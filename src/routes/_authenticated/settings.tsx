@@ -33,6 +33,7 @@ import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
 import { settingsHeading } from "@/lib/settings-tabs";
 import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
+import { SyncPanel } from "@/components/settings/SyncPanel";
 import { Microsoft365Panel } from "@/components/settings/Microsoft365Panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -74,11 +75,13 @@ function SettingsPage() {
   const canUsers = can("manage_users");
   const canMicrosoft = canAny("send_quotes") || canAny("manage_integrations");
   const canQuotes = canAny("send_quotes");
+  const canSync = canAny("manage_integrations") || canAny("manage_catalogue");
   const navigate = Route.useNavigate();
   // Company-wide settings first, then the settings of the job that is open. Each list holds only what this person may open.
   const companyTabs = ([
     [canQuotes, "quotes", "Quotes"],
     [canMicrosoft, "microsoft", "Microsoft 365 & AI"],
+    [canSync, "sync", "Sync"],
     [isSuperAdmin, "allusers", "All users"],
     [isSuperAdmin, "roles", "Roles"],
     [canSettings, "projects", "All jobs"],
@@ -247,6 +250,12 @@ function SettingsPage() {
           {canQuotes && (
             <TabsContent value="quotes">
               <QuoteSettingsPanel />
+            </TabsContent>
+          )}
+
+          {canSync && (
+            <TabsContent value="sync">
+              <SyncPanel />
             </TabsContent>
           )}
 

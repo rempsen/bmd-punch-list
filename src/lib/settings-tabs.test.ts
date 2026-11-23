@@ -3,7 +3,7 @@ import { COMPANY_TABS, JOB_TABS, settingsGroup, settingsHeading } from "./settin
 
 describe("settings are split into company-wide and this-job", () => {
   test("quotes, Microsoft 365, users and roles across the company, and the job lists are company settings", () => {
-    for (const t of ["quotes", "microsoft", "allusers", "roles", "projects", "jobs"]) expect(settingsGroup(t)).toBe("company");
+    for (const t of ["quotes", "microsoft", "sync", "allusers", "roles", "projects", "jobs"]) expect(settingsGroup(t)).toBe("company");
   });
   test("job details, floors and rooms, pick lists, this job's users and CompanyCam are job settings", () => {
     for (const t of ["project", "structure", "lists", "users", "companycam"]) expect(settingsGroup(t)).toBe("job");

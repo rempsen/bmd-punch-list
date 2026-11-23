@@ -1,5 +1,5 @@
 /** Settings come in two kinds: company settings that apply to every job, and settings for the job that is open. */
-export const COMPANY_TABS = ["quotes", "microsoft", "allusers", "roles", "projects", "jobs"];
+export const COMPANY_TABS = ["quotes", "microsoft", "sync", "allusers", "roles", "projects", "jobs"];
 export const JOB_TABS = ["project", "structure", "lists", "users", "companycam"];
 export type SettingsGroup = "company" | "job";
 
