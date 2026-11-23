@@ -1,6 +1,6 @@
 /** Install visits and what ArrivePing tells us about them. */
 export type VisitStatus = "scheduled" | "en_route" | "arrived" | "completed" | "cancelled";
-export type Visit = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null; arriveping_job_id: string | null; status: VisitStatus };
+export type Visit = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null; arriveping_job_id: string | null; status: VisitStatus; arriveping_status: string | null; arriveping_assigned_to: string | null };
 
 /** Compares the secret a caller sent with ours without leaking where they differ. No secret configured means nobody gets in. */
 export function secretMatches(got: string | null | undefined, expected: string | null | undefined): boolean {
@@ -152,4 +152,39 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
   const endsAt = ev.endsAt ?? shifted;
   if (sameTime(visit.starts_at, ev.startsAt) && sameTime(visit.ends_at, endsAt)) return { ok: false, reason: "no change" };
   return { ok: true, patch: { starts_at: ev.startsAt, ends_at: endsAt, ...common }, event: { status: "rescheduled", note: `Rescheduled in ArrivePing to ${scheduleRange(ev.startsAt, endsAt, timeZone)}`, at } };
+}
+
+/** The start and end of a visit from the schedule form, in the browser's time. No end date means the same day; no end time means no end. */
+export function visitTimes(form: { date: string; endDate?: string; start: string; end: string }): { startsAt: Date; endsAt: Date | null } | { error: string } {
+  const startsAt = new Date(`${form.date}T${form.start}`);
+  if (!form.date || !form.start || Number.isNaN(startsAt.getTime())) return { error: "Choose a date and start time." };
+  if (!form.end) return { startsAt, endsAt: null };
+  const endsAt = new Date(`${form.endDate || form.date}T${form.end}`);
+  if (Number.isNaN(endsAt.getTime())) return { error: "Choose a date and start time." };
+  if (endsAt < startsAt) return { error: "The end is before the start." };
+  return { startsAt, endsAt };
+}
+
+/** A visit's dates for its row, in Winnipeg time. Several days read as the days, then the daily hours: "Dec 1 – Dec 4, 8:00 a.m. – 4:00 p.m.". */
+export function visitRange(startsAt: string, endsAt: string | null, timeZone = SCHEDULE_TZ): string {
+  const s = new Date(startsAt);
+  const e = endsAt ? new Date(endsAt) : null;
+  const day = (d: Date, year: boolean) => new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", ...(year ? { year: "numeric" } : {}), timeZone }).format(d);
+  const ymd = (d: Date) => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone }).format(d);
+  if (!e || ymd(s) === ymd(e)) return scheduleRange(startsAt, endsAt, timeZone);
+  const time = new Intl.DateTimeFormat("en-CA", { timeStyle: "short", timeZone });
+  const years = ymd(s).slice(0, 4) !== ymd(e).slice(0, 4);
+  return `${day(s, years)} – ${day(e, years)}, ${time.format(s)} – ${time.format(e)}`;
+}
+
+/** What ArrivePing says about a visit, in the crew's words. */
+export const AP_LABEL: Record<string, string> = { scheduled: "Scheduled", assigned: "Assigned", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled", cancel_requested: "Cancel requested" };
+
+/** The ArrivePing pill for a visit's row, or null when it was never sent: "Assigned to Brodie", "On the way", "Scheduled in ArrivePing". */
+export function arrivepingBadge(v: { arriveping_job_id: string | null; arriveping_status: string | null; arriveping_assigned_to: string | null }): string | null {
+  if (!v.arriveping_job_id) return null;
+  const status = v.arriveping_status ?? "";
+  if (status === "assigned" && v.arriveping_assigned_to) return `Assigned to ${v.arriveping_assigned_to}`;
+  if (status === "scheduled") return "Scheduled in ArrivePing";
+  return Object.hasOwn(AP_LABEL, status) ? AP_LABEL[status]! : "In ArrivePing";
 }

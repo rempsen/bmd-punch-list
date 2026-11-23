@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { applyInboundEvent, applyVisitEvent, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, visitsCsv } from "./logic";
+import { AP_LABEL, applyInboundEvent, applyVisitEvent, arrivepingBadge, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, visitRange, visitTimes, visitsCsv } from "./logic";
 
-const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100", arriveping_job_id: "AP-77", status: "scheduled" as const };
+const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100", arriveping_job_id: "AP-77", status: "scheduled" as const, arriveping_status: null, arriveping_assigned_to: null };
 
 describe("ArrivePing webhook", () => {
   test("a missing or wrong secret is refused; the right one is accepted", () => {
@@ -181,5 +181,72 @@ describe("polish: export safety", () => {
     expect(row).toContain(",'+1 crew,'@pat,");
     expect(row).toContain("\"'=HYPERLINK(\"\"http://x\"\")\"");
     expect(row).toContain(",'-Client,");
+  });
+});
+
+describe("scheduling a visit", () => {
+  test("a multi-day visit runs from the first day's start to the last day's end", () => {
+    const r = visitTimes({ date: "2026-12-01", endDate: "2026-12-04", start: "08:00", end: "16:00" });
+    if ("error" in r) throw new Error(r.error);
+    expect(r.endsAt).not.toBeNull();
+    expect(r.endsAt!.getTime() - r.startsAt.getTime()).toBe((3 * 24 + 8) * 3600_000);
+    expect(r.startsAt.getDate()).toBe(1);
+    expect(r.startsAt.getHours()).toBe(8);
+  });
+  test("the end date defaults to the start date", () => {
+    const r = visitTimes({ date: "2026-12-01", start: "08:00", end: "16:00" });
+    if ("error" in r) throw new Error(r.error);
+    expect(r.endsAt!.getTime() - r.startsAt.getTime()).toBe(8 * 3600_000);
+    const blank = visitTimes({ date: "2026-12-01", endDate: "", start: "08:00", end: "16:00" });
+    expect(blank).toEqual(r);
+  });
+  test("no end time means no end", () => {
+    const r = visitTimes({ date: "2026-12-01", endDate: "2026-12-04", start: "08:00", end: "" });
+    if ("error" in r) throw new Error(r.error);
+    expect(r.endsAt).toBeNull();
+  });
+  test("a missing date or start, or an end before the start, is refused with a clear message", () => {
+    expect(visitTimes({ date: "", start: "08:00", end: "16:00" })).toEqual({ error: "Choose a date and start time." });
+    expect(visitTimes({ date: "2026-12-01", start: "", end: "16:00" })).toEqual({ error: "Choose a date and start time." });
+    expect(visitTimes({ date: "2026-12-01", start: "08:00", end: "07:00" })).toEqual({ error: "The end is before the start." });
+    expect(visitTimes({ date: "2026-12-04", endDate: "2026-12-01", start: "08:00", end: "16:00" })).toEqual({ error: "The end is before the start." });
+  });
+});
+
+describe("ArrivePing status on a visit", () => {
+  const linked = { arriveping_job_id: "wo_9", arriveping_status: "scheduled", arriveping_assigned_to: null };
+  test("labels read the way the crew says them", () => {
+    expect(AP_LABEL).toMatchObject({ scheduled: "Scheduled", assigned: "Assigned", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled", cancel_requested: "Cancel requested" });
+  });
+  test("an assignment names the tech", () => {
+    expect(arrivepingBadge({ ...linked, arriveping_status: "assigned", arriveping_assigned_to: "Brodie" })).toBe("Assigned to Brodie");
+    expect(arrivepingBadge({ ...linked, arriveping_status: "assigned" })).toBe("Assigned");
+  });
+  test("a live status uses its label; a fresh work order says where it is", () => {
+    expect(arrivepingBadge({ ...linked, arriveping_status: "en_route", arriveping_assigned_to: "Brodie" })).toBe("On the way");
+    expect(arrivepingBadge(linked)).toBe("Scheduled in ArrivePing");
+    expect(arrivepingBadge({ ...linked, arriveping_status: "cancel_requested" })).toBe("Cancel requested");
+    expect(arrivepingBadge({ ...linked, arriveping_status: null })).toBe("In ArrivePing");
+    expect(arrivepingBadge({ ...linked, arriveping_status: "on_hold" })).toBe("In ArrivePing");
+  });
+  test("a visit never sent to ArrivePing has no badge", () => {
+    expect(arrivepingBadge({ ...linked, arriveping_job_id: null })).toBeNull();
+    expect(arrivepingBadge({ arriveping_job_id: null, arriveping_status: "assigned", arriveping_assigned_to: "Brodie" })).toBeNull();
+  });
+});
+
+describe("a visit's dates on its row", () => {
+  const sp = (s: string) => s.replace(/\s/g, " ");
+  test("one day reads as the day and its hours", () => {
+    expect(sp(visitRange("2026-12-01T08:00:00Z", "2026-12-01T16:00:00Z", "UTC"))).toMatch(/^Dec 1, 2026, 8:00 a\.m\. ?[–-] ?4:00 p\.m\.$/);
+  });
+  test("several days read as the day range, then the daily hours", () => {
+    expect(sp(visitRange("2026-12-01T08:00:00Z", "2026-12-04T16:00:00Z", "UTC"))).toBe("Dec 1 – Dec 4, 8:00 a.m. – 4:00 p.m.");
+  });
+  test("a range across a new year names both years", () => {
+    expect(sp(visitRange("2026-12-30T08:00:00Z", "2027-01-02T16:00:00Z", "UTC"))).toBe("Dec 30, 2026 – Jan 2, 2027, 8:00 a.m. – 4:00 p.m.");
+  });
+  test("no end shows just the start", () => {
+    expect(sp(visitRange("2026-12-01T08:00:00Z", null, "UTC"))).toBe("Dec 1, 2026, 8:00 a.m.");
   });
 });
