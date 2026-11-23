@@ -10,6 +10,7 @@ import "../styles/simpleTakeoff.css";
 import { store } from "../lib/store.js";
 import { PALETTE } from "../lib/takeoffConstants.ts";
 import { createSheetEngine, RENDER_SCALE, STANDARD_SCALES } from "../lib/bmd/engine.js";
+import { mergeSheets, pickDrawings } from "../lib/bmd/drawings.js";
 import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
 import { parseFeet } from "../lib/bmd/feet.js";
@@ -47,6 +48,11 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const [area, setArea] = useState("");              // the area name new measurements get ("Level 2"); blank for none
   const [scope, setScope] = useState("all");         // totals for "all" sheets or "sheet" (this one)
   const [renaming, setRenaming] = useState(null);    // null | {id, tag}
+  const [adding, setAdding] = useState(null);        // null | "Adding A-101.pdf…"
+  const [dropping, setDropping] = useState(false);   // a file is being dragged over the screen
+  const picker = useRef(null);
+  const sheetList = useRef(null);
+  const [loaded, setLoaded] = useState(false);
   const wrap = useRef(null);
   const canvas = useRef(null);
   const pdfs = useRef(new Map());                    // file name → pdf.js document
@@ -113,12 +119,63 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
         const remembered = (loaded.sheet_tabs || []).find((k) => list.some((s) => s.key === k));
         setCurrent(remembered ?? list[0]?.key ?? null);
         setBusy(list.length ? null : "empty");
+        setLoaded(true);
       } catch (e) {
         if (live) { setBusy(null); say(`The takeoff could not be opened: ${String(e?.message || e)}`, "bad"); }
       }
     })();
     return () => { live = false; };
   }, [openPdf]);
+
+  // ── add drawings: dropped anywhere on the screen or chosen with the button; they are filed under the project's Plans ──
+  const loadingSheets = !loaded;   // the first pass over the project's drawings rebuilds the sheet list, so adding waits for it
+  const addDrawings = async (files) => {
+    if (readOnly || adding) return;
+    if (loadingSheets) return void say("The project's drawings are still opening. Add more in a moment.", "warn");
+    const { pdfs: chosen, refused } = pickDrawings(files);
+    if (!chosen.length) {
+      if (refused.length) say(refused.map((r) => `${r.name}: ${r.why}`).join(" "), "warn");
+      return;
+    }
+    let first = null;
+    const failed = refused.map((r) => `${r.name}: ${r.why}`);
+    let done = 0;
+    for (const file of chosen) {
+      setAdding(`Adding ${file.name}…`);
+      try {
+        const out = await store.addPdf(file);
+        pdfs.current.delete(out.name);
+        const pdf = await openPdf(out.name);
+        const pages = [];
+        for (let n = 1; n <= pdf.numPages; n++) pages.push({ key: sheetKey(out.name, n), file: out.name, page: n, label: null });
+        setSheets((prev) => mergeSheets(prev, out.name, pages));
+        first ??= pages[0]?.key ?? null;
+        done++;
+      } catch (e) {
+        failed.push(`${file.name}: ${String(e?.message || e)}`);
+      }
+    }
+    setAdding(null);
+    if (first) { setBusy(null); setCurrent(first); }
+    if (failed.length) say(`${done ? `${done} added. ` : ""}Not added: ${failed.join(" ")}`, done ? "warn" : "bad");
+    else say(`${done === 1 ? `${chosen[0].name} was` : `${done} drawings were`} added to this project's Plans.`, "good");
+  };
+  const dropProps = readOnly ? {} : {
+    onDragOver: (e) => { if ([...(e.dataTransfer?.types || [])].includes("Files")) { e.preventDefault(); setDropping(true); } },
+    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDropping(false); },
+    onDrop: (e) => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); setDropping(false); void addDrawings(e.dataTransfer.files); },
+  };
+  const pickerInput = <input ref={picker} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { const f = [...e.target.files]; e.target.value = ""; void addDrawings(f); }} />;
+  const dropVeil = dropping ? <div className="st-drop" aria-hidden="true"><div>Drop PDF drawings to add them to this project's Plans</div></div> : null;
+
+  // Keep the open sheet in view in the list. Only the list itself is scrolled, never the page.
+  useEffect(() => {
+    const ul = sheetList.current, on = ul?.querySelector("[data-on]");
+    if (!ul || !on) return;
+    const top = on.offsetTop - ul.offsetTop, bottom = top + on.offsetHeight;
+    if (top < ul.scrollTop) ul.scrollTop = top;
+    else if (bottom > ul.scrollTop + ul.clientHeight) ul.scrollTop = bottom - ul.clientHeight;
+  }, [current, sheets.length, sheets.every((x) => x.label !== null)]);   // rows change height as sheet numbers arrive, so look once more when they are all in
 
   // Sheet numbers from the title blocks, filled in a few at a time so the list is usable at once.
   useEffect(() => {
@@ -416,15 +473,25 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
 
   if (busy === "empty") {
     return (
-      <div className="st st-empty">
+      <div className="st st-empty" {...dropProps}>
         <h1>No drawings yet</h1>
-        <p>Upload the plans as a PDF under this project's Documents → Plans, then open the takeoff again.</p>
+        {readOnly
+          ? <p>Nobody has added this project's plans yet. Someone who can edit the takeoff can add them here or under Documents → Plans.</p>
+          : <>
+              <p>Drop the plans here as PDF files, or choose them from your computer. They are filed under this project's Documents → Plans.</p>
+              <button type="button" className="st-btn st-btn-primary st-btn-big" onClick={() => picker.current?.click()} disabled={!!adding}>{adding ?? "Choose PDF drawings"}</button>
+              {note && <p className={`st-emptynote st-note-${note.tone}`} role="status">{note.text}</p>}
+            </>}
+        {pickerInput}
+        {dropVeil}
       </div>
     );
   }
 
   return (
-    <div className="st">
+    <div className="st" {...dropProps}>
+      {pickerInput}
+      {dropVeil}
       <header className="st-top">
         <div className="st-sheetname">
           <strong>{sheet ? sheet.label || `Page ${sheet.page}` : "Takeoff"}</strong>
@@ -453,12 +520,12 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       <div className="st-body">
         <aside className="st-sheets" aria-label="Sheets">
           <input className="st-input" placeholder="Find a sheet…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Find a sheet" />
-          <ul>
+          <ul ref={sheetList}>
             {shown.map((s) => {
               const n = doc ? sheetShapes(doc, s.key).length : 0;
               return (
                 <li key={s.key}>
-                  <button type="button" className={s.key === current ? "st-on" : ""} onClick={() => setCurrent(s.key)} title={s.file}>
+                  <button type="button" data-on={s.key === current ? "" : undefined} className={s.key === current ? "st-on" : ""} onClick={() => setCurrent(s.key)} title={s.file}>
                     <strong>{s.label || `Page ${s.page}`}</strong>
                     <span>{s.label ? `Page ${s.page}` : ""}{n ? ` · ${n} measured` : ""}</span>
                   </button>
@@ -466,6 +533,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
               );
             })}
           </ul>
+          {!readOnly && <button type="button" className="st-btn st-adddrawing" onClick={() => picker.current?.click()} disabled={!!adding || loadingSheets} title="Add PDF drawings to this project's Plans. You can also drop them anywhere on this screen.">{adding ?? "+ Add drawings"}</button>}
         </aside>
 
         <main className="st-stage" ref={wrap} data-tool={calibrate ? "calibrate" : tool} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={() => setHover(null)} onClick={onClick} onDoubleClick={() => (tool === "area" || tool === "line" || tool === "cut") && finishDraft()}>

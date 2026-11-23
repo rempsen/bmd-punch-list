@@ -115,3 +115,11 @@
 .st-ask { position: absolute; z-index: 3; left: 50%; top: 14px; transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid var(--st-line); box-shadow: 0 8px 24px rgb(15 23 42 / .18); cursor: default; max-width: calc(100% - 24px); }
 .st-ask label { font-weight: 600; font-size: 13.5px; }
 .st-ask .st-input { width: 130px; }
+
+/* Adding drawings from this screen */
+.st-btn-big { height: 44px; padding: 0 20px; margin-top: 8px; font-size: 15px; }
+.st-sheets button.st-adddrawing { flex-direction: row; align-items: center; justify-content: center; height: 36px; padding: 0 10px; border: 1px dashed #94a3b8; background: #fff; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-sheets button.st-adddrawing:hover:not(:disabled) { background: #fff; border-color: var(--st-navy); }
+.st-drop { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgb(15 23 42 / .45); pointer-events: none; }
+.st-drop div { padding: 22px 30px; border: 2px dashed #fff; border-radius: 16px; color: #fff; font-size: 18px; font-weight: 600; text-align: center; max-width: 80%; }
+.st-emptynote { margin-top: 10px !important; padding: 8px 12px; border-radius: 9px; border: 1px solid var(--st-line); background: #fff; color: inherit !important; font-size: 13.5px; }
