@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chosenActions, planImport, planSummary, suggestPicks, type Existing, type StagedRow } from "./import";
+import { chosenActions, planImport, planSummary, suggestPicks, suppliesFrom, widen, type Existing, type StagedRow } from "./import";
 
 const item = (id: string, kind: string, name: string, data: Record<string, unknown> = {}): StagedRow => ({ entity: "Item", external_id: id, kind, name, data: { sku: null, cost_cents: null, sales_price_cents: null, vendor: null, vendor_id: null, category: null, active: true, code: null, ...data } });
 const vendor = (id: string, name: string, data: Record<string, unknown> = {}): StagedRow => ({ entity: "Vendor", external_id: id, kind: "supplier", name, data: { contact_name: null, email: null, phone: null, account_number: null, active: true, ...data } });
@@ -101,5 +101,28 @@ describe("choosing what comes in", () => {
     const r = chosenActions(plan, (k) => k === "material|9");
     expect(r.actions.map((a) => `${a.kind}|${a.external_id}`)).toEqual(["supplier|4", "material|9"]);
     expect(r.addedSuppliers).toEqual(["Gerflor"]);
+  });
+});
+
+describe("review fixes: supplier links and vendor types", () => {
+  const withP = (m: number, l: number, o = 0) => ({ purchases: { material_lines: m, labour_lines: l, other_lines: o, last_purchase: null } });
+  test("a ticked product brings its supplier even when that supplier is matched to BMD's by name", () => {
+    const staged = [vendor("4", "Gerflor"), item("9", "material", "Mipolam", { vendor_id: "4" })];
+    const plan = planImport(staged, { ...none, suppliers: [{ id: "s1", name: "Gerflor", contact_name: null, email: null, phone: null, account_number: null, active: true }] });
+    expect(chosenActions(plan, (k) => k === "material|9").actions.map((a) => `${a.op}|${a.kind}|${a.external_id}`)).toEqual(["link|supplier|4", "create|material|9"]);
+  });
+  test("an already-linked vendor whose bills show labour is widened to both, never narrowed", () => {
+    const staged = [vendor("1", "Brolee", withP(97, 30)), vendor("2", "Tylor Beardy", withP(0, 172)), vendor("3", "Prosol", withP(283, 2)), vendor("5", "Mixed", withP(1, 50))];
+    const existing = { ...none, suppliers: [{ id: "a", name: "Brolee", contact_name: null, email: null, phone: null, account_number: null, active: true, supplies: "materials" as const }, { id: "b", name: "Tylor Beardy", contact_name: null, email: null, phone: null, account_number: null, active: true, supplies: "both" as const }, { id: "c", name: "Prosol", contact_name: null, email: null, phone: null, account_number: null, active: true, supplies: "materials" as const }, { id: "e", name: "Mixed", contact_name: null, email: null, phone: null, account_number: null, active: true, supplies: "labour" as const }], links: [{ kind: "supplier", bmd_id: "a", external_id: "1" }, { kind: "supplier", bmd_id: "b", external_id: "2" }, { kind: "supplier", bmd_id: "c", external_id: "3" }, { kind: "supplier", bmd_id: "e", external_id: "5" }] };
+    const plan = planImport(staged, existing);
+    expect(plan.map((a) => a.retype ?? null)).toEqual(["both", null, null, null]);
+    expect(chosenActions(plan, () => false).retypes.map((a) => a.bmd_id)).toEqual(["a"]);
+  });
+  test("a vendor a product names is never labour only, whatever its bills say", () => {
+    const staged = [vendor("7", "Installer & Supply", withP(0, 40)), item("9", "material", "Mipolam", { vendor_id: "7" })];
+    expect(planImport(staged, none)[0]!.fields["supplies"]).toBe("both");
+    expect(suppliesFrom({ material_lines: 0, labour_lines: 40 }, true)).toBe("both");
+    expect(widen("materials", "labour")).toBe("both");
+    expect(widen("both", "materials")).toBe("both");
   });
 });

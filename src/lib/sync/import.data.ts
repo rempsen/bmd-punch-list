@@ -7,7 +7,7 @@ export async function loadImportPlan(system: "quickbooks"): Promise<{ plan: Acti
     db.from("sync_staging").select("entity,external_id,kind,name,data").eq("system", system).order("name").limit(20000),
     db.from("catalogue_materials").select("id,name,sku,unit_cost_cents,active").limit(20000),
     db.from("labour_rates").select("id,name,unit_cost_cents,active").limit(5000),
-    db.from("suppliers").select("id,name,contact_name,email,phone,account_number,active").limit(20000),
+    db.from("suppliers").select("id,name,contact_name,email,phone,account_number,active,supplies").limit(20000),
     db.from("cost_codes").select("code,name,qbo_item_id").limit(5000),
     db.from("sync_links").select("kind,bmd_id,external_id").eq("system", system).limit(50000),
   ]);
@@ -22,6 +22,18 @@ export async function loadImportPlan(system: "quickbooks"): Promise<{ plan: Acti
   const rows = (staged.data ?? []) as StagedRow[];
   const plan = planImport(rows, existing);
   return { plan, picks: suggestPicks(plan, rows), staged: rows.length };
+}
+
+/** Records that vendors BMD already has also supply labour (or materials), as their QuickBooks bills show. Only ever widens. */
+export async function applyRetypes(plan: Action[]): Promise<number> {
+  let n = 0;
+  for (const a of plan) {
+    if (!a.retype || !a.bmd_id) continue;
+    const { error } = await db.from("suppliers").update({ supplies: a.retype }).eq("id", a.bmd_id);
+    if (error) throw error;
+    n++;
+  }
+  return n;
 }
 
 /** Applies the ticked steps of a plan that has been shown as a dry run. Only "create" and "link" steps are sent; what is left out stays held. */

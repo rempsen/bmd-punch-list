@@ -11,7 +11,7 @@ export type StagedRow = { entity: string; external_id: string; kind: string; nam
 export type Existing = {
   materials: { id: string; name: string; sku: string | null; unit_cost_cents: number | null; active: boolean }[];
   labour: { id: string; name: string; unit_cost_cents: number | null; active: boolean }[];
-  suppliers: { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; account_number: string | null; active: boolean }[];
+  suppliers: { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; account_number: string | null; active: boolean; supplies?: Supplies }[];
   costCodes: { code: string; name: string; qbo_item_id: string | null }[];
   links: { kind: string; bmd_id: string; external_id: string }[];
 };
@@ -26,17 +26,22 @@ export type Action = {
   fields: Record<string, unknown>;
   /** Fields where BMD and QuickBooks differ and BMD's value stays. */
   kept?: string[];
+  /** A vendor BMD already has, shown by QuickBooks to supply more than BMD records: what it becomes. Never narrows. */
+  retype?: Supplies;
 };
 
 export type Supplies = "materials" | "labour" | "both";
 type Purchases = { material_lines?: number; labour_lines?: number; other_lines?: number };
 /** What a vendor supplies, from its purchase lines: both when the smaller side is at least a fifth of the larger. */
-export function suppliesFrom(p: Purchases | undefined): Supplies {
+export function suppliesFrom(p: Purchases | undefined, namedOnProduct = false): Supplies {
   const m = p?.material_lines ?? 0;
   const l = p?.labour_lines ?? 0;
-  if (m > 0 && l > 0 && Math.min(m, l) * 5 >= Math.max(m, l)) return "both";
-  return l > m ? "labour" : "materials";
+  const s: Supplies = m > 0 && l > 0 && Math.min(m, l) * 5 >= Math.max(m, l) ? "both" : l > m ? "labour" : "materials";
+  // A product names it as its supplier, so it sells materials whatever its bills say.
+  return namedOnProduct && s === "labour" ? "both" : s;
 }
+/** Adds what QuickBooks shows to what BMD records. Never takes anything away, so a choice made in BMD stays. */
+export const widen = (bmd: Supplies, seen: Supplies): Supplies => (bmd === seen ? bmd : "both");
 
 const key = (s: unknown) => String(s ?? "").trim().toLowerCase();
 const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -60,6 +65,13 @@ export function planImport(staged: StagedRow[], existing: Existing): Action[] {
   const taken = new Set(existing.links.map((l) => `${l.kind}|${l.bmd_id}`));   // a BMD record is matched to one QuickBooks record only
   const free = <T extends { id: string }>(kind: string, rows: T[], test: (x: T) => boolean) => rows.find((x) => !taken.has(`${kind}|${x.id}`) && test(x));
   const out: Action[] = [];
+  const named = new Set(staged.filter((r) => r.kind === "material" || r.kind === "labour").map((r) => text(r.data["vendor_id"])).filter((v): v is string => !!v));
+  const bmdSupplies = new Map(existing.suppliers.map((x) => [x.id, x.supplies ?? "materials"] as const));
+  const evidence = (r: StagedRow): Supplies | null => {
+    const p = r.data["purchases"] as Purchases | undefined;
+    const seen = (p?.material_lines ?? 0) + (p?.labour_lines ?? 0) > 0;
+    return seen ? suppliesFrom(p, named.has(r.external_id)) : null;
+  };
 
   // Vendors first, so a product's preferred vendor is there to point at.
   const ordered = [...staged.filter((r) => r.kind === "supplier"), ...staged.filter((r) => r.kind !== "supplier")];
@@ -71,7 +83,11 @@ export function planImport(staged: StagedRow[], existing: Existing): Action[] {
     }
     const already = linked.get(`${kind}|${r.external_id}`);
     if (already) {
-      out.push({ op: "linked", kind, external_id: r.external_id, name: r.name, bmd_id: already, fields: {} });
+      // Already linked: nothing to import, but its bills can still show it supplies more than BMD records (an installer imported as a supplier).
+      const seen = kind === "supplier" ? evidence(r) : null;
+      const now = bmdSupplies.get(already);
+      const to = seen && now ? widen(now, seen) : null;
+      out.push({ op: "linked", kind, external_id: r.external_id, name: r.name, bmd_id: already, fields: {}, ...(to && to !== now ? { retype: to } : {}) });
       continue;
     }
     const d = r.data;
@@ -82,10 +98,9 @@ export function planImport(staged: StagedRow[], existing: Existing): Action[] {
         taken.add(`supplier|${m.id}`);
         const f = fill(m, incoming);
         // Only purchase history can say a vendor BMD already has also supplies the other thing.
-        const p = d["purchases"] as Purchases | undefined;
-        const seen = (p?.material_lines ?? 0) + (p?.labour_lines ?? 0) > 0;
-        out.push(linkAction(kind, r, m.name, m.id, seen ? { ...f, fields: { ...f.fields, supplies: suppliesFrom(p) } } : f));
-      } else out.push({ op: "create", kind, external_id: r.external_id, name: r.name, bmd_id: null, fields: { name: r.name, ...incoming, active: d["active"] !== false, supplies: suppliesFrom(d["purchases"] as Purchases | undefined) } });
+        const seen = evidence(r);
+        out.push(linkAction(kind, r, m.name, m.id, seen ? { ...f, fields: { ...f.fields, supplies: seen } } : f));
+      } else out.push({ op: "create", kind, external_id: r.external_id, name: r.name, bmd_id: null, fields: { name: r.name, ...incoming, active: d["active"] !== false, supplies: evidence(r) ?? "materials" } });
     } else if (kind === "material") {
       const sku = text(d["sku"]);
       const m = (sku ? free("material", existing.materials, (x) => key(x.sku) === key(sku)) : undefined) ?? free("material", existing.materials, (x) => key(x.name) === key(r.name));
@@ -196,10 +211,11 @@ export function suggestPicks(plan: Action[], staged: StagedRow[]): Map<string, I
  * The steps to send for what is ticked. A ticked product's supplier comes along even if it was unticked,
  * so the product arrives with its supplier. Returns the steps and the suppliers added that way.
  */
-export function chosenActions(plan: Action[], on: (key: string) => boolean): { actions: Action[]; addedSuppliers: string[] } {
+export function chosenActions(plan: Action[], on: (key: string) => boolean): { actions: Action[]; addedSuppliers: string[]; retypes: Action[] } {
   const chosen = plan.filter((a) => (a.op === "create" || a.op === "link") && on(actionKey(a)));
   const need = new Set(chosen.map((a) => text(a.fields["supplier_external_id"])).filter((v): v is string => !!v));
   const have = new Set(chosen.filter((a) => a.kind === "supplier").map((a) => a.external_id));
-  const extra = plan.filter((a) => a.kind === "supplier" && a.op === "create" && need.has(a.external_id) && !have.has(a.external_id));
-  return { actions: [...extra, ...chosen], addedSuppliers: extra.map((a) => a.name) };
+  // A new vendor or one matched to BMD's by name: either way it must be linked before the product can point at it.
+  const extra = plan.filter((a) => a.kind === "supplier" && (a.op === "create" || a.op === "link") && need.has(a.external_id) && !have.has(a.external_id));
+  return { actions: [...extra, ...chosen], addedSuppliers: extra.map((a) => a.name), retypes: plan.filter((a) => a.retype) };
 }
