@@ -149,12 +149,20 @@ async function linkVisit(
 }
 
 /** The BMD client a project belongs to: its linked client, or else the one whose name matches the project's client name. */
-async function loadClient(project: import("./core").ProjectForPush): Promise<{ client: import("./core").ClientForPush; linkedId: string | null } | { error: string }> {
+async function loadClient(
+  project: import("./core").ProjectForPush,
+): Promise<
+  { client: import("./core").ClientForPush; linkedId: string | null } | { error: string }
+> {
   const db = await admin();
   const cols = "id,name,email,phone,billing_address";
   let client: import("./core").ClientForPush | null = null;
   if (project.client_id) {
-    const { data, error } = await db.from("clients").select(cols).eq("id", project.client_id).maybeSingle();
+    const { data, error } = await db
+      .from("clients")
+      .select(cols)
+      .eq("id", project.client_id)
+      .maybeSingle();
     if (error) return { error: `Could not load the client: ${error.message}` };
     client = data;
   } else if (project.client?.trim()) {
@@ -163,10 +171,16 @@ async function loadClient(project: import("./core").ProjectForPush): Promise<{ c
     const escaped = project.client.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
     const { data, error } = await db.from("clients").select(cols).ilike("name", escaped).limit(5);
     if (error) return { error: `Could not load the client: ${error.message}` };
-    client = ((data ?? []) as import("./core").ClientForPush[]).find((c) => c.name.trim().toLowerCase() === want) ?? null;
+    client =
+      ((data ?? []) as import("./core").ClientForPush[]).find(
+        (c) => c.name.trim().toLowerCase() === want,
+      ) ?? null;
   }
   const label = project.number ? `${project.number} ${project.name}` : project.name;
-  if (!client) return { error: `${label} has no client record, and ArrivePing needs one. Pick the project's client under Overview → Details → Edit, then send again.` };
+  if (!client)
+    return {
+      error: `${label} has no client record, and ArrivePing needs one. Pick the project's client under Overview → Details → Edit, then send again.`,
+    };
   const { data: link, error } = await db
     .from("sync_links")
     .select("external_id")
@@ -179,7 +193,11 @@ async function loadClient(project: import("./core").ProjectForPush): Promise<{ c
 }
 
 /** Remembers which ArrivePing client a BMD client is, and logs it on the Sync tab. Null on success, else why not. */
-async function saveClientLink(client: import("./core").ClientForPush, apClientId: string, via: string): Promise<string | null> {
+async function saveClientLink(
+  client: import("./core").ClientForPush,
+  apClientId: string,
+  via: string,
+): Promise<string | null> {
   const db = await admin();
   const { error } = await db.from("sync_links").insert({
     kind: "client",
@@ -192,8 +210,20 @@ async function saveClientLink(client: import("./core").ClientForPush, apClientId
   if (error && error.code === "23505") {
     // Already linked: the same pair (a race between two pushes) is fine; any other pairing is not.
     const [{ data: byExternal }, { data: byBmd }] = await Promise.all([
-      db.from("sync_links").select("bmd_id,external_id").eq("kind", "client").eq("system", "arriveping").eq("external_id", apClientId).maybeSingle(),
-      db.from("sync_links").select("bmd_id,external_id").eq("kind", "client").eq("system", "arriveping").eq("bmd_id", client.id).maybeSingle(),
+      db
+        .from("sync_links")
+        .select("bmd_id,external_id")
+        .eq("kind", "client")
+        .eq("system", "arriveping")
+        .eq("external_id", apClientId)
+        .maybeSingle(),
+      db
+        .from("sync_links")
+        .select("bmd_id,external_id")
+        .eq("kind", "client")
+        .eq("system", "arriveping")
+        .eq("bmd_id", client.id)
+        .maybeSingle(),
     ]);
     if (byExternal && byExternal.bmd_id !== client.id)
       return `ArrivePing client ${apClientId} is already linked to another BMD client. Two BMD clients may share an email; merge them or give "${client.name}" its own email, then send again.`;
@@ -202,9 +232,16 @@ async function saveClientLink(client: import("./core").ClientForPush, apClientId
   } else if (error) {
     return `Could not save the client's ArrivePing link: ${error.message}`;
   }
-  const { error: logError } = await db
-    .from("sync_log")
-    .insert({ direction: "out", system: "arriveping", kind: "client", bmd_id: client.id, external_id: apClientId, label: client.name, outcome: "sent", detail: { via } });
+  const { error: logError } = await db.from("sync_log").insert({
+    direction: "out",
+    system: "arriveping",
+    kind: "client",
+    bmd_id: client.id,
+    external_id: apClientId,
+    label: client.name,
+    outcome: "sent",
+    detail: { via },
+  });
   // The link is saved; a missing history line is not worth failing the push for.
   if (logError) console.error("[arriveping] could not log the client link", logError.message);
   return null;
@@ -227,7 +264,11 @@ async function runPushCreate(
   if (visit.arriveping_job_id) return { outcome: "skipped", reason: "already linked" };
   // Only a visit that is still scheduled may be sent: another tab may have completed or cancelled it since the button was drawn.
   if (visit.status !== "scheduled")
-    return { outcome: "failed", error: `The visit is ${visit.status}, so it was not sent to ArrivePing.`, key };
+    return {
+      outcome: "failed",
+      error: `The visit is ${visit.status}, so it was not sent to ArrivePing.`,
+      key,
+    };
 
   const db = await admin();
   const { data: earlier } = await db
@@ -272,7 +313,11 @@ async function runPushCreate(
       await markFailed(eventId, loadedClient.error);
       return { outcome: "failed", error: loadedClient.error, key };
     }
-    const ensured = await ensureArrivePingClient({ fetchJson: apFetch, client: loadedClient.client, linkedId: loadedClient.linkedId });
+    const ensured = await ensureArrivePingClient({
+      fetchJson: apFetch,
+      client: loadedClient.client,
+      linkedId: loadedClient.linkedId,
+    });
     if (ensured.outcome === "failed") {
       await markFailed(eventId, ensured.error);
       return { outcome: "failed", error: ensured.error, key };
@@ -284,7 +329,13 @@ async function runPushCreate(
         return { outcome: "failed", error: linkError, key };
       }
     }
-    const result = await pushVisitCreate({ fetchJson: apFetch, visit, project, clientId: ensured.clientId, existingKey: key });
+    const result = await pushVisitCreate({
+      fetchJson: apFetch,
+      visit,
+      project,
+      clientId: ensured.clientId,
+      existingKey: key,
+    });
     if (result.outcome === "failed") {
       await markFailed(eventId, result.error);
       return result;
@@ -623,4 +674,245 @@ export const retryAllFailed = createServerFn({ method: "POST" })
     // Failed rows not attempted in this batch: the ones retried here that failed again are reported in `failed` instead.
     counts.remaining = Math.max(0, (count ?? 0) - counts.failed);
     return { ok: true as const, ...counts };
+  });
+
+// ---------------------------------------------------------------------------
+// Live updates from ArrivePing: BMD's webhook subscription, and checking visits against ArrivePing
+// ---------------------------------------------------------------------------
+
+const WEBHOOKS_PATH = "/api/v1/webhooks";
+
+export type LiveSyncState = {
+  canManage: boolean;
+  connected: boolean;
+  /** Where ArrivePing sends events, as subscribed. */
+  url: string | null;
+  /** Where this copy of BMD would ask ArrivePing to send them. */
+  expectedUrl: string;
+  connectedAt: string | null;
+  lastCheckAt: string | null;
+  lastCheckError: string | null;
+  remote: { active: boolean; lastSuccessAt: string | null; lastFailureAt: string | null } | null;
+  remoteError: string | null;
+};
+
+const webhookUrlFor = (requestUrl: string) =>
+  `${new URL(requestUrl).origin}/api/public/arriveping/webhook`;
+
+/** Settings → Integrations → ArrivePing → Live updates. Asks ArrivePing whether the subscription is still there and healthy. */
+export const arrivepingLiveSync = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<LiveSyncState> => {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const canManage = await allowed(context.supabase as never, "manage_integrations");
+    const expectedUrl = webhookUrlFor(getRequest().url);
+    const empty: LiveSyncState = {
+      canManage,
+      connected: false,
+      url: null,
+      expectedUrl,
+      connectedAt: null,
+      lastCheckAt: null,
+      lastCheckError: null,
+      remote: null,
+      remoteError: null,
+    };
+    if (!canManage) return empty;
+    const { readLink } = await import("./inbound.server");
+    let link;
+    try {
+      link = await readLink();
+    } catch (error) {
+      return { ...empty, remoteError: message(error) };
+    }
+    const base = {
+      ...empty,
+      connected: !!link?.subscription_id,
+      url: link?.webhook_url ?? null,
+      connectedAt: link?.connected_at ?? null,
+      lastCheckAt: link?.last_check_at ?? null,
+      lastCheckError: link?.last_check_error ?? null,
+    };
+    if (!link?.subscription_id) return base;
+    const { apFetch } = await import("./client.server");
+    const { webhookSetupError } = await import("./core");
+    const res = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(link.subscription_id)}`, {
+      method: "GET",
+    });
+    if (!res.ok)
+      return {
+        ...base,
+        remoteError:
+          res.status === 404
+            ? "ArrivePing no longer has this subscription. Connect again."
+            : webhookSetupError(res.status, res.error),
+      };
+    const sub = (res.json ?? {}) as Record<string, unknown>;
+    const str = (v: unknown) => (typeof v === "string" ? v : null);
+    return {
+      ...base,
+      remote: {
+        active: sub["active"] !== false,
+        lastSuccessAt: str(sub["last_success_at"]),
+        lastFailureAt: str(sub["last_failure_at"]),
+      },
+    };
+  });
+
+/**
+ * Subscribes BMD to ArrivePing's integration webhooks, keeping the signing secret ArrivePing hands back (once) encrypted on
+ * the server. Connecting again replaces the old subscription, so there is only ever one. Then checks every open visit, so
+ * anything that changed in ArrivePing before now comes across too.
+ */
+export const connectArrivePingSync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(
+    async ({
+      context,
+    }): Promise<
+      { ok: true; check: import("./inbound.server").CheckResult } | { ok: false; error: string }
+    > => {
+      await requireAny(context.supabase as never, "manage_integrations");
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const { apFetch } = await import("./client.server");
+      const { AP_WEBHOOK_EVENTS, webhookSetupError } = await import("./core");
+      const { readLink, saveLink, sealSecret, reconcileVisits } = await import("./inbound.server");
+      const url = webhookUrlFor(getRequest().url);
+      if (!url.startsWith("https://"))
+        return {
+          ok: false,
+          error: "Connect from BMD's published https:// address, so ArrivePing can reach it.",
+        };
+      const created = await apFetch(WEBHOOKS_PATH, {
+        method: "POST",
+        body: { url, events: [...AP_WEBHOOK_EVENTS], description: "BMD Projects — install visits" },
+        idempotencyKey: `bmd-webhook-connect-${Date.now()}`,
+      });
+      if (!created.ok)
+        return { ok: false, error: webhookSetupError(created.status, created.error) };
+      const sub = (created.json ?? {}) as Record<string, unknown>;
+      const id = typeof sub["id"] === "string" ? sub["id"] : null;
+      const secret = typeof sub["secret"] === "string" ? sub["secret"] : null;
+      if (!id || !secret)
+        return {
+          ok: false,
+          error: "ArrivePing created the subscription but did not return its id and secret.",
+        };
+      let previous: string | null = null;
+      try {
+        previous = (await readLink())?.subscription_id ?? null;
+        const { data: user } = await (
+          context.supabase as never as {
+            auth: { getUser: () => Promise<{ data: { user: { id: string } | null } }> };
+          }
+        ).auth.getUser();
+        await saveLink({
+          subscription_id: id,
+          webhook_url: url,
+          secret_enc: await sealSecret(secret),
+          events: AP_WEBHOOK_EVENTS.join(","),
+          connected_at: new Date().toISOString(),
+          connected_by: user.user?.id ?? null,
+        });
+      } catch (error) {
+        // Without the secret BMD can't verify deliveries, so the new subscription is useless: take it back down.
+        await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(id)}`, { method: "DELETE" });
+        return { ok: false, error: message(error) };
+      }
+      // Only one subscription should point at BMD: the one just saved. An earlier one (a reconnect, a Connect whose answer
+      // was lost, two people clicking at once) has a secret BMD no longer holds, so its deliveries would only be refused.
+      const stale = new Set<string>(previous && previous !== id ? [previous] : []);
+      const listed = await apFetch(WEBHOOKS_PATH, { method: "GET" });
+      const rows = listed.ok ? ((listed.json as { data?: unknown } | null)?.data ?? []) : [];
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const r = row as Record<string, unknown>;
+        if (typeof r["id"] === "string" && r["id"] !== id && r["url"] === url) stale.add(r["id"]);
+      }
+      for (const old of stale) {
+        // Someone else may have connected in the meantime: never remove the subscription BMD now has on file.
+        const current = (await readLink().catch(() => null))?.subscription_id ?? id;
+        if (old === current) continue;
+        const gone = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(old)}`, {
+          method: "DELETE",
+        });
+        if (!gone.ok && gone.status !== 404)
+          console.error(
+            `ArrivePing: could not remove old webhook subscription ${old}: ${gone.error}`,
+          );
+      }
+      const check = await reconcileVisits({ force: true });
+      return { ok: true, check };
+    },
+  );
+
+/** Stops ArrivePing's integration webhooks to BMD. Visits keep everything already received. */
+export const disconnectArrivePingSync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: boolean; error?: string }> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const { apFetch } = await import("./client.server");
+    const { webhookSetupError } = await import("./core");
+    const { readLink, saveLink } = await import("./inbound.server");
+    try {
+      const link = await readLink();
+      if (link?.subscription_id) {
+        const res = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(link.subscription_id)}`, {
+          method: "DELETE",
+        });
+        if (!res.ok && res.status !== 404)
+          return { ok: false, error: webhookSetupError(res.status, res.error) };
+      }
+      await saveLink({
+        subscription_id: null,
+        webhook_url: null,
+        secret_enc: null,
+        events: null,
+        connected_at: null,
+        connected_by: null,
+      });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: message(error) };
+    }
+  });
+
+/** Asks ArrivePing to send a test event to BMD now. It shows up in the sync queue as "ping" within a few seconds. */
+export const testArrivePingSync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: boolean; error?: string }> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const { apFetch } = await import("./client.server");
+    const { webhookSetupError } = await import("./core");
+    const { readLink } = await import("./inbound.server");
+    const link = await readLink().catch(() => null);
+    if (!link?.subscription_id) return { ok: false, error: "Connect live updates first." };
+    const res = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(link.subscription_id)}/test`, {
+      method: "POST",
+      body: {},
+    });
+    return res.ok ? { ok: true } : { ok: false, error: webhookSetupError(res.status, res.error) };
+  });
+
+/**
+ * Checks open install visits against ArrivePing. Pages call it as they open (at most once every two minutes across
+ * everyone); "Check now" in Settings forces it.
+ */
+export const checkArrivePingNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { force?: boolean; projectId?: string } | undefined) => ({
+    force: d?.force === true,
+    projectId:
+      typeof d?.projectId === "string" && d.projectId.trim() ? d.projectId.trim() : undefined,
+  }))
+  .handler(async ({ context, data }): Promise<import("./inbound.server").CheckResult> => {
+    // Anyone signed in may trigger the spaced-out automatic check: it only applies what ArrivePing already says and answers counts.
+    if (data.force) await requireAny(context.supabase as never, "manage_integrations");
+    const { arrivepingKey } = await import("./client.server");
+    if (!arrivepingKey()) return { ran: false, checked: 0, updated: 0, failed: 0 };
+    const { reconcileVisits } = await import("./inbound.server");
+    // An automatic check covers every open visit; the project only narrows a forced one.
+    return reconcileVisits({
+      force: data.force,
+      projectId: data.force ? data.projectId : undefined,
+    });
   });

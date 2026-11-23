@@ -351,6 +351,13 @@
       "when": 1795454977455,
       "tag": "0049_arriveping_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795466503922,
+      "tag": "0050_arriveping_live_sync",
+      "breakpoints": true
     }
   ]
 }

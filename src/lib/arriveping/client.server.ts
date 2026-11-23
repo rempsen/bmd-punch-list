@@ -7,7 +7,7 @@ const TIMEOUT_MS = 15_000;
 
 /** `not_configured` and `unreachable` have status 0; `http` is a reply ArrivePing sent that we could not use, with its body in `json` when it was JSON (a 409 hands back the existing record there). */
 export type ApResult = { ok: true; status: number; json: unknown } | { ok: false; status: number; code: "not_configured" | "unreachable" | "http"; error: string; json?: unknown };
-export type ApRequest = { method: "GET" | "POST" | "PATCH"; body?: unknown; idempotencyKey?: string };
+export type ApRequest = { method: "GET" | "POST" | "PATCH" | "DELETE"; body?: unknown; idempotencyKey?: string };
 
 const failure = (error: unknown): string => `Could not reach ArrivePing: ${error instanceof Error ? error.message : String(error)}`;
 

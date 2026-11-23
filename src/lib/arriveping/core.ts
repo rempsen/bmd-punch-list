@@ -233,3 +233,50 @@ export function retryable(
   const created = Date.parse(row.created_at);
   return Number.isFinite(created) && nowMs - created >= STALE_PENDING_MS;
 }
+
+/**
+ * Checks an integration webhook's X-ArrivePing-Signature: `t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">` made
+ * with the subscription's secret. Old or future-dated signatures (beyond `toleranceSecs`) fail, so a captured delivery
+ * cannot be replayed later.
+ */
+export async function verifyArrivePingSignature(secret: string, rawBody: string, header: string | null | undefined, nowSecs = Math.floor(Date.now() / 1000), toleranceSecs = 300): Promise<boolean> {
+  if (!secret || !header) return false;
+  const parts = new Map<string, string>();
+  for (const piece of header.split(",")) {
+    const eq = piece.indexOf("=");
+    if (eq > 0) parts.set(piece.slice(0, eq).trim(), piece.slice(eq + 1).trim());
+  }
+  const t = Number(parts.get("t"));
+  const got = parts.get("v1") ?? "";
+  if (!Number.isInteger(t) || !/^[0-9a-f]{64}$/i.test(got) || Math.abs(nowSecs - t) > toleranceSecs) return false;
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(`${t}.${rawBody}`)));
+  const want = Array.from(mac, (b) => b.toString(16).padStart(2, "0")).join("");
+  let diff = 0;
+  const lower = got.toLowerCase();
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ lower.charCodeAt(i);
+  return diff === 0;
+}
+
+/** The integration events BMD subscribes to: who is on a job, when it is, and where the crew is. */
+export const AP_WEBHOOK_EVENTS = [
+  "workorder.assigned",
+  "workorder.unassigned",
+  "workorder.rescheduled",
+  "workorder.enroute",
+  "workorder.arrived",
+  "workorder.started",
+  "workorder.completed",
+  "workorder.cancelled",
+  "workorder.deleted",
+] as const;
+
+/** Plain words for an ArrivePing refusal while managing the webhook subscription. */
+export function webhookSetupError(status: number, error: string): string {
+  if (status === 401) return "ArrivePing did not accept the API key. Check that ArrivePing_Api holds a current key.";
+  if (status === 403) return "The ArrivePing API key is missing the “Manage webhook subscriptions” permission. Create a key that has it and replace ArrivePing_Api.";
+  if (status === 404) return "ArrivePing does not offer integration webhooks on this account yet.";
+  if (status === 409) return "ArrivePing already has 10 webhooks for BMD Materials. Delete one in ArrivePing first.";
+  return error;
+}

@@ -11,7 +11,7 @@ export function secretMatches(got: string | null | undefined, expected: string |
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const STATUSES: Record<string, VisitStatus> = { en_route: "en_route", enroute: "en_route", on_the_way: "en_route", arrived: "arrived", arrival: "arrived", completed: "completed", complete: "completed", cancelled: "cancelled", canceled: "cancelled" };
+const STATUSES: Record<string, VisitStatus> = { en_route: "en_route", enroute: "en_route", on_the_way: "en_route", arrived: "arrived", arrival: "arrived", completed: "completed", complete: "completed", cancelled: "cancelled", canceled: "cancelled", started: "arrived", in_progress: "arrived", deleted: "cancelled" };
 
 /** What a webhook body says happened, and to which visit. `at` is ArrivePing's own timestamp, as sent. */
 type EventRef = { jobId: string | null; visitId: string | null; at: string | null };
@@ -46,17 +46,21 @@ export function parseArrivePingEvent(body: unknown): ArrivePingEvent | null {
   const pick = (...keys: string[]) => keys.map((k) => b[k] ?? d[k]).find((v) => typeof v === "string" || typeof v === "number");
   const name = String(pick("event", "type", "status") ?? "").toLowerCase().split(/[.:]/).pop()!;
   // The envelope's top-level `id` is the event's own id, so a work order's `id` is only read from inside `data`.
-  const job = pick("job_id", "jobId", "work_order_id") ?? [d["id"]].find((v) => typeof v === "string" || typeof v === "number");
+  // Office alerts from ArrivePing's Notifications webhook call the work order a booking.
+  const job = pick("job_id", "jobId", "work_order_id", "bookingId", "booking_id") ?? [d["id"]].find((v) => typeof v === "string" || typeof v === "number");
   const ext = ["external_id", "externalId", "external_ref", "reference"].flatMap((k) => [b[k], d[k]]).find((v) => typeof v === "string" && UUID.test(v));
   const visitId = typeof ext === "string" ? ext : null;
   if (job == null && !visitId) return null;
-  const at = pick("occurred_at", "timestamp", "at");
+  // An integration event's time is its top-level created_at; inside `data` that name is the work order's own creation time.
+  const at = pick("occurred_at", "timestamp", "at") ?? b["created_at"];
   const ref: EventRef = { jobId: job == null ? null : String(job), visitId, at: typeof at === "string" ? at : null };
 
   if (name.endsWith("assigned")) {
     // A full work order lists who is on it now, which is the truth for an assignment or an unassignment alike.
     const techs = techNames(raw("assigned_techs"));
     if (techs !== undefined) return { kind: "assigned", assignee: techs, ...ref };
+    // An integration event's work order has one assigned_tech, null when nobody is on it.
+    if ("assigned_tech" in d) return { kind: "assigned", assignee: personName(d["assigned_tech"]), ...ref };
     if (name === "unassigned") return { kind: "assigned", assignee: null, ...ref };
     const assignee = personName(raw("assigned_to")) ?? personName(raw("tech")) ?? personName(raw("assignee"));
     return assignee ? { kind: "assigned", assignee, ...ref } : null;
@@ -157,6 +161,35 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
   const endsAt = ev.endsAt ?? shifted;
   if (sameTime(visit.starts_at, ev.startsAt) && sameTime(visit.ends_at, endsAt)) return { ok: false, reason: "no change" };
   return { ok: true, patch: { starts_at: ev.startsAt, ends_at: endsAt, ...common }, event: { status: "rescheduled", note: `Rescheduled in ArrivePing to ${scheduleRange(ev.startsAt, endsAt, timeZone)}`, at } };
+}
+
+/**
+ * Brings a visit up to date with its work order as ArrivePing has it now: who is on it, when it is, and where the crew is.
+ * Read fresh, the work order outranks anything heard earlier, so each change is applied as of `now`. Returns the combined
+ * patch and one activity entry per change; an empty list of events means the visit already matches.
+ */
+export function reconcileWithWorkOrder(visit: InboundVisit, workOrder: unknown, now: string): { patch: Record<string, string | null>; events: { status: string; note: string; at: string }[] } {
+  // The work order is this visit's, so its id is known even when the record read back leaves it out.
+  const wo: Record<string, unknown> = { id: visit.arriveping_job_id, ...(workOrder && typeof workOrder === "object" ? (workOrder as Record<string, unknown>) : {}) };
+  const status = typeof wo["status"] === "string" ? wo["status"].toLowerCase() : "";
+  const start = typeof wo["start_at"] === "string" ? wo["start_at"] : null;
+  // A visit booked without an end only takes ArrivePing's end when the start moved too; ArrivePing always fills one in,
+  // so filling it here would log a "Rescheduled" that never happened.
+  const moved = start != null && (visit.ends_at != null || !sameTime(visit.starts_at, start));
+  const types = ["workorder.assigned", ...(moved ? ["workorder.rescheduled"] : []), ...(STATUSES[status] ? [`workorder.${status}`] : [])];
+  let current: InboundVisit = { ...visit };
+  const patch: Record<string, string | null> = {};
+  const events: { status: string; note: string; at: string }[] = [];
+  for (const type of types) {
+    const ev = parseArrivePingEvent({ type, data: wo });
+    if (!ev) continue;
+    const plan = applyInboundEvent(current, { ...ev, at: null }, now);
+    if (!plan.ok) continue;
+    Object.assign(patch, plan.patch);
+    current = { ...current, ...plan.patch } as InboundVisit;
+    events.push(plan.event);
+  }
+  return { patch, events };
 }
 
 /** The instant a wall-clock date and time ("2026-12-01", "08:00") names in a time zone, or null when either is unreadable. */
