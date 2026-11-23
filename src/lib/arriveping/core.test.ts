@@ -194,7 +194,7 @@ describe("API errors", () => {
 
 describe("work order link", () => {
   test("points at the admin page and escapes the id", () => {
-    expect(apWorkOrderUrl("wo 1/2")).toBe(`${AP_BASE}/admin/workorders/wo%201%2F2`);
+    expect(apWorkOrderUrl("wo 1/2")).toBe(`${AP_BASE}/admin/work-orders?open=wo%201%2F2`);
   });
 });
 
