@@ -5,8 +5,8 @@ export const arrivepingKey = (): string | null => pickKey(process.env);
 
 const TIMEOUT_MS = 15_000;
 
-/** `not_configured` and `unreachable` have status 0; `http` is a reply ArrivePing sent that we could not use. */
-export type ApResult = { ok: true; status: number; json: unknown } | { ok: false; status: number; code: "not_configured" | "unreachable" | "http"; error: string };
+/** `not_configured` and `unreachable` have status 0; `http` is a reply ArrivePing sent that we could not use, with its body in `json` when it was JSON (a 409 hands back the existing record there). */
+export type ApResult = { ok: true; status: number; json: unknown } | { ok: false; status: number; code: "not_configured" | "unreachable" | "http"; error: string; json?: unknown };
 export type ApRequest = { method: "GET" | "POST" | "PATCH"; body?: unknown; idempotencyKey?: string };
 
 const failure = (error: unknown): string => `Could not reach ArrivePing: ${error instanceof Error ? error.message : String(error)}`;
@@ -42,7 +42,7 @@ export async function apFetch(path: string, init: ApRequest, fetchImpl: typeof f
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const text = await res.text();
-    if (!res.ok) return { ok: false, status: res.status, code: "http", error: describeApiError(res.status, text) };
+    if (!res.ok) return { ok: false, status: res.status, code: "http", error: describeApiError(res.status, text), json: parseJson(text) };
     const reply = parseJsonReply(res.status, text);
     return reply.ok ? { ok: true, status: res.status, json: reply.json } : { ok: false, status: res.status, code: "http", error: reply.error };
   } catch (error) {

@@ -69,7 +69,7 @@ async function loadVisit(
   if (!visit) return { error: VISIT_NOT_FOUND };
   const { data: p, error: pError } = await db
     .from("projects")
-    .select("id,name,project_number,address,client_name")
+    .select("id,name,project_number,address,client_id,client_name")
     .eq("id", visit.project_id)
     .maybeSingle();
   if (pError) return { error: `Could not load the project: ${pError.message}` };
@@ -82,6 +82,7 @@ async function loadVisit(
       number: p.project_number,
       address: p.address,
       client: p.client_name,
+      client_id: p.client_id,
     },
   };
 }
@@ -148,6 +149,63 @@ async function linkVisit(
  * On success the visit is linked to the work order. If an earlier attempt already got a work order back, that one is
  * linked and ArrivePing is not called again.
  */
+/** The BMD client a project belongs to: its linked client, or else the one whose name matches the project's client name. */
+async function loadClient(project: import("./core").ProjectForPush): Promise<{ client: import("./core").ClientForPush; linkedId: string | null } | { error: string }> {
+  const db = await admin();
+  const cols = "id,name,email,phone,billing_address";
+  let client: import("./core").ClientForPush | null = null;
+  if (project.client_id) {
+    const { data, error } = await db.from("clients").select(cols).eq("id", project.client_id).maybeSingle();
+    if (error) return { error: `Could not load the client: ${error.message}` };
+    client = data;
+  } else if (project.client?.trim()) {
+    // Older projects carry only the client's name. Names are unique (case and spaces ignored), so an exact match is safe.
+    const want = project.client.trim().toLowerCase();
+    const escaped = project.client.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+    const { data, error } = await db.from("clients").select(cols).ilike("name", escaped).limit(5);
+    if (error) return { error: `Could not load the client: ${error.message}` };
+    client = ((data ?? []) as import("./core").ClientForPush[]).find((c) => c.name.trim().toLowerCase() === want) ?? null;
+  }
+  const label = project.number ? `${project.number} ${project.name}` : project.name;
+  if (!client) return { error: `${label} has no client record, and ArrivePing needs one. Pick the project's client under Overview → Details → Edit, then send again.` };
+  const { data: link, error } = await db
+    .from("sync_links")
+    .select("external_id")
+    .eq("kind", "client")
+    .eq("system", "arriveping")
+    .eq("bmd_id", client.id)
+    .maybeSingle();
+  if (error) return { error: `Could not read the client's ArrivePing link: ${error.message}` };
+  return { client, linkedId: link?.external_id ?? null };
+}
+
+/** Remembers which ArrivePing client a BMD client is, and logs it on the Sync tab. Null on success, else why not. */
+async function saveClientLink(client: import("./core").ClientForPush, apClientId: string, via: string): Promise<string | null> {
+  const db = await admin();
+  const { error } = await db.from("sync_links").insert({
+    kind: "client",
+    bmd_id: client.id,
+    system: "arriveping",
+    external_id: apClientId,
+    external_name: client.name,
+    synced_at: new Date().toISOString(),
+  });
+  if (error && error.code === "23505") {
+    // Already linked: the same pair (a race between two pushes) is fine; this ArrivePing client on another BMD client is not.
+    const { data: other } = await db.from("sync_links").select("bmd_id").eq("kind", "client").eq("system", "arriveping").eq("external_id", apClientId).maybeSingle();
+    if (other && other.bmd_id !== client.id)
+      return `ArrivePing client ${apClientId} is already linked to another BMD client. Two BMD clients may share an email; merge them or give "${client.name}" its own email, then send again.`;
+  } else if (error) {
+    return `Could not save the client's ArrivePing link: ${error.message}`;
+  }
+  const { error: logError } = await db
+    .from("sync_log")
+    .insert({ direction: "out", system: "arriveping", kind: "client", bmd_id: client.id, external_id: apClientId, label: client.name, outcome: "sent", detail: { via } });
+  // The link is saved; a missing history line is not worth failing the push for.
+  if (logError) console.error("[arriveping] could not log the client link", logError.message);
+  return null;
+}
+
 async function runPushCreate(
   visitId: string,
   existingKey?: string | null,
@@ -192,8 +250,26 @@ async function runPushCreate(
   let jobId: string | undefined;
   try {
     const { apFetch } = await import("./client.server");
-    const { pushVisitCreate } = await import("./push");
-    const result = await pushVisitCreate({ fetchJson: apFetch, visit, project, existingKey: key });
+    const { ensureArrivePingClient, pushVisitCreate } = await import("./push");
+    // ArrivePing files every work order under a client: find or create it first.
+    const loadedClient = await loadClient(project);
+    if ("error" in loadedClient) {
+      await markFailed(eventId, loadedClient.error);
+      return { outcome: "failed", error: loadedClient.error, key };
+    }
+    const ensured = await ensureArrivePingClient({ fetchJson: apFetch, client: loadedClient.client, linkedId: loadedClient.linkedId });
+    if (ensured.outcome === "failed") {
+      await markFailed(eventId, ensured.error);
+      return { outcome: "failed", error: ensured.error, key };
+    }
+    if (ensured.via !== "linked") {
+      const linkError = await saveClientLink(loadedClient.client, ensured.clientId, ensured.via);
+      if (linkError) {
+        await markFailed(eventId, linkError);
+        return { outcome: "failed", error: linkError, key };
+      }
+    }
+    const result = await pushVisitCreate({ fetchJson: apFetch, visit, project, clientId: ensured.clientId, existingKey: key });
     if (result.outcome === "failed") {
       await markFailed(eventId, result.error);
       return result;

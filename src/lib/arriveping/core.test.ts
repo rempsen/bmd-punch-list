@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_BASE, apWorkOrderUrl, describeApiError, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
+import { AP_BASE, apWorkOrderUrl, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -37,35 +37,83 @@ describe("idempotency keys", () => {
 });
 
 describe("work order payload", () => {
-  test("describes the visit and the project for the crew", () => {
-    const body = workOrderPayload(visit, project);
+  test("matches ArrivePing's work order fields, with the client it belongs to", () => {
+    const body = workOrderPayload(visit, project, "cl_42");
     expect(body).toEqual({
       external_source: "bmd_projects",
       external_ref: visit.id,
+      client_id: "cl_42",
       title: "26-002 Test Take Off — Install",
-      reference: "26-002",
-      site_address: { line1: "Winnipeg, MB" },
+      address: "Winnipeg, MB",
       site_contact: { name: "Pat Client 204-555-0100" },
       start_at: "2026-12-01T14:00:00Z",
       end_at: "2026-12-01T22:00:00Z",
-      crew_hint: "Brodie + 2",
-      notes_for_crew: "Level 2, rooms 201-212",
-      tags: ["bmd", "install"],
+      notes_for_crew: "Crew: Brodie + 2\nLevel 2, rooms 201-212",
     });
-    expect(body).not.toHaveProperty("customer_id");
     expect(noNulls(body)).toBe(true);
+  });
+  test("sends nothing ArrivePing would silently drop", () => {
+    const body = workOrderPayload(visit, project, "cl_42");
+    for (const key of ["reference", "crew_hint", "tags", "customer_id", "site_address"]) expect(body).not.toHaveProperty(key);
+  });
+  test("without a client yet, client_id is left out (logged payload before the client is resolved)", () => {
+    expect(workOrderPayload(visit, project)).not.toHaveProperty("client_id");
   });
   test("a visit with no end runs eight hours from its start", () => {
-    expect(workOrderPayload({ ...visit, ends_at: null }, project)["end_at"]).toBe("2026-12-01T22:00:00.000Z");
+    expect(workOrderPayload({ ...visit, ends_at: null }, project, "cl_42")["end_at"]).toBe("2026-12-01T22:00:00.000Z");
   });
-  test("links the ArrivePing customer when the project has one", () => {
-    expect(workOrderPayload(visit, { ...project, arriveping_customer_id: "cust_9" })["customer_id"]).toBe("cust_9");
+  test("crew alone, or notes alone, still reach the crew", () => {
+    expect(workOrderPayload({ ...visit, notes: null }, project, "c")["notes_for_crew"]).toBe("Crew: Brodie + 2");
+    expect(workOrderPayload({ ...visit, crew: null }, project, "c")["notes_for_crew"]).toBe("Level 2, rooms 201-212");
   });
   test("leaves out everything the visit and project do not have", () => {
-    const body = workOrderPayload({ ...visit, crew: null, notes: null, site_contact: null }, { ...project, number: null, address: null });
+    const body = workOrderPayload({ ...visit, crew: null, notes: null, site_contact: null }, { ...project, number: null, address: null }, "c");
     expect(body["title"]).toBe("Test Take Off — Install");
-    for (const key of ["reference", "site_address", "site_contact", "crew_hint", "notes_for_crew", "customer_id"]) expect(body).not.toHaveProperty(key);
+    for (const key of ["address", "site_contact", "notes_for_crew"]) expect(body).not.toHaveProperty(key);
     expect(noNulls(body)).toBe(true);
+  });
+});
+
+describe("client payload", () => {
+  const client = { id: "11111111-2222-4333-8444-555555555555", name: "Brian & Gail Chornoboy", email: "brian@example.com", phone: "204-555-0100", billing_address: "1 Main St, Winnipeg, MB" };
+  test("carries BMD's id so a repeat create finds the same client", () => {
+    expect(clientPayload(client)).toEqual({
+      external_source: "bmd_projects",
+      external_ref: client.id,
+      name: "Brian & Gail Chornoboy",
+      email: "brian@example.com",
+      phone: "204-555-0100",
+      billing_address: "1 Main St, Winnipeg, MB",
+    });
+  });
+  test("can leave the email out, for when it belongs to someone on the ArrivePing team", () => {
+    expect(clientPayload(client, { withEmail: false })).not.toHaveProperty("email");
+  });
+  test("blank fields are left out, never sent empty", () => {
+    const body = clientPayload({ ...client, email: "  ", phone: null, billing_address: "" });
+    for (const key of ["email", "phone", "billing_address"]) expect(body).not.toHaveProperty(key);
+    expect(noNulls(body)).toBe(true);
+  });
+  test("keys are stable per client", () => {
+    expect(clientKey(client.id)).toBe(`bmd-client-${client.id}`);
+    expect(clientKey(client.id, "no-email")).toBe(`bmd-client-${client.id}-no-email`);
+  });
+});
+
+describe("409 replies that hand back the existing record", () => {
+  test("a client already linked to our reference", () => {
+    expect(existingFromConflict({ error: { code: "duplicate_external_ref" }, client: { id: "cl_1" } }, "client")).toEqual({ id: "cl_1", via: "external_ref" });
+  });
+  test("a client found by email", () => {
+    expect(existingFromConflict({ error: { code: "client_exists" }, client: { id: "cl_2" } }, "client")).toEqual({ id: "cl_2", via: "email" });
+  });
+  test("a work order already linked to our reference", () => {
+    expect(existingFromConflict({ error: { code: "duplicate_external_ref" }, work_order: { id: "wo_1" } }, "work_order")).toEqual({ id: "wo_1", via: "external_ref" });
+  });
+  test("anything else is not a match", () => {
+    expect(existingFromConflict({ error: { code: "email_taken" } }, "client")).toBeNull();
+    expect(existingFromConflict({ error: { code: "duplicate_external_ref" }, client: null }, "client")).toBeNull();
+    expect(existingFromConflict(null, "client")).toBeNull();
   });
 });
 
@@ -92,6 +140,14 @@ describe("API errors", () => {
   });
   test("an empty body leaves no dangling colon", () => {
     expect(describeApiError(500, "")).toBe("ArrivePing error 500");
+  });
+  test("ArrivePing's error body is read out field by field", () => {
+    const body = JSON.stringify({ error: { code: "validation_error", message: "Some fields need attention.", fields: { client_id: "Invalid input: expected string, received undefined" } } });
+    expect(describeApiError(422, body)).toBe("ArrivePing refused (422): Some fields need attention. client_id: Invalid input: expected string, received undefined");
+  });
+  test("a scope refusal keeps ArrivePing's own words", () => {
+    const body = JSON.stringify({ error: { code: "forbidden", message: "This key needs the clients:write scope." } });
+    expect(describeApiError(403, body)).toBe("ArrivePing refused: the API key lacks the scope for this call (403). This key needs the clients:write scope.");
   });
   test("other statuses carry the first 200 characters of the body", () => {
     const text = describeApiError(500, "x".repeat(500));

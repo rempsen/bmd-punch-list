@@ -2,16 +2,27 @@
 import type { ApResult } from "./client.server";
 import {
   AP_PATHS,
+  EXTERNAL_SOURCE,
+  clientKey,
+  clientPayload,
+  errorCode,
+  existingFromConflict,
   idempotencyKey,
   workOrderPayload,
+  type ClientForPush,
   type ProjectForPush,
   type VisitForPush,
 } from "./core";
 
 export type FetchJson = (
   path: string,
-  init: { method: "POST"; body: unknown; idempotencyKey: string },
+  init: { method: "POST" | "PATCH"; body: unknown; idempotencyKey?: string },
 ) => Promise<ApResult>;
+
+/** How the ArrivePing client for a BMD client was found: already linked, just created, or matched in ArrivePing. */
+export type EnsureClientOutcome =
+  | { outcome: "linked"; clientId: string; via: "linked" | "created" | "external_ref" | "email" }
+  | { outcome: "failed"; error: string };
 
 export type PushCreateOutcome =
   | { outcome: "sent"; jobId: string; key: string }
@@ -48,10 +59,11 @@ async function call(
   fetchJson: FetchJson,
   path: string,
   body: unknown,
-  key: string,
+  key?: string,
+  method: "POST" | "PATCH" = "POST",
 ): Promise<ApResult> {
   try {
-    return await fetchJson(path, { method: "POST", body, idempotencyKey: key });
+    return await fetchJson(path, { method, body, ...(key ? { idempotencyKey: key } : {}) });
   } catch (error) {
     return {
       ok: false,
@@ -67,13 +79,19 @@ export async function pushVisitCreate(deps: {
   fetchJson: FetchJson;
   visit: VisitForPush & { arriveping_job_id: string | null };
   project: ProjectForPush;
+  /** The ArrivePing client the work order belongs to (from ensureArrivePingClient). */
+  clientId: string;
   existingKey?: string | null;
 }): Promise<PushCreateOutcome> {
   const { fetchJson, visit, project } = deps;
   if (visit.arriveping_job_id) return { outcome: "skipped", reason: "already linked" };
   const key = deps.existingKey ?? idempotencyKey("create", visit.id);
-  const res = await call(fetchJson, AP_PATHS.workorders, workOrderPayload(visit, project), key);
-  if (!res.ok) return { outcome: "failed", error: res.error, key };
+  const res = await call(fetchJson, AP_PATHS.workorders, workOrderPayload(visit, project, deps.clientId), key);
+  if (!res.ok) {
+    // ArrivePing already made this work order for us (an earlier try whose reply was lost): it hands it back.
+    const existing = res.status === 409 ? existingFromConflict(res.json, "work_order") : null;
+    return existing ? { outcome: "sent", jobId: existing.id, key } : { outcome: "failed", error: res.error, key };
+  }
   const jobId = workOrderId(res.json);
   return jobId ? { outcome: "sent", jobId, key } : { outcome: "failed", error: NO_ID, key };
 }
@@ -133,4 +151,45 @@ export function planRetry(row: RetryRow): RetryPlan {
   if (row.external_id) return { action: "relink", visitId: row.entity_id, jobId: row.external_id };
   if (!row.idempotency_key) return { action: "ignore", reason: "no idempotency key" };
   return { action: "resend", visitId: row.entity_id, key: row.idempotency_key };
+}
+
+const clientFailure = (error: string): EnsureClientOutcome => ({ outcome: "failed", error: `Couldn't create the client in ArrivePing. ${error}` });
+
+/** One create attempt: a new client, or the one ArrivePing hands back in a 409. */
+async function createClient(
+  fetchJson: FetchJson,
+  client: ClientForPush,
+  withEmail: boolean,
+): Promise<EnsureClientOutcome | { outcome: "email_taken" }> {
+  const res = await call(fetchJson, AP_PATHS.clients, clientPayload(client, { withEmail }), clientKey(client.id, withEmail ? "create" : "no-email"));
+  if (res.ok) {
+    const id = asId(field(res.json, "id"));
+    return id ? { outcome: "linked", clientId: id, via: "created" } : clientFailure("ArrivePing did not return a client id.");
+  }
+  if (res.status === 409) {
+    const existing = existingFromConflict(res.json, "client");
+    if (existing) {
+      if (existing.via === "email") {
+        // Found by email: tag it with our reference so the next lookup finds it by id. The client is usable either way.
+        await call(fetchJson, `${AP_PATHS.clients}/${encodeURIComponent(existing.id)}`, { external_source: EXTERNAL_SOURCE, external_ref: client.id }, undefined, "PATCH");
+      }
+      return { outcome: "linked", clientId: existing.id, via: existing.via };
+    }
+    if (errorCode(res.json) === "email_taken") return { outcome: "email_taken" };
+  }
+  return clientFailure(res.error);
+}
+
+/**
+ * The ArrivePing client for a BMD client: the linked one, or a new one created with BMD's id as its reference.
+ * Safe to repeat: ArrivePing answers a second create with the client it already has. Never throws.
+ */
+export async function ensureArrivePingClient(deps: { fetchJson: FetchJson; client: ClientForPush; linkedId: string | null }): Promise<EnsureClientOutcome> {
+  const { fetchJson, client, linkedId } = deps;
+  if (linkedId) return { outcome: "linked", clientId: linkedId, via: "linked" };
+  const first = await createClient(fetchJson, client, true);
+  if (first.outcome !== "email_taken") return first;
+  // The email belongs to someone on the company's ArrivePing team, so the client is created without it.
+  const second = await createClient(fetchJson, client, false);
+  return second.outcome === "email_taken" ? clientFailure("Its email belongs to someone on the ArrivePing team.") : second;
 }
