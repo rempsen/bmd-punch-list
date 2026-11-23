@@ -258,12 +258,15 @@ export async function reconcileVisits(
   // From the start of yesterday on: today's and upcoming visits. Older visits nobody closed would otherwise use up the
   // check every time and the ones that matter would never be reached.
   const since = new Date(now.getTime() - 24 * 3_600_000).toISOString();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 3_600_000).toISOString();
   let q = db
     .from("install_visits")
     .select(VISIT_COLUMNS)
     .not("arriveping_job_id", "is", null)
     .in("status", ["scheduled", "en_route", "arrived"])
-    .gte("starts_at", since)
+    // A crew already out stays checked for a week, so a missed "completed" still closes it.
+    .gte("starts_at", weekAgo)
+    .or(`status.neq.scheduled,starts_at.gte.${since}`)
     .order("starts_at", { ascending: true })
     .limit(MAX_VISITS_PER_CHECK);
   if (opts.projectId) q = q.eq("project_id", opts.projectId);

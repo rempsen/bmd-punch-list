@@ -829,6 +829,9 @@ export const connectArrivePingSync = createServerFn({ method: "POST" })
         if (typeof r["id"] === "string" && r["id"] !== id && r["url"] === url) stale.add(r["id"]);
       }
       for (const old of stale) {
+        // Someone else may have connected in the meantime: never remove the subscription BMD now has on file.
+        const current = (await readLink().catch(() => null))?.subscription_id ?? id;
+        if (old === current) continue;
         const gone = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(old)}`, {
           method: "DELETE",
         });
