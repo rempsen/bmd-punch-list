@@ -1,0 +1,408 @@
+import { createServerFn } from "@tanstack/react-start";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { PushCancelOutcome, PushCreateOutcome } from "./push";
+
+/**
+ * ArrivePing server functions. The only thing these throw is "Not allowed": anything that goes wrong with ArrivePing
+ * or the database comes back as a value, and every call to ArrivePing is logged in sync_events before it is made.
+ */
+
+type Rpc = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown }> };
+
+async function allowed(sb: Rpc, capability: string) {
+  const { data } = await sb.rpc("has_capability", { _capability: capability });
+  return data === true;
+}
+
+async function requireAny(sb: Rpc, ...capabilities: string[]) {
+  const results = await Promise.all(capabilities.map((c) => allowed(sb, c)));
+  if (!results.some(Boolean)) throw new Error("Not allowed");
+}
+
+async function admin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // sync_events and the ArrivePing visit columns are newer than the generated types.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return supabaseAdmin as any;
+}
+
+const VISIT_NOT_FOUND = "Install visit not found";
+
+const message = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const visitIdInput = (d: { visitId: string }) => {
+  if (!d || typeof d.visitId !== "string" || d.visitId.trim() === "")
+    throw new Error("Invalid request");
+  return { visitId: d.visitId.trim() };
+};
+
+const idInput = (d: { id: string }) => {
+  if (!d || typeof d.id !== "string" || d.id.trim() === "") throw new Error("Invalid request");
+  return { id: d.id.trim() };
+};
+
+type VisitRow = {
+  id: string;
+  project_id: string;
+  starts_at: string;
+  ends_at: string | null;
+  crew: string | null;
+  notes: string | null;
+  site_contact: string | null;
+  arriveping_job_id: string | null;
+};
+
+/** The visit and its project, or a sentence saying why not. */
+async function loadVisit(
+  visitId: string,
+): Promise<{ visit: VisitRow; project: import("./core").ProjectForPush } | { error: string }> {
+  const db = await admin();
+  const { data: visit, error } = await db
+    .from("install_visits")
+    .select("id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id")
+    .eq("id", visitId)
+    .maybeSingle();
+  if (error) return { error: `Could not load the install visit: ${error.message}` };
+  if (!visit) return { error: VISIT_NOT_FOUND };
+  const { data: p, error: pError } = await db
+    .from("projects")
+    .select("id,name,project_number,address,client_name")
+    .eq("id", visit.project_id)
+    .maybeSingle();
+  if (pError) return { error: `Could not load the project: ${pError.message}` };
+  if (!p) return { error: "Project not found" };
+  return {
+    visit,
+    project: {
+      id: p.id,
+      name: p.name,
+      number: p.project_number,
+      address: p.address,
+      client: p.client_name,
+    },
+  };
+}
+
+/**
+ * Sends a visit to ArrivePing as a work order: logs it as pending, calls ArrivePing, then marks the log sent or failed.
+ * On success the visit is linked to the work order. A retry passes the key it used before, so ArrivePing never makes a second one.
+ */
+async function runPushCreate(
+  visitId: string,
+  existingKey?: string | null,
+): Promise<PushCreateOutcome> {
+  const { idempotencyKey, workOrderPayload } = await import("./core");
+  const fallbackKey = existingKey ?? idempotencyKey("create", visitId);
+  const loaded = await loadVisit(visitId);
+  if ("error" in loaded) return { outcome: "failed", error: loaded.error, key: fallbackKey };
+  const { visit, project } = loaded;
+  if (visit.arriveping_job_id) return { outcome: "skipped", reason: "already linked" };
+
+  const { recordPending, markFailed, markSent } = await import("./outbox.server");
+  let eventId: string;
+  try {
+    eventId = await recordPending({
+      direction: "out",
+      entity_type: "visit",
+      entity_id: visit.id,
+      project_id: visit.project_id,
+      event_type: "create",
+      idempotency_key: fallbackKey,
+      payload: workOrderPayload(visit, project),
+    });
+  } catch (error) {
+    // Without a log row a failure could not be shown or retried, so ArrivePing is not called.
+    return { outcome: "failed", error: message(error), key: fallbackKey };
+  }
+
+  try {
+    const { apFetch } = await import("./client.server");
+    const { pushVisitCreate } = await import("./push");
+    const result = await pushVisitCreate({
+      fetchJson: apFetch,
+      visit,
+      project,
+      existingKey: fallbackKey,
+    });
+    if (result.outcome === "failed") {
+      await markFailed(eventId, result.error);
+      return result;
+    }
+    if (result.outcome === "skipped") {
+      // Only reachable if the visit was linked between our read and the call; nothing was sent.
+      const { markIgnored } = await import("./outbox.server");
+      await markIgnored(eventId, "already linked");
+      return result;
+    }
+
+    const db = await admin();
+    const { data: linked, error: linkError } = await db
+      .from("install_visits")
+      .update({ arriveping_job_id: result.jobId, arriveping_status: "scheduled" })
+      .eq("id", visit.id)
+      .is("arriveping_job_id", null)
+      .select("id");
+    if (linkError || !linked?.length) {
+      // The work order exists in ArrivePing. Marking this failed keeps it visible; a retry reuses the key, gets the same work order back, and links it.
+      const why = linkError
+        ? linkError.message
+        : "the visit was linked to another work order meanwhile";
+      const error = `Sent to ArrivePing as work order ${result.jobId}, but could not link it to the visit: ${why}`;
+      await markFailed(eventId, error);
+      return { outcome: "failed", error, key: result.key };
+    }
+    await markSent(eventId, result.jobId);
+    const { error: logError } = await db.from("install_visit_events").insert({
+      visit_id: visit.id,
+      project_id: visit.project_id,
+      status: "scheduled",
+      note: `Sent to ArrivePing (work order ${result.jobId})`,
+      source: "sync",
+    });
+    if (logError)
+      console.error(
+        `install_visit_events: could not log the ArrivePing send for ${visit.id}: ${logError.message}`,
+      );
+    return result;
+  } catch (error) {
+    const text = `Unexpected error sending to ArrivePing: ${message(error)}`;
+    await markFailed(eventId, text);
+    return { outcome: "failed", error: text, key: fallbackKey };
+  }
+}
+
+/** Asks ArrivePing to cancel the visit's work order, logged the same way as a send. */
+async function runCancel(visitId: string): Promise<PushCancelOutcome> {
+  const { idempotencyKey } = await import("./core");
+  const key = idempotencyKey("cancel", visitId);
+  const db = await admin();
+  const { data: visit, error } = await db
+    .from("install_visits")
+    .select("id,project_id,arriveping_job_id")
+    .eq("id", visitId)
+    .maybeSingle();
+  if (error)
+    return { outcome: "failed", error: `Could not load the install visit: ${error.message}`, key };
+  if (!visit) return { outcome: "failed", error: VISIT_NOT_FOUND, key };
+  if (!visit.arriveping_job_id) return { outcome: "skipped", reason: "not linked" };
+
+  const { recordPending, markFailed, markSent } = await import("./outbox.server");
+  let eventId: string;
+  try {
+    eventId = await recordPending({
+      direction: "out",
+      entity_type: "visit",
+      entity_id: visit.id,
+      project_id: visit.project_id,
+      event_type: "cancel",
+      idempotency_key: key,
+      external_id: visit.arriveping_job_id,
+      payload: { job_id: visit.arriveping_job_id },
+    });
+  } catch (e) {
+    return { outcome: "failed", error: message(e), key };
+  }
+
+  try {
+    const { apFetch } = await import("./client.server");
+    const { pushVisitCancel } = await import("./push");
+    const result = await pushVisitCancel({ fetchJson: apFetch, visit, existingKey: key });
+    if (result.outcome === "sent") await markSent(eventId, result.jobId);
+    else if (result.outcome === "failed") await markFailed(eventId, result.error);
+    return result;
+  } catch (e) {
+    const text = `Unexpected error cancelling in ArrivePing: ${message(e)}`;
+    await markFailed(eventId, text);
+    return { outcome: "failed", error: text, key };
+  }
+}
+
+export type RetryOutcome =
+  PushCreateOutcome | { outcome: "ignored"; reason: string } | { outcome: "not_found" };
+
+/** Retries one logged event. Only visit sends can be retried for now; anything else is set aside as ignored. */
+async function runRetry(id: string): Promise<RetryOutcome> {
+  const { markIgnored } = await import("./outbox.server");
+  const db = await admin();
+  const { data: row, error } = await db
+    .from("sync_events")
+    .select("id,direction,entity_type,entity_id,event_type,idempotency_key,status")
+    .eq("id", id)
+    .maybeSingle();
+  if (error)
+    return { outcome: "failed", error: `Could not load the sync event: ${error.message}`, key: "" };
+  if (!row) return { outcome: "not_found" };
+  if (row.status !== "failed" && row.status !== "pending")
+    return { outcome: "ignored", reason: `already ${row.status}` };
+
+  if (
+    row.direction !== "out" ||
+    row.entity_type !== "visit" ||
+    row.event_type !== "create" ||
+    !row.entity_id
+  ) {
+    await markIgnored(row.id, "retry not supported yet");
+    return { outcome: "ignored", reason: "retry not supported yet" };
+  }
+  const result = await runPushCreate(row.entity_id, row.idempotency_key);
+  if (result.outcome === "skipped") {
+    await markIgnored(row.id, "already linked");
+  } else if (result.outcome === "failed" && result.error === VISIT_NOT_FOUND) {
+    await markIgnored(row.id, "the install visit no longer exists");
+    return { outcome: "ignored", reason: "the install visit no longer exists" };
+  }
+  return result;
+}
+
+/** What Settings needs to show the ArrivePing card. Counts and times are only filled in for people who manage integrations. */
+export const arrivepingStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const { arrivepingKey } = await import("./client.server");
+    const canManage = await allowed(context.supabase as never, "manage_integrations");
+    const origin = new URL(getRequest().url).origin;
+    const base = {
+      configured: arrivepingKey() !== null,
+      canManage,
+      webhookUrl: `${origin}/api/public/arriveping/webhook`,
+      webhookSecretSet: (process.env["ARRIVEPING_WEBHOOK_SECRET"] ?? "").trim() !== "",
+      lastOutAt: null as string | null,
+      lastInAt: null as string | null,
+      failedCount: 0,
+      pendingCount: 0,
+    };
+    if (!canManage) return base;
+    try {
+      const db = await admin();
+      const events = () =>
+        db
+          .from("sync_events")
+          .select("id", { count: "exact", head: true })
+          .eq("system", "arriveping");
+      const latest = (direction: "out" | "in") =>
+        db
+          .from("sync_events")
+          .select("created_at,processed_at")
+          .eq("system", "arriveping")
+          .eq("direction", direction);
+      const newest = { ascending: false } as const;
+      const [failed, pending, out, inbound] = await Promise.all([
+        events().eq("status", "failed"),
+        events().eq("status", "pending"),
+        latest("out")
+          .in("status", ["sent", "acked"])
+          .order("processed_at", { ...newest, nullsFirst: false })
+          .limit(1)
+          .maybeSingle(),
+        latest("in").order("created_at", newest).limit(1).maybeSingle(),
+      ]);
+      return {
+        ...base,
+        failedCount: failed.count ?? 0,
+        pendingCount: pending.count ?? 0,
+        lastOutAt: out.data ? (out.data.processed_at ?? out.data.created_at) : null,
+        lastInAt: inbound.data?.created_at ?? null,
+      };
+    } catch (error) {
+      console.error("arrivepingStatus: could not read sync_events:", error);
+      return base;
+    }
+  });
+
+/** Proves the key and the connection work by listing the ArrivePing tools the key can use. */
+export const arrivepingTest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: boolean; tools?: string[]; error?: string }> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const { mcpProbe } = await import("./client.server");
+    return mcpProbe();
+  });
+
+/** The sync log, newest first, at most 100 rows. */
+export const listSyncEvents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { status?: "failed" | "pending" | "all"; limit?: number } | undefined) => {
+    const status = d?.status ?? "all";
+    if (status !== "failed" && status !== "pending" && status !== "all")
+      throw new Error("Invalid request");
+    const limit = Number.isFinite(d?.limit)
+      ? Math.min(100, Math.max(1, Math.floor(d!.limit!)))
+      : 50;
+    return { status, limit };
+  })
+  .handler(async ({ data, context }) => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const db = await admin();
+    let q = db.from("sync_events").select("*").eq("system", "arriveping");
+    if (data.status !== "all") q = q.eq("status", data.status);
+    const { data: rows, error } = await q
+      .order("created_at", { ascending: false })
+      .limit(data.limit);
+    if (error)
+      return {
+        ok: false as const,
+        error: `Could not load the sync log: ${error.message}`,
+        rows: [] as import("./outbox.server").SyncEventRow[],
+      };
+    return { ok: true as const, rows: (rows ?? []) as import("./outbox.server").SyncEventRow[] };
+  });
+
+/** Sends an install visit to ArrivePing. A failure is logged and returned; it never undoes or blocks the visit itself. */
+export const pushVisit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(visitIdInput)
+  .handler(async ({ data, context }): Promise<PushCreateOutcome> => {
+    await requireAny(context.supabase as never, "manage_projects", "manage_integrations");
+    return runPushCreate(data.visitId);
+  });
+
+/** Asks ArrivePing to cancel a visit's work order. A visit that was never sent is skipped. */
+export const cancelVisitPush = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(visitIdInput)
+  .handler(async ({ data, context }): Promise<PushCancelOutcome> => {
+    await requireAny(context.supabase as never, "manage_projects", "manage_integrations");
+    return runCancel(data.visitId);
+  });
+
+/** Retries one failed (or stuck pending) sync event. */
+export const retrySyncEvent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(idInput)
+  .handler(async ({ data, context }): Promise<RetryOutcome> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    return runRetry(data.id);
+  });
+
+/** Retries up to 50 failed events, oldest first, one at a time. */
+export const retryAllFailed = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const counts = { total: 0, sent: 0, failed: 0, skipped: 0, ignored: 0 };
+    const db = await admin();
+    const { data: rows, error } = await db
+      .from("sync_events")
+      .select("id")
+      .eq("system", "arriveping")
+      .eq("status", "failed")
+      .order("created_at", { ascending: true })
+      .limit(50);
+    if (error)
+      return {
+        ok: false as const,
+        error: `Could not load failed events: ${error.message}`,
+        ...counts,
+      };
+    for (const row of (rows ?? []) as { id: string }[]) {
+      counts.total += 1;
+      const result = await runRetry(row.id);
+      if (result.outcome === "sent") counts.sent += 1;
+      else if (result.outcome === "failed") counts.failed += 1;
+      else if (result.outcome === "skipped") counts.skipped += 1;
+      else counts.ignored += 1;
+    }
+    return { ok: true as const, ...counts };
+  });
