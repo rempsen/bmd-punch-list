@@ -1,7 +1,13 @@
 /** Settings come in two kinds: company settings that apply to every job, and settings for the job that is open. */
-export const COMPANY_TABS = ["quotes", "microsoft", "sync", "allusers", "roles", "projects", "jobs"];
+export const COMPANY_TABS = ["quotes", "integrations", "sync", "ai", "allusers", "roles", "projects", "jobs"];
 export const JOB_TABS = ["project", "structure", "lists", "users", "companycam"];
 export type SettingsGroup = "company" | "job";
+
+/** Tabs that were renamed, so old links and bookmarks still open the right place. Microsoft 365 now lives under Integrations. */
+const RENAMED_TABS: Record<string, string> = { microsoft: "integrations" };
+export function canonicalTab(tab: string | undefined): string | undefined {
+  return tab === undefined ? undefined : (RENAMED_TABS[tab] ?? tab);
+}
 
 export const settingsGroup = (tab: string | undefined): SettingsGroup => (tab && JOB_TABS.includes(tab) ? "job" : "company");
 

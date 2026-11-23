@@ -13,6 +13,9 @@ type Input = {
   visits?: { id: string; note: string; at: string; source: string }[];
 };
 
+/** Where a visit entry came from, when that is worth saying: ArrivePing reported it, or BMD sent it to ArrivePing. */
+const VISIT_SOURCE_SUFFIX: Record<string, string> = { arriveping: " · reported by ArrivePing", sync: " · sent to ArrivePing" };
+
 /** Newest first. Without pricing access, amounts are left out and bills are not listed at all. */
 export function buildTimeline(input: Input, opts: { showPrices: boolean }): TimelineEntry[] {
   const out: TimelineEntry[] = [];
@@ -23,6 +26,6 @@ export function buildTimeline(input: Input, opts: { showPrices: boolean }): Time
     if (q.status === "accepted" && q.accepted_at) out.push({ id: `qa-${q.id}`, at: q.accepted_at, kind: "quote", by: null, text: `Quote ${q.number} accepted${opts.showPrices && q.accepted_value_cents != null ? ` at $${money(q.accepted_value_cents)} before GST` : ""}${q.decision_note ? `. ${q.decision_note}` : ""}` });
   }
   if (opts.showPrices) for (const b of input.bills) if (b.status === "issued" && b.issued_at) out.push({ id: `b-${b.id}`, at: b.issued_at, kind: "bill", by: null, text: `${b.kind === "holdback_release" ? "Holdback release" : "Bill"} ${b.number} issued for $${money(b.total_cents)}` });
-  for (const v of input.visits ?? []) out.push({ id: `v-${v.id}`, at: v.at, kind: "visit", by: null, text: `${v.note}${v.source === "arriveping" ? " · reported by ArrivePing" : ""}` });
+  for (const v of input.visits ?? []) out.push({ id: `v-${v.id}`, at: v.at, kind: "visit", by: null, text: `${v.note}${Object.hasOwn(VISIT_SOURCE_SUFFIX, v.source) ? VISIT_SOURCE_SUFFIX[v.source] : ""}` });
   return out.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 }

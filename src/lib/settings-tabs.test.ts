@@ -1,12 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { COMPANY_TABS, JOB_TABS, settingsGroup, settingsHeading } from "./settings-tabs";
+import { COMPANY_TABS, JOB_TABS, canonicalTab, settingsGroup, settingsHeading } from "./settings-tabs";
 
 describe("settings are split into company-wide and this-job", () => {
-  test("quotes, Microsoft 365, users and roles across the company, and the job lists are company settings", () => {
-    for (const t of ["quotes", "microsoft", "sync", "allusers", "roles", "projects", "jobs"]) expect(settingsGroup(t)).toBe("company");
+  test("quotes, integrations, sync, AI, users and roles across the company, and the job lists are company settings", () => {
+    for (const t of ["quotes", "integrations", "sync", "ai", "allusers", "roles", "projects", "jobs"]) expect(settingsGroup(t)).toBe("company");
   });
   test("job details, floors and rooms, pick lists, this job's users and CompanyCam are job settings", () => {
     for (const t of ["project", "structure", "lists", "users", "companycam"]) expect(settingsGroup(t)).toBe("job");
+  });
+  test("Integrations replaces the old Microsoft 365 tab, and AI has its own tab", () => {
+    expect(COMPANY_TABS).toContain("integrations");
+    expect(COMPANY_TABS).toContain("ai");
+    expect(COMPANY_TABS).not.toContain("microsoft");
+    expect(settingsGroup("integrations")).toBe("company");
+  });
+  test("old links to the Microsoft 365 tab land on Integrations; every other tab is left as it is", () => {
+    expect(canonicalTab("microsoft")).toBe("integrations");
+    expect(canonicalTab("ai")).toBe("ai");
+    expect(canonicalTab("structure")).toBe("structure");
+    expect(canonicalTab(undefined)).toBeUndefined();
   });
   test("every tab belongs to exactly one group", () => {
     expect(COMPANY_TABS.filter((t) => JOB_TABS.includes(t))).toEqual([]);
@@ -24,6 +36,7 @@ describe("which screens need a job chosen first", () => {
   test("company-wide screens, including company settings, open with no job chosen", () => {
     for (const p of ["/jobs", "/new-job", "/projects/abc", "/clients", "/pipeline", "/catalogue"]) expect(needsJob(p, undefined)).toBe(false);
     expect(needsJob("/settings", "quotes")).toBe(false);
+    expect(needsJob("/settings", "integrations")).toBe(false);
     expect(needsJob("/settings", "microsoft")).toBe(false);
     expect(needsJob("/settings", undefined)).toBe(false);
   });

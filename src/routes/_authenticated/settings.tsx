@@ -31,10 +31,10 @@ import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
-import { settingsHeading } from "@/lib/settings-tabs";
+import { canonicalTab, settingsHeading } from "@/lib/settings-tabs";
 import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
 import { SyncPanel } from "@/components/settings/SyncPanel";
-import { Microsoft365Panel } from "@/components/settings/Microsoft365Panel";
+import { IntegrationsPanel } from "@/components/settings/IntegrationsPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   validateSearch: (s: Record<string, unknown>): { tab?: string | undefined; ms?: string | undefined; qbo?: string | undefined; message?: string | undefined } => ({
@@ -81,8 +81,9 @@ function SettingsPage() {
   // Company-wide settings first, then the settings of the job that is open. Each list holds only what this person may open.
   const companyTabs = ([
     [canQuotes, "quotes", "Quotes"],
-    [canMicrosoft, "microsoft", "Microsoft 365 & AI"],
+    [canMicrosoft, "integrations", "Integrations"],
     [canSync, "sync", "Sync"],
+    [canMicrosoft, "ai", "AI"],
     [isSuperAdmin, "allusers", "All users"],
     [isSuperAdmin, "roles", "Roles"],
     [canSettings, "projects", "All jobs"],
@@ -97,7 +98,8 @@ function SettingsPage() {
   ] as const).filter(([ok]) => ok).map(([, value, label]) => [value, label] as const);
   const allowed = [...companyTabs, ...jobTabs].map(([value]) => value as string);
   const search = Route.useSearch();
-  const tab = search.tab && allowed.includes(search.tab) ? search.tab : (allowed[0] ?? "jobs");
+  const asked = canonicalTab(search.tab);
+  const tab = asked && allowed.includes(asked) ? asked : (allowed[0] ?? "jobs");
   const heading = settingsHeading(tab, project?.name);
   const { data: items = [] } = useDeficiencies(project?.id);
 
@@ -261,8 +263,13 @@ function SettingsPage() {
           )}
 
           {canMicrosoft && (
-            <TabsContent value="microsoft">
-              <Microsoft365Panel result={search.ms} message={search.message} />
+            <TabsContent value="integrations">
+              <IntegrationsPanel result={search.ms} qboResult={search.qbo} message={search.message} />
+            </TabsContent>
+          )}
+
+          {canMicrosoft && (
+            <TabsContent value="ai">
               <AiModelPanel />
             </TabsContent>
           )}
