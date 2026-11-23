@@ -84,5 +84,5 @@ BMD Projects schedules site visits in ArrivePing and takes crew status back from
 **When something fails**: Company settings → Integrations → ArrivePing → Sync queue. Failed sends and cancels sit there with the error and a Retry button (or use *Retry all failed*); a retry reuses the same idempotency key, so ArrivePing never gets a duplicate. Failed webhooks have no Retry button: ArrivePing redelivers them, and they're applied when it does.
 
 **Setup notes**
-- Apply migration `0044_arriveping_sync` (`drizzle/migrations/`) before deploying. Without it, install visits can't be loaded and the integration doesn't work.
+- Apply migration `0048_arriveping_sync` (`drizzle/migrations/`) before deploying. Without it, install visits can't be loaded and the integration doesn't work.
 - The ArrivePing API paths live in `src/lib/arriveping/core.ts` (`AP_PATHS`). They may need adjusting once ArrivePing publishes its OpenAPI.
