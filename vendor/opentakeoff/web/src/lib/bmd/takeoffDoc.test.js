@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { emptyAnnotations } from "../store.js";
-import { addCondition, addShape, finishTotals, removeShape, scaleFor, setScale, sheetKey, sheetShapes, updateCondition } from "./takeoffDoc.js";
+import { addCondition, addShape, finishTotals, removeShape, renameCondition, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "./takeoffDoc.js";
 
 const dims = { w: 2000, h: 1000 };
 const key = sheetKey("Plans.pdf", 4);
@@ -72,5 +72,24 @@ describe("the takeoff document, in OpenTakeoff's own format", () => {
     expect(after.shapes).toEqual([]);
     expect(after.markups).toEqual([{ id: "m1" }]);
     expect(after.project_name).toBe("Test");
+  });
+  test("a finish can be renamed, but not to a blank tag or another finish's tag", () => {
+    const doc = addCondition(addCondition(emptyAnnotations(), "LVT-1"), "CPT-1");
+    const id = doc.conditions[0].id;
+    expect(renameCondition(doc, id, " LVT-2 ").conditions[0].finish_tag).toBe("LVT-2");
+    expect(() => renameCondition(doc, id, "  ")).toThrow();
+    expect(() => renameCondition(doc, id, "cpt-1")).toThrow(/already/);
+    expect(renameCondition(doc, id, "lvt-1").conditions[0].finish_tag).toBe("lvt-1");
+  });
+  test("a measurement can be given an area name, which joins the project's list of areas", () => {
+    let doc = setScale(addCondition(emptyAnnotations(), "LVT-1"), key, 0.05, "standard", dims);
+    doc = addShape(doc, { sheetId: key, conditionId: doc.conditions[0].id, role: "floor_area", pointsPx: square, dims, area: "Level 2" });
+    expect(doc.shapes[0].label).toBe("Level 2");
+    expect(doc.shape_labels).toEqual(["Level 2"]);
+    doc = setShapeArea(doc, doc.shapes[0].id, "Corridors");
+    expect(doc.shapes[0].label).toBe("Corridors");
+    expect(doc.shape_labels).toEqual(["Level 2", "Corridors"]);
+    doc = setShapeArea(doc, doc.shapes[0].id, "  ");
+    expect("label" in doc.shapes[0]).toBe(false);
   });
 });

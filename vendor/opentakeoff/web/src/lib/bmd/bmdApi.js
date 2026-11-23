@@ -92,8 +92,8 @@ export function createBmdApi(supabase, projectId, { canSave }) {
       fail(error, "The takeoff could not be loaded");
       return { doc: data?.doc ?? null, version: data?.version ?? 0 };
     },
-    async saveTakeoff(doc, expectedVersion) {
-      const { data, error } = await supabase.rpc("save_project_takeoff", { _project: projectId, _doc: doc, _expected_version: expectedVersion });
+    async saveTakeoff(doc, expectedVersion, quantities = null) {
+      const { data, error } = await supabase.rpc("save_project_takeoff", { _project: projectId, _doc: doc, _expected_version: expectedVersion, _quantities: quantities ?? { conditions: [], rows: [] } });
       if (error) {
         const c = parseConflict(error.message);
         if (c) throw new ConflictError(c.version, c.by);

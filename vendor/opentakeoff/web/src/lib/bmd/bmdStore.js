@@ -7,6 +7,7 @@
 //   - the estimator's libraries belong to the company, and snapshots to the project.
 // Everything that reaches the network is injected as `api`, and everything kept in the browser as `cache`, so this
 // file has no dependency on a database client and can be tested on its own.
+import { takeoffQuantities } from "./quantities.js";
 import { emptyAnnotations, ANN_SCHEMA } from "../store.js";
 import { sanitizeTemplates } from "../templates.js";
 import { sanitizeMaterialLibrary } from "../materials.js";
@@ -110,7 +111,7 @@ export function createBmdStore({ projectId, api, cache, onState = () => {} }) {
     try {
       onState({ kind: "saving" });
       const doc = { ...payload, schema: ANN_SCHEMA };
-      version = await api.saveTakeoff(doc, version);
+      version = await api.saveTakeoff(doc, version, takeoffQuantities(doc));   // the estimate reads these
       await cache.del(crashKey);
       onState({ kind: "saved", version });
     } catch (e) {

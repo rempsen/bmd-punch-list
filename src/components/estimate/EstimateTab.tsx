@@ -1,8 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { ImportDialog } from "./ImportDialog";
 import { ScopeProposals } from "./ScopeProposals";
-import { takeoffLinks, totalsByCondition } from "@/lib/takeoff/geometry";
-import { useTakeoff } from "@/lib/takeoff/store";
+import { finishLinks, offerQty, offerUom, takeoffOffers, totalsByFinish, useTakeoffQuantities, type Offer } from "@/lib/takeoff/quantities";
 import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { selectCls } from "@/components/catalogue/fields";
@@ -31,7 +30,7 @@ import {
   type EstVersion,
   type SaveItem,
 } from "@/lib/estimating/data";
-import { setLineWaste } from "@/lib/estimating/lines";
+import { lineFromFinish, setLineWaste, simpleLine } from "@/lib/estimating/lines";
 import { versionSummary, type Rates } from "@/lib/estimating/worksheet";
 import { errText } from "@/lib/platform/db";
 import { cn } from "@/lib/utils";
@@ -53,7 +52,8 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const { data: costCodes = [] } = useCostCodes(canSee);
   const { data: tax } = useTaxSettings(canSee);
   const refresh = useRefreshEstimate(projectId);
-  const { data: takeoff } = useTakeoff(projectId, canSee);
+  const { data: measured } = useTakeoffQuantities(projectId, canSee);
+  const takeoffTotals = useMemo(() => totalsByFinish(measured ?? []), [measured]);
 
   const estimates = versions.filter((v) => v.kind === "estimate");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -88,6 +88,17 @@ export function EstimateTab({ projectId }: { projectId: string }) {
     }
   };
   const save = (items: SaveItem[], done?: string) => run(() => saveLines(items), done);
+
+  /** A new line for something measured in the takeoff. It follows the takeoff until the estimator says otherwise. */
+  const lineForOffer = (o: Offer, versionId: string, markupPct: number): SaveItem => {
+    const finish = finishes.find((f) => f.id === o.finishId)!;
+    const template = templates.find((t) => t.id === finish.assembly_template_id) ?? null;
+    const uom = offerUom(o.measure, template?.driver_uom ?? null);
+    const qty = offerQty(o.measure, uom);
+    // The assembly prices the line when its unit fits what was measured. Otherwise the line goes on unpriced: an unknown cost is not zero.
+    const base = template && template.driver_uom === uom ? lineFromFinish({ versionId, finish, template, catalogue, qty, section: o.section, markupPct, source: "takeoff" }).item : simpleLine({ versionId, kind: "misc", section: o.section, description: [finish.tag, finish.description].filter(Boolean).join(" – "), qty, uom, unitCostCents: null, pst: false, markupPct, costCode: null });
+    return { ...base, line: { ...base.line, finish_id: finish.id, source: "takeoff" } };
+  };
 
   if (!active)
     return (
@@ -178,8 +189,41 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      {canEdit && !active.locked && takeoff && (() => {
-        const moved = takeoffLinks(active.lines, totalsByCondition(takeoff.counted ?? takeoff.shapes)).filter((l) => l.changed);
+      {canEdit && !active.locked && measured && (() => {
+        const offers = takeoffOffers(active.lines, takeoffTotals, finishes);
+        if (offers.length === 0) return null;
+        const qtyText = (o: Offer) => {
+          const uom = offerUom(o.measure, templates.find((t) => t.id === finishes.find((f) => f.id === o.finishId)?.assembly_template_id)?.driver_uom ?? null);
+          return `${offerQty(o.measure, uom).toLocaleString("en-CA")} ${uom}`;
+        };
+        return (
+          <div role="status" className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="min-w-0 flex-1 font-medium">Measured in the takeoff and not on {active.name || "this price"} yet. Quantities are as measured; set waste on the line.</p>
+              {offers.length > 1 && (
+                <Button size="sm" className="h-9" disabled={busy} onClick={() => void save(offers.map((o) => lineForOffer(o, active.id, active.default_markup_pct)), `${offers.length} lines added from the takeoff`)}>
+                  Add all {offers.length}
+                </Button>
+              )}
+            </div>
+            <ul className="mt-2 space-y-1.5">
+              {offers.map((o) => (
+                <li key={`${o.finishId}|${o.section}`} className="flex flex-wrap items-center gap-2">
+                  <span className="min-w-0 flex-1">
+                    <span className="font-medium">{o.tag}</span>
+                    {o.section !== "General" ? ` · ${o.section}` : ""}: {qtyText(o)}
+                  </span>
+                  <Button size="sm" variant="outline" className="h-9 bg-white" disabled={busy} onClick={() => void save([lineForOffer(o, active.id, active.default_markup_pct)], `${o.tag} added from the takeoff`)}>
+                    <Plus className="mr-1 h-4 w-4" aria-hidden /> Add
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
+      {canEdit && !active.locked && measured && (() => {
+        const moved = finishLinks(active.lines, takeoffTotals).filter((l) => l.changed);
         if (moved.length === 0) return null;
         return (
           <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

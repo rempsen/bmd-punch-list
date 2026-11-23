@@ -10,7 +10,7 @@ import "../styles/simpleTakeoff.css";
 import { store } from "../lib/store.js";
 import { PALETTE } from "../lib/takeoffConstants.ts";
 import { createSheetEngine, RENDER_SCALE, STANDARD_SCALES } from "../lib/bmd/engine.js";
-import { addCondition, addShape, finishTotals, removeShape, scaleFor, setScale, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
+import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
 import { parseFeet } from "../lib/bmd/feet.js";
 
@@ -43,7 +43,10 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const [busy, setBusy] = useState("Opening the project's drawings…");
   const [newTag, setNewTag] = useState("");
   const [filter, setFilter] = useState("");
-  const [calibrate, setCalibrate] = useState(null);  // null | {points: []}
+  const [calibrate, setCalibrate] = useState(null);  // null | {points: [], ask?: true, length?: string}
+  const [area, setArea] = useState("");              // the area name new measurements get ("Level 2"); blank for none
+  const [scope, setScope] = useState("all");         // totals for "all" sheets or "sheet" (this one)
+  const [renaming, setRenaming] = useState(null);    // null | {id, tag}
   const wrap = useRef(null);
   const canvas = useRef(null);
   const pdfs = useRef(new Map());                    // file name → pdf.js document
@@ -56,7 +59,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const scale = doc && current ? scaleFor(doc, current) : null;
   const sheet = sheets.find((s) => s.key === current) ?? null;
   const shapes = useMemo(() => (doc && current ? sheetShapes(doc, current) : []), [doc, current]);
-  const totals = useMemo(() => (doc ? finishTotals(doc) : []), [doc]);
+  const totals = useMemo(() => (doc ? finishTotals(doc, scope === "sheet" ? current : null) : []), [doc, scope, current]);
+  const areas = doc?.shape_labels || [];
   const condById = useMemo(() => new Map((doc?.conditions ?? []).map((c) => [c.id, c])), [doc]);
   const say = (text, tone = "info") => setNote({ text, tone, at: Date.now() });
 
@@ -227,11 +231,22 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     const min = role === "linear" ? 2 : 3;
     if (draft.length < min) { setDraft([]); return; }
     try {
-      commit(addShape(doc, { sheetId: current, conditionId: activeId, role, pointsPx: draft, dims, method: "manual" }));
+      commit(addShape(doc, { sheetId: current, conditionId: activeId, role, pointsPx: draft, dims, method: "manual", area }));
     } catch (e) {
       say(String(e?.message || e), "warn");
     }
     setDraft([]);
+  };
+
+  const applyCalibration = () => {
+    const [a, b] = calibrate.points;
+    const px = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const feet = parseFeet(calibrate.length);
+    if (!(feet > 0)) return say("Type the length in feet, for example 12.5 or 12' 6\".", "warn");
+    if (!(px > 1)) { setCalibrate(null); return say("Those two points are in the same place. The scale was not changed.", "warn"); }
+    commit(setScale(doc, current, feet / px, "calibrated", dims));
+    setCalibrate(null);
+    say(`Scale set from your ${fmt(feet, 2)} ft length. Everything on this sheet was measured again.`, "good");
   };
 
   const pointer = (e) => {
@@ -251,14 +266,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     if (calibrate) {
       const p = await snapped(ix, iy);
       const points = [...calibrate.points, p];
-      if (points.length < 2) return setCalibrate({ points });
-      const px = Math.hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]);
-      const answer = window.prompt("How long is that, in feet? For example 12.5, or 12' 6\"");
-      setCalibrate(null);
-      const feet = parseFeet(answer);
-      if (!(feet > 0) || !(px > 1)) return say("The scale was not changed.", "info");
-      commit(setScale(doc, current, feet / px, "calibrated", dims));
-      return say(`Scale set from your ${fmt(feet, 2)} ft measurement.`, "good");
+      if (calibrate.ask) return;
+      return setCalibrate(points.length < 2 ? { points } : { points, ask: true, length: "" });
     }
     if (tool === "select") {
       const hit = nearShape(shapes, dims, ix, iy, 8 / view.k);
@@ -267,7 +276,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     if (readOnly) return say("This takeoff is read-only for you.", "warn");
     if (needFinish()) return;
     if (tool === "count") {
-      try { commit(addShape(doc, { sheetId: current, conditionId: activeId, role: "count", pointsPx: [[ix, iy]], dims })); } catch (err) { say(String(err?.message || err), "warn"); }
+      try { commit(addShape(doc, { sheetId: current, conditionId: activeId, role: "count", pointsPx: [[ix, iy]], dims, area })); } catch (err) { say(String(err?.message || err), "warn"); }
       return;
     }
     if (needScale()) return;
@@ -277,7 +286,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       try {
         const r = await engine.roomAt(ix, iy, scale.upp);
         if (!r.ok) return say(r.reason, "warn");
-        commit(addShape(doc, { sheetId: current, conditionId: activeId, role: "floor_area", pointsPx: r.pointsPx, dims, method: "one_click_v1", seedPx: [ix, iy], confidence: r.confidence ?? undefined }));
+        commit(addShape(doc, { sheetId: current, conditionId: activeId, role: "floor_area", pointsPx: r.pointsPx, dims, method: "one_click_v1", seedPx: [ix, iy], confidence: r.confidence ?? undefined, area }));
         say(`${active.finish_tag}: ${fmt(r.areaSf)} SF measured to the walls. Check the outline, and undo if it is not the room.`, "good");
       } catch (err) {
         say(`That room could not be measured: ${String(err?.message || err)}`, "bad");
@@ -315,8 +324,47 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
       setView((v) => zoomAt(v, e.clientX - box.left, e.clientY - box.top, factor));
     };
+    let touch = null;
+    const at = (t) => { const box = el.getBoundingClientRect(); return [t.clientX - box.left, t.clientY - box.top]; };
+    const onTouchStart = (e) => {
+      if (e.target.closest(".st-zoom, .st-selected, .st-note, .st-ask")) return;
+      const [a, b] = [e.touches[0], e.touches[1]].map((t) => t && at(t));
+      touch = { a, b, view: viewRef.current, moved: false };
+    };
+    const onTouchMove = (e) => {
+      if (!touch) return;
+      e.preventDefault();
+      const a = at(e.touches[0]);
+      if (touch.b && e.touches[1]) {
+        const b = at(e.touches[1]);
+        const d0 = Math.hypot(touch.b[0] - touch.a[0], touch.b[1] - touch.a[1]) || 1;
+        const d1 = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const mid0 = [(touch.a[0] + touch.b[0]) / 2, (touch.a[1] + touch.b[1]) / 2];
+        const mid1 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const z = zoomAt(touch.view, mid0[0], mid0[1], d1 / d0);
+        touch.moved = true;
+        setView({ ...z, x: z.x + mid1[0] - mid0[0], y: z.y + mid1[1] - mid0[1] });
+      } else if (!touch.b) {
+        if (Math.hypot(a[0] - touch.a[0], a[1] - touch.a[1]) > 8) touch.moved = true;
+        if (touch.moved) setView({ ...touch.view, x: touch.view.x + a[0] - touch.a[0], y: touch.view.y + a[1] - touch.a[1] });
+      }
+    };
+    const onTouchEnd = (e) => {
+      if (touch?.moved) { drag.current = { moved: true }; setTimeout(() => { drag.current = null; }, 350); }   // the tap that ends a move measures nothing
+      touch = e.touches.length ? { a: at(e.touches[0]), b: null, view: viewRef.current, moved: true } : null;
+    };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("touchcancel", onTouchEnd);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+    };
   }, [busy]);
 
   useEffect(() => {
@@ -342,6 +390,12 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     commit(next);
     setActiveId(next.conditions.find((c) => c.finish_tag.toLowerCase() === tag.toLowerCase())?.id ?? activeId);
     setNewTag("");
+  };
+  const doRename = () => {
+    try { commit(renameCondition(doc, renaming.id, renaming.tag)); setRenaming(null); } catch (e) { say(String(e?.message || e), "warn"); }
+  };
+  const doRemoveFinish = (id) => {
+    try { commit(removeCondition(doc, id)); if (activeId === id) setActiveId(null); } catch { say("This finish has measurements. Remove them first (Select, click one, Remove), then remove the finish.", "warn"); }
   };
   const chooseScale = (value) => {
     if (!doc || !dims) return;
@@ -431,6 +485,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
                 })}
                 {liveDraft.length > 0 && <path d={pathOf(liveDraft, tool !== "line" && liveDraft.length > 2)} fill={tool === "line" ? "none" : active?.color ?? "#1b2d4f"} fillOpacity="0.15" stroke={active?.color ?? "#1b2d4f"} strokeWidth={stroke} strokeDasharray={`${5 / view.k} ${4 / view.k}`} />}
                 {draft.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={4 / view.k} fill="#fff" stroke={active?.color ?? "#1b2d4f"} strokeWidth={stroke} />)}
+                {calibrate?.points.length === 2 && <path d={pathOf(calibrate.points, false)} fill="none" stroke="#1b2d4f" strokeWidth={stroke} />}
                 {calibrate?.points.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={5 / view.k} fill="#1b2d4f" />)}
               </g>
             </svg>
@@ -441,20 +496,41 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
             <div className="st-selected" onClick={(e) => e.stopPropagation()}>
               <strong>{condById.get(selectedShape.condition_id)?.finish_tag ?? "Measurement"}</strong>
               <span>{selectedShape.measure_role === "count" ? "1 counted" : selectedShape.measure_role === "linear" ? `${fmt(selectedShape.computed?.perimeter_lf)} LF` : `${fmt(selectedShape.computed?.area_sf)} SF${selectedShape.measure_role === "deduct" ? " taken out" : ` · ${fmt(selectedShape.computed?.perimeter_lf)} LF around`}`}</span>
+              {!readOnly && (
+                <input key={selectedShape.id} className="st-input st-area-input" list="st-areas" placeholder="Area, e.g. Level 2" defaultValue={selectedShape.label || ""} aria-label="Area this measurement belongs to"
+                  onBlur={(e) => { if ((e.target.value.trim() || "") !== (selectedShape.label || "")) commit(setShapeArea(doc, selectedShape.id, e.target.value)); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} />
+              )}
               {!readOnly && <button type="button" className="st-btn st-btn-danger" onClick={() => { commit(removeShape(doc, selectedShape.id)); setSelected(null); }}>Remove</button>}
             </div>
+          )}
+          {calibrate?.ask && (
+            <form className="st-ask" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); applyCalibration(); }}>
+              <label htmlFor="st-length">How long is that, in feet?</label>
+              <input id="st-length" className="st-input" autoFocus placeholder={"12.5 or 12' 6\""} value={calibrate.length} onChange={(e) => setCalibrate({ ...calibrate, length: e.target.value })} />
+              <button type="submit" className="st-btn st-btn-primary">Set scale</button>
+              <button type="button" className="st-btn" onClick={() => setCalibrate(null)}>Cancel</button>
+            </form>
           )}
           <div className="st-zoom" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
             <button type="button" className="st-btn" onClick={() => zoom(1 / 1.4)} aria-label="Zoom out">−</button>
             <button type="button" className="st-btn" onClick={fit}>Fit</button>
             <button type="button" className="st-btn" onClick={() => zoom(1.4)} aria-label="Zoom in">+</button>
           </div>
-          <p className="st-hint">{calibrate ? "Click the two ends of a length you know." : TOOLS.find((t) => t.id === tool)?.hint} {draft.length > 0 ? "Esc cancels, Backspace removes the last corner." : "Scroll to zoom."}</p>
+          <p className="st-hint">{calibrate ? (calibrate.ask ? "Type the length between the two points." : "Click the two ends of a length you know.") : TOOLS.find((t) => t.id === tool)?.hint} {draft.length > 0 ? "Esc cancels, Backspace removes the last corner." : "Scroll to zoom."}</p>
         </main>
 
         <aside className="st-finishes" aria-label="Measuring">
           <h2>Measuring</h2>
-          <p className="st-sub">Pick a finish, then a tool. Totals are as measured, across every sheet; waste is added on the estimate.</p>
+          <p className="st-sub">Pick a finish, then a tool. Quantities are as measured and go to the Estimate tab, where waste is added.</p>
+          <div className="st-row">
+            <div className="st-seg" role="group" aria-label="Totals shown">
+              <button type="button" className={scope === "all" ? "st-on" : ""} aria-pressed={scope === "all"} onClick={() => setScope("all")}>All sheets</button>
+              <button type="button" className={scope === "sheet" ? "st-on" : ""} aria-pressed={scope === "sheet"} onClick={() => setScope("sheet")}>This sheet</button>
+            </div>
+            {!readOnly && <input className="st-input st-area" list="st-areas" placeholder="Area (optional)" title="New measurements are put in this area, such as Level 2. The estimate can price each area on its own line." value={area} onChange={(e) => setArea(e.target.value)} aria-label="Area for new measurements" />}
+            <datalist id="st-areas">{areas.map((a) => <option key={a} value={a} />)}</datalist>
+          </div>
           <ul>
             {totals.map((t) => {
               const c = condById.get(t.id);
@@ -473,6 +549,17 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
                       {PALETTE.map((p) => <button key={p} type="button" title="Use this colour" className={c?.color === p ? "st-on" : ""} style={{ background: p }} onClick={() => commit(updateCondition(doc, t.id, { color: p, fill: p }))} />)}
                     </div>
                   )}
+                  {on && !readOnly && (renaming?.id === t.id ? (
+                    <form className="st-add st-rename" onSubmit={(e) => { e.preventDefault(); doRename(); }}>
+                      <input className="st-input" autoFocus value={renaming.tag} maxLength={40} onChange={(e) => setRenaming({ id: t.id, tag: e.target.value })} aria-label={`New tag for ${t.tag}`} onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }} />
+                      <button type="submit" className="st-btn st-btn-primary">Save</button>
+                    </form>
+                  ) : (
+                    <div className="st-finish-actions">
+                      <button type="button" onClick={() => setRenaming({ id: t.id, tag: c?.finish_tag ?? t.tag })}>Rename</button>
+                      <button type="button" onClick={() => doRemoveFinish(t.id)}>Remove</button>
+                    </div>
+                  ))}
                 </li>
               );
             })}

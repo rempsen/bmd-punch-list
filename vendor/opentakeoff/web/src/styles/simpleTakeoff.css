@@ -100,3 +100,18 @@
   .st-sheets button { white-space: nowrap; }
   .st-finishes { width: auto; max-height: 38vh; border-left: 0; border-top: 1px solid var(--st-line); }
 }
+
+/* Totals scope, area name, rename and the known-length box */
+.st-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.st-seg { display: inline-flex; padding: 2px; background: #f1f5f9; border-radius: 9px; flex: none; }
+.st-seg button { height: 28px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; font-size: 12.5px; font-weight: 500; color: #334155; cursor: pointer; white-space: nowrap; }
+.st-seg button.st-on { background: #fff; color: var(--st-ink); box-shadow: 0 1px 2px rgb(15 23 42 / .15); }
+.st-area { flex: 1 1 130px; height: 32px; min-width: 0; font-size: 13px; }
+.st-area-input { width: 150px; height: 32px; font-size: 13px; }
+.st-finish-actions { display: flex; gap: 14px; padding: 0 10px 9px 36px; }
+.st-finish-actions button { border: 0; background: none; padding: 0; font-size: 12.5px; color: var(--st-muted); text-decoration: underline; cursor: pointer; }
+.st-finish-actions button:hover { color: var(--st-ink); }
+.st-rename { padding: 0 8px 9px 36px; }
+.st-ask { position: absolute; z-index: 3; left: 50%; top: 14px; transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: #fff; border: 1px solid var(--st-line); box-shadow: 0 8px 24px rgb(15 23 42 / .18); cursor: default; max-width: calc(100% - 24px); }
+.st-ask label { font-weight: 600; font-size: 13.5px; }
+.st-ask .st-input { width: 130px; }

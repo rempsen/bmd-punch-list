@@ -98,6 +98,14 @@ describe("the takeoff is saved in BMD Projects", () => {
     await store.saveAnnotations({ n: 2 });
     expect(calls.save.map(([d, v]) => [d.n, v])).toEqual([[1, 3], [2, 4]]);
   });
+  test("each save carries the measured quantities for the estimate", async () => {
+    let sent = null;
+    const { store } = harness({ saveTakeoff: async (d, expected, q) => { sent = q; return expected + 1; } });
+    await store.loadAnnotations();
+    await store.saveAnnotations({ conditions: [{ id: "cnd-1", finish_tag: "CPT-1", color: "#111111", waste_pct: 10 }], shapes: [{ id: "s", condition_id: "cnd-1", measure_role: "floor_area", computed: { area_sf: 120 } }] });
+    expect(sent.conditions).toEqual([{ key: "cnd-1", tag: "CPT-1", variant: false, colour: "#111111" }]);
+    expect(sent.rows).toEqual([{ key: "cnd-1", section: "", floor_sf: 120, wall_sf: 0, border_sf: 0, lf: 0, ea: 0 }]);
+  });
   test("saves are one at a time and the latest wins", async () => {
     let release;
     const gate = new Promise((r) => (release = r));

@@ -31,6 +31,8 @@ export function TakeoffWorkspace({ projectId }: { projectId: string }) {
       if (!isSavedMessage(e, window.location.origin, projectId)) return;
       void qc.invalidateQueries({ queryKey: ["estimate", projectId] });
       void qc.invalidateQueries({ queryKey: ["takeoff", projectId] });
+      void qc.invalidateQueries({ queryKey: ["takeoff-quantities", projectId] });
+      void qc.invalidateQueries({ queryKey: ["finishes", projectId] });
       void qc.invalidateQueries({ queryKey: ["documents", projectId] });
     };
     window.addEventListener("message", onMessage);

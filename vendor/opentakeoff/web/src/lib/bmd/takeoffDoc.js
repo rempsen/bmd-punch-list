@@ -45,6 +45,27 @@ export function addCondition(doc, tag) {
   return { ...doc, conditions: [...list, { id: uid("cnd"), created_at: new Date().toISOString(), finish_tag: finishTag, color: colour, fill: colour, hatch: nextHatchId(list.length), multiplier: 1, waste_pct: 0, materials: [] }] };
 }
 
+/** Renames a finish. The tag must not be blank or already used by another finish on this takeoff. */
+export function renameCondition(doc, id, tag) {
+  const finishTag = String(tag || "").trim();
+  if (!finishTag) throw new Error("Give the finish a tag, such as LVT-1.");
+  if ((doc.conditions || []).some((c) => c.id !== id && c.finish_tag.toLowerCase() === finishTag.toLowerCase())) throw new Error(`${finishTag} is already a finish on this takeoff.`);
+  return updateCondition(doc, id, { finish_tag: finishTag });
+}
+
+const withArea = (doc, area) => (area && !(doc.shape_labels || []).includes(area) ? { ...doc, shape_labels: [...(doc.shape_labels || []), area] } : doc);
+
+/** Names the area a measurement belongs to ("Level 2", "Corridors"); a blank name clears it. The estimate can price each area on its own line. */
+export function setShapeArea(doc, shapeId, area) {
+  const name = String(area || "").trim();
+  const shapes = (doc.shapes || []).map((s) => {
+    if (s.id !== shapeId) return s;
+    const { label: _old, ...rest } = s;
+    return name ? { ...rest, label: name } : rest;
+  });
+  return withArea({ ...doc, shapes }, name);
+}
+
 export function updateCondition(doc, id, patch) {
   return { ...doc, conditions: (doc.conditions || []).map((c) => (c.id === id ? { ...c, ...patch } : c)) };
 }
@@ -74,8 +95,10 @@ export function addShape(doc, m) {
     // A person made or accepted this on the simple screen, so it counts at once.
     origin: { method: m.method || "manual", reviewed: true, ...(m.seedPx ? { seed_norm: [m.seedPx[0] / m.dims.w, m.seedPx[1] / m.dims.h] } : {}), ...(m.confidence != null ? { confidence: m.confidence } : {}) },
   };
+  const area = String(m.area || "").trim();
+  if (area) shape.label = area;
   shape.computed = computeShapeMetrics(shape, m.dims, scale?.upp ?? 0, cond);
-  return { ...doc, shapes: [...(doc.shapes || []), shape] };
+  return withArea({ ...doc, shapes: [...(doc.shapes || []), shape] }, area);
 }
 
 export function removeShape(doc, id) {
