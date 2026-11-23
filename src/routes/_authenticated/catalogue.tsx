@@ -32,6 +32,7 @@ import {
 } from "@/lib/catalogue/data";
 import { CATEGORIES, categoryLabel, parseMaterialRows, parseMoneyCents, planMaterialImport, type MaterialInput } from "@/lib/catalogue/logic";
 import type { Uom } from "@/lib/estimating/calc";
+import { isPriceListFile } from "@/lib/nav";
 import { errText } from "@/lib/platform/db";
 
 export const Route = createFileRoute("/_authenticated/catalogue")({
@@ -499,6 +500,7 @@ function ImportDialog({ existing, suppliers, onClose, onDone }: { existing: Mate
   const [parsed, setParsed] = useState<{ rows: MaterialInput[]; problems: string[]; fileName: string } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState("");
+  const [over, setOver] = useState(false);
   const [accept, setAccept] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const plan = parsed ? planMaterialImport(parsed.rows, existing) : null;
@@ -555,9 +557,31 @@ function ImportDialog({ existing, suppliers, onClose, onDone }: { existing: Mate
             e.target.value = "";
           }}
         />
-        <Button variant="outline" className="h-12" onClick={() => fileRef.current?.click()}>
-          <Upload className="mr-2 h-4 w-4" /> {parsed ? "Choose a different file" : "Choose file"}
-        </Button>
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            const f = e.dataTransfer.files?.[0];
+            if (!f) return;
+            if (!isPriceListFile(f.name)) return setProblem(`${f.name} is not an Excel or CSV file.`);
+            void read(f);
+          }}
+          className={`flex min-h-28 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-4 py-5 text-center text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${over ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}
+        >
+          <Upload className="h-5 w-5 text-muted-foreground" aria-hidden />
+          <span className="font-medium">{parsed ? parsed.fileName : "Drag a price list here"}</span>
+          <span className="text-muted-foreground">
+            {parsed ? "Drop another file here, or " : "or "}
+            <span className="font-medium text-primary underline">browse for a file</span> (Excel or CSV)
+          </span>
+        </button>
         {problem && <p className="text-sm text-destructive">{problem}</p>}
         {parsed && plan && (
           <div className="space-y-3 text-sm">

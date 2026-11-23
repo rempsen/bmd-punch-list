@@ -21,10 +21,12 @@ import {
   Briefcase,
   Images,
   Sparkles,
+  ChevronRight,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
+import { JOB_MENU_KEY, jobMenuOpen } from "@/lib/nav";
 import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { cn } from "@/lib/utils";
@@ -78,7 +80,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tabNow = useRouterState({ select: (s) => (s.location.search as { tab?: string }).tab });
+  // The job menu starts hidden and stays the way this person left it, in this browser.
+  const [jobMenu, setJobMenu] = useState(false);
+  useEffect(() => {
+    try {
+      setJobMenu(jobMenuOpen(window.localStorage.getItem(JOB_MENU_KEY)));
+    } catch {
+      /* storage blocked: the menu just starts hidden */
+    }
+  }, []);
+  const toggleJobMenu = () => {
+    const next = !jobMenu;
+    setJobMenu(next);
+    try {
+      window.localStorage.setItem(JOB_MENU_KEY, next ? "open" : "closed");
+    } catch {
+      /* not remembered */
+    }
+  };
   // Company-wide screens, company settings included, open without a job chosen.
+  const activeJobItem = jobNav.find((i) => isActive(i, pathname, tabNow));
   if (!loading && jobsLoaded && !currentJob && needsJob(pathname, tabNow)) return <Navigate to="/jobs" replace />;
 
 
@@ -111,8 +132,19 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
             <JobBadge />
           </div>
-          <nav aria-label="Current job" className="flex flex-1 flex-col gap-1 overflow-y-auto">
-            {jobNav.map((item) => (
+          <button
+            type="button"
+            onClick={toggleJobMenu}
+            aria-expanded={jobMenu}
+            aria-controls="job-menu"
+            className="mb-1 flex items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide opacity-80 hover:bg-sidebar-accent/60"
+          >
+            <ChevronRight className={cn("h-4 w-4 transition-transform", jobMenu && "rotate-90")} aria-hidden />
+            <span className="min-w-0 flex-1">Job menu</span>
+            {!jobMenu && activeJobItem && <span className="truncate text-[11px] font-medium normal-case tracking-normal opacity-80">{activeJobItem.label}</span>}
+          </button>
+          <nav id="job-menu" aria-label="Current job" className="flex flex-1 flex-col gap-1 overflow-y-auto">
+            {jobMenu && jobNav.map((item) => (
               <Link
                 key={item.label}
                 to={item.to}
