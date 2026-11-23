@@ -111,3 +111,41 @@ describe("a cost typed in one unit, kept in the catalogue's unit", () => {
     expect(costInUnit(250, "LF", "SF")).toBeNull();
   });
 });
+
+import { partChoices, partFor, sectionChoices } from "./lines";
+describe("adding install, adhesive or prep to a line", () => {
+  const cat = {
+    materials: { a1: { id: "a1", name: "Eco 373 15L", cost_uom: "pail", unit_cost_cents: 13581, purchase_uom: "pail", coverage_per_purchase_unit: 250, coverage_uom: "SF", pst_applies: true, default_waste_pct: 0 } },
+    labour: { l1: { id: "l1", name: "Install LVT", uom: "SF", unit_cost_cents: 125 }, l2: { id: "l2", name: "Install wall base", uom: "LF", unit_cost_cents: null }, l3: { id: "l3", name: "Floor prep", uom: "SF", unit_cost_cents: 50 } },
+  } as never;
+  const mats = [{ id: "a1", name: "Eco 373 15L", category: "adhesive", active: true }, { id: "m2", name: "Dante", category: "lvt", active: true }, { id: "a3", name: "Old glue", category: "adhesive", active: false }];
+  const rates = [{ id: "l1", name: "Install LVT", uom: "SF", active: true }, { id: "l2", name: "Install wall base", uom: "LF", active: true }, { id: "l3", name: "Floor prep", uom: "SF", active: true }];
+
+  test("install offers the install rates that fit the line's unit", () => {
+    expect(partChoices("install", mats as never, rates as never, "SF")).toEqual([{ type: "labour", id: "l1", name: "Install LVT" }]);
+    expect(partChoices("install", mats as never, rates as never, "LF")).toEqual([{ type: "labour", id: "l2", name: "Install wall base" }]);
+    expect(partChoices("install", mats as never, rates as never, "SY")).toEqual([{ type: "labour", id: "l1", name: "Install LVT" }]);
+  });
+  test("adhesive offers active adhesives; prep offers prep labour", () => {
+    expect(partChoices("adhesive", mats as never, rates as never, "SF")).toEqual([{ type: "material", id: "a1", name: "Eco 373 15L" }]);
+    expect(partChoices("prep", mats as never, rates as never, "SF")).toEqual([{ type: "labour", id: "l3", name: "Floor prep" }]);
+  });
+  test("a labour rate comes in at its catalogue cost, per the line's quantity", () => {
+    expect(partFor("install", { type: "labour", id: "l1", name: "Install LVT" }, "SF", cat, 2)).toMatchObject({ kind: "labour", label: "Install LVT", labour_rate_id: "l1", unit_cost_cents: 125, cost_uom: "SF", qty_per_driver: 1, sort_order: 2, pst_applies: false });
+  });
+  test("an adhesive comes in by the pail with its coverage, rounded up to whole pails", () => {
+    expect(partFor("adhesive", { type: "material", id: "a1", name: "Eco 373 15L" }, "SF", cat, 3)).toMatchObject({ kind: "material", catalogue_material_id: "a1", unit_cost_cents: 13581, purchase_uom: "pail", coverage_per_purchase_unit: 250, round_up: true, pst_applies: true });
+  });
+  test("something not in the catalogue yet comes in with its cost unknown, never zero", () => {
+    expect(partFor("install", null, "LF", cat, 2)).toMatchObject({ kind: "labour", label: "Install", unit_cost_cents: null, cost_uom: "LF", labour_rate_id: null });
+    expect(partFor("adhesive", null, "SF", cat, 2)).toMatchObject({ kind: "material", label: "Adhesive", unit_cost_cents: null, catalogue_material_id: null });
+    expect(partFor("prep", null, "SF", cat, 2)).toMatchObject({ kind: "labour", label: "Prep", unit_cost_cents: null });
+  });
+});
+
+describe("sections a line can be moved to", () => {
+  test("the sections in use first, then the usual ones, with no repeats", () => {
+    expect(sectionChoices(["Window coverings", "General"])).toEqual(["Window coverings", "General", "Flooring", "Prep"]);
+    expect(sectionChoices([])).toEqual(["Flooring", "Window coverings", "Prep", "General"]);
+  });
+});

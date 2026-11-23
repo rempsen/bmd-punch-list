@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { ImportDialog } from "./ImportDialog";
 import { ScopeProposals } from "./ScopeProposals";
 import { finishLinks, offerQty, offerUom, takeoffOffers, totalsByFinish, useTakeoffQuantities, type Offer } from "@/lib/takeoff/quantities";
-import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, GripVertical, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { selectCls } from "@/components/catalogue/fields";
 import { CompareView, SwapFinishDialog } from "@/components/estimate/alternates";
@@ -31,7 +31,9 @@ import {
   type EstVersion,
   type SaveItem,
 } from "@/lib/estimating/data";
-import { changeLineUnit, costInUnit, costTarget, lineFromFinish, setLineWaste, simpleLine, unitChoices } from "@/lib/estimating/lines";
+import { changeLineUnit, costInUnit, costTarget, lineFromFinish, partChoices, partFor, sectionChoices, setLineWaste, simpleLine, unitChoices, type PartKind } from "@/lib/estimating/lines";
+import type { CatalogueView } from "@/lib/estimating/assemble";
+import type { LabourRate, Material } from "@/lib/catalogue/data";
 import type { Uom } from "@/lib/estimating/calc";
 import { versionSummary, type Rates } from "@/lib/estimating/worksheet";
 import { errText } from "@/lib/platform/db";
@@ -70,6 +72,8 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState({ waste: "", markup: "" });
   const [busy, setBusy] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);   // the line being dragged to another section
+  const [dropOn, setDropOn] = useState<string | null>(null);
 
   const rates: Rates | null = tax ? { pstPct: tax.pst_pct, gstPct: tax.gst_pct, hstPct: tax.hst_pct } : null;
   const catalogue = useMemo(() => catalogueView(materials, labour), [materials, labour]);
@@ -92,6 +96,16 @@ export function EstimateTab({ projectId }: { projectId: string }) {
     }
   };
   const save = (items: SaveItem[], done?: string) => run(() => saveLines(items), done);
+  /** Moves lines to another section (dragged there, picked on the line, or for everything selected). */
+  const moveTo = (ids: string[], section: string) => {
+    const name = section.trim();
+    const moving = (active?.lines ?? []).filter((l) => ids.includes(l.id) && l.section !== name);
+    setDragId(null);
+    setDropOn(null);
+    if (!name || moving.length === 0) return;
+    void save(moving.map((l) => ({ id: l.id, row_version: l.row_version, line: { section: name } })), moving.length === 1 ? `Moved to ${name}` : `${moving.length} lines moved to ${name}`);
+  };
+  const askSection = () => window.prompt("Name for the new section", "")?.trim() ?? "";
 
   /**
    * A unit cost typed on a line. For a catalogue material, a labour rate or a finish it becomes the catalogue's price
@@ -143,7 +157,9 @@ export function EstimateTab({ projectId }: { projectId: string }) {
     const uom = offerUom(o.measure, template?.driver_uom ?? null);
     const qty = offerQty(o.measure, uom);
     // The assembly prices the line when its unit fits what was measured. Otherwise the line goes on unpriced: an unknown cost is not zero.
-    const base = template && template.driver_uom === uom ? lineFromFinish({ versionId, finish, template, catalogue, qty, section: o.section, markupPct, source: "takeoff" }).item : simpleLine({ versionId, kind: "misc", section: o.section, description: [finish.tag, finish.description].filter(Boolean).join(" – "), qty, uom, unitCostCents: null, pst: false, markupPct, costCode: null });
+    // What is measured in the takeoff is flooring unless the takeoff named an area for it.
+    const section = o.section === "General" ? "Flooring" : o.section;
+    const base = template && template.driver_uom === uom ? lineFromFinish({ versionId, finish, template, catalogue, qty, section, markupPct, source: "takeoff" }).item : simpleLine({ versionId, kind: "misc", section, description: [finish.tag, finish.description].filter(Boolean).join(" – "), qty, uom, unitCostCents: null, pst: false, markupPct, costCode: null });
     return { ...base, line: { ...base.line, finish_id: finish.id, source: "takeoff" } };
   };
 
@@ -348,6 +364,27 @@ export function EstimateTab({ projectId }: { projectId: string }) {
             <Button size="sm" disabled={busy} onClick={applyBulk}>
               Apply
             </Button>
+            <label className="flex items-center gap-2">
+              Move to
+              <select
+                aria-label="Move selected lines to a section"
+                className={cn(selectCls, "h-9 w-44")}
+                value=""
+                disabled={busy}
+                onChange={(e) => {
+                  const to = e.target.value === "__new" ? askSection() : e.target.value;
+                  if (to) moveTo([...selected], to);
+                }}
+              >
+                <option value="">Choose a section…</option>
+                {sectionChoices(sections).map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+                <option value="__new">New section…</option>
+              </select>
+            </label>
             <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
@@ -378,9 +415,21 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                   const sub = sum.sections.find((s) => s.section === section);
                   return (
                     <Fragment key={section}>
-                      <tr className="border-y border-border bg-muted/50">
+                      <tr
+                        className={cn("border-y border-border bg-muted/50", dragId && dropOn === section && "bg-primary/10 outline outline-2 -outline-offset-2 outline-primary")}
+                        onDragOver={(e) => {
+                          if (!dragId) return;
+                          e.preventDefault();
+                          setDropOn(section);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (dragId) moveTo([dragId], section);
+                        }}
+                      >
                         <th colSpan={7} scope="rowgroup" className="px-3 py-1.5 text-left text-sm font-semibold">
                           {section}
+                          {dragId && <span className="ml-2 text-xs font-normal text-muted-foreground">drop here to move it to {section}</span>}
                         </th>
                         <td className="px-3 py-1.5 text-right text-sm font-semibold tabular-nums">{dollars(sub?.sellCents ?? 0)}</td>
                         <td />
@@ -397,6 +446,20 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                           onSelect={() => setSelected((s) => toggle(s, l.id))}
                           onSave={(line, components) => void save([{ id: l.id, row_version: l.row_version, line, ...(components ? { components } : {}) }])}
                           onCost={(i, cents) => void applyCost(l, i, cents)}
+                          sections={sections}
+                          materials={materials}
+                          labour={labour}
+                          catalogue={catalogue}
+                          dragging={dragId != null}
+                          dropTarget={dragId != null && dropOn === section}
+                          onDragLine={(on) => {
+                            setDragId(on ? l.id : null);
+                            if (!on) setDropOn(null);
+                          }}
+                          onDragOverLine={() => setDropOn(section)}
+                          onDropLine={() => dragId && moveTo([dragId], section)}
+                          onMove={(to) => moveTo([l.id], to === "__new" ? askSection() : to)}
+                          onOpen={() => setOpen((s) => (s.has(l.id) ? s : toggle(s, l.id)))}
                           onDelete={() => window.confirm(`Delete "${l.description || "this line"}"?`) && void run(() => deleteLine(l.id, l.row_version))}
                         />
                       ))}
@@ -519,6 +582,17 @@ function LineRows({
   onSave,
   onCost,
   onDelete,
+  sections,
+  materials,
+  labour,
+  catalogue,
+  dragging,
+  dropTarget,
+  onDragLine,
+  onDragOverLine,
+  onDropLine,
+  onMove,
+  onOpen,
 }: {
   line: EstLine;
   priced: ReturnType<typeof versionSummary>["priced"][string];
@@ -530,6 +604,17 @@ function LineRows({
   onSave: (line: SaveItem["line"], components?: SnapComponent[]) => void;
   onCost: (index: number, cents: number | null) => void;
   onDelete: () => void;
+  sections: string[];
+  materials: Material[];
+  labour: LabourRate[];
+  catalogue: CatalogueView;
+  dragging: boolean;
+  dropTarget: boolean;
+  onDragLine: (on: boolean) => void;
+  onDragOverLine: () => void;
+  onDropLine: () => void;
+  onMove: (section: string) => void;
+  onOpen: () => void;
 }) {
   const fixed = line.price_basis === "fixed_sell";
   const commitNumber = (raw: string, current: number, max: number, make: (n: number) => [SaveItem["line"], SnapComponent[]?]) => {
@@ -538,6 +623,15 @@ function LineRows({
     if (n !== current) onSave(...make(n));
   };
   const saveComponent = (i: number, p: Partial<SnapComponent>) => onSave({}, line.components.map((c, j) => (j === i ? { ...c, ...p } : c)));
+  /** Adds install labour, adhesive or prep to this line, from the catalogue or with its cost still to type. */
+  const addPart = (kind: PartKind, value: string) => {
+    const pick = value === "__unknown" ? null : (partChoices(kind, materials, labour, line.driver_uom).find((c) => `${c.type}:${c.id}` === value) ?? null);
+    if (value !== "__unknown" && !pick) return;
+    const next = Math.max(0, ...line.components.map((c) => c.sort_order)) + 1;
+    onSave({}, [...line.components, partFor(kind, pick, line.driver_uom, catalogue, next)]);
+    onOpen();
+    toast.success(pick ? `${pick.name} added to ${line.description || "the line"}` : `Added. Type its cost in the list below the line.`);
+  };
   const commitCost = (i: number, raw: string) => {
     const c = line.components[i]!;
     const cents = raw.trim() === "" ? null : parseMoneyCents(raw);
@@ -550,9 +644,37 @@ function LineRows({
 
   return (
     <>
-      <tr className={cn("border-b border-border", !priced.included && "opacity-60")}>
+      <tr
+        className={cn("border-b border-border", !priced.included && "opacity-60", dropTarget && "bg-primary/5")}
+        onDragOver={(e) => {
+          if (!dragging) return;
+          e.preventDefault();
+          onDragOverLine();
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          onDropLine();
+        }}
+      >
         <td className={cell}>
           <div className="flex items-center gap-1">
+            {editable && (
+              <span
+                draggable
+                role="img"
+                aria-label={`Drag ${line.description || "this line"} to another section`}
+                title="Drag to another section"
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", line.description || "line");
+                  onDragLine(true);
+                }}
+                onDragEnd={() => onDragLine(false)}
+                className="grid h-9 w-5 cursor-grab place-items-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+              >
+                <GripVertical className="h-4 w-4" aria-hidden />
+              </span>
+            )}
             {editable && <input type="checkbox" aria-label={`Select ${line.description}`} className="h-4 w-4" checked={selected} onChange={onSelect} />}
             <button type="button" aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} what makes up ${line.description}`} onClick={onToggle} className="grid h-9 w-9 place-items-center rounded-md text-muted-foreground hover:bg-muted">
               {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -570,6 +692,31 @@ function LineRows({
           />
           <div className="flex flex-wrap items-center gap-x-2 px-2 text-xs text-muted-foreground">
             <span>{line.cost_code ?? "No cost code"}</span>
+            {editable && (
+              <select aria-label={`Section for ${line.description || "this line"}`} value={line.section} onChange={(e) => onMove(e.target.value)} className="h-7 rounded border border-transparent bg-transparent px-1 text-xs hover:border-input">
+                {sectionChoices(sections).map((x) => (
+                  <option key={x} value={x}>
+                    in {x}
+                  </option>
+                ))}
+                <option value="__new">New section…</option>
+              </select>
+            )}
+            {editable && !fixed && (
+              <span className="inline-flex items-center gap-1">
+                {(["install", "adhesive", "prep"] as const).map((kind) => (
+                  <select key={kind} aria-label={`Add ${kind} to ${line.description || "this line"}`} value="" onChange={(e) => e.target.value && addPart(kind, e.target.value)} className="h-7 rounded border border-input bg-background px-1 text-xs">
+                    <option value="">+ {kind === "install" ? "Install" : kind === "adhesive" ? "Adhesive" : "Prep"}</option>
+                    {partChoices(kind, materials, labour, line.driver_uom).map((c) => (
+                      <option key={c.id} value={`${c.type}:${c.id}`}>
+                        {c.name}
+                      </option>
+                    ))}
+                    <option value="__unknown">Not in the catalogue yet (type the cost)</option>
+                  </select>
+                ))}
+              </span>
+            )}
             {line.source !== "manual" && <span>· from {line.source}</span>}
             {line.selection !== "required" && <span>· {line.selection === "optional" ? "optional" : `choose one (${line.selection_group ?? "group"})`}</span>}
             {fixed && <span>· selling price set by hand</span>}

@@ -123,3 +123,39 @@ export function costInUnit(cents: number, from: Uom, to: Uom): number | null {
   if (!AREA(from) || !AREA(to)) return null;
   return Math.round(from === "SY" ? cents / 9 : cents * 9);
 }
+
+export type PartKind = "install" | "adhesive" | "prep";
+export type PartChoice = { type: "labour" | "material"; id: string; name: string };
+const sameMeasure = (a: Uom, b: Uom) => a === b || (AREA(a) && AREA(b));
+const PART_LABEL: Record<PartKind, string> = { install: "Install", adhesive: "Adhesive", prep: "Prep" };
+
+/** What the catalogue offers for an extra part of a line: install rates, adhesives, or prep, limited to what fits the line's unit. */
+export function partChoices(kind: PartKind, materials: { id: string; name: string; category: string; active: boolean }[], labour: { id: string; name: string; uom: Uom; active: boolean }[], driver: Uom): PartChoice[] {
+  const rate = (re: RegExp) => labour.filter((l) => l.active && re.test(l.name) && sameMeasure(l.uom, driver)).map((l): PartChoice => ({ type: "labour", id: l.id, name: l.name }));
+  const mats = (category: string) => materials.filter((m) => m.active && m.category === category).map((m): PartChoice => ({ type: "material", id: m.id, name: m.name }));
+  if (kind === "install") return rate(/install/i);
+  if (kind === "adhesive") return mats("adhesive");
+  return [...rate(/prep|patch|level/i), ...mats("prep")];
+}
+
+/**
+ * One more part for a line: install labour, adhesive or prep. Chosen from the catalogue it comes in at the catalogue's cost;
+ * with nothing chosen it comes in with its cost unknown, to be typed on the line.
+ */
+export function partFor(kind: PartKind, pick: PartChoice | null, driver: Uom, catalogue: CatalogueView, sortOrder: number): SnapComponent {
+  const material = pick ? pick.type === "material" : kind === "adhesive";
+  const { components } = buildComponents({
+    template: {
+      driver_uom: driver,
+      default_waste_pct: 0,
+      components: [{ kind: material ? "material" : "labour", label: pick?.name ?? PART_LABEL[kind], source: material ? "catalogue" : "labour_rate", catalogue_material_id: material ? (pick?.id ?? null) : null, labour_rate_id: material ? null : (pick?.id ?? null), unit_cost_cents: null, cost_uom: null, qty_per_driver: 1, waste_pct: 0, round_up: true, pst_applies: false, on_gross: false, sort_order: 1 }],
+    },
+    finishMaterialId: null,
+    catalogue,
+  });
+  return { ...components[0]!, sort_order: sortOrder };
+}
+
+const USUAL_SECTIONS = ["Flooring", "Window coverings", "Prep", "General"];
+/** Sections a line can be moved to: the ones already on this price, then the usual ones. */
+export const sectionChoices = (inUse: string[]): string[] => [...new Set([...inUse, ...USUAL_SECTIONS])];
