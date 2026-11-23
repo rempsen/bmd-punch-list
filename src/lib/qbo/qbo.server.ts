@@ -1,0 +1,71 @@
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { createQbo, type QboEnv, type QboStore } from "./connect";
+
+/** qbo_connection has no browser access; the service-role client is the only way in. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const admin = supabaseAdmin as any;
+const table = () => admin.from("qbo_connection");
+
+/** The app's own QuickBooks credentials, set through the secure secret form. Null until they exist. */
+export function qboEnv(): QboEnv | null {
+  const clientId = process.env["QBO_CLIENT_ID"];
+  const clientSecret = process.env["QBO_CLIENT_SECRET"];
+  return clientId && clientSecret ? { clientId, clientSecret, sandbox: process.env["QBO_ENVIRONMENT"] === "sandbox" } : null;
+}
+
+/** Key for encrypting the refresh token and signing the sign-in state. Never leaves the server. */
+export function qboKeyMaterial(): string {
+  const k = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  if (!k) throw new Error("Server is missing its service key");
+  return `bmd-qbo-v1|${k}`;
+}
+
+const store: QboStore = {
+  get: async () => (await table().select("realm_id,refresh_token_enc").eq("id", 1).maybeSingle()).data ?? null,
+  saveToken: async (refreshTokenEnc) => void (await table().update({ refresh_token_enc: refreshTokenEnc }).eq("id", 1)),
+  setError: async (message) => void (await table().update({ last_error: message }).eq("id", 1)),
+};
+
+export function qbo() {
+  const env = qboEnv();
+  if (!env) throw new Error("QuickBooks is not set up yet.");
+  // The host's fetch must be called bare; handing it over as a property makes it throw "Illegal invocation".
+  return createQbo({ fetch: (input, init) => fetch(input, init), env, store, keyMaterial: qboKeyMaterial() });
+}
+
+export type QboConnectionInfo = { company_name: string | null; connected_at: string; last_error: string | null; last_pull_at: string | null };
+export async function qboConnection(): Promise<QboConnectionInfo | null> {
+  return (await table().select("company_name,connected_at,last_error,last_pull_at").eq("id", 1).maybeSingle()).data ?? null;
+}
+
+export async function saveQboConnection(row: { realm_id: string; company_name: string | null; refresh_token_enc: string; connected_by: string }) {
+  const { error } = await table().upsert({ id: 1, ...row, connected_at: new Date().toISOString(), last_error: null });
+  if (error) throw new Error(error.message);
+}
+
+export async function removeQboConnection() {
+  await table().delete().eq("id", 1);
+}
+
+/** Who may connect or disconnect QuickBooks: someone with the manage-integrations capability. Checked with the service client for the callback, which has no session. */
+export async function mayManageIntegrations(userId: string): Promise<boolean> {
+  const [{ data: roles }, { data: perms }, { data: mem }] = await Promise.all([
+    admin.from("user_roles").select("role").eq("user_id", userId),
+    admin.from("role_permissions").select("role").eq("capability", "manage_integrations").eq("allowed", true),
+    admin.from("project_members").select("role").eq("user_id", userId),
+  ]);
+  const ok = new Set(((perms ?? []) as { role: string }[]).map((p) => p.role));
+  return [...((roles ?? []) as { role: string }[]), ...((mem ?? []) as { role: string }[])].some((r) => r.role === "super_admin" || r.role === "bmd_admin" || ok.has(r.role));
+}
+
+/** Replaces the staged copy of one kind of QuickBooks record. Staging is a copy for review: nothing in the catalogue changes. */
+export async function restage(entity: string, rows: { external_id: string; kind: string; name: string; data: Record<string, unknown> }[]) {
+  const now = new Date().toISOString();
+  const del = await admin.from("sync_staging").delete().eq("system", "quickbooks").eq("entity", entity);
+  if (del.error) throw new Error(del.error.message);
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error } = await admin.from("sync_staging").insert(rows.slice(i, i + 500).filter((r) => r.external_id).map((r) => ({ system: "quickbooks", entity, ...r, pulled_at: now })));
+    if (error) throw new Error(error.message);
+  }
+  await table().update({ last_pull_at: now }).eq("id", 1);
+}

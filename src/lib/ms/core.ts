@@ -21,7 +21,7 @@ export type MailMessage = {
   attachments?: { name: string; contentType: string; bytes: Uint8Array }[];
 };
 export type SendResult = { ok: true } | { ok: false; reason: "reconnect" | "error"; message: string };
-export type StatePayload = { userId: string; kind: "mail" | "library"; nonce: string; exp: number };
+export type StatePayload = { userId: string; kind: "mail" | "library" | "quickbooks"; nonce: string; exp: number };
 
 export class ReconnectError extends Error {}
 

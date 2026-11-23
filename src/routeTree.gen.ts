@@ -44,6 +44,7 @@ import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authen
 import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects.$id'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
 import { Route as ApiMsCallbackRouteImport } from './routes/api/ms/callback'
+import { Route as ApiQboCallbackRouteImport } from './routes/api/qbo/callback'
 import { Route as ApiPublicArrivepingWebhookRouteImport } from './routes/api/public/arriveping/webhook'
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
@@ -230,6 +231,11 @@ const ApiMsCallbackRoute = ApiMsCallbackRouteImport.update({
   path: '/api/ms/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiQboCallbackRoute = ApiQboCallbackRouteImport.update({
+  id: '/api/qbo/callback',
+  path: '/api/qbo/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicArrivepingWebhookRoute =
   ApiPublicArrivepingWebhookRouteImport.update({
     id: '/api/public/arriveping/webhook',
@@ -287,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
+  '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
@@ -327,6 +334,7 @@ export interface FileRoutesByTo {
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
+  '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/_authenticated/projects/new': typeof AuthenticatedProjectsNewRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
+  '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
@@ -411,6 +420,7 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/projects/new'
     | '/api/ms/callback'
+    | '/api/qbo/callback'
     | '/projects/'
     | '/api/public/arriveping/webhook'
     | '/api/public/companycam/webhook'
@@ -451,6 +461,7 @@ export interface FileRouteTypes {
     | '/projects/$id'
     | '/projects/new'
     | '/api/ms/callback'
+    | '/api/qbo/callback'
     | '/projects'
     | '/api/public/arriveping/webhook'
     | '/api/public/companycam/webhook'
@@ -492,6 +503,7 @@ export interface FileRouteTypes {
     | '/_authenticated/projects/$id'
     | '/_authenticated/projects/new'
     | '/api/ms/callback'
+    | '/api/qbo/callback'
     | '/_authenticated/projects/'
     | '/api/public/arriveping/webhook'
     | '/api/public/companycam/webhook'
@@ -508,6 +520,7 @@ export interface RootRouteChildren {
   QTokenRoute: typeof QTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiMsCallbackRoute: typeof ApiMsCallbackRoute
+  ApiQboCallbackRoute: typeof ApiQboCallbackRoute
   ApiPublicArrivepingWebhookRoute: typeof ApiPublicArrivepingWebhookRoute
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
@@ -761,6 +774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMsCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/qbo/callback': {
+      id: '/api/qbo/callback'
+      path: '/api/qbo/callback'
+      fullPath: '/api/qbo/callback'
+      preLoaderRoute: typeof ApiQboCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/arriveping/webhook': {
       id: '/api/public/arriveping/webhook'
       path: '/api/public/arriveping/webhook'
@@ -865,6 +885,7 @@ const rootRouteChildren: RootRouteChildren = {
   QTokenRoute: QTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiMsCallbackRoute: ApiMsCallbackRoute,
+  ApiQboCallbackRoute: ApiQboCallbackRoute,
   ApiPublicArrivepingWebhookRoute: ApiPublicArrivepingWebhookRoute,
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,

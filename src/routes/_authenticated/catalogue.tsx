@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useRef, useState } from "react";
-import { Pencil, Plus, Upload } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { AssemblyDialog } from "@/components/catalogue/AssemblyDialog";
@@ -34,6 +35,8 @@ import { CATEGORIES, categoryLabel, parseMaterialRows, parseMoneyCents, planMate
 import type { Uom } from "@/lib/estimating/calc";
 import { isPriceListFile } from "@/lib/nav";
 import { errText } from "@/lib/platform/db";
+import { pullSummary } from "@/components/settings/QuickBooksPanel";
+import { qboPullProducts } from "@/lib/qbo/qbo.functions";
 
 export const Route = createFileRoute("/_authenticated/catalogue")({
   head: () => ({ meta: [{ title: "Catalogue — BMD Projects" }] }),
@@ -63,6 +66,21 @@ function CataloguePage() {
   const [supplier, setSupplier] = useState<Supplier | "new" | null>(null);
   const [template, setTemplate] = useState<Template | "new" | null>(null);
   const [importing, setImporting] = useState(false);
+  const pullFn = useServerFn(qboPullProducts);
+  const [pulling, setPulling] = useState(false);
+  /** Reads products and vendors from QuickBooks into the review area. The catalogue itself is not changed here. */
+  const pullQuickBooks = async () => {
+    setPulling(true);
+    try {
+      const r = await pullFn();
+      if (r.ok) toast.success(`Read from QuickBooks: ${pullSummary(r.counts)}. They are held for review under Company settings → Sync; nothing has been added to the catalogue yet.`, { duration: 9000 });
+      else toast.error(r.reason === "error" ? r.message : `${r.message} Go to Company settings → Sync.`, { duration: 9000 });
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setPulling(false);
+    }
+  };
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -119,6 +137,9 @@ function CataloguePage() {
               </label>
               {canEdit && (
                 <div className="ml-auto flex gap-2">
+                  <Button variant="outline" className="h-11" disabled={pulling} onClick={() => void pullQuickBooks()}>
+                    <RefreshCw className={`mr-2 h-4 w-4 ${pulling ? "animate-spin" : ""}`} aria-hidden /> {pulling ? "Reading QuickBooks…" : "Pull from QuickBooks"}
+                  </Button>
                   <Button variant="outline" className="h-11" onClick={() => setImporting(true)}>
                     <Upload className="mr-2 h-4 w-4" /> Import price list
                   </Button>

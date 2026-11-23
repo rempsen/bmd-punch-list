@@ -37,9 +37,10 @@ import { SyncPanel } from "@/components/settings/SyncPanel";
 import { Microsoft365Panel } from "@/components/settings/Microsoft365Panel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
-  validateSearch: (s: Record<string, unknown>): { tab?: string | undefined; ms?: string | undefined; message?: string | undefined } => ({
+  validateSearch: (s: Record<string, unknown>): { tab?: string | undefined; ms?: string | undefined; qbo?: string | undefined; message?: string | undefined } => ({
     tab: typeof s["tab"] === "string" ? s["tab"] : undefined,
     ms: typeof s["ms"] === "string" ? s["ms"] : undefined,
+    qbo: typeof s["qbo"] === "string" ? s["qbo"] : undefined,
     message: typeof s["message"] === "string" ? s["message"].slice(0, 200) : undefined,
   }),
   component: SettingsPage,
@@ -221,7 +222,7 @@ function SettingsPage() {
     <div>
       <PageHeader title={heading.title} subtitle={heading.subtitle} />
       <div className="p-4 md:p-6">
-        <Tabs value={tab} onValueChange={(v) => void navigate({ search: (prev) => ({ ...prev, tab: v, ms: undefined, message: undefined }), replace: true })}>
+        <Tabs value={tab} onValueChange={(v) => void navigate({ search: (prev) => ({ ...prev, tab: v, ms: undefined, qbo: undefined, message: undefined }), replace: true })}>
           {companyTabs.length > 0 && (
             <div className="mb-3">
               <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Company settings · apply to every job</h2>
@@ -255,7 +256,7 @@ function SettingsPage() {
 
           {canSync && (
             <TabsContent value="sync">
-              <SyncPanel />
+              <SyncPanel qboResult={search.qbo} message={search.message} />
             </TabsContent>
           )}
 
