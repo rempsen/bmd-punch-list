@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { planImport, planSummary, type Existing, type StagedRow } from "./import";
+import { chosenActions, planImport, planSummary, suggestPicks, type Existing, type StagedRow } from "./import";
 
 const item = (id: string, kind: string, name: string, data: Record<string, unknown> = {}): StagedRow => ({ entity: "Item", external_id: id, kind, name, data: { sku: null, cost_cents: null, sales_price_cents: null, vendor: null, vendor_id: null, category: null, active: true, code: null, ...data } });
 const vendor = (id: string, name: string, data: Record<string, unknown> = {}): StagedRow => ({ entity: "Vendor", external_id: id, kind: "supplier", name, data: { contact_name: null, email: null, phone: null, account_number: null, active: true, ...data } });
@@ -63,5 +63,35 @@ describe("the dry-run summary", () => {
     expect(s.unknownCosts).toBe(0);
     expect(s.duplicates).toEqual([["4in Standard Rubber Base", "4in Standard Rubber Base - Black D40-4-R"]]);
     expect(s.writes).toBe(5);
+  });
+});
+
+describe("choosing what comes in", () => {
+  const purchases = (material_lines: number, other_lines: number) => ({ purchases: { material_lines, other_lines, last_purchase: "2026-01-01" } });
+  test("suppliers start ticked only when BMD has bought materials from them or a product names them", () => {
+    const staged = [vendor("1", "Interface", purchases(12, 0)), vendor("2", "Olive Garden", purchases(0, 4)), vendor("3", "Shell Gas", purchases(0, 0)), vendor("4", "Gerflor", purchases(0, 0)), vendor("5", "Old Co"), item("9", "material", "Mipolam", { vendor_id: "4" })];
+    const picks = suggestPicks(planImport(staged, none), staged);
+    expect(picks.get("supplier|1")).toEqual({ on: true, why: "12 material purchase lines" });
+    expect(picks.get("supplier|2")).toEqual({ on: false, why: "bought from, but never materials" });
+    expect(picks.get("supplier|3")).toEqual({ on: false, why: "never bought from in 3 years" });
+    expect(picks.get("supplier|4")).toEqual({ on: true, why: "a product names it as its vendor" });
+    expect(picks.get("supplier|5")).toEqual({ on: false, why: "no purchase history read yet" });
+  });
+  test("tax, billing and one-job lines start unticked; real products and matches start ticked", () => {
+    const staged = [item("1", "material", "Tax"), item("2", "material", "Tile - Supply"), item("3", "material", "Grand Pacific Gardens - Window Coverings - Gimli A Suite 2 Window Coverings"), item("4", "material", "Dante Pro 2.0 - Glue Down - Acacia Sereno"), item("5", "material", "Old tile", { active: false }), item("6", "cost_code", "01-04 - LVT", { code: "01-04" })];
+    const picks = suggestPicks(planImport(staged, none), staged);
+    expect([1, 2, 3, 4, 5].map((i) => picks.get(`material|${i}`)?.on)).toEqual([false, false, false, true, false]);
+    expect(picks.get("material|3")?.why).toBe("looks like one job's line");
+    expect(picks.get("cost_code|6")?.on).toBe(true);
+    const charges = [item("7", "material", "Change Order"), item("8", "material", "Fuel Surcharge"), item("9", "material", "Installer Pay", { category: "Fees" }), item("10", "material", "Surron Ultra Bee", { category: "Samples" }), item("11", "material", "Prep Materials")];
+    const cp = suggestPicks(planImport(charges, none), charges);
+    expect([7, 8, 9, 10, 11].map((i) => cp.get(`material|${i}`)?.on)).toEqual([false, false, false, false, true]);
+  });
+  test("a ticked product brings its supplier even when the supplier was unticked", () => {
+    const staged = [vendor("4", "Gerflor"), vendor("8", "Shell Gas"), item("9", "material", "Mipolam", { vendor_id: "4" })];
+    const plan = planImport(staged, none);
+    const r = chosenActions(plan, (k) => k === "material|9");
+    expect(r.actions.map((a) => `${a.kind}|${a.external_id}`)).toEqual(["supplier|4", "material|9"]);
+    expect(r.addedSuppliers).toEqual(["Gerflor"]);
   });
 });

@@ -90,12 +90,12 @@ export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboSt
     return body;
   }
 
-  /** Every record of one kind (Item, Vendor, Customer…), read a page at a time. */
-  async function queryAll(entity: string, auth?: { accessToken: string; realmId: string }): Promise<Record<string, unknown>[]> {
+  /** Every record of one kind (Item, Vendor, Customer…), read a page at a time. `where` narrows it, e.g. "TxnDate >= '2024-01-01'". */
+  async function queryAll(entity: string, auth?: { accessToken: string; realmId: string }, where?: string): Promise<Record<string, unknown>[]> {
     const a = auth ?? (await getAccessToken());
     const out: Record<string, unknown>[] = [];
     for (let start = 1; start < 200_000; start += PAGE) {
-      const sql = `SELECT * FROM ${entity} STARTPOSITION ${start} MAXRESULTS ${PAGE}`;
+      const sql = `SELECT * FROM ${entity}${where ? ` WHERE ${where}` : ""} STARTPOSITION ${start} MAXRESULTS ${PAGE}`;
       const body = await get(`query?query=${encodeURIComponent(sql)}&minorversion=75`, a);
       const rows = ((body["QueryResponse"] as Record<string, unknown> | undefined)?.[entity] ?? []) as Record<string, unknown>[];
       out.push(...rows);
@@ -145,12 +145,43 @@ export function stageItem(item: QboItem): Staged {
   };
 }
 
+/** What BMD's purchases from one vendor show: how many lines were for materials (or job costs) and how many for anything else. */
+export type VendorEvidence = { material_lines: number; other_lines: number; last_purchase: string | null };
+type QboLine = { DetailType?: string; ItemBasedExpenseLineDetail?: { ItemRef?: Ref }; AccountBasedExpenseLineDetail?: { AccountRef?: Ref } };
+type QboTxn = { TxnDate?: string; VendorRef?: Ref; EntityRef?: Ref & { type?: string }; Line?: QboLine[] };
+
+/**
+ * Reads bills and expenses to tell a material supplier from a restaurant or a software subscription.
+ * A line counts as materials when it names a product or cost-code item, or is booked to a cost-of-goods-sold account.
+ */
+export function vendorEvidence(txns: QboTxn[], items: { Id?: string; Type?: string; Name?: string }[], accounts: { Id?: string; AccountType?: string }[]): Map<string, VendorEvidence> {
+  const jobItems = new Set(items.filter((i) => { const k = classifyItem(i as QboItem).kind; return k === "material" || k === "labour" || k === "cost_code"; }).map((i) => String(i.Id)));
+  const cogs = new Set(accounts.filter((a) => a.AccountType === "Cost of Goods Sold").map((a) => String(a.Id)));
+  const out = new Map<string, VendorEvidence>();
+  for (const t of txns) {
+    const ref = t.VendorRef ?? (t.EntityRef && (!t.EntityRef.type || t.EntityRef.type === "Vendor") ? t.EntityRef : undefined);
+    if (!ref?.value) continue;
+    const e = out.get(ref.value) ?? { material_lines: 0, other_lines: 0, last_purchase: null };
+    for (const l of t.Line ?? []) {
+      const item = l.ItemBasedExpenseLineDetail?.ItemRef?.value;
+      const account = l.AccountBasedExpenseLineDetail?.AccountRef?.value;
+      if (item == null && account == null) continue;
+      if ((item != null && jobItems.has(item)) || (account != null && cogs.has(account))) e.material_lines++;
+      else e.other_lines++;
+    }
+    if (t.TxnDate && (!e.last_purchase || t.TxnDate > e.last_purchase)) e.last_purchase = t.TxnDate;
+    out.set(ref.value, e);
+  }
+  return out;
+}
+
 type QboVendor = { Id?: string; DisplayName?: string; Active?: boolean; PrimaryEmailAddr?: { Address?: string }; PrimaryPhone?: { FreeFormNumber?: string }; AcctNum?: string; GivenName?: string; FamilyName?: string };
-export function stageVendor(v: QboVendor): Staged {
+export function stageVendor(v: QboVendor, evidence?: Map<string, VendorEvidence>): Staged {
+  const e = evidence ? (evidence.get(String(v.Id ?? "")) ?? { material_lines: 0, other_lines: 0, last_purchase: null }) : null;
   return {
     external_id: String(v.Id ?? ""),
     kind: "supplier",
     name: String(v.DisplayName ?? "").trim(),
-    data: { contact_name: [v.GivenName, v.FamilyName].filter(Boolean).join(" ") || null, email: v.PrimaryEmailAddr?.Address ?? null, phone: v.PrimaryPhone?.FreeFormNumber ?? null, account_number: v.AcctNum ?? null, active: v.Active !== false },
+    data: { contact_name: [v.GivenName, v.FamilyName].filter(Boolean).join(" ") || null, email: v.PrimaryEmailAddr?.Address ?? null, phone: v.PrimaryPhone?.FreeFormNumber ?? null, account_number: v.AcctNum ?? null, active: v.Active !== false, ...(e ? { purchases: e } : {}) },
   };
 }

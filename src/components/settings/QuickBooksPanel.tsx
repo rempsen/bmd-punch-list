@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { db, errText } from "@/lib/platform/db";
 import { qboConnectStart, qboDisconnect, qboPullProducts, qboStatus } from "@/lib/qbo/qbo.functions";
-import { planSummary, type Action } from "@/lib/sync/import";
+import { actionKey, chosenActions, planSummary, type Action, type ImportPick } from "@/lib/sync/import";
 import { applyImport, loadImportPlan } from "@/lib/sync/import.data";
 
 const KINDS: [string, string][] = [
@@ -41,11 +42,16 @@ export function QuickBooksPanel({ result, message }: { result?: string | undefin
   });
   const [busy, setBusy] = useState<string | null>(null);
   const [plan, setPlan] = useState<Action[] | null>(null);   // the dry run on screen
+  const [picks, setPicks] = useState<Map<string, ImportPick>>(new Map());   // where each row started, and why
+  const [ticked, setTicked] = useState<Set<string>>(new Set());              // what is ticked now
 
   const preview = async () => {
     setBusy("preview");
     try {
-      setPlan((await loadImportPlan("quickbooks")).plan);
+      const r = await loadImportPlan("quickbooks");
+      setPicks(r.picks);
+      setTicked(new Set([...r.picks].filter(([, p]) => p.on).map(([k]) => k)));
+      setPlan(r.plan);
     } catch (e) {
       toast.error(errText(e));
     } finally {
@@ -54,11 +60,12 @@ export function QuickBooksPanel({ result, message }: { result?: string | undefin
   };
   const runImport = async () => {
     if (!plan) return;
-    const n = planSummary(plan).writes;
-    if (!window.confirm(`Import ${n.toLocaleString("en-CA")} records into BMD Projects? Nothing in QuickBooks is changed. Where BMD already has a value, BMD's value stays.`)) return;
+    const { actions, addedSuppliers } = chosenActions(plan, (k) => ticked.has(k));
+    const also = addedSuppliers.length ? `\n\n${addedSuppliers.length === 1 ? "1 supplier you left unticked comes" : `${addedSuppliers.length} suppliers you left unticked come`} along because a ticked product names ${addedSuppliers.length === 1 ? "it" : "them"}: ${addedSuppliers.slice(0, 5).join(", ")}${addedSuppliers.length > 5 ? "…" : ""}.` : "";
+    if (!window.confirm(`Import ${actions.length.toLocaleString("en-CA")} records into BMD Projects? Nothing in QuickBooks is changed. Where BMD already has a value, BMD's value stays. What you left unticked stays held for later.${also}`)) return;
     setBusy("import");
     try {
-      const r = await applyImport("quickbooks", plan);
+      const r = await applyImport("quickbooks", actions);
       toast.success(`Imported: ${r.created.toLocaleString("en-CA")} added, ${r.linked.toLocaleString("en-CA")} matched to what BMD already had.`, { duration: 9000 });
       setPlan(null);
       for (const k of ["catalogue", "sync", "qbo-staged"]) void qc.invalidateQueries({ queryKey: [k] });
@@ -169,7 +176,7 @@ export function QuickBooksPanel({ result, message }: { result?: string | undefin
           )}
         </div>
       )}
-      {plan && <DryRun plan={plan} busy={busy !== null} onImport={() => void runImport()} onClose={() => setPlan(null)} />}
+      {plan && <DryRun plan={plan} picks={picks} ticked={ticked} setTicked={setTicked} busy={busy !== null} onImport={() => void runImport()} onClose={() => setPlan(null)} />}
     </section>
   );
 }
@@ -182,22 +189,39 @@ const ROWS: [keyof ReturnType<typeof planSummary>["byKind"], string][] = [
   ["cost_code", "Cost codes"],
 ];
 
-/** The dry run: exactly what an import would add, match and leave alone, before anything is written. */
-function DryRun({ plan, busy, onImport, onClose }: { plan: Action[]; busy: boolean; onImport: () => void; onClose: () => void }) {
-  const sum = planSummary(plan);
+/** The dry run: exactly what an import would add and match, with a tick on every row, before anything is written. */
+function DryRun({ plan, picks, ticked, setTicked, busy, onImport, onClose }: { plan: Action[]; picks: Map<string, ImportPick>; ticked: Set<string>; setTicked: (s: Set<string>) => void; busy: boolean; onImport: () => void; onClose: () => void }) {
   const [show, setShow] = useState<string | null>(null);
-  const listed = show ? plan.filter((a) => `${a.kind}|${a.op}` === show) : [];
-  const cell = (kind: string, op: "create" | "link" | "linked", n: number) =>
-    n === 0 ? (
-      <span className="text-muted-foreground">0</span>
-    ) : (
-      <button type="button" className="font-medium text-primary underline" onClick={() => setShow(show === `${kind}|${op}` ? null : `${kind}|${op}`)}>
-        {n.toLocaleString("en-CA")}
+  const { actions } = chosenActions(plan, (k) => ticked.has(k));
+  const all = planSummary(plan);
+  const chosen = planSummary([...actions, ...plan.filter((a) => a.op === "skip")]);
+  const rows = (kind: string, op: string) => plan.filter((a) => a.kind === kind && a.op === op);
+  const listed = show ? rows(show.split("|")[0]!, show.split("|")[1]!) : [];
+  const setMany = (keys: string[], on: boolean) => {
+    const next = new Set(ticked);
+    for (const k of keys) {
+      if (on) next.add(k);
+      else next.delete(k);
+    }
+    setTicked(next);
+  };
+  const cell = (kind: string, op: "create" | "link" | "linked") => {
+    const list = rows(kind, op);
+    if (list.length === 0) return <span className="text-muted-foreground">0</span>;
+    const on = op === "linked" ? list.length : list.filter((a) => ticked.has(actionKey(a))).length;
+    const id = `${kind}|${op}`;
+    return (
+      <button type="button" className="font-medium text-primary underline" aria-expanded={show === id} onClick={() => setShow(show === id ? null : id)}>
+        {op === "linked" || on === list.length ? list.length.toLocaleString("en-CA") : `${on.toLocaleString("en-CA")} of ${list.length.toLocaleString("en-CA")}`}
       </button>
     );
+  };
+  const left = plan.filter((a) => (a.op === "create" || a.op === "link") && !ticked.has(actionKey(a))).length;
+  const keys = listed.filter((a) => a.op !== "linked").map(actionKey);
   return (
     <div className="mt-3 rounded-md border border-border p-3 text-sm">
       <h3 className="font-semibold">Dry run: nothing has been imported yet</h3>
+      <p className="mt-1 text-muted-foreground">Tap a number to see the rows and tick what comes in. Suppliers start ticked only if BMD has bought materials from them; tax, billing and one-job lines start unticked.</p>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[420px] text-sm">
           <thead className="text-left text-xs text-muted-foreground">
@@ -212,40 +236,64 @@ function DryRun({ plan, busy, onImport, onClose }: { plan: Action[]; busy: boole
             {ROWS.map(([k, label]) => (
               <tr key={k}>
                 <td className="py-1.5">{label}</td>
-                <td className="py-1.5 text-right tabular-nums">{cell(k, "create", sum.byKind[k].create)}</td>
-                <td className="py-1.5 text-right tabular-nums">{cell(k, "link", sum.byKind[k].link)}</td>
-                <td className="py-1.5 text-right tabular-nums">{cell(k, "linked", sum.byKind[k].linked)}</td>
+                <td className="py-1.5 text-right tabular-nums">{cell(k, "create")}</td>
+                <td className="py-1.5 text-right tabular-nums">{cell(k, "link")}</td>
+                <td className="py-1.5 text-right tabular-nums">{cell(k, "linked")}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {show && (
-        <ul className="mt-2 max-h-56 overflow-y-auto rounded border border-border bg-muted/40 p-2 text-xs">
-          {listed.slice(0, 500).map((a) => (
-            <li key={`${a.kind}-${a.external_id}`} className="py-0.5">
-              {a.name}
-              {typeof a.fields["unit_cost_cents"] === "number" ? ` · $${(a.fields["unit_cost_cents"] / 100).toFixed(2)}` : a.op === "create" && (a.kind === "material" || a.kind === "labour") ? " · cost unknown" : ""}
-              {a.kept?.length ? " · BMD's own value kept" : ""}
-            </li>
-          ))}
-          {listed.length > 500 && <li className="py-0.5 text-muted-foreground">and {(listed.length - 500).toLocaleString("en-CA")} more</li>}
-        </ul>
+        <div className="mt-2 rounded border border-border bg-muted/40 p-2">
+          {keys.length > 0 && (
+            <div className="mb-1 flex flex-wrap gap-2 text-xs">
+              <Button variant="outline" size="sm" className="h-8 bg-background" onClick={() => setMany(keys, true)}>Tick all {keys.length.toLocaleString("en-CA")}</Button>
+              <Button variant="outline" size="sm" className="h-8 bg-background" onClick={() => setMany(keys, false)}>Untick all</Button>
+              <Button variant="ghost" size="sm" className="h-8" onClick={() => setTicked(new Set([...[...ticked].filter((k) => !keys.includes(k)), ...keys.filter((k) => picks.get(k)?.on)]))}>Back to suggested</Button>
+            </div>
+          )}
+          <ul className="max-h-72 overflow-y-auto text-xs">
+            {listed.map((a) => {
+              const k = actionKey(a);
+              const why = picks.get(k)?.why;
+              const cost = typeof a.fields["unit_cost_cents"] === "number" ? ` · $${(a.fields["unit_cost_cents"] / 100).toFixed(2)}` : a.op === "create" && (a.kind === "material" || a.kind === "labour") ? " · cost unknown" : "";
+              return (
+                <li key={k} className="py-0.5">
+                  {a.op === "linked" ? (
+                    <span className="pl-6">{a.name}</span>
+                  ) : (
+                    <label className="flex min-h-8 cursor-pointer items-center gap-2">
+                      <Checkbox checked={ticked.has(k)} onCheckedChange={(v) => setMany([k], v === true)} aria-label={`Import ${a.name}`} />
+                      <span>
+                        {a.name}
+                        {cost}
+                        {a.kept?.length ? " · BMD's own value kept" : ""}
+                        {why && <span className="text-muted-foreground"> · {why}</span>}
+                      </span>
+                    </label>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
       <ul className="mt-3 list-disc space-y-1 pl-5 text-muted-foreground">
-        <li>{n(sum.skipped, "QuickBooks item is", "QuickBooks items are")} left where {sum.skipped === 1 ? "it is" : "they are"} (categories, fees, holdback and similar).</li>
+        {left > 0 && <li>{n(left, "row is", "rows are")} unticked. {left === 1 ? "It stays" : "They stay"} held here and can be imported later.</li>}
+        <li>{n(all.skipped, "QuickBooks item is", "QuickBooks items are")} left where {all.skipped === 1 ? "it is" : "they are"} (categories, fees, holdback and similar).</li>
         <li>New materials and labour arrive with the unit still to confirm, because QuickBooks does not hold units.</li>
-        {sum.unknownCosts > 0 && <li>{n(sum.unknownCosts, "arrives", "arrive")} with the cost unknown, because QuickBooks has no cost there. Unknown is not zero.</li>}
-        {sum.kept > 0 && <li>{n(sum.kept, "value differs", "values differ")} from QuickBooks where BMD already has its own. BMD's {sum.kept === 1 ? "stays" : "stay"}.</li>}
-        {sum.duplicates.length > 0 && (
+        {chosen.unknownCosts > 0 && <li>{n(chosen.unknownCosts, "ticked item arrives", "ticked items arrive")} with the cost unknown, because QuickBooks has no cost there. Unknown is not zero.</li>}
+        {chosen.kept > 0 && <li>{n(chosen.kept, "value differs", "values differ")} from QuickBooks where BMD already has its own. BMD's {chosen.kept === 1 ? "stays" : "stay"}.</li>}
+        {chosen.duplicates.length > 0 && (
           <li>
-            {n(sum.duplicates.length, "group looks", "groups look")} like the same product under different names, for example: {sum.duplicates.slice(0, 3).map((g) => g.join(" / ")).join("; ")}. They are all imported; merge them in the catalogue afterwards.
+            {n(chosen.duplicates.length, "ticked group looks", "ticked groups look")} like the same product under different names, for example: {chosen.duplicates.slice(0, 3).map((g) => g.join(" / ")).join("; ")}. Untick the extras, or merge them in the catalogue afterwards.
           </li>
         )}
       </ul>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button className="h-11" disabled={busy || sum.writes === 0} onClick={onImport}>
-          {sum.writes === 0 ? "Nothing to import" : `Import ${sum.writes.toLocaleString("en-CA")} records`}
+        <Button className="h-11" disabled={busy || actions.length === 0} onClick={onImport}>
+          {actions.length === 0 ? "Nothing ticked to import" : `Import ${actions.length.toLocaleString("en-CA")} records`}
         </Button>
         <Button variant="ghost" className="h-11" disabled={busy} onClick={onClose}>
           Close

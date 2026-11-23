@@ -120,3 +120,63 @@ export function planSummary(plan: Action[]): PlanSummary {
   }
   return { byKind, skipped, unknownCosts, kept, duplicates: [...groups.values()].filter((g) => g.length > 1), writes: plan.filter((a) => a.op === "create" || a.op === "link").length };
 }
+
+// ── Choosing what to bring in ───────────────────────────────────────────────────────────────────────────────────
+/** One row of the dry run: ticked or not, and why it starts that way. */
+export type ImportPick = { on: boolean; why: string | null };
+export const actionKey = (a: { kind: string; external_id: string }) => `${a.kind}|${a.external_id}`;
+
+const TAX_LINE = /^(sales\s+)?(tax|gst|pst|hst|rst)(\s+.*)?$/i;
+const BILLING_LINE = /\s-\s*supply$/i;                          // "Tile - Supply": an invoice line, not a product
+const CHARGE_LINE = /\b(change order|extra to contract|sales|pay|freight|surcharge|holdback|credit|installation|deposit|discount)\b/i;   // charges, not things to install
+const CHARGE_CATEGORY = new Set(["fees", "services", "samples"]);
+const JOB_LINE = /\b(suite|unit|lot|phase)\s*#?\s*\d/i;          // "… Gimli A Suite 2 Window Coverings": one job's line
+
+/**
+ * Where each row of the dry run starts. Linking to what BMD already has is always ticked: it adds nothing.
+ * New records start ticked only when they look like catalogue material: a supplier BMD has bought materials from,
+ * or one a product names as its vendor; a product that is not a tax, billing, charge or one-job line. Everything stays
+ * held, so anything left unticked can be brought in later.
+ */
+export function suggestPicks(plan: Action[], staged: StagedRow[]): Map<string, ImportPick> {
+  const byKey = new Map(staged.map((r) => [`${r.kind}|${r.external_id}`, r]));
+  const named = new Set(staged.filter((r) => r.kind === "material" || r.kind === "labour").map((r) => text(r.data["vendor_id"])).filter((v): v is string => !!v));
+  const picks = new Map<string, ImportPick>();
+  for (const a of plan) {
+    if (a.op !== "create" && a.op !== "link") continue;
+    const k = actionKey(a);
+    if (a.op === "link" || a.kind === "cost_code" || a.kind === "other") {
+      picks.set(k, { on: true, why: null });
+      continue;
+    }
+    const d = byKey.get(k)?.data ?? {};
+    if (d["active"] === false) {
+      picks.set(k, { on: false, why: "inactive in QuickBooks" });
+      continue;
+    }
+    if (a.kind === "supplier") {
+      const p = d["purchases"] as { material_lines?: number; other_lines?: number } | undefined;
+      if (named.has(a.external_id)) picks.set(k, { on: true, why: "a product names it as its vendor" });
+      else if (!p) picks.set(k, { on: false, why: "no purchase history read yet" });
+      else if ((p.material_lines ?? 0) > 0) picks.set(k, { on: true, why: `${p.material_lines} material purchase line${p.material_lines === 1 ? "" : "s"}` });
+      else picks.set(k, { on: false, why: (p.other_lines ?? 0) > 0 ? "bought from, but never materials" : "never bought from in 3 years" });
+    } else if (TAX_LINE.test(a.name.trim())) picks.set(k, { on: false, why: "a tax line" });
+    else if (BILLING_LINE.test(a.name)) picks.set(k, { on: false, why: "looks like a billing line" });
+    else if (CHARGE_LINE.test(a.name) || CHARGE_CATEGORY.has(key(d["category"]))) picks.set(k, { on: false, why: "looks like a charge, not a product" });
+    else if (JOB_LINE.test(a.name)) picks.set(k, { on: false, why: "looks like one job's line" });
+    else picks.set(k, { on: true, why: null });
+  }
+  return picks;
+}
+
+/**
+ * The steps to send for what is ticked. A ticked product's supplier comes along even if it was unticked,
+ * so the product arrives with its supplier. Returns the steps and the suppliers added that way.
+ */
+export function chosenActions(plan: Action[], on: (key: string) => boolean): { actions: Action[]; addedSuppliers: string[] } {
+  const chosen = plan.filter((a) => (a.op === "create" || a.op === "link") && on(actionKey(a)));
+  const need = new Set(chosen.map((a) => text(a.fields["supplier_external_id"])).filter((v): v is string => !!v));
+  const have = new Set(chosen.filter((a) => a.kind === "supplier").map((a) => a.external_id));
+  const extra = plan.filter((a) => a.kind === "supplier" && a.op === "create" && need.has(a.external_id) && !have.has(a.external_id));
+  return { actions: [...extra, ...chosen], addedSuppliers: extra.map((a) => a.name) };
+}

@@ -1,8 +1,8 @@
 import { db } from "@/lib/platform/db";
-import { planImport, type Action, type Existing, type StagedRow } from "./import";
+import { planImport, suggestPicks, type Action, type Existing, type ImportPick, type StagedRow } from "./import";
 
 /** Reads what is held for review from one system and what BMD already has, and works out the import. Nothing is written. */
-export async function loadImportPlan(system: "quickbooks"): Promise<{ plan: Action[]; staged: number }> {
+export async function loadImportPlan(system: "quickbooks"): Promise<{ plan: Action[]; picks: Map<string, ImportPick>; staged: number }> {
   const [staged, materials, labour, suppliers, costCodes, links] = await Promise.all([
     db.from("sync_staging").select("entity,external_id,kind,name,data").eq("system", system).order("name").limit(20000),
     db.from("catalogue_materials").select("id,name,sku,unit_cost_cents,active").limit(20000),
@@ -20,10 +20,11 @@ export async function loadImportPlan(system: "quickbooks"): Promise<{ plan: Acti
     links: (links.data ?? []) as Existing["links"],
   };
   const rows = (staged.data ?? []) as StagedRow[];
-  return { plan: planImport(rows, existing), staged: rows.length };
+  const plan = planImport(rows, existing);
+  return { plan, picks: suggestPicks(plan, rows), staged: rows.length };
 }
 
-/** Applies a plan that has been shown as a dry run. Only "create" and "link" steps are sent. */
+/** Applies the ticked steps of a plan that has been shown as a dry run. Only "create" and "link" steps are sent; what is left out stays held. */
 export async function applyImport(system: "quickbooks", plan: Action[]): Promise<{ created: number; linked: number; skipped: number }> {
   const actions = plan.filter((a) => a.op === "create" || a.op === "link");
   const total = { created: 0, linked: 0, skipped: 0 };

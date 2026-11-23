@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { decryptToken, encryptToken } from "@/lib/ms/core";
-import { classifyItem, createQbo, qboAuthorizeUrl, stageItem, stageVendor, type QboStore } from "./connect";
+import { classifyItem, createQbo, qboAuthorizeUrl, stageItem, stageVendor, vendorEvidence, type QboStore } from "./connect";
 
 const KEY = "test-key";
 const env = { clientId: "cid", clientSecret: "secret" };
@@ -104,5 +104,28 @@ describe("what each QuickBooks item is to BMD", () => {
     const h = harness({ conn: { realm_id: "9", refresh_token_enc: await encryptToken("rt-1", KEY) }, responses: () => ({ status: 400, tid: "1-def-456", body: { error: "invalid_grant" } }) });
     await expect(h.qbo.getAccessToken()).rejects.toThrow(/reconnect/i);
     expect(h.state.errors[0]).toContain("intuit_tid 1-def-456");
+  });
+});
+
+describe("telling material suppliers from everyone else", () => {
+  test("lines for products or cost-of-goods accounts count as materials; the rest do not", () => {
+    const items = [{ Id: "95", Type: "NonInventory", Name: "Mipolam" }, { Id: "3", Type: "Service", Name: "Bad Debts" }];
+    const accounts = [{ Id: "50", AccountType: "Cost of Goods Sold" }, { Id: "60", AccountType: "Expense" }];
+    const e = vendorEvidence(
+      [
+        { TxnDate: "2025-03-01", VendorRef: { value: "7" }, Line: [{ ItemBasedExpenseLineDetail: { ItemRef: { value: "95" } } }, { AccountBasedExpenseLineDetail: { AccountRef: { value: "50" } } }] },
+        { TxnDate: "2026-02-01", EntityRef: { value: "8", type: "Vendor" }, Line: [{ AccountBasedExpenseLineDetail: { AccountRef: { value: "60" } } }] },
+        { TxnDate: "2026-02-01", EntityRef: { value: "9", type: "Customer" }, Line: [{ AccountBasedExpenseLineDetail: { AccountRef: { value: "50" } } }] },
+      ],
+      items,
+      accounts,
+    );
+    expect(e.get("7")).toEqual({ material_lines: 2, other_lines: 0, last_purchase: "2025-03-01" });
+    expect(e.get("8")).toEqual({ material_lines: 0, other_lines: 1, last_purchase: "2026-02-01" });
+    expect(e.has("9")).toBe(false);
+  });
+  test("a vendor with no purchases is staged with zero, and without evidence nothing is claimed", () => {
+    expect(stageVendor({ Id: "7", DisplayName: "Shell" }, new Map()).data["purchases"]).toEqual({ material_lines: 0, other_lines: 0, last_purchase: null });
+    expect(stageVendor({ Id: "7", DisplayName: "Shell" }).data["purchases"]).toBeUndefined();
   });
 });
