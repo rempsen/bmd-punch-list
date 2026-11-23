@@ -1276,7 +1276,10 @@ export type Database = {
       }
       install_visits: {
         Row: {
+          arriveping_assigned_to: string | null
           arriveping_job_id: string | null
+          arriveping_last_event_at: string | null
+          arriveping_status: string | null
           created_at: string
           created_by: string | null
           crew: string | null
@@ -1289,7 +1292,10 @@ export type Database = {
           status: string
         }
         Insert: {
+          arriveping_assigned_to?: string | null
           arriveping_job_id?: string | null
+          arriveping_last_event_at?: string | null
+          arriveping_status?: string | null
           created_at?: string
           created_by?: string | null
           crew?: string | null
@@ -1302,7 +1308,10 @@ export type Database = {
           status?: string
         }
         Update: {
+          arriveping_assigned_to?: string | null
           arriveping_job_id?: string | null
+          arriveping_last_event_at?: string | null
+          arriveping_status?: string | null
           created_at?: string
           created_by?: string | null
           crew?: string | null
@@ -2735,6 +2744,68 @@ export type Database = {
           phone?: string | null
         }
         Relationships: []
+      }
+      sync_events: {
+        Row: {
+          attempts: number
+          created_at: string
+          direction: string
+          entity_id: string | null
+          entity_type: string
+          event_type: string
+          external_id: string | null
+          id: string
+          idempotency_key: string | null
+          last_error: string | null
+          payload: Json
+          processed_at: string | null
+          project_id: string | null
+          status: string
+          system: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          direction: string
+          entity_id?: string | null
+          entity_type: string
+          event_type: string
+          external_id?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_error?: string | null
+          payload?: Json
+          processed_at?: string | null
+          project_id?: string | null
+          status: string
+          system?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          direction?: string
+          entity_id?: string | null
+          entity_type?: string
+          event_type?: string
+          external_id?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_error?: string | null
+          payload?: Json
+          processed_at?: string | null
+          project_id?: string | null
+          status?: string
+          system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sync_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sync_links: {
         Row: {
