@@ -27,7 +27,11 @@ export default defineConfig({
   // one asyncify runtime. A regex, not a string key: a string also matches
   // `onnxruntime-web/…` prefixes and would break voice's own subpath imports.
   resolve: {
-    alias: [{ find: /^onnxruntime-web$/, replacement: "onnxruntime-web/webgpu" }],
+    alias: [
+      { find: /^onnxruntime-web$/, replacement: "onnxruntime-web/webgpu" },
+      // BMD change: voice dictation is left out; the speech library is replaced by a small stand-in.
+      { find: /^@huggingface\/transformers$/, replacement: new URL("./src/lib/bmd/noVoice.js", import.meta.url).pathname },
+    ],
   },
   // The STT worker (stt.worker.ts, RFC #59) lazy-imports its engine adapter,
   // which needs code-splitting inside the worker bundle — only the ES format
