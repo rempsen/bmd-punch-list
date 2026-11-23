@@ -1,6 +1,6 @@
 # OpenTakeoff inside BMD Projects: design
 
-Date: 2026-11-22. Status: awaiting Dan's approval. Revised the same day to add automatic takeoff and the assistant, after Dan pointed to Bobyard's takeoff features and asked for a company and project chat.
+Date: 2026-11-22. Status: approved by Dan through his answers of 2026-11-22 (approach, waste, staff-only assistant with shared memory); the Knowledge section was added from his last message and is his to correct before stage 6 is built. Revised the same day to add automatic takeoff and the assistant, after Dan pointed to Bobyard's takeoff features and asked for a company and project chat.
 
 ## Intent and why
 
@@ -146,8 +146,12 @@ A side window available on every screen to signed-in BMD staff, opened from a bu
 - **What it knows.** Nothing is memorised or trained in. It looks things up at the moment of asking, through a fixed set of read-only lookups that run as the person asking: company details (name, addresses, phone, email, hours, GST number, business number), the catalogue (products, labour rates, cost codes), clients, projects and their status, estimates, quotes and change orders, billing, and the text of project documents.
 - **Company details.** Hours and business number are added to Company settings beside the details already there, since BMD's records do not hold them today.
 - **Documents.** When a document is uploaded, or first opened in the workspace, the text of each page is stored and indexed for search, with on-device text recognition for scanned pages. In a project the assistant searches that project's pages, reads the best matches (and, for drawings, can look at the page image), and answers with the document name and page so the answer can be checked. Outside a project it can search across the projects the asker can see.
+- **Knowledge (shared memory).** A Knowledge section under Company settings where BMD keeps facts the assistant should always have, for all staff and across every project. It holds three kinds of thing: short written memories ("Ceratech lead time is six weeks", "we never install over gypsum topping without a moisture test"), folders, and uploaded files (PDF, Markdown, text, Word, Excel). Uploaded files are read page by page into the same search index as project documents. Each item is marked either "all staff" or "pricing staff only"; vendor price lists and cost sheets default to pricing staff only.
+- **Remembering from chat.** Someone allowed to add knowledge can say "remember that…" and the assistant saves it as a memory, shows what it saved, and it can be edited or removed in the Knowledge section. The assistant never saves a memory on its own initiative.
+- **Project knowledge.** Inside a project it also searches everything filed on that project: plans, specifications, vendor quotes, estimates, quotes and change orders, and the emails BMD Projects itself holds (quotes sent, email intake). A question such as "what did Ceratech quote for ABC tile?" is answered from the vendor quotation PDF filed on the project or in Knowledge, with the document, page and date, and with the figure quoted as written.
+- **Vendor prices are evidence, not catalogue prices.** A price the assistant reads from a vendor PDF is reported with its source and date. It is not written into the catalogue or an estimate; a person does that.
 - **Answers.** Short and precise, with sources. It can say what a spec section requires, what a prior quote included, what was quoted per square foot on a similar job, who the client contact is, what the GST number is. It does not create, change or send anything in this version: no quote is drafted, sent or altered from chat.
-- **Permissions.** Each lookup uses the asker's own login, so the database's existing rules apply: people without pricing access get no costs, margins or prices; the assistant is not offered to trades, clients or viewers.
+- **Permissions.** Each lookup uses the asker's own login, so the database's existing rules apply: people without pricing access get no costs, margins, vendor prices or pricing-only knowledge; the assistant is not offered to trades, clients or viewers. Dan's decision: BMD staff only.
 - **Record.** Each conversation is kept per person, with the lookups it made, so a wrong answer can be traced.
 
 ### AI first pass by Claude
@@ -191,14 +195,18 @@ Stages 1 to 5 do not depend on the AI connection.
 - The AI first pass by Claude runs from a Claude session, not inside BMD Projects.
 - Automatic takeoff aims OpenTakeoff's measuring tools rather than having the AI draw shapes from an image, and everything it produces is a proposal.
 - The assistant only reads. It does not draft, change or send quotes.
-- The assistant is for signed-in BMD staff, pending the open question.
+- Knowledge items carry "all staff" or "pricing staff only"; BMD managers and the admin can add, edit and remove knowledge, other staff can read what they are allowed to.
+- "Shared folders" means folders inside the Knowledge section. Reading a linked OneDrive folder automatically is a later addition, not in this design.
+- "Communications" means emails BMD Projects already holds (quotes sent, email intake). Reading staff mailboxes is not in this design.
+- A vendor price read by the assistant is never written into the catalogue or an estimate automatically.
 
 ## Decided by Dan
 
 - Build from the 10 October Apache version.
 - Waste is added on the estimate. The takeoff sends measured quantities only.
 - Opus 5.5 or later, and Claude vision, may be used.
+- The assistant is for BMD staff only, and has shared memory: a Knowledge section of memories, folders and files that persists across projects.
 
 ## Open question for Dan
 
-**Who may use the assistant?** Dan wrote "so anyone requesting a quote can get accurate information". This design reads that as BMD staff answering a quote request. If it means customers or the public asking the assistant directly, that is a different and much riskier product (it knows every customer, job and price) and is not in this design.
+None at this revision.
