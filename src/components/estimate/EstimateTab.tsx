@@ -10,7 +10,7 @@ import { AddLineDialog, PasteDialog, RefreshDialog, WindowScheduleDialog } from 
 import { FinishesPanel } from "@/components/estimate/FinishesPanel";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { useCostCodes, useLabourRates, useMaterials, useSuppliers, useTaxSettings, useTemplates } from "@/lib/catalogue/data";
+import { saveMaterial, setUnitCost, useCostCodes, useLabourRates, useMaterials, useRefreshCatalogue, useSuppliers, useTaxSettings, useTemplates } from "@/lib/catalogue/data";
 import { parseMoneyCents } from "@/lib/catalogue/logic";
 import type { SnapComponent } from "@/lib/estimating/assemble";
 import {
@@ -21,6 +21,7 @@ import {
   deleteVersion,
   dollars,
   isReload,
+  saveFinish,
   saveLines,
   updateVersion,
   useEstimate,
@@ -30,7 +31,7 @@ import {
   type EstVersion,
   type SaveItem,
 } from "@/lib/estimating/data";
-import { lineFromFinish, setLineWaste, simpleLine } from "@/lib/estimating/lines";
+import { costTarget, lineFromFinish, setLineWaste, simpleLine } from "@/lib/estimating/lines";
 import { versionSummary, type Rates } from "@/lib/estimating/worksheet";
 import { errText } from "@/lib/platform/db";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,8 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const { data: costCodes = [] } = useCostCodes(canSee);
   const { data: tax } = useTaxSettings(canSee);
   const refresh = useRefreshEstimate(projectId);
+  const refreshCatalogue = useRefreshCatalogue();
+  const canCatalogue = canAny("manage_catalogue");
   const { data: measured } = useTakeoffQuantities(projectId, canSee);
   const takeoffTotals = useMemo(() => totalsByFinish(measured ?? []), [measured]);
 
@@ -88,6 +91,40 @@ export function EstimateTab({ projectId }: { projectId: string }) {
     }
   };
   const save = (items: SaveItem[], done?: string) => run(() => saveLines(items), done);
+
+  /**
+   * A unit cost typed on a line. For a catalogue material, a labour rate or a finish it becomes the catalogue's price
+   * (and so is queued for QuickBooks); a one-off stays on the line. Clearing a cost only clears it on the line.
+   */
+  const applyCost = (l: EstLine, i: number, cents: number | null) =>
+    run(async () => {
+      const c = l.components[i]!;
+      const finish = finishes.find((f) => f.id === l.finish_id) ?? null;
+      let target: ReturnType<typeof costTarget> = cents == null || !canCatalogue ? { kind: "line_only" } : costTarget(c, finish, l.components.length);
+      // Another job may already have a catalogue material with this name. It is a different product, so it is not repriced from here.
+      const newName = target.kind === "new_material" ? target.name.trim().toLowerCase() : null;
+      const taken = newName != null && materials.some((m) => m.name.trim().toLowerCase() === newName);
+      if (taken) target = { kind: "line_only" };
+      let patch: Partial<SnapComponent> = { unit_cost_cents: cents, cost_overridden: cents != null };
+      let said = cents == null ? "Cost cleared on this line" : "Cost saved on this line";
+      if (target.kind === "material" || target.kind === "labour") {
+        await setUnitCost(target.kind, target.id, cents);
+        patch = { unit_cost_cents: cents, cost_overridden: false };
+        said = `${dollars(cents!)} / ${c.cost_uom} is now the catalogue price for ${c.label}`;
+      } else if (target.kind === "new_material" && finish) {
+        const id = await saveMaterial(null, {
+          category: target.category as never, name: target.name, manufacturer: null, product_line: null, colour: null, sku: null, supplier_id: null, cost_uom: target.uom, unit_cost_cents: cents, purchase_uom: target.uom,
+          coverage_per_purchase_unit: null, coverage_uom: null, pst_applies: false, default_waste_pct: l.waste_pct, cost_code: l.cost_code, active: true, price_date: new Date().toISOString().slice(0, 10), price_source: "Entered on an estimate", notes: null,
+        });
+        await saveFinish(finish.id, { project_id: finish.project_id, tag: finish.tag, description: finish.description, assembly_template_id: finish.assembly_template_id, catalogue_material_id: id, sort_order: finish.sort_order });
+        patch = { unit_cost_cents: cents, cost_overridden: false, catalogue_material_id: id, kind: "material", source: "catalogue" };
+        said = `${target.name} added to the catalogue at ${dollars(cents!)} / ${target.uom}`;
+      }
+      await saveLines([{ id: l.id, row_version: l.row_version, line: {}, components: l.components.map((x, j) => (j === i ? { ...x, ...patch } : x)) }]);
+      if (target.kind !== "line_only") refreshCatalogue();
+      if (taken) toast.info(`${said}. The catalogue already has a material with this finish's name, so it was not changed. Pick the material on the finish above to link them.`, { duration: 9000 });
+      else toast.success(target.kind === "line_only" ? said : `${said}. It will be sent to QuickBooks when that is connected.`);
+    });
 
   /** A new line for something measured in the takeoff. It follows the takeoff until the estimator says otherwise. */
   const lineForOffer = (o: Offer, versionId: string, markupPct: number): SaveItem => {
@@ -349,6 +386,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                           onToggle={() => setOpen((s) => toggle(s, l.id))}
                           onSelect={() => setSelected((s) => toggle(s, l.id))}
                           onSave={(line, components) => void save([{ id: l.id, row_version: l.row_version, line, ...(components ? { components } : {}) }])}
+                          onCost={(i, cents) => void applyCost(l, i, cents)}
                           onDelete={() => window.confirm(`Delete "${l.description || "this line"}"?`) && void run(() => deleteLine(l.id, l.row_version))}
                         />
                       ))}
@@ -469,6 +507,7 @@ function LineRows({
   onToggle,
   onSelect,
   onSave,
+  onCost,
   onDelete,
 }: {
   line: EstLine;
@@ -479,6 +518,7 @@ function LineRows({
   onToggle: () => void;
   onSelect: () => void;
   onSave: (line: SaveItem["line"], components?: SnapComponent[]) => void;
+  onCost: (index: number, cents: number | null) => void;
   onDelete: () => void;
 }) {
   const fixed = line.price_basis === "fixed_sell";
@@ -488,6 +528,15 @@ function LineRows({
     if (n !== current) onSave(...make(n));
   };
   const saveComponent = (i: number, p: Partial<SnapComponent>) => onSave({}, line.components.map((c, j) => (j === i ? { ...c, ...p } : c)));
+  const commitCost = (i: number, raw: string) => {
+    const c = line.components[i]!;
+    const cents = raw.trim() === "" ? null : parseMoneyCents(raw);
+    if (raw.trim() !== "" && cents == null) return void toast.error("Enter the cost in dollars, or leave it blank if unknown");
+    if (cents !== c.unit_cost_cents) onCost(i, cents);
+  };
+  // A line made of one thing has its unit cost right on the row. A line made of several opens to show each.
+  const needed = line.components.map((c, i) => ({ c, i })).filter((x) => !x.c.not_applicable);
+  const single = needed.length === 1 ? needed[0]! : null;
 
   return (
     <>
@@ -528,7 +577,34 @@ function LineRows({
         <td className={cn(cell, "text-right")}>
           <input key={`${line.id}-w-${line.row_version}`} aria-label="Waste percent" disabled={!editable || fixed} inputMode="decimal" defaultValue={line.waste_pct} onBlur={(e) => commitNumber(e.target.value, line.waste_pct, 100, (n) => [{ waste_pct: n }, setLineWaste(line.components, n)])} className={numInput} />
         </td>
-        <td className={cn(cell, "text-right tabular-nums")}>{priced.unknown ? <span title="Some costs are not known yet">{dollars(priced.costCents)}+</span> : dollars(priced.costCents)}</td>
+        <td className={cn(cell, "text-right tabular-nums")}>
+          {single && !fixed && (editable || single.c.unit_cost_cents != null) && (
+            <div className="mb-0.5 flex items-center justify-end gap-1 whitespace-nowrap">
+              <span className="text-xs text-muted-foreground">$</span>
+              <input
+                key={`${line.id}-u-${line.row_version}`}
+                aria-label={`Unit cost of ${line.description || single.c.label} per ${single.c.cost_uom}`}
+                disabled={!editable}
+                inputMode="decimal"
+                placeholder="Add cost"
+                defaultValue={single.c.unit_cost_cents == null ? "" : (single.c.unit_cost_cents / 100).toFixed(2)}
+                onBlur={(e) => commitCost(single.i, e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                className={cn(numInput, "w-24", single.c.unit_cost_cents == null && "border-amber-400 bg-amber-50 placeholder:text-amber-800")}
+              />
+              <span className="text-xs text-muted-foreground">/ {single.c.cost_uom}</span>
+            </div>
+          )}
+          {priced.unknown ? (
+            single ? null : (
+              <button type="button" onClick={onToggle} className="rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100" title="Some costs are not known yet">
+                {dollars(priced.costCents)}+ · {expanded ? "Hide costs" : "Add costs"}
+              </button>
+            )
+          ) : (
+            dollars(priced.costCents)
+          )}
+        </td>
         <td className={cn(cell, "text-right")}>
           {fixed ? (
             <span className="tabular-nums text-muted-foreground">{priced.unknown ? "—" : priced.markupPct.toFixed(1)}</span>
@@ -580,11 +656,8 @@ function LineRows({
                         inputMode="decimal"
                         placeholder="Unknown"
                         defaultValue={c.unit_cost_cents == null ? "" : (c.unit_cost_cents / 100).toFixed(2)}
-                        onBlur={(e) => {
-                          const cents = e.target.value.trim() === "" ? null : parseMoneyCents(e.target.value);
-                          if (e.target.value.trim() !== "" && cents == null) return void toast.error("Enter the cost in dollars, or leave it blank if unknown");
-                          if (cents !== c.unit_cost_cents) saveComponent(i, { unit_cost_cents: cents, cost_overridden: cents != null });
-                        }}
+                        onBlur={(e) => commitCost(i, e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                         className={cn(numInput, "ml-1 w-24")}
                       />
                       <span className="ml-1 text-xs text-muted-foreground">/ {c.cost_uom}</span>

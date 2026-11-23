@@ -26,3 +26,30 @@ describe("windowLine", () => {
     expect(item.line.description).toBe("W2");
   });
 });
+
+import { costTarget, guessCategory } from "./lines";
+describe("where a cost typed on an estimate line is kept", () => {
+  const fin = (p: Partial<{ catalogue_material_id: string | null; description: string | null }> = {}) => ({ id: "f1", tag: "CPT-1", description: null, catalogue_material_id: null, ...p });
+  const comp = (p: Partial<SnapComponent> = {}): SnapComponent => ({ ...simpleComponent("CPT-1", null, "SF"), ...p });
+  test("a catalogue material's cost goes to that material", () => {
+    expect(costTarget(comp({ catalogue_material_id: "m1" }), fin(), 1)).toEqual({ kind: "material", id: "m1" });
+  });
+  test("a labour rate's cost goes to that rate", () => {
+    expect(costTarget(comp({ labour_rate_id: "l1", kind: "labour" }), fin(), 3)).toEqual({ kind: "labour", id: "l1" });
+  });
+  test("a finish with no material yet gets one, named for the finish, in the line's unit", () => {
+    expect(costTarget(comp(), fin({ description: "Corridor carpet tile" }), 1)).toEqual({ kind: "new_material", name: "CPT-1 – Corridor carpet tile", category: "carpet_tile", uom: "SF" });
+  });
+  test("a finish that already has a material reprices that material", () => {
+    expect(costTarget(comp(), fin({ catalogue_material_id: "m9" }), 1)).toEqual({ kind: "material", id: "m9" });
+  });
+  test("a one-off cost with no finish stays on the line", () => {
+    expect(costTarget(comp({ label: "Delivery" }), null, 1)).toEqual({ kind: "line_only" });
+  });
+  test("an unlinked part of a larger assembly stays on the line", () => {
+    expect(costTarget(comp(), fin(), 3)).toEqual({ kind: "line_only" });
+  });
+  test("the category is read from the tag or the name", () => {
+    expect(["CPT-1", "LVT-1", "LVP-2", "RB-1", "SV-1", "CT-3", "WT-1", "TR-1", "Millwork Base", "BRD-1"].map(guessCategory)).toEqual(["carpet_tile", "lvt", "lvp", "wall_base", "sheet_vinyl", "floor_tile", "wall_tile", "transitions", "wall_base", "other"]);
+  });
+});

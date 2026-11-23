@@ -52,3 +52,31 @@ export function windowLine(a: { versionId: string; section: string; type: string
     components: [piece("Vendor price", a.vendorCents, "material", true, 1), piece("Install", a.installCents, "labour", false, 2), piece("Delivery and staging", a.miscCents, "fixed", false, 3)],
   };
 }
+
+const TAG_CATEGORY: [RegExp, string][] = [
+  [/^cpt\b|carpet tile/i, "carpet_tile"],
+  [/^lvt\b/i, "lvt"],
+  [/^lvp\b/i, "lvp"],
+  [/^rb\b|\bbase\b/i, "wall_base"],
+  [/^sv\b|sheet vinyl/i, "sheet_vinyl"],
+  [/^ct\b|floor tile/i, "floor_tile"],
+  [/^wt\b|wall tile/i, "wall_tile"],
+  [/^tr\b|transition/i, "transitions"],
+];
+/** The catalogue category a finish tag most likely belongs to; "other" when it cannot be told. It can be changed in the catalogue. */
+export const guessCategory = (tagOrName: string): string => TAG_CATEGORY.find(([re]) => re.test(tagOrName.trim()))?.[1] ?? "other";
+
+export type CostTarget = { kind: "material"; id: string } | { kind: "labour"; id: string } | { kind: "new_material"; name: string; category: string; uom: Uom } | { kind: "line_only" };
+
+/**
+ * Where a cost typed on an estimate line belongs. A cost for a catalogue material, a labour rate or a finish becomes
+ * the catalogue's price, so the next estimate starts from it and it is sent on to QuickBooks. A one-off (delivery, an
+ * allowance, an unlinked part of an assembly) stays on the line.
+ */
+export function costTarget(c: SnapComponent, finish: Pick<Finish, "id" | "tag" | "description" | "catalogue_material_id"> | null, componentCount: number): CostTarget {
+  if (c.catalogue_material_id) return { kind: "material", id: c.catalogue_material_id };
+  if (c.labour_rate_id) return { kind: "labour", id: c.labour_rate_id };
+  if (!finish || componentCount !== 1) return { kind: "line_only" };
+  if (finish.catalogue_material_id) return { kind: "material", id: finish.catalogue_material_id };
+  return { kind: "new_material", name: [finish.tag, finish.description].filter(Boolean).join(" – "), category: guessCategory(finish.description ? `${finish.tag} ${finish.description}` : finish.tag), uom: c.cost_uom };
+}
