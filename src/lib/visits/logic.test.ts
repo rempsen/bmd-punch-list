@@ -395,3 +395,16 @@ describe("checking a visit against its work order in ArrivePing", () => {
     expect(reconcileWithWorkOrder(visit, null, now)).toEqual({ patch: {}, events: [] });
   });
 });
+
+describe("checking a visit with no end time", () => {
+  test("ArrivePing's filled-in end is not a reschedule; a moved start still is", () => {
+    const v = { status: "scheduled" as const, crew: null, starts_at: "2026-11-30T14:00:00.000Z", ends_at: null, arriveping_job_id: "wo1", arriveping_status: "scheduled", arriveping_assigned_to: null, arriveping_last_event_at: null };
+    const wo = { status: "confirmed", start_at: "2026-11-30T14:00:00.000Z", end_at: "2026-11-30T22:00:00.000Z", assigned_tech: null };
+    expect(reconcileWithWorkOrder(v, wo, "2026-11-23T21:00:00.000Z").events).toEqual([]);
+    expect(reconcileWithWorkOrder(v, { ...wo, start_at: "2026-11-30T15:00:00.000Z" }, "2026-11-23T21:00:00.000Z").events.map((e) => e.status)).toEqual(["rescheduled"]);
+  });
+  test("a work order ArrivePing no longer has cancels the visit", () => {
+    const v = { status: "scheduled" as const, crew: null, starts_at: "2026-11-30T14:00:00.000Z", ends_at: null, arriveping_job_id: "wo1", arriveping_status: "scheduled", arriveping_assigned_to: null, arriveping_last_event_at: null };
+    expect(reconcileWithWorkOrder(v, { status: "cancelled" }, "2026-11-23T21:00:00.000Z").patch).toMatchObject({ status: "cancelled" });
+  });
+});

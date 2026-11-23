@@ -140,6 +140,9 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
     }
 
     const ev = parseArrivePingEvent(body);
+    // Office alerts BMD does not act on (reminders, reviews, …) go out for every job; logging them would bury the queue.
+    if (!ev && !data && (b["bookingId"] != null || b["booking_id"] != null))
+      return done({ ok: true, ignored: "alert BMD does not use" });
     if (!ev) {
       rowId = await record(null, name, null);
       return await ignore(rowId, "unrecognised event");
@@ -252,13 +255,15 @@ export async function reconcileVisits(
     await saveLink({ last_check_at: nowIso });
   }
 
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 3_600_000).toISOString();
+  // From the start of yesterday on: today's and upcoming visits. Older visits nobody closed would otherwise use up the
+  // check every time and the ones that matter would never be reached.
+  const since = new Date(now.getTime() - 24 * 3_600_000).toISOString();
   let q = db
     .from("install_visits")
     .select(VISIT_COLUMNS)
     .not("arriveping_job_id", "is", null)
     .in("status", ["scheduled", "en_route", "arrived"])
-    .gte("starts_at", weekAgo)
+    .gte("starts_at", since)
     .order("starts_at", { ascending: true })
     .limit(MAX_VISITS_PER_CHECK);
   if (opts.projectId) q = q.eq("project_id", opts.projectId);
@@ -282,29 +287,54 @@ export async function reconcileVisits(
       `${AP_PATHS.workorders}/${encodeURIComponent(visit.arriveping_job_id)}`,
       { method: "GET" },
     );
-    if (!res.ok) {
+    // ArrivePing answers 404 for a work order that was deleted: the visit is not happening there any more.
+    const gone = !res.ok && res.status === 404;
+    if (!res.ok && !gone) {
       failed++;
       firstError ??= res.error;
       // A key or permission problem fails every visit the same way: stop rather than call ArrivePing forty times.
       if (res.status === 401 || res.status === 403 || res.code === "not_configured") break;
       continue;
     }
-    const json = res.json as Record<string, unknown> | null;
-    const wo =
-      json &&
-      typeof json === "object" &&
-      json["work_order"] &&
-      typeof json["work_order"] === "object"
+    const json = res.ok ? (res.json as Record<string, unknown> | null) : null;
+    const wo = gone
+      ? { id: visit.arriveping_job_id, status: "cancelled" }
+      : json &&
+          typeof json === "object" &&
+          json["work_order"] &&
+          typeof json["work_order"] === "object"
         ? json["work_order"]
         : json;
-    const { patch, events } = reconcileWithWorkOrder(visit as never, wo, nowIso);
+    // The call to ArrivePing took time; a webhook may have moved this visit meanwhile. Work from a fresh copy, and only
+    // write if nothing else has since (its last-event time is the marker), so a newer change is never overwritten.
+    const { data: fresh, error: readError } = await db
+      .from("install_visits")
+      .select(VISIT_COLUMNS)
+      .eq("id", visit.id)
+      .maybeSingle();
+    if (readError || !fresh) {
+      if (readError) {
+        failed++;
+        firstError ??= `Could not read a visit: ${readError.message}`;
+      }
+      continue;
+    }
+    const { patch, events } = reconcileWithWorkOrder(fresh as never, wo, nowIso);
     if (!events.length) continue;
-    const { error } = await db.from("install_visits").update(patch).eq("id", visit.id);
+    const marker = fresh.arriveping_last_event_at as string | null;
+    const write = db.from("install_visits").update(patch).eq("id", visit.id);
+    const { data: wrote, error } = await (
+      marker == null
+        ? write.is("arriveping_last_event_at", null)
+        : write.eq("arriveping_last_event_at", marker)
+    ).select("id");
     if (error) {
       failed++;
       firstError ??= `Could not update a visit: ${error.message}`;
       continue;
     }
+    // Something else updated the visit in between; the next check will see it.
+    if (!wrote?.length) continue;
     updated++;
     await logActivity(db, visit, events);
     // The sync queue shows what the check changed, the same as a webhook would have.

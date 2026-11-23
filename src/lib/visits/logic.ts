@@ -169,9 +169,14 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
  * patch and one activity entry per change; an empty list of events means the visit already matches.
  */
 export function reconcileWithWorkOrder(visit: InboundVisit, workOrder: unknown, now: string): { patch: Record<string, string | null>; events: { status: string; note: string; at: string }[] } {
-  const wo = workOrder && typeof workOrder === "object" ? (workOrder as Record<string, unknown>) : {};
+  // The work order is this visit's, so its id is known even when the record read back leaves it out.
+  const wo: Record<string, unknown> = { id: visit.arriveping_job_id, ...(workOrder && typeof workOrder === "object" ? (workOrder as Record<string, unknown>) : {}) };
   const status = typeof wo["status"] === "string" ? wo["status"].toLowerCase() : "";
-  const types = ["workorder.assigned", ...(typeof wo["start_at"] === "string" ? ["workorder.rescheduled"] : []), ...(STATUSES[status] ? [`workorder.${status}`] : [])];
+  const start = typeof wo["start_at"] === "string" ? wo["start_at"] : null;
+  // A visit booked without an end only takes ArrivePing's end when the start moved too; ArrivePing always fills one in,
+  // so filling it here would log a "Rescheduled" that never happened.
+  const moved = start != null && (visit.ends_at != null || !sameTime(visit.starts_at, start));
+  const types = ["workorder.assigned", ...(moved ? ["workorder.rescheduled"] : []), ...(STATUSES[status] ? [`workorder.${status}`] : [])];
   let current: InboundVisit = { ...visit };
   const patch: Record<string, string | null> = {};
   const events: { status: string; note: string; at: string }[] = [];
