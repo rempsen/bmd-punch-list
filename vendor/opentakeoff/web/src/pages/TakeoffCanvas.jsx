@@ -160,6 +160,7 @@ import { computeRollTakeoff, seamLfByShape } from "../lib/rollTakeoff.js";
 import AgentPanel from "../components/AgentPanel.jsx";
 import WorkspacePanel from "../components/WorkspacePanel.jsx";
 import PremiumInterest from "../components/PremiumInterest.jsx";
+import { BMD } from "../lib/bmd/flag.js";   // BMD change
 import { shouldAutoPromptPremium, readPremiumPrompt } from "../lib/premiumInterest.js";
 import "../styles/premiumWorkspace.css";
 import { WorkspaceChrome, WorkspaceNavigator, WorkspaceCommandMenu } from "../components/WorkspaceChrome.jsx";
@@ -1473,6 +1474,7 @@ export default function TakeoffCanvas() {
     setTour({ done: [], baseline: countFloorShapes(shapes) });
   };
   const loadSampleForTour = async () => {
+    if (BMD) return;   // BMD change: the sample plan is never filed on a real project
     if (tourSampleBusy) return;
     setTourSampleBusy(true);
     try { await handleFiles([await fetchSamplePlan()]); } catch { /* the card stays on step 1; the button can be pressed again */ }
@@ -9034,7 +9036,7 @@ export default function TakeoffCanvas() {
           onOpenChange={onMenuDepth}
           face={<span style={{ fontWeight: 700, letterSpacing: "0.08em" }}>⋯</span>}
           items={[
-            { id: "premium-interest", label: "Request Premium — join the early-access list", highlight: true, onSelect: () => setPremiumOpen(true) },
+            ...(BMD ? [] : [{ id: "premium-interest", label: "Request Premium — join the early-access list", highlight: true, onSelect: () => setPremiumOpen(true) }]),
             { id: "workspace-preview", label: workspaceLayout ? "Classic layout" : "Premium layout — compact controls", onSelect: () => workspacePrefs.setEnabled(!workspaceLayout) },
             { id: "guide", label: "How OpenTakeoff works", shortcut: "?", onSelect: () => setGuideOpen(true) },
             { id: "tour", label: "Guided first takeoff", onSelect: startTour },
@@ -11243,7 +11245,7 @@ export default function TakeoffCanvas() {
         </span>
         <span style={{ marginLeft: "auto", display: "flex", gap: 12, opacity: 0.75 }} aria-live="polite">
           <span>{shapes.filter((s) => panelKeySet.has(s.sheet_id)).length} shapes</span>
-          <span>{cloudMode ? "drive" : "local"}{saveState === "saving" ? " · saving…" : saveState === "saved" ? " · saved" : ""}</span>
+          <span>{BMD ? "BMD Projects" : cloudMode ? "drive" : "local"}{saveState === "saving" ? " · saving…" : saveState === "saved" ? " · saved" : ""}</span>
         </span>
       </footer>
       {/* BYO-key AI settings — the single config surface for the ai.js seam

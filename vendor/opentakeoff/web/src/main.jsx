@@ -3,9 +3,14 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation } from "react-router";
 import "./styles/tokens.css";
 import "./styles/app.css";
-import "./styles/print.css";   // OT-only print block — kept out of app.css so tokens/app stay byte-synced with Spline
+import "./styles/print.css";
+import "./styles/bmd-theme.css";   // BMD change
+import { BMD } from "./lib/bmd/flag.js";   // BMD change
+if (BMD) document.documentElement.dataset.bmd = "1";   // BMD change: switches on styles/bmd-theme.css
+//   // OT-only print block — kept out of app.css so tokens/app stay byte-synced with Spline
 import TakeoffCanvas from "./pages/TakeoffCanvas.jsx";
 import ProjectHome from "./components/ProjectHome.jsx";
+import BmdGate from "./components/BmdGate.jsx";   // BMD change
 import { GoogleAuthProvider, useGoogleAuth } from "./lib/google/AuthContext.jsx";
 import { projectIdFromUrl, setActiveStore, metaGet, metaDelete } from "./lib/store.js";
 import { isGoogleConfigured, getAccessToken } from "./lib/google/auth.js";
@@ -479,6 +484,9 @@ function App() {
   // time this re-render runs — useLocation() is purely the re-render trigger.
   useLocation();
   const projectId = projectIdFromUrl();
+  // BMD change: in the BMD Projects build the workspace always belongs to a BMD project. There is no anonymous,
+  // browser-only workspace, so nobody can do a takeoff that is saved nowhere but their own browser.
+  if (BMD) return <BmdGate projectId={projectId} />;
   // ?project= deep link → the cloud project.
   if (projectId && isGoogleConfigured()) return <ProjectGate projectId={projectId} />;
   // Otherwise the anonymous local canvas is the default landing screen —

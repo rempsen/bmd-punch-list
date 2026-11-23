@@ -13,7 +13,7 @@ import { useQuotes } from "@/lib/quotes/data";
 import { useQuery } from "@tanstack/react-query";
 
 // The plan viewer brings pdf.js with it, so it is fetched only when the Takeoff tab is opened.
-const TakeoffTab = lazy(() => import("@/components/takeoff/TakeoffTab"));
+import { TakeoffWorkspace } from "@/components/takeoff/TakeoffWorkspace";
 import { DocumentsTab } from "@/components/projects/DocumentsTab";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
@@ -126,18 +126,14 @@ function ProjectPage() {
         </nav>
       </header>
 
-      <div className={cn("mx-auto p-4 md:p-6", tab === "estimate" || tab === "takeoff" ? "max-w-7xl" : "max-w-5xl")}>
+      {tab === "takeoff" && <TakeoffWorkspace projectId={project.id} />}
+      <div className={cn("mx-auto p-4 md:p-6", tab === "takeoff" && "hidden", tab === "estimate" ? "max-w-7xl" : "max-w-5xl")}>
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
         {tab === "overview" && <VisitsPanel projectId={project.id} canEdit={canEdit} project={{ name: project.name, number: project.project_number, address: project.address, client: project.client_name }} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
         {tab === "estimate" && <EstimateTab projectId={project.id} />}
         {tab === "quotes" && <QuotesTab projectId={project.id} />}
         {tab === "billing" && <BillingTab projectId={project.id} />}
-        {tab === "takeoff" && (
-          <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
-            <TakeoffTab projectId={project.id} />
-          </Suspense>
-        )}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
         {tab === "activity" && <Activity projectId={project.id} />}
       </div>

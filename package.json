@@ -12,7 +12,7 @@
     "format": "prettier --write .",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
-    "build:takeoff": "cd vendor/opentakeoff/web && npm ci --no-audit --no-fund && VITE_ONE_CLICK=1 npx vite build",
+    "build:takeoff": "cd vendor/opentakeoff/web && npm ci --no-audit --no-fund && VITE_BMD=1 VITE_ONE_CLICK=1 npx vite build",
     "check:takeoff": "node scripts/takeoff-build-check.mjs"
   },
   "overrides": {

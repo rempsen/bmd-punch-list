@@ -1,0 +1,13 @@
+/* BMD change (new file): what the BMD Projects build hides or restyles. Applied only when <html data-bmd> is set. */
+
+/* Upstream's sign-up prompt, and the entry points BMD storage replaces or that would file sample data on a real project. */
+html[data-bmd] [data-premium-trigger],
+html[data-bmd] [data-bmd-hide] { display: none !important; }
+
+/* BMD's navy and blush as the accent, in both light and dark views. */
+html[data-bmd] { --cobalt: #1b2d4f; --bmd-blush: #e8c4b8; }
+html[data-bmd][data-theme="dark"] { --cobalt: #8fb0ee; }
+/* The brand sits on its own navy tile so it reads on the light and the dark top bar alike. */
+html[data-bmd] .calm-brand { background: #1b2d4f; color: #ffffff; padding: 3px 10px 4px; border-radius: 5px; line-height: 1.05; }
+html[data-bmd] .calm-brand span { color: var(--bmd-blush); font-style: normal; }
+html[data-bmd] .calm-brand small { display: block; font-size: 9.5px; font-weight: 500; letter-spacing: 0.04em; opacity: 0.7; }

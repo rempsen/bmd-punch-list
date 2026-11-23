@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BMD } from "../lib/bmd/flag.js";   // BMD change
 import { Icon } from "../brand/icons.jsx";
 import { keyText } from "../lib/keys.ts";
 import "./workspaceChrome.css";
@@ -10,8 +11,9 @@ export function WorkspaceChrome({ title, onOpen, onNavigate, navigationOpen, onT
   onControls, controlsOpen, onSearch, pinControl, panelTools, layoutMenu, helpMenu, fileMenu, scaleMenu, conditionControl, aids, history, action }) {
   return <>
     <header className="calm-header">
-      <strong className="calm-brand">open<span>takeoff</span></strong>
-      <div className="calm-project" title={title}><span>{title || "Untitled workspace"}</span><small>Premium workspace</small></div>
+      {/* BMD change: BMD name, with the credit OpenTakeoff's licence asks to keep visible */}
+      {BMD ? <strong className="calm-brand" title="Built on OpenTakeoff (Apache-2.0), an open project by Kentucky AI">BMD <span>Takeoff</span><small>Built on OpenTakeoff</small></strong> : <strong className="calm-brand">open<span>takeoff</span></strong>}
+      <div className="calm-project" title={title}><span>{title || "Untitled workspace"}</span><small>{BMD ? "Saved in BMD Projects" : "Premium workspace"}</small></div>
       <div className="calm-header-actions">
         <button type="button" onClick={onOpen} title="Open plans"><Icon name="plus" size={16} /><span>Open</span></button>
         {fileMenu}

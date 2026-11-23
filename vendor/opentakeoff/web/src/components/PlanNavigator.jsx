@@ -18,6 +18,7 @@
 // shortcuts in EVERY mode via a capture-phase listener — shortcut suppression is
 // keyed on "is this mounted", never on the canvas' view/mode staying in sync.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BMD } from "../lib/bmd/flag.js";   // BMD change: entries marked data-bmd-hide are hidden by styles/bmd-theme.css
 import { Link, useNavigate } from "react-router";
 import { Icon } from "../brand/icons.jsx";
 import SheetPreview from "./SheetPreview.jsx";
@@ -266,6 +267,7 @@ export default function PlanNavigator({
   const demoBase = import.meta.env.BASE_URL || "/";
   const reducedMotion = typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const loadSample = async () => {
+    if (BMD) return;   // BMD change: the sample plan is never filed on a real project
     if (sampleBusy || !onAddFiles) return;
     setSampleBusy(true);
     try {
@@ -1075,7 +1077,7 @@ export default function PlanNavigator({
                 <button onClick={() => fileRef.current?.click()}
                   style={{ display: "block", width: "100%", margin: "24px auto 0", padding: "44px 24px", border: "2px dashed var(--ink-faint)", background: "var(--paper-bright)", cursor: "pointer", color: "var(--ink-muted)", fontFamily: "var(--f-body)", fontSize: 13.5, lineHeight: 1.7 }}>
                   <div style={{ fontFamily: "var(--f-display)", fontSize: 20, color: "var(--ink)", marginBottom: 8 }}>Open your plans</div>
-                  Drag a PDF, an image, or a whole .zip plan set here — or click to choose. Nothing leaves your browser.
+                  {BMD ? "This project has no drawings yet. Drag a PDF, an image, or a whole .zip plan set here, or click to choose. They are filed under the project's Plans in BMD Projects." : "Drag a PDF, an image, or a whole .zip plan set here — or click to choose. Nothing leaves your browser."}
                 </button>
                 {isGoogleConfigured() && (!user || projectHomeFolderId()) && (
                   <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.6 }}>
@@ -1119,7 +1121,7 @@ export default function PlanNavigator({
                   </div>
                 )}
                 {folderUiOn && (
-                  <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.6 }}>
+                  <div data-bmd-hide style={{ marginTop: 8, fontSize: 12, lineHeight: 1.6 }}>
                     {!folderLink ? (
                       <button type="button" onClick={doLinkFolder}
                         title="Pick a folder your team already syncs (a network share, a synced document library) — the takeoff syncs through it as one JSON file. No account, no credentials; the folder's own sync client does the transport."
@@ -1138,11 +1140,11 @@ export default function PlanNavigator({
                     )}
                   </div>
                 )}
-                <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "18px auto 16px", color: "var(--text-faint)", fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" }}>
+                <div data-bmd-hide style={{ display: "flex", alignItems: "center", gap: 12, margin: "18px auto 16px", color: "var(--text-faint)", fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.14em", textTransform: "uppercase" }}>
                   <span style={{ flex: 1, height: 1, background: "var(--ink-faint)" }} />new here?<span style={{ flex: 1, height: 1, background: "var(--ink-faint)" }} />
                 </div>
                 {onStartTour && (
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "12px 18px", marginBottom: 14, textAlign: "left" }}>
+                  <div data-bmd-hide style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: "12px 18px", marginBottom: 14, textAlign: "left" }}>
                     {/* the guided takeoff itself, a real recorded run at 2× — muted, and
                         still under reduced motion (the poster shows; controls play it) */}
                     <video src={`${demoBase}demo/first-takeoff.mp4`} poster={`${demoBase}demo/first-takeoff-poster.jpg`}
@@ -1161,16 +1163,16 @@ export default function PlanNavigator({
                     </div>
                   </div>
                 )}
-                <button onClick={loadSample} disabled={sampleBusy} title="Open a real floor finish plan and try a takeoff"
+                <button data-bmd-hide onClick={loadSample} disabled={sampleBusy} title="Open a real floor finish plan and try a takeoff"
                   style={{ display: "inline-flex", alignItems: "center", gap: 9, padding: onStartTour ? "9px 16px" : "13px 22px", border: "1px solid var(--ink)", background: onStartTour ? "transparent" : "var(--cobalt)", color: onStartTour ? "var(--ink)" : "var(--paper-bright)", cursor: sampleBusy ? "default" : "pointer", opacity: sampleBusy ? 0.65 : 1, fontWeight: 700, fontSize: onStartTour ? 13 : 14, fontFamily: "var(--f-body)" }}>
                   <Icon name="takeoff" size={16} />{sampleBusy ? "Loading sample…" : onStartTour ? "Just open the sample plan" : "Load sample plan"}
                 </button>
-                <div style={{ fontFamily: "var(--f-body)", fontSize: 12.5, color: "var(--ink-muted)", marginTop: 11, lineHeight: 1.6 }}>
+                <div data-bmd-hide style={{ fontFamily: "var(--f-body)", fontSize: 12.5, color: "var(--ink-muted)", marginTop: 11, lineHeight: 1.6 }}>
                   A real medical-center <strong style={{ color: "var(--ink)" }}>floor finish plan</strong> — its scale is read off the sheet;
                   pick a finish and trace a flooring takeoff in seconds.
                 </div>
                 {onConnect && (
-                  <div style={{ marginTop: 14, fontFamily: "var(--f-body)", fontSize: 12.5, color: "var(--ink-muted)" }}>
+                  <div data-bmd-hide style={{ marginTop: 14, fontFamily: "var(--f-body)", fontSize: 12.5, color: "var(--ink-muted)" }}>
                     Working with Claude, Codex or Cursor?{" "}
                     <button type="button" onClick={onConnect}
                       style={{ border: "none", background: "transparent", padding: 0, color: "var(--cobalt)", cursor: "pointer", fontSize: 12.5, textDecoration: "underline", fontFamily: "var(--f-body)" }}>
@@ -1179,7 +1181,7 @@ export default function PlanNavigator({
                   </div>
                 )}
                 <div style={{ marginTop: 30, fontFamily: "var(--f-mono)", fontSize: 10.5, letterSpacing: "0.1em", color: "var(--text-faint)" }}>
-                  Apache-2.0 open source · an open project by{" "}
+                  {BMD ? "Built on OpenTakeoff · " : ""}Apache-2.0 open source · an open project by{" "}
                   <a href="https://kentucky-ai.com" target="_blank" rel="noopener" style={{ color: "var(--ink-muted)" }}>Kentucky&nbsp;AI</a>
                 </div>
               </div>
@@ -1309,16 +1311,16 @@ export default function PlanNavigator({
             </button>
           </span>
         ) : (
-          <button onClick={doLinkFolder} disabled={working}
+          <button data-bmd-hide onClick={doLinkFolder} disabled={working}
             title="Pick a folder your team already syncs — the takeoff syncs through it as one JSON file, no credentials involved"
             style={{ ...ctrlBtn, opacity: working ? 0.5 : 1 }}>Sync through a folder…</button>
         ))}
         {onClearWorkspace && (
-          <button onClick={() => setConfirmClear(true)} disabled={working}
+          <button data-bmd-hide onClick={() => setConfirmClear(true)} disabled={working}
             title="Remove every stored PDF and reset the takeoff — a snapshot of a non-empty takeoff is saved first (Revisions restores it)"
             style={{ ...ctrlBtn, border: "1px solid var(--c-danger)", color: "var(--c-danger)", opacity: working ? 0.5 : 1 }}>Clear workspace…</button>
         )}
-        <button onClick={() => setConfirmBulk(true)} disabled={!mSel.length || working}
+        <button data-bmd-hide onClick={() => setConfirmBulk(true)} disabled={!mSel.length || working}
           style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", border: "1px solid var(--ink)", background: mSel.length && !working ? "var(--ink)" : "var(--ink-faint)", color: "var(--paper-bright)", cursor: mSel.length && !working ? "pointer" : "default", fontWeight: 700, fontSize: 13 }}>
           Remove {mSel.length || ""} selected
         </button>

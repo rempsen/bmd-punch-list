@@ -19,6 +19,8 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
 export default defineConfig({
   // BMD change: served from the BMD Projects site under /takeoff/, not from a site root.
   base: "/takeoff/",
+  // BMD change: the BMD Projects address and public key come from the BMD app's own .env at the repository root.
+  envDir: "../../..",
   plugins: [react()],
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   // On-device OCR (#469): ppu-paddle-ocr imports the bare `onnxruntime-web`,
