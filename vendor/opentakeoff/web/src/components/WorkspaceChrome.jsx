@@ -13,6 +13,7 @@ export function WorkspaceChrome({ title, onOpen, onNavigate, navigationOpen, onT
     <header className="calm-header">
       {/* BMD change: BMD name, with the credit OpenTakeoff's licence asks to keep visible */}
       {BMD ? <strong className="calm-brand" title="Built on OpenTakeoff (Apache-2.0), an open project by Kentucky AI">BMD <span>Takeoff</span><small>Built on OpenTakeoff</small></strong> : <strong className="calm-brand">open<span>takeoff</span></strong>}
+      {BMD ? <a className="calm-bmd-back" href={`?project=${encodeURIComponent(new URLSearchParams(window.location.search).get("project") || "")}`} title="Back to the simple takeoff screen. The same takeoff opens there.">← Simple view</a> : null}
       <div className="calm-project" title={title}><span>{title || "Untitled workspace"}</span><small>{BMD ? "Saved in BMD Projects" : "Premium workspace"}</small></div>
       <div className="calm-header-actions">
         <button type="button" onClick={onOpen} title="Open plans"><Icon name="plus" size={16} /><span>Open</span></button>

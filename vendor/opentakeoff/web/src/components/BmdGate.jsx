@@ -2,6 +2,7 @@
 // BMD Projects, and only then shows the canvas.
 import React, { useEffect, useRef, useState } from "react";
 import TakeoffCanvas from "../pages/TakeoffCanvas.jsx";
+import SimpleTakeoff from "../pages/SimpleTakeoff.jsx";
 import BmdBanner from "./BmdBanner.jsx";
 import { setActiveStore } from "../lib/store.js";
 import { bmdClient } from "../lib/bmd/bmdClient.js";
@@ -31,7 +32,7 @@ function tellOpener(projectId, version) {
   }
 }
 
-export default function BmdGate({ projectId }) {
+export default function BmdGate({ projectId, advanced = false }) {
   const [gate, setGate] = useState({ status: "checking" });
   const [save, setSave] = useState({ kind: "idle" });
   const storeRef = useRef(null);
@@ -85,7 +86,9 @@ export default function BmdGate({ projectId }) {
   return (
     <>
       <BmdBanner state={save} readOnly={gate.status === "readonly"} store={storeRef.current} api={apiRef.current} />
-      <TakeoffCanvas key={`bmd:${projectId}`} />
+      {advanced
+        ? <TakeoffCanvas key={`bmd:${projectId}`} />
+        : <SimpleTakeoff key={`simple:${projectId}`} projectId={projectId} readOnly={gate.status === "readonly"} saveState={save} />}
     </>
   );
 }

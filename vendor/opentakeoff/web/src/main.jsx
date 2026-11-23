@@ -486,7 +486,7 @@ function App() {
   const projectId = projectIdFromUrl();
   // BMD change: in the BMD Projects build the workspace always belongs to a BMD project. There is no anonymous,
   // browser-only workspace, so nobody can do a takeoff that is saved nowhere but their own browser.
-  if (BMD) return <BmdGate projectId={projectId} />;
+  if (BMD) return <BmdGate projectId={projectId} advanced={new URLSearchParams(window.location.search).get("view") === "advanced"} />;   // BMD change: the simple screen is the default
   // ?project= deep link → the cloud project.
   if (projectId && isGoogleConfigured()) return <ProjectGate projectId={projectId} />;
   // Otherwise the anonymous local canvas is the default landing screen —
