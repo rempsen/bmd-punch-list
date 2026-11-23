@@ -26,8 +26,10 @@ export type Material = {
   price_date: string | null;
   price_source: string | null;
   notes: string | null;
+  /** False for a record imported from QuickBooks, which holds no units, until someone confirms the unit. */
+  uom_confirmed: boolean;
 };
-export type LabourRate = { id: string; name: string; uom: Uom; unit_cost_cents: number | null; cost_code: string | null; active: boolean };
+export type LabourRate = { id: string; name: string; uom: Uom; unit_cost_cents: number | null; cost_code: string | null; active: boolean; uom_confirmed: boolean };
 export type TemplateComponent = {
   id?: string;
   kind: "material" | "labour" | "fixed";
@@ -72,9 +74,9 @@ const list = <T,>(key: string, table: string, select: string, order: string) =>
 
 export const useSuppliers = list<Supplier>("suppliers", "suppliers", "id,name,contact_name,email,phone,account_number,notes,active", "name");
 export const useCostCodes = list<CostCode>("cost-codes", "cost_codes", "code,name,qbo_item_id", "sort_order");
-export const useLabourRates = list<LabourRate>("labour", "labour_rates", "id,name,uom,unit_cost_cents,cost_code,active", "name");
+export const useLabourRates = list<LabourRate>("labour", "labour_rates", "id,name,uom,unit_cost_cents,cost_code,active,uom_confirmed", "name");
 const MATERIAL_COLS =
-  "id,category,name,manufacturer,product_line,colour,sku,supplier_id,cost_uom,unit_cost_cents,purchase_uom,coverage_per_purchase_unit,coverage_uom,pst_applies,default_waste_pct,cost_code,active,price_date,price_source,notes";
+  "id,category,name,manufacturer,product_line,colour,sku,supplier_id,cost_uom,unit_cost_cents,purchase_uom,coverage_per_purchase_unit,coverage_uom,pst_applies,default_waste_pct,cost_code,active,price_date,price_source,notes,uom_confirmed";
 export const useMaterials = list<Material>("materials", "catalogue_materials", MATERIAL_COLS, "name");
 
 const COMPONENT_COLS = "id,kind,label,source,catalogue_material_id,labour_rate_id,unit_cost_cents,cost_uom,qty_per_driver,waste_pct,round_up,pst_applies,on_gross,sort_order";

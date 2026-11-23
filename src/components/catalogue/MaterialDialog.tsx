@@ -94,6 +94,7 @@ export function MaterialDialog({
         active: f.active,
         price_date: priceChanged && price != null ? new Date().toISOString().slice(0, 10) : (material?.price_date ?? null),
         price_source: f.price_source.trim() || null,
+        uom_confirmed: true,   // saving from this window means a person has looked at the unit
         notes: f.notes.trim() || null,
       });
       toast.success(material ? "Material saved" : "Material added");

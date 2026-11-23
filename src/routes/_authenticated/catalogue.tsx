@@ -92,6 +92,7 @@ function CataloguePage() {
     );
   }, [materials, q, cat, showInactive]);
   const supplierName = (id: string | null) => suppliers.find((s) => s.id === id)?.name ?? "—";
+  const unconfirmed = materials.filter((m) => m.active && !m.uom_confirmed).length + labour.filter((l) => l.active && !l.uom_confirmed).length;
   const unknownCount = materials.filter((m) => m.active && m.unit_cost_cents == null).length + labour.filter((l) => l.active && l.unit_cost_cents == null).length;
 
   if (!canSee) return <p className="p-6 text-sm text-muted-foreground">You don't have access to the catalogue.</p>;
@@ -108,7 +109,7 @@ function CataloguePage() {
     <div>
       <PageHeader
         title="Catalogue"
-        subtitle={unknownCount ? `${unknownCount} ${unknownCount === 1 ? "price is" : "prices are"} still unknown` : "Materials, labour rates and assemblies used to build estimates"}
+        subtitle={[unknownCount ? `${unknownCount} ${unknownCount === 1 ? "price is" : "prices are"} still unknown` : null, unconfirmed ? `${unconfirmed} imported ${unconfirmed === 1 ? "item needs its" : "items need their"} unit confirmed` : null].filter(Boolean).join(" · ") || "Materials, labour rates and assemblies used to build estimates"}
       />
       <div className="p-4 md:p-6">
         {error && <p className="mb-3 text-sm text-destructive">Could not load the catalogue: {errText(error)}</p>}
@@ -176,6 +177,7 @@ function CataloguePage() {
                             {m.name}
                           </button>
                           <div className="text-xs text-muted-foreground">{[m.manufacturer, m.product_line, m.colour, m.sku].filter(Boolean).join(" · ")}</div>
+                          {!m.uom_confirmed && <ConfirmUnit onClick={() => setMaterial(m)} />}
                         </td>
                         <td className={td}>{categoryLabel(m.category)}</td>
                         <td className={td}>{supplierName(m.supplier_id)}</td>
@@ -230,6 +232,7 @@ function CataloguePage() {
                         <button type="button" onClick={() => setRate(l)} className="text-left font-medium hover:underline">
                           {l.name}
                         </button>
+                        {!l.uom_confirmed && <ConfirmUnit onClick={() => setRate(l)} />}
                       </td>
                       <td className={`${td} tabular-nums`}>{canEdit ? <CostCell kind="labour" id={l.id} name={l.name} cents={l.unit_cost_cents} uom={l.uom} onSaved={refresh} /> : l.unit_cost_cents == null ? <Unknown /> : priceLabel(l.unit_cost_cents, l.uom)}</td>
                       <td className={td}>{l.cost_code ?? "—"}</td>
@@ -338,6 +341,15 @@ function CataloguePage() {
   );
 }
 
+/** Shown on a record imported from QuickBooks until someone opens it, checks the unit and saves. */
+function ConfirmUnit({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className="ml-0 mt-0.5 block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-200">
+      Unit to confirm
+    </button>
+  );
+}
+
 function LabourDialog({ rate, costCodes, canEdit, onClose, onSaved }: { rate: LabourRate | null; costCodes: { code: string; name: string; qbo_item_id: string | null }[]; canEdit: boolean; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(rate?.name ?? "");
   const [uom, setUom] = useState<Uom>(rate?.uom ?? "SF");
@@ -350,7 +362,7 @@ function LabourDialog({ rate, costCodes, canEdit, onClose, onSaved }: { rate: La
     if (price.trim() !== "" && cents == null) return void toast.error("Enter the cost as a dollar amount, or leave it blank if unknown");
     setBusy(true);
     try {
-      await saveLabourRate(rate?.id ?? null, { name: name.trim(), uom, unit_cost_cents: cents, cost_code: code, active });
+      await saveLabourRate(rate?.id ?? null, { name: name.trim(), uom, unit_cost_cents: cents, cost_code: code, active, uom_confirmed: true });
       toast.success("Labour rate saved");
       onSaved();
     } catch (e) {

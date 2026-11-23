@@ -138,7 +138,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       } else if (target.kind === "new_material" && finish) {
         const id = await saveMaterial(null, {
           category: target.category as never, name: target.name, manufacturer: null, product_line: null, colour: null, sku: null, supplier_id: null, cost_uom: target.uom, unit_cost_cents: cents, purchase_uom: target.uom,
-          coverage_per_purchase_unit: null, coverage_uom: null, pst_applies: false, default_waste_pct: l.waste_pct, cost_code: l.cost_code, active: true, price_date: new Date().toISOString().slice(0, 10), price_source: "Entered on an estimate", notes: null,
+          coverage_per_purchase_unit: null, coverage_uom: null, pst_applies: false, default_waste_pct: l.waste_pct, cost_code: l.cost_code, active: true, price_date: new Date().toISOString().slice(0, 10), price_source: "Entered on an estimate", notes: null, uom_confirmed: true,
         });
         await saveFinish(finish.id, { project_id: finish.project_id, tag: finish.tag, description: finish.description, assembly_template_id: finish.assembly_template_id, catalogue_material_id: id, sort_order: finish.sort_order });
         patch = { unit_cost_cents: cents, cost_overridden: false, catalogue_material_id: id, kind: "material", source: "catalogue" };

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { db, errText } from "@/lib/platform/db";
 import { qboConnectStart, qboDisconnect, qboPullProducts, qboStatus } from "@/lib/qbo/qbo.functions";
+import { planSummary, type Action } from "@/lib/sync/import";
+import { applyImport, loadImportPlan } from "@/lib/sync/import.data";
 
 const KINDS: [string, string][] = [
   ["material", "products"],
@@ -38,6 +40,34 @@ export function QuickBooksPanel({ result, message }: { result?: string | undefin
     },
   });
   const [busy, setBusy] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Action[] | null>(null);   // the dry run on screen
+
+  const preview = async () => {
+    setBusy("preview");
+    try {
+      setPlan((await loadImportPlan("quickbooks")).plan);
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const runImport = async () => {
+    if (!plan) return;
+    const n = planSummary(plan).writes;
+    if (!window.confirm(`Import ${n.toLocaleString("en-CA")} records into BMD Projects? Nothing in QuickBooks is changed. Where BMD already has a value, BMD's value stays.`)) return;
+    setBusy("import");
+    try {
+      const r = await applyImport("quickbooks", plan);
+      toast.success(`Imported: ${r.created.toLocaleString("en-CA")} added, ${r.linked.toLocaleString("en-CA")} matched to what BMD already had.`, { duration: 9000 });
+      setPlan(null);
+      for (const k of ["catalogue", "sync", "qbo-staged"]) void qc.invalidateQueries({ queryKey: [k] });
+    } catch (e) {
+      toast.error(`The import stopped: ${errText(e)}. What was imported before the stop is kept; run the dry run again to see what is left.`, { duration: 12000 });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   useEffect(() => {
     if (result === "connected") toast.success("QuickBooks connected");
@@ -130,10 +160,97 @@ export function QuickBooksPanel({ result, message }: { result?: string | undefin
         </>
       )}
       {stagedTotal > 0 && (
-        <p className="mt-3 rounded-md bg-muted/60 p-3 text-sm">
-          Held for review from the last read: {pullSummary(staged ?? {})}. These are a copy. Nothing has been added to the catalogue, and nothing in QuickBooks has changed.
-        </p>
+        <div className="mt-3 rounded-md bg-muted/60 p-3 text-sm">
+          <p>Held for review from the last read: {pullSummary(staged ?? {})}. These are a copy. Nothing in QuickBooks has changed.</p>
+          {s.canPull && (
+            <Button variant="outline" className="mt-2 h-10 bg-background" disabled={busy !== null} onClick={() => void preview()}>
+              {busy === "preview" ? "Working it out…" : plan ? "Run the dry run again" : "Dry run: show what an import would do"}
+            </Button>
+          )}
+        </div>
       )}
+      {plan && <DryRun plan={plan} busy={busy !== null} onImport={() => void runImport()} onClose={() => setPlan(null)} />}
     </section>
+  );
+}
+
+const n = (count: number, one: string, many: string) => `${count.toLocaleString("en-CA")} ${count === 1 ? one : many}`;
+const ROWS: [keyof ReturnType<typeof planSummary>["byKind"], string][] = [
+  ["material", "Materials"],
+  ["labour", "Labour rates"],
+  ["supplier", "Suppliers"],
+  ["cost_code", "Cost codes"],
+];
+
+/** The dry run: exactly what an import would add, match and leave alone, before anything is written. */
+function DryRun({ plan, busy, onImport, onClose }: { plan: Action[]; busy: boolean; onImport: () => void; onClose: () => void }) {
+  const sum = planSummary(plan);
+  const [show, setShow] = useState<string | null>(null);
+  const listed = show ? plan.filter((a) => `${a.kind}|${a.op}` === show) : [];
+  const cell = (kind: string, op: "create" | "link" | "linked", n: number) =>
+    n === 0 ? (
+      <span className="text-muted-foreground">0</span>
+    ) : (
+      <button type="button" className="font-medium text-primary underline" onClick={() => setShow(show === `${kind}|${op}` ? null : `${kind}|${op}`)}>
+        {n.toLocaleString("en-CA")}
+      </button>
+    );
+  return (
+    <div className="mt-3 rounded-md border border-border p-3 text-sm">
+      <h3 className="font-semibold">Dry run: nothing has been imported yet</h3>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full min-w-[420px] text-sm">
+          <thead className="text-left text-xs text-muted-foreground">
+            <tr>
+              <th className="py-1 font-medium" />
+              <th className="py-1 text-right font-medium">Would be added</th>
+              <th className="py-1 text-right font-medium">Matched to BMD's</th>
+              <th className="py-1 text-right font-medium">Already linked</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {ROWS.map(([k, label]) => (
+              <tr key={k}>
+                <td className="py-1.5">{label}</td>
+                <td className="py-1.5 text-right tabular-nums">{cell(k, "create", sum.byKind[k].create)}</td>
+                <td className="py-1.5 text-right tabular-nums">{cell(k, "link", sum.byKind[k].link)}</td>
+                <td className="py-1.5 text-right tabular-nums">{cell(k, "linked", sum.byKind[k].linked)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {show && (
+        <ul className="mt-2 max-h-56 overflow-y-auto rounded border border-border bg-muted/40 p-2 text-xs">
+          {listed.slice(0, 500).map((a) => (
+            <li key={`${a.kind}-${a.external_id}`} className="py-0.5">
+              {a.name}
+              {typeof a.fields["unit_cost_cents"] === "number" ? ` · $${(a.fields["unit_cost_cents"] / 100).toFixed(2)}` : a.op === "create" && (a.kind === "material" || a.kind === "labour") ? " · cost unknown" : ""}
+              {a.kept?.length ? " · BMD's own value kept" : ""}
+            </li>
+          ))}
+          {listed.length > 500 && <li className="py-0.5 text-muted-foreground">and {(listed.length - 500).toLocaleString("en-CA")} more</li>}
+        </ul>
+      )}
+      <ul className="mt-3 list-disc space-y-1 pl-5 text-muted-foreground">
+        <li>{n(sum.skipped, "QuickBooks item is", "QuickBooks items are")} left where {sum.skipped === 1 ? "it is" : "they are"} (categories, fees, holdback and similar).</li>
+        <li>New materials and labour arrive with the unit still to confirm, because QuickBooks does not hold units.</li>
+        {sum.unknownCosts > 0 && <li>{n(sum.unknownCosts, "arrives", "arrive")} with the cost unknown, because QuickBooks has no cost there. Unknown is not zero.</li>}
+        {sum.kept > 0 && <li>{n(sum.kept, "value differs", "values differ")} from QuickBooks where BMD already has its own. BMD's {sum.kept === 1 ? "stays" : "stay"}.</li>}
+        {sum.duplicates.length > 0 && (
+          <li>
+            {n(sum.duplicates.length, "group looks", "groups look")} like the same product under different names, for example: {sum.duplicates.slice(0, 3).map((g) => g.join(" / ")).join("; ")}. They are all imported; merge them in the catalogue afterwards.
+          </li>
+        )}
+      </ul>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button className="h-11" disabled={busy || sum.writes === 0} onClick={onImport}>
+          {sum.writes === 0 ? "Nothing to import" : `Import ${sum.writes.toLocaleString("en-CA")} records`}
+        </Button>
+        <Button variant="ghost" className="h-11" disabled={busy} onClick={onClose}>
+          Close
+        </Button>
+      </div>
+    </div>
   );
 }

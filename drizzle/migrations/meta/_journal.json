@@ -337,6 +337,13 @@
       "when": 1795373521824,
       "tag": "0047_qbo_connection",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795373581824,
+      "tag": "0048_sync_import",
+      "breakpoints": true
     }
   ]
 }
