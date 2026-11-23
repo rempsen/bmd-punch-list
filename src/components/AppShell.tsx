@@ -25,7 +25,7 @@ import {
 import { roleLabel } from "@/lib/roles";
 import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
-import { settingsGroup } from "@/lib/settings-tabs";
+import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { cn } from "@/lib/utils";
 
@@ -78,8 +78,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tabNow = useRouterState({ select: (s) => (s.location.search as { tab?: string }).tab });
-  const onJobs = ["/jobs", "/new-job", "/projects", "/clients", "/pipeline", "/catalogue"].some((p) => pathname.startsWith(p));
-  if (!loading && jobsLoaded && !currentJob && !onJobs) return <Navigate to="/jobs" replace />;
+  // Company-wide screens, company settings included, open without a job chosen.
+  if (!loading && jobsLoaded && !currentJob && needsJob(pathname, tabNow)) return <Navigate to="/jobs" replace />;
 
 
   return (

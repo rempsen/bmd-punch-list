@@ -18,3 +18,18 @@ describe("settings are split into company-wide and this-job", () => {
     expect(settingsHeading("structure", null)).toEqual({ title: "Job settings", subtitle: "No job selected" });
   });
 });
+
+import { needsJob } from "./settings-tabs";
+describe("which screens need a job chosen first", () => {
+  test("company-wide screens, including company settings, open with no job chosen", () => {
+    for (const p of ["/jobs", "/new-job", "/projects/abc", "/clients", "/pipeline", "/catalogue"]) expect(needsJob(p, undefined)).toBe(false);
+    expect(needsJob("/settings", "quotes")).toBe(false);
+    expect(needsJob("/settings", "microsoft")).toBe(false);
+    expect(needsJob("/settings", undefined)).toBe(false);
+  });
+  test("job screens and job settings still ask for a job", () => {
+    for (const p of ["/dashboard", "/board", "/floors", "/documents"]) expect(needsJob(p, undefined)).toBe(true);
+    expect(needsJob("/settings", "structure")).toBe(true);
+    expect(needsJob("/settings", "users")).toBe(true);
+  });
+});

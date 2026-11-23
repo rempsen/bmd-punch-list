@@ -69,7 +69,7 @@ export function ScopeProposals({ projectId, finishCount, onAccepted }: { project
       for (const n of notes) toast.message(n, { duration: 15_000 });
       setBusy("Asking AI what finishes they call for…");
       const res = await run({ data: { projectId, specText, scheduleText: "", sourceNote: names.join(", ") || "pasted text" } });
-      toast.success(res.added ? `${res.added} suggested finishes to review${res.alreadyHad ? ` (${res.alreadyHad} more are already on this job)` : ""}. Read by ${res.model}.` : res.alreadyHad ? `It found ${res.alreadyHad} finishes, all already on this job.` : "No finishes were found in what was read.");
+      toast.success(res.added ? `${res.added} suggested ${res.added === 1 ? "finish" : "finishes"} to review${res.alreadyHad ? ` (${res.alreadyHad} more are already on this job)` : ""}. Read by ${res.model}.` : res.alreadyHad ? `It found ${res.alreadyHad} finishes, all already on this job.` : "No finishes were found in what was read.");
       refresh();
       setOpen(false);
     } catch (e) {
@@ -97,7 +97,7 @@ export function ScopeProposals({ projectId, finishCount, onAccepted }: { project
     <section className="rounded-lg border border-border bg-card p-3">
       <div className="flex flex-wrap items-center gap-2">
         <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden />
-        <p className="min-w-0 flex-1 text-sm">{rows.length ? `${rows.length} finishes suggested by AI from the specs. Nothing is added until you accept it.` : "AI can read the specs and suggest the project's finishes for you to accept or reject."}</p>
+        <p className="min-w-0 flex-1 text-sm">{rows.length ? `${rows.length} ${rows.length === 1 ? "finish" : "finishes"} suggested by AI from the specs. Nothing is added until you accept it.` : "AI can read the specs and suggest the project's finishes for you to accept or reject."}</p>
         <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
           Suggest finishes from the specs
         </Button>
