@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cancelVisitPush, pushVisit } from "@/lib/arriveping/arriveping.functions";
 import { db, errText } from "@/lib/platform/db";
-import { ArrivePingPill, OpenInArrivePing, StatusPill, useProjectVisits, VISIT_LABEL } from "./visit-bits";
-import { applyVisitEvent, arrivepingPill, visitNote, visitRange, visitsCsv, visitTimes, type Visit, type VisitStatus } from "@/lib/visits/logic";
+import { useProjectVisits } from "@/lib/visits/data";
+import { ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
+import { applyVisitEvent, arrivepingPill, visitNote, visitRange, visitsCsv, visitTimes, VISIT_LABEL, type Visit, type VisitStatus } from "@/lib/visits/logic";
 
 const SEE_SETTINGS = "see Company settings → Integrations.";
 

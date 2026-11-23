@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { crewLabel, crewStatusGroups, updatedAt, visitRange, type Visit } from "@/lib/visits/logic";
-import { OpenInArrivePing, StatusPill, useProjectVisits } from "./visit-bits";
+import { useProjectVisits } from "@/lib/visits/data";
+import { OpenInArrivePing, StatusPill } from "./visit-bits";
 
 function VisitRow({ v }: { v: Visit }) {
   const range = visitRange(v.starts_at, v.ends_at);
@@ -24,17 +25,16 @@ function VisitRow({ v }: { v: Visit }) {
 }
 
 /** Who is on site and what is coming, read from the install visits ArrivePing keeps current. Read only: changes are made on the Overview tab. */
-export function CrewStatusPanel({ projectId }: { projectId: string }) {
+export function CrewStatusPanel({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
   const { data: visits = [], isLoading, isError } = useProjectVisits(projectId);
   const [showPast, setShowPast] = useState(false);
+  const headingId = useId();
+  const pastId = useId();
   const { active, upcoming, past } = crewStatusGroups(visits);
   const current = [...active, ...upcoming];
   return (
-    <section
-      className="rounded-lg border border-border bg-card p-4"
-      aria-labelledby="crew-status-h"
-    >
-      <h2 id="crew-status-h" className="font-semibold">
+    <section className="rounded-lg border border-border bg-card p-4" aria-labelledby={headingId}>
+      <h2 id={headingId} className="font-semibold">
         Crew status
       </h2>
       {isLoading ? (
@@ -46,7 +46,9 @@ export function CrewStatusPanel({ projectId }: { projectId: string }) {
       ) : visits.length === 0 ? (
         <>
           <p className="mt-2 text-sm text-muted-foreground">No install visits scheduled.</p>
-          <p className="text-xs text-muted-foreground">Schedule one from the Overview tab.</p>
+          {canEdit && (
+            <p className="text-xs text-muted-foreground">Schedule one from the Overview tab.</p>
+          )}
         </>
       ) : (
         <>
@@ -65,18 +67,16 @@ export function CrewStatusPanel({ projectId }: { projectId: string }) {
                 variant="ghost"
                 size="sm"
                 aria-expanded={showPast}
-                aria-controls="crew-status-past"
+                aria-controls={pastId}
                 onClick={() => setShowPast((s) => !s)}
               >
                 {showPast ? "Hide past visits" : `Show past visits (${past.length})`}
               </Button>
-              {showPast && (
-                <ul id="crew-status-past" className="divide-y divide-border">
-                  {past.map((v) => (
-                    <VisitRow key={v.id} v={v} />
-                  ))}
-                </ul>
-              )}
+              <ul id={pastId} hidden={!showPast} className="divide-y divide-border">
+                {past.map((v) => (
+                  <VisitRow key={v.id} v={v} />
+                ))}
+              </ul>
             </div>
           )}
         </>

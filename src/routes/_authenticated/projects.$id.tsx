@@ -382,7 +382,7 @@ function SiteTab({ project, canEdit }: { project: PipelineProject; canEdit: bool
   const isMine = jobs.some((j) => j.id === project.id);
   const won = project.stage === "won" || project.stage === "in_progress" || project.stage === "closed";
 
-  const crew = <CrewStatusPanel projectId={project.id} />;
+  const crew = <CrewStatusPanel projectId={project.id} canEdit={canEdit} />;
   if (project.floorCount > 0)
     return (
       <div className="space-y-4">

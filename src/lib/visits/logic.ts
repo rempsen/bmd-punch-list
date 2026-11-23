@@ -1,6 +1,6 @@
 /** Install visits and what ArrivePing tells us about them. */
 export type VisitStatus = "scheduled" | "en_route" | "arrived" | "completed" | "cancelled";
-export type Visit = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null; arriveping_job_id: string | null; status: VisitStatus; arriveping_status: string | null; arriveping_assigned_to: string | null; arriveping_last_event_at?: string | null };
+export type Visit = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null; arriveping_job_id: string | null; status: VisitStatus; arriveping_status: string | null; arriveping_assigned_to: string | null; arriveping_last_event_at: string | null };
 
 /** Compares the secret a caller sent with ours without leaking where they differ. No secret configured means nobody gets in. */
 export function secretMatches(got: string | null | undefined, expected: string | null | undefined): boolean {
@@ -195,6 +195,9 @@ export function visitRange(startsAt: string, endsAt: string | null, timeZone = S
   return `${day(s, years)} – ${day(e, years)}, ${time.format(s)} – ${time.format(e)}`;
 }
 
+/** What the crew calls each BMD visit status. */
+export const VISIT_LABEL: Record<VisitStatus, string> = { scheduled: "Scheduled", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled" };
+
 /** What ArrivePing says about a visit, in the crew's words. */
 export const AP_LABEL: Record<string, string> = { scheduled: "Scheduled", assigned: "Assigned", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled", cancel_requested: "Cancel requested" };
 
@@ -236,5 +239,5 @@ export function updatedAt(at: string, now: Date = new Date(), timeZone = SCHEDUL
 export function crewLabel(v: Pick<Visit, "status" | "arriveping_job_id" | "arriveping_status">): string {
   const ap = v.arriveping_job_id && v.arriveping_status && Object.hasOwn(AP_LABEL, v.arriveping_status) ? AP_LABEL[v.arriveping_status]! : null;
   if (ap && (v.status === "scheduled" || v.arriveping_status === "cancel_requested")) return ap;
-  return AP_LABEL[v.status]!;
+  return VISIT_LABEL[v.status];
 }

@@ -1,35 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { apWorkOrderUrl } from "@/lib/arriveping/core";
-import { db } from "@/lib/platform/db";
-import type { Visit, VisitStatus } from "@/lib/visits/logic";
-
-/** What the crew calls each BMD visit status. */
-export const VISIT_LABEL: Record<VisitStatus, string> = {
-  scheduled: "Scheduled",
-  en_route: "On the way",
-  arrived: "On site",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
-
-/** One query for a project's visits, shared by the Overview panel and the Site tab so both stay in step. */
-export function useProjectVisits(projectId: string) {
-  return useQuery({
-    queryKey: ["visits", projectId],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from("install_visits")
-        .select(
-          "id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status",
-        )
-        .eq("project_id", projectId)
-        .order("starts_at");
-      if (error) throw error;
-      return (data ?? []) as Visit[];
-    },
-  });
-}
 
 /** The visit's own status, as a small grey tag. */
 export function StatusPill({ label }: { label: string }) {
