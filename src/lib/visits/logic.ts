@@ -154,13 +154,31 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
   return { ok: true, patch: { starts_at: ev.startsAt, ends_at: endsAt, ...common }, event: { status: "rescheduled", note: `Rescheduled in ArrivePing to ${scheduleRange(ev.startsAt, endsAt, timeZone)}`, at } };
 }
 
-/** The start and end of a visit from the schedule form, in the browser's time. No end date means the same day; no end time means no end. */
-export function visitTimes(form: { date: string; endDate?: string; start: string; end: string }): { startsAt: Date; endsAt: Date | null } | { error: string } {
-  const startsAt = new Date(`${form.date}T${form.start}`);
-  if (!form.date || !form.start || Number.isNaN(startsAt.getTime())) return { error: "Choose a date and start time." };
+/** The instant a wall-clock date and time ("2026-12-01", "08:00") names in a time zone, or null when either is unreadable. */
+function zonedInstant(date: string, time: string, timeZone: string): Date | null {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const t = /^(\d{2}):(\d{2})/.exec(time);
+  if (!d || !t) return null;
+  const wall = Date.UTC(+d[1]!, +d[2]! - 1, +d[3]!, +t[1]!, +t[2]!);
+  if (Number.isNaN(wall)) return null;
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" });
+  // How far the zone's clock is ahead of UTC at a given instant.
+  const offset = (ms: number) => {
+    const p = Object.fromEntries(parts.formatToParts(new Date(ms)).map((x) => [x.type, x.value]));
+    return Date.UTC(+p["year"]!, +p["month"]! - 1, +p["day"]!, +p["hour"]!, +p["minute"]!, +p["second"]!) - ms;
+  };
+  // Two passes settle the offset for that date, daylight saving included.
+  const first = wall - offset(wall);
+  return new Date(wall - offset(first));
+}
+
+/** The start and end of a visit from the schedule form, read as site time (Winnipeg). No end date means the same day; no end time means no end. */
+export function visitTimes(form: { date: string; endDate?: string; start: string; end: string }, timeZone = SCHEDULE_TZ): { startsAt: Date; endsAt: Date | null } | { error: string } {
+  const startsAt = zonedInstant(form.date, form.start, timeZone);
+  if (!startsAt) return { error: "Choose a date and start time." };
   if (!form.end) return { startsAt, endsAt: null };
-  const endsAt = new Date(`${form.endDate || form.date}T${form.end}`);
-  if (Number.isNaN(endsAt.getTime())) return { error: "Choose a date and start time." };
+  const endsAt = zonedInstant(form.endDate || form.date, form.end, timeZone);
+  if (!endsAt) return { error: "Choose a date and start time." };
   if (endsAt < startsAt) return { error: "The end is before the start." };
   return { startsAt, endsAt };
 }
@@ -187,4 +205,10 @@ export function arrivepingBadge(v: { arriveping_job_id: string | null; arrivepin
   if (status === "assigned" && v.arriveping_assigned_to) return `Assigned to ${v.arriveping_assigned_to}`;
   if (status === "scheduled") return "Scheduled in ArrivePing";
   return Object.hasOwn(AP_LABEL, status) ? AP_LABEL[status]! : "In ArrivePing";
+}
+
+/** The ArrivePing pill to show beside the visit's own status, or null when there is none or it would only repeat that status ("On site" twice). */
+export function arrivepingPill(v: { status: VisitStatus; arriveping_job_id: string | null; arriveping_status: string | null; arriveping_assigned_to: string | null }): string | null {
+  const badge = arrivepingBadge(v);
+  return badge != null && v.arriveping_status === v.status && v.status !== "scheduled" ? null : badge;
 }

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { cancelVisitPush, pushVisit } from "@/lib/arriveping/arriveping.functions";
 import { apWorkOrderUrl } from "@/lib/arriveping/core";
 import { db, errText } from "@/lib/platform/db";
-import { applyVisitEvent, arrivepingBadge, visitNote, visitRange, visitsCsv, visitTimes, type Visit, type VisitStatus } from "@/lib/visits/logic";
+import { applyVisitEvent, arrivepingPill, visitNote, visitRange, visitsCsv, visitTimes, type Visit, type VisitStatus } from "@/lib/visits/logic";
 
 const LABEL: Record<VisitStatus, string> = { scheduled: "Scheduled", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled" };
 const SEE_SETTINGS = "see Company settings → Integrations.";
@@ -93,7 +93,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
     try {
       const sent = await push(v.id);
       if (sent.outcome === "sent") toast.success("Sent to ArrivePing.");
-      else if (sent.outcome === "failed") toast.warning(`Push failed — ${SEE_SETTINGS}`, { description: sent.error });
+      else if (sent.outcome === "failed") toast.warning(`Couldn't send to ArrivePing — ${SEE_SETTINGS}`, { description: sent.error });
       else toast.info("Already in ArrivePing.");
     } finally {
       refresh();
@@ -134,7 +134,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
         if (v.arriveping_job_id) failure = errText(e);
       }
       if (failure) toast.warning(`Cancelled here. ArrivePing wasn't told — ${SEE_SETTINGS}`, { description: failure });
-      else toast.success(told ? "Visit cancelled and ArrivePing told." : "Marked cancelled.");
+      else toast.success(told ? "Visit cancelled. ArrivePing asked to cancel too." : "Marked cancelled.");
     } finally {
       refresh();
       setBusy(false);
@@ -156,12 +156,12 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex-1 font-semibold">Install visits</h2>
         {unsent.length > 0 && (
-          <Button size="sm" variant="outline" onClick={exportCsv} title="Export unsent visits as CSV" aria-label="Export unsent visits as CSV">
+          <Button size="sm" variant="outline" onClick={exportCsv} title="Export unsent visits as CSV">
             Export for ArrivePing
           </Button>
         )}
         {canEdit && !form && (
-          <Button size="sm" onClick={() => setForm(blankForm())}>
+          <Button size="sm" disabled={busy} onClick={() => setForm(blankForm())}>
             Schedule install
           </Button>
         )}
@@ -176,7 +176,12 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
         >
           <label className="text-xs font-medium">
             Start date
-            <Input className="mt-1" type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value, endDate: form.endDateEdited ? form.endDate : e.target.value })} />
+            <Input className="mt-1" type="date" required value={form.date} onChange={(e) => {
+                const date = e.target.value;
+                // The end date follows the start until it is edited, and never stays behind a start moved past it.
+                const endDate = !form.endDateEdited || (date && form.endDate < date) ? date : form.endDate;
+                setForm({ ...form, date, endDate });
+              }} />
           </label>
           <label className="text-xs font-medium">
             End date
@@ -217,14 +222,14 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
       ) : (
         <ul className="mt-3 divide-y divide-border">
           {visits.map((v) => {
-            const ap = arrivepingBadge(v);
-            // When ArrivePing's status is the visit's own (both "On site", say), the second pill only repeats the first.
-            const showAp = ap != null && !(v.arriveping_status === v.status && v.status !== "scheduled");
+            const ap = arrivepingPill(v);
+            const range = visitRange(v.starts_at, v.ends_at);
+            const forVisit = <span className="sr-only">, {range}</span>;
             const who = [v.crew, v.site_contact].filter(Boolean).join(" · ");
             return (
               <li key={v.id} className={`flex flex-wrap items-start gap-x-3 gap-y-2 py-3 text-sm ${v.status === "cancelled" ? "opacity-60" : ""}`}>
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="font-medium">{visitRange(v.starts_at, v.ends_at)}</p>
+                  <p className="font-medium">{range}</p>
                   {who && <p className="truncate text-xs text-muted-foreground">{who}</p>}
                   {v.notes && (
                     <p className="truncate text-xs text-muted-foreground" title={v.notes}>
@@ -233,7 +238,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
                   )}
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{LABEL[v.status]}</span>
-                    {showAp && <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">{ap}</span>}
+                    {ap && <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">{ap}</span>}
                     {v.arriveping_job_id && (
                       <a href={apWorkOrderUrl(v.arriveping_job_id)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline">
                         Open in ArrivePing
@@ -248,18 +253,22 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
                     {v.status === "scheduled" && !v.arriveping_job_id && (
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => void send(v)}>
                         Send to ArrivePing
+                        {forVisit}
                       </Button>
                     )}
                     {v.status !== "arrived" && (
                       <Button size="sm" variant="outline" disabled={busy} onClick={() => void move(v, "arrived")}>
                         On site
+                        {forVisit}
                       </Button>
                     )}
                     <Button size="sm" variant="outline" disabled={busy} onClick={() => void move(v, "completed")}>
                       Completed
+                      {forVisit}
                     </Button>
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => window.confirm("Cancel this visit?") && void move(v, "cancelled")}>
                       Cancel visit
+                      {forVisit}
                     </Button>
                   </div>
                 )}

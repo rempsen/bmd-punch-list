@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_LABEL, applyInboundEvent, applyVisitEvent, arrivepingBadge, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, visitRange, visitTimes, visitsCsv } from "./logic";
+import { AP_LABEL, applyInboundEvent, applyVisitEvent, arrivepingBadge, arrivepingPill, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, visitRange, visitTimes, visitsCsv } from "./logic";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100", arriveping_job_id: "AP-77", status: "scheduled" as const, arriveping_status: null, arriveping_assigned_to: null };
 
@@ -185,20 +185,43 @@ describe("polish: export safety", () => {
 });
 
 describe("scheduling a visit", () => {
+  const H = 3600_000;
+  const wall = (d: Date, timeZone: string) => new Intl.DateTimeFormat("en-CA", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(d);
+  test("what the estimator types is site time in Winnipeg, whatever zone the browser is in", () => {
+    const r = visitTimes({ date: "2026-12-01", start: "08:00", end: "16:00" });
+    if ("error" in r) throw new Error(r.error);
+    expect(wall(r.startsAt, "America/Winnipeg")).toBe("2026-12-01, 08:00");
+    expect(wall(r.endsAt!, "America/Winnipeg")).toBe("2026-12-01, 16:00");
+    expect(r).toEqual(visitTimes({ date: "2026-12-01", start: "08:00", end: "16:00" }, "America/Winnipeg"));
+  });
+  test("a fixed-offset zone and UTC give exact instants", () => {
+    const six = visitTimes({ date: "2026-12-01", start: "08:00", end: "16:00" }, "Etc/GMT+6");
+    if ("error" in six) throw new Error(six.error);
+    expect(six.startsAt.toISOString()).toBe("2026-12-01T14:00:00.000Z");
+    const utc = visitTimes({ date: "2026-12-01", start: "08:00", end: "16:00" }, "UTC");
+    if ("error" in utc) throw new Error(utc.error);
+    expect(utc.startsAt.toISOString()).toBe("2026-12-01T08:00:00.000Z");
+    expect(utc.endsAt!.toISOString()).toBe("2026-12-01T16:00:00.000Z");
+  });
+  test("daylight saving is taken from the date itself", () => {
+    const winter = visitTimes({ date: "2026-12-01", start: "08:00", end: "" }, "Europe/London");
+    const summer = visitTimes({ date: "2026-07-01", start: "08:00", end: "" }, "Europe/London");
+    if ("error" in winter || "error" in summer) throw new Error("expected times");
+    expect(winter.startsAt.toISOString()).toBe("2026-12-01T08:00:00.000Z");
+    expect(summer.startsAt.toISOString()).toBe("2026-07-01T07:00:00.000Z");
+  });
   test("a multi-day visit runs from the first day's start to the last day's end", () => {
     const r = visitTimes({ date: "2026-12-01", endDate: "2026-12-04", start: "08:00", end: "16:00" });
     if ("error" in r) throw new Error(r.error);
-    expect(r.endsAt).not.toBeNull();
-    expect(r.endsAt!.getTime() - r.startsAt.getTime()).toBe((3 * 24 + 8) * 3600_000);
-    expect(r.startsAt.getDate()).toBe(1);
-    expect(r.startsAt.getHours()).toBe(8);
+    expect(wall(r.startsAt, "America/Winnipeg")).toBe("2026-12-01, 08:00");
+    expect(wall(r.endsAt!, "America/Winnipeg")).toBe("2026-12-04, 16:00");
+    expect(r.endsAt!.getTime() - r.startsAt.getTime()).toBe((3 * 24 + 8) * H);
   });
   test("the end date defaults to the start date", () => {
     const r = visitTimes({ date: "2026-12-01", start: "08:00", end: "16:00" });
     if ("error" in r) throw new Error(r.error);
-    expect(r.endsAt!.getTime() - r.startsAt.getTime()).toBe(8 * 3600_000);
-    const blank = visitTimes({ date: "2026-12-01", endDate: "", start: "08:00", end: "16:00" });
-    expect(blank).toEqual(r);
+    expect(r.endsAt!.getTime() - r.startsAt.getTime()).toBe(8 * H);
+    expect(visitTimes({ date: "2026-12-01", endDate: "", start: "08:00", end: "16:00" })).toEqual(r);
   });
   test("no end time means no end", () => {
     const r = visitTimes({ date: "2026-12-01", endDate: "2026-12-04", start: "08:00", end: "" });
@@ -248,5 +271,19 @@ describe("a visit's dates on its row", () => {
   });
   test("no end shows just the start", () => {
     expect(sp(visitRange("2026-12-01T08:00:00Z", null, "UTC"))).toBe("Dec 1, 2026, 8:00 a.m.");
+  });
+});
+
+describe("the ArrivePing pill beside the visit's status", () => {
+  const v = { status: "scheduled" as const, arriveping_job_id: "wo_9", arriveping_status: "scheduled", arriveping_assigned_to: null };
+  test("hidden when it only repeats the visit's own status, or when the visit was never sent", () => {
+    expect(arrivepingPill({ ...v, status: "en_route", arriveping_status: "en_route" })).toBeNull();
+    expect(arrivepingPill({ ...v, status: "arrived", arriveping_status: "arrived" })).toBeNull();
+    expect(arrivepingPill({ ...v, arriveping_job_id: null })).toBeNull();
+  });
+  test("shown when it adds something", () => {
+    expect(arrivepingPill(v)).toBe("Scheduled in ArrivePing");
+    expect(arrivepingPill({ ...v, arriveping_status: "assigned", arriveping_assigned_to: "Brodie" })).toBe("Assigned to Brodie");
+    expect(arrivepingPill({ ...v, status: "cancelled", arriveping_status: "cancel_requested" })).toBe("Cancel requested");
   });
 });
