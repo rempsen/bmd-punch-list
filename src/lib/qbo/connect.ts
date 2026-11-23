@@ -152,11 +152,13 @@ type QboTxn = { TxnDate?: string; VendorRef?: Ref; EntityRef?: Ref & { type?: st
 
 /**
  * Reads bills and expenses to tell a material supplier from a restaurant or a software subscription.
- * A line counts as materials when it names a product or cost-code item, or is booked to a cost-of-goods-sold account.
+ * A line counts as materials when it names a product, or is booked to a supplies-and-materials cost account.
+ * Subcontractors, labour, freight and other cost-of-sales accounts do not count: those vendors are installers,
+ * couriers and the like, not suppliers.
  */
-export function vendorEvidence(txns: QboTxn[], items: { Id?: string; Type?: string; Name?: string }[], accounts: { Id?: string; AccountType?: string }[]): Map<string, VendorEvidence> {
-  const jobItems = new Set(items.filter((i) => { const k = classifyItem(i as QboItem).kind; return k === "material" || k === "labour" || k === "cost_code"; }).map((i) => String(i.Id)));
-  const cogs = new Set(accounts.filter((a) => a.AccountType === "Cost of Goods Sold").map((a) => String(a.Id)));
+export function vendorEvidence(txns: QboTxn[], items: { Id?: string; Type?: string; Name?: string }[], accounts: { Id?: string; AccountType?: string; AccountSubType?: string }[]): Map<string, VendorEvidence> {
+  const jobItems = new Set(items.filter((i) => classifyItem(i as QboItem).kind === "material").map((i) => String(i.Id)));
+  const cogs = new Set(accounts.filter((a) => a.AccountSubType === "SuppliesMaterialsCogs").map((a) => String(a.Id)));
   const out = new Map<string, VendorEvidence>();
   for (const t of txns) {
     const ref = t.VendorRef ?? (t.EntityRef && (!t.EntityRef.type || t.EntityRef.type === "Vendor") ? t.EntityRef : undefined);

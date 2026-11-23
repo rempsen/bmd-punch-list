@@ -158,8 +158,14 @@ export function suggestPicks(plan: Action[], staged: StagedRow[]): Map<string, I
       const p = d["purchases"] as { material_lines?: number; other_lines?: number } | undefined;
       if (named.has(a.external_id)) picks.set(k, { on: true, why: "a product names it as its vendor" });
       else if (!p) picks.set(k, { on: false, why: "no purchase history read yet" });
-      else if ((p.material_lines ?? 0) > 0) picks.set(k, { on: true, why: `${p.material_lines} material purchase line${p.material_lines === 1 ? "" : "s"}` });
-      else picks.set(k, { on: false, why: (p.other_lines ?? 0) > 0 ? "bought from, but never materials" : "never bought from in 3 years" });
+      else {
+        const m = p.material_lines ?? 0;
+        const o = p.other_lines ?? 0;
+        // Mostly materials: a supplier. A card company or a pharmacy with the odd supplies line is not.
+        if (m > 0 && m >= o) picks.set(k, { on: true, why: `${m} material purchase line${m === 1 ? "" : "s"}` });
+        else if (m > 0) picks.set(k, { on: false, why: `mostly not materials (${m} of ${m + o} lines)` });
+        else picks.set(k, { on: false, why: o > 0 ? "bought from, but never materials" : "never bought from in 3 years" });
+      }
     } else if (TAX_LINE.test(a.name.trim())) picks.set(k, { on: false, why: "a tax line" });
     else if (BILLING_LINE.test(a.name)) picks.set(k, { on: false, why: "looks like a billing line" });
     else if (CHARGE_LINE.test(a.name) || CHARGE_CATEGORY.has(key(d["category"]))) picks.set(k, { on: false, why: "looks like a charge, not a product" });

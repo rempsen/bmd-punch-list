@@ -108,9 +108,11 @@ describe("what each QuickBooks item is to BMD", () => {
 });
 
 describe("telling material suppliers from everyone else", () => {
-  test("lines for products or cost-of-goods accounts count as materials; the rest do not", () => {
-    const items = [{ Id: "95", Type: "NonInventory", Name: "Mipolam" }, { Id: "3", Type: "Service", Name: "Bad Debts" }];
-    const accounts = [{ Id: "50", AccountType: "Cost of Goods Sold" }, { Id: "60", AccountType: "Expense" }];
+  test("lines for products or supplies-and-materials accounts count as materials; subcontractors and freight do not", () => {
+    const items = [{ Id: "95", Type: "NonInventory", Name: "Mipolam" }, { Id: "3", Type: "Service", Name: "01-26 - Install Flooring" }];
+    const accounts = [{ Id: "50", AccountType: "Cost of Goods Sold", AccountSubType: "SuppliesMaterialsCogs" }, { Id: "60", AccountType: "Expense" }, { Id: "15", AccountType: "Cost of Goods Sold", AccountSubType: "CostOfLaborCos" }];
+    const sub = vendorEvidence([{ VendorRef: { value: "4" }, Line: [{ AccountBasedExpenseLineDetail: { AccountRef: { value: "15" } } }, { ItemBasedExpenseLineDetail: { ItemRef: { value: "3" } } }] }], items, accounts);
+    expect(sub.get("4")).toEqual({ material_lines: 0, other_lines: 2, last_purchase: null });
     const e = vendorEvidence(
       [
         { TxnDate: "2025-03-01", VendorRef: { value: "7" }, Line: [{ ItemBasedExpenseLineDetail: { ItemRef: { value: "95" } } }, { AccountBasedExpenseLineDetail: { AccountRef: { value: "50" } } }] },

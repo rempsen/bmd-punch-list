@@ -69,13 +69,14 @@ describe("the dry-run summary", () => {
 describe("choosing what comes in", () => {
   const purchases = (material_lines: number, other_lines: number) => ({ purchases: { material_lines, other_lines, last_purchase: "2026-01-01" } });
   test("suppliers start ticked only when BMD has bought materials from them or a product names them", () => {
-    const staged = [vendor("1", "Interface", purchases(12, 0)), vendor("2", "Olive Garden", purchases(0, 4)), vendor("3", "Shell Gas", purchases(0, 0)), vendor("4", "Gerflor", purchases(0, 0)), vendor("5", "Old Co"), item("9", "material", "Mipolam", { vendor_id: "4" })];
+    const staged = [vendor("1", "Interface", purchases(12, 0)), vendor("2", "Olive Garden", purchases(0, 4)), vendor("3", "Shell Gas", purchases(0, 0)), vendor("4", "Gerflor", purchases(0, 0)), vendor("5", "Old Co"), vendor("6", "American Express", purchases(2, 37)), item("9", "material", "Mipolam", { vendor_id: "4" })];
     const picks = suggestPicks(planImport(staged, none), staged);
     expect(picks.get("supplier|1")).toEqual({ on: true, why: "12 material purchase lines" });
     expect(picks.get("supplier|2")).toEqual({ on: false, why: "bought from, but never materials" });
     expect(picks.get("supplier|3")).toEqual({ on: false, why: "never bought from in 3 years" });
     expect(picks.get("supplier|4")).toEqual({ on: true, why: "a product names it as its vendor" });
     expect(picks.get("supplier|5")).toEqual({ on: false, why: "no purchase history read yet" });
+    expect(picks.get("supplier|6")).toEqual({ on: false, why: "mostly not materials (2 of 39 lines)" });
   });
   test("tax, billing and one-job lines start unticked; real products and matches start ticked", () => {
     const staged = [item("1", "material", "Tax"), item("2", "material", "Tile - Supply"), item("3", "material", "Grand Pacific Gardens - Window Coverings - Gimli A Suite 2 Window Coverings"), item("4", "material", "Dante Pro 2.0 - Glue Down - Acacia Sereno"), item("5", "material", "Old tile", { active: false }), item("6", "cost_code", "01-04 - LVT", { code: "01-04" })];
