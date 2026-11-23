@@ -83,6 +83,8 @@ export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboSt
       const message = `QuickBooks refused the request (${res.status}${fault?.Message ? `: ${fault.Message}` : ""})${detail}${tidOf(res)}.`;
       // Kept in the server log too, so a failure can be traced with Intuit support afterwards.
       console.error(`[qbo] ${path.split("?")[0]}: ${message}`);
+      // …and on the connection, so Settings shows it until the next call that succeeds.
+      await store.setError(message.slice(0, 500)).catch(() => {});
       throw new Error(message);
     }
     return body;

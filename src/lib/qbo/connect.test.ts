@@ -98,6 +98,7 @@ describe("what each QuickBooks item is to BMD", () => {
     expect(String((err as Error).message)).toContain("400: Invalid query");
     expect(String((err as Error).message)).toContain("QueryParserError");
     expect(String((err as Error).message)).toContain("intuit_tid 1-abc-123");
+    expect(h.state.errors.at(-1)).toContain("intuit_tid 1-abc-123");
   });
   test("a failed token request keeps Intuit's trace id in the recorded reason", async () => {
     const h = harness({ conn: { realm_id: "9", refresh_token_enc: await encryptToken("rt-1", KEY) }, responses: () => ({ status: 400, tid: "1-def-456", body: { error: "invalid_grant" } }) });
