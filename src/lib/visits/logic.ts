@@ -30,6 +30,12 @@ const personName = (v: unknown): string | null => {
   const n = v && typeof v === "object" ? (v as Record<string, unknown>)["name"] : v;
   return typeof n === "string" && n.trim() ? n.trim() : null;
 };
+/** `assigned_techs[]` from a full work order: names joined, an empty list meaning nobody. Undefined when there is no list. */
+const techNames = (v: unknown): string | null | undefined => {
+  if (!Array.isArray(v)) return undefined;
+  const names = v.map(personName).filter((n): n is string => n != null);
+  return names.length ? names.join(", ") : null;
+};
 
 /** Picks the event and the visit out of a webhook body. Anything it does not recognise is ignored, never guessed at. */
 export function parseArrivePingEvent(body: unknown): ArrivePingEvent | null {
@@ -39,21 +45,26 @@ export function parseArrivePingEvent(body: unknown): ArrivePingEvent | null {
   const raw = (...keys: string[]) => keys.map((k) => b[k] ?? d[k]).find((v) => v != null);
   const pick = (...keys: string[]) => keys.map((k) => b[k] ?? d[k]).find((v) => typeof v === "string" || typeof v === "number");
   const name = String(pick("event", "type", "status") ?? "").toLowerCase().split(/[.:]/).pop()!;
-  const job = pick("job_id", "jobId");
-  const ext = pick("external_id", "externalId", "reference");
-  const visitId = typeof ext === "string" && UUID.test(ext) ? ext : null;
+  // The envelope's top-level `id` is the event's own id, so a work order's `id` is only read from inside `data`.
+  const job = pick("job_id", "jobId", "work_order_id") ?? [d["id"]].find((v) => typeof v === "string" || typeof v === "number");
+  const ext = ["external_id", "externalId", "external_ref", "reference"].flatMap((k) => [b[k], d[k]]).find((v) => typeof v === "string" && UUID.test(v));
+  const visitId = typeof ext === "string" ? ext : null;
   if (job == null && !visitId) return null;
   const at = pick("occurred_at", "timestamp", "at");
   const ref: EventRef = { jobId: job == null ? null : String(job), visitId, at: typeof at === "string" ? at : null };
 
-  if (name === "unassigned") return { kind: "assigned", assignee: null, ...ref };
   if (name.endsWith("assigned")) {
+    // A full work order lists who is on it now, which is the truth for an assignment or an unassignment alike.
+    const techs = techNames(raw("assigned_techs"));
+    if (techs !== undefined) return { kind: "assigned", assignee: techs, ...ref };
+    if (name === "unassigned") return { kind: "assigned", assignee: null, ...ref };
     const assignee = personName(raw("assigned_to")) ?? personName(raw("tech")) ?? personName(raw("assignee"));
     return assignee ? { kind: "assigned", assignee, ...ref } : null;
   }
   if (name === "rescheduled" || name === "reschedule") {
-    const startsAt = iso(raw("start_at", "starts_at", "start"));
-    const endsAt = iso(raw("end_at", "ends_at", "end"));
+    const sched = (d["schedule"] && typeof d["schedule"] === "object" ? d["schedule"] : {}) as Record<string, unknown>;
+    const startsAt = iso(raw("start_at", "starts_at", "start") ?? sched["start_at"]);
+    const endsAt = iso(raw("end_at", "ends_at", "end") ?? sched["end_at"]);
     if (!startsAt || endsAt === null) return null;
     if (endsAt && Date.parse(endsAt) < Date.parse(startsAt)) return null;
     return { kind: "rescheduled", startsAt, endsAt: endsAt ?? null, ...ref };
@@ -100,20 +111,24 @@ export function scheduleRange(startsAt: string, endsAt: string | null, timeZone 
   return endsAt ? f.formatRange(new Date(startsAt), new Date(endsAt)) : f.format(new Date(startsAt));
 }
 
-export type InboundVisit = Pick<Visit, "status" | "crew" | "starts_at" | "ends_at" | "arriveping_job_id"> & { arriveping_assigned_to?: string | null };
+export type InboundVisit = Pick<Visit, "status" | "crew" | "starts_at" | "ends_at" | "arriveping_job_id"> & { arriveping_assigned_to?: string | null; arriveping_last_event_at?: string | null };
 export type InboundPlan =
   | { ok: true; patch: Record<string, string | null>; event: { status: string; note: string; at: string } }
-  | { ok: false; reason: "no change" };
+  | { ok: false; reason: "no change" | "stale" };
 
 const sameTime = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
 
 /**
  * What an ArrivePing event does to a visit: the columns to update and the activity entry to log, or why it changes nothing.
  * A finished visit (completed or cancelled) is never changed. `now` stands in for an event time that is missing or unreadable.
+ * ArrivePing does not promise order, so an assignment or reschedule older than the last event applied is stale (last write
+ * wins by event time); status only ever moves forward, so a late one still applies. The last-event time never goes back.
  */
-export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now: string): InboundPlan {
+export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now: string, timeZone = SCHEDULE_TZ): InboundPlan {
   const at = iso(ev.at) ?? now;
-  const common = { arriveping_last_event_at: at, ...(ev.jobId && !visit.arriveping_job_id ? { arriveping_job_id: ev.jobId } : {}) };
+  const last = iso(visit.arriveping_last_event_at) ?? null;
+  const behind = last != null && Date.parse(at) < Date.parse(last);
+  const common = { arriveping_last_event_at: behind ? last : at, ...(ev.jobId && !visit.arriveping_job_id ? { arriveping_job_id: ev.jobId } : {}) };
   const closed = visit.status === "completed" || visit.status === "cancelled";
   if (ev.kind === "status") {
     const next = applyVisitEvent(visit, ev.status);
@@ -121,6 +136,7 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
     return { ok: true, patch: { status: next.status, arriveping_status: next.status, ...common }, event: { status: next.status, note: next.note, at } };
   }
   if (closed) return { ok: false, reason: "no change" };
+  if (behind) return { ok: false, reason: "stale" };
   if (ev.kind === "assigned") {
     if ((visit.arriveping_assigned_to ?? null) === ev.assignee) return { ok: false, reason: "no change" };
     // Only a visit that has not started takes ArrivePing's assignment as its status; once the crew is out, that status is live.
@@ -131,7 +147,9 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
       event: ev.assignee ? { status: "assigned", note: `Assigned to ${ev.assignee} in ArrivePing`, at } : { status: "unassigned", note: "Unassigned in ArrivePing", at },
     };
   }
-  if (sameTime(visit.starts_at, ev.startsAt) && sameTime(visit.ends_at, ev.endsAt)) return { ok: false, reason: "no change" };
-  // No end from ArrivePing means none is known: the old end is cleared rather than kept against a new start.
-  return { ok: true, patch: { starts_at: ev.startsAt, ends_at: ev.endsAt, ...common }, event: { status: "rescheduled", note: `Rescheduled in ArrivePing to ${scheduleRange(ev.startsAt, ev.endsAt)}`, at } };
+  // A new start with no end moves the visit as a whole: the old end shifts by the same amount, so its length is kept.
+  const shifted = visit.ends_at ? new Date(Date.parse(visit.ends_at) + Date.parse(ev.startsAt) - Date.parse(visit.starts_at)).toISOString() : null;
+  const endsAt = ev.endsAt ?? shifted;
+  if (sameTime(visit.starts_at, ev.startsAt) && sameTime(visit.ends_at, endsAt)) return { ok: false, reason: "no change" };
+  return { ok: true, patch: { starts_at: ev.startsAt, ends_at: endsAt, ...common }, event: { status: "rescheduled", note: `Rescheduled in ArrivePing to ${scheduleRange(ev.startsAt, endsAt, timeZone)}`, at } };
 }

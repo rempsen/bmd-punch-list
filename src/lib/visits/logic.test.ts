@@ -51,6 +51,17 @@ describe("ArrivePing webhook: assignment and rescheduling", () => {
     expect(parseArrivePingEvent({ event: "workorder.rescheduled", job_id: "AP-77", data: { start_at: "2026-12-03T08:00:00Z", end_at: "soon" } })).toBeNull();
     expect(parseArrivePingEvent({ event: "workorder.rescheduled", job_id: "AP-77" })).toBeNull();
   });
+  test("the contracted envelope: full work order in data, techs as a list, ids from data.id / work_order_id / external_ref", () => {
+    const envelope = { id: "evt_01J", type: "workorder.assigned", occurred_at: "2026-12-01T14:03:11Z", data: { id: "wo_9", external_source: "bmd_projects", external_ref: visit.id, reference: "26-002", assigned_techs: [{ id: "t1", name: "Brodie" }, { id: "t2", name: "Sam" }] } };
+    expect(parseArrivePingEvent(envelope)).toEqual({ kind: "assigned", assignee: "Brodie, Sam", jobId: "wo_9", visitId: visit.id, at: "2026-12-01T14:03:11Z" });
+    expect(parseArrivePingEvent({ ...envelope, data: { ...envelope.data, assigned_techs: [] } })).toMatchObject({ kind: "assigned", assignee: null });
+    expect(parseArrivePingEvent({ ...envelope, type: "workorder.unassigned", data: { ...envelope.data, assigned_techs: [{ name: "Sam" }] } })).toMatchObject({ kind: "assigned", assignee: "Sam" });
+    expect(parseArrivePingEvent({ type: "workorder.rescheduled", data: { work_order_id: "wo_7", start_at: "2026-12-03T14:00:00Z" } })).toMatchObject({ kind: "rescheduled", jobId: "wo_7" });
+    expect(parseArrivePingEvent({ type: "tech.arrived", external_ref: visit.id })).toMatchObject({ kind: "status", status: "arrived", visitId: visit.id, jobId: null });
+    expect(parseArrivePingEvent({ type: "tech.arrived", data: { external_ref: "visit_8f1" } })).toBeNull();
+    // The event's own id is never mistaken for the work order's.
+    expect(parseArrivePingEvent({ id: "evt_1", type: "tech.arrived" })).toBeNull();
+  });
   test("an event id becomes the replay key; anything else gets none", () => {
     expect(inboundEventKey({ id: "evt_123", event: "arrived" })).toBe("ap-evt-evt_123");
     expect(inboundEventKey({ event_id: "abc" })).toBe("ap-evt-abc");
@@ -97,22 +108,51 @@ describe("applying an ArrivePing event to a visit", () => {
     expect(applyInboundEvent({ ...v, arriveping_assigned_to: "Brodie" }, ev, now)).toEqual({ ok: false, reason: "no change" });
     expect(applyInboundEvent({ ...v, status: "completed" }, ev, now)).toEqual({ ok: false, reason: "no change" });
     expect(applyInboundEvent({ ...v, status: "cancelled" }, ev, now)).toEqual({ ok: false, reason: "no change" });
+    expect(applyInboundEvent(v, { ...ev, assignee: null }, now)).toEqual({ ok: false, reason: "no change" });
   });
-  test("a reschedule moves the visit's times and says where to, in Winnipeg time", () => {
-    const ev = { kind: "rescheduled" as const, startsAt: "2026-12-03T14:00:00.000Z", endsAt: "2026-12-03T22:00:00.000Z", jobId: "AP-77", visitId: null, at: null };
-    const r = applyInboundEvent(v, ev, now);
-    expect(r).toMatchObject({ ok: true, patch: { starts_at: "2026-12-03T14:00:00.000Z", ends_at: "2026-12-03T22:00:00.000Z", arriveping_last_event_at: now }, event: { status: "rescheduled", at: now } });
+  test("an assignment or reschedule older than the last event applied is stale and changes nothing", () => {
+    const seen = { ...v, arriveping_last_event_at: "2026-12-02T10:00:00.000Z" };
+    const assigned = { kind: "assigned" as const, assignee: "Sam", jobId: "AP-77", visitId: null, at: "2026-12-02T09:59:59Z" };
+    const moved = { kind: "rescheduled" as const, startsAt: "2026-12-05T14:00:00.000Z", endsAt: null, jobId: "AP-77", visitId: null, at: "2026-12-02T09:00:00Z" };
+    expect(applyInboundEvent(seen, assigned, now)).toEqual({ ok: false, reason: "stale" });
+    expect(applyInboundEvent(seen, moved, now)).toEqual({ ok: false, reason: "stale" });
+  });
+  test("an event at the same time or later than the last one is applied; one with no time counts as now", () => {
+    const seen = { ...v, arriveping_last_event_at: "2026-12-02T10:00:00.000Z" };
+    const ev = { kind: "assigned" as const, assignee: "Sam", jobId: "AP-77", visitId: null, at: "2026-12-02T10:00:00Z" };
+    expect(applyInboundEvent(seen, ev, now)).toMatchObject({ ok: true, patch: { arriveping_assigned_to: "Sam", arriveping_last_event_at: "2026-12-02T10:00:00.000Z" } });
+    expect(applyInboundEvent(seen, { ...ev, at: "2026-12-02T11:00:00Z" }, now)).toMatchObject({ ok: true, patch: { arriveping_last_event_at: "2026-12-02T11:00:00.000Z" } });
+    expect(applyInboundEvent(seen, { ...ev, at: null }, now)).toMatchObject({ ok: true, patch: { arriveping_last_event_at: now } });
+  });
+  test("a late status event still moves the visit forward but never winds the last-event time back", () => {
+    const seen = { ...v, arriveping_last_event_at: "2026-12-02T10:00:00.000Z" };
+    const ev = { kind: "status" as const, status: "arrived" as const, jobId: "AP-77", visitId: null, at: "2026-12-02T09:00:00Z" };
+    expect(applyInboundEvent(seen, ev, now)).toMatchObject({ ok: true, patch: { status: "arrived", arriveping_last_event_at: "2026-12-02T10:00:00.000Z" }, event: { at: "2026-12-02T09:00:00.000Z" } });
+  });
+  test("a reschedule moves the visit's times and says where to", () => {
+    const ev = { kind: "rescheduled" as const, startsAt: "2026-12-03T09:00:00.000Z", endsAt: "2026-12-03T17:00:00.000Z", jobId: "AP-77", visitId: null, at: null };
+    const r = applyInboundEvent(v, ev, now, "UTC");
+    expect(r).toMatchObject({ ok: true, patch: { starts_at: "2026-12-03T09:00:00.000Z", ends_at: "2026-12-03T17:00:00.000Z", arriveping_last_event_at: now }, event: { status: "rescheduled", at: now } });
     if (!r.ok) throw new Error("expected a change");
-    expect(r.event.note).toBe(`Rescheduled in ArrivePing to ${scheduleRange(ev.startsAt, ev.endsAt)}`);
+    expect(r.event.note.replace(/\s/g, " ")).toBe("Rescheduled in ArrivePing to Dec 3, 2026, 9:00 a.m.–5:00 p.m.");
   });
-  test("a reschedule without an end clears the old end rather than guessing one", () => {
+  test("a reschedule with only a new start moves the old end by the same amount", () => {
+    const ev = { kind: "rescheduled" as const, startsAt: "2026-12-04T15:00:00.000Z", endsAt: null, jobId: "AP-77", visitId: null, at: null };
+    const r = applyInboundEvent(v, ev, now, "UTC");
+    expect(r).toMatchObject({ ok: true, patch: { starts_at: "2026-12-04T15:00:00.000Z", ends_at: "2026-12-04T23:00:00.000Z" } });
+    if (!r.ok) throw new Error("expected a change");
+    expect(r.event.note.replace(/\s/g, " ")).toBe("Rescheduled in ArrivePing to Dec 4, 2026, 3:00–11:00 p.m.");
+  });
+  test("a reschedule with only a new start leaves the end empty when the visit had none", () => {
     const ev = { kind: "rescheduled" as const, startsAt: "2026-12-04T14:00:00.000Z", endsAt: null, jobId: "AP-77", visitId: null, at: null };
-    expect(applyInboundEvent(v, ev, now)).toMatchObject({ ok: true, patch: { starts_at: "2026-12-04T14:00:00.000Z", ends_at: null } });
+    expect(applyInboundEvent({ ...v, ends_at: null }, ev, now)).toMatchObject({ ok: true, patch: { starts_at: "2026-12-04T14:00:00.000Z", ends_at: null } });
   });
   test("a reschedule to the same times, or of a finished visit, changes nothing", () => {
     const same = { kind: "rescheduled" as const, startsAt: "2026-12-01T14:00:00.000Z", endsAt: "2026-12-01T22:00:00.000Z", jobId: "AP-77", visitId: null, at: null };
     expect(applyInboundEvent(v, same, now)).toEqual({ ok: false, reason: "no change" });
     expect(applyInboundEvent({ ...v, status: "cancelled" }, { ...same, startsAt: "2026-12-05T14:00:00.000Z", endsAt: null }, now)).toEqual({ ok: false, reason: "no change" });
+    expect(applyInboundEvent({ ...v, status: "completed" }, { ...same, startsAt: "2026-12-05T14:00:00.000Z", endsAt: null }, now)).toEqual({ ok: false, reason: "no change" });
+    expect(applyInboundEvent(v, { ...same, endsAt: null }, now)).toEqual({ ok: false, reason: "no change" });
   });
   test("schedule ranges read naturally: one day once, two days in full, no end left off", () => {
     expect(scheduleRange("2026-12-03T09:00:00Z", "2026-12-03T17:00:00Z", "UTC")).toMatch(/^Dec 3, 2026, 9:00\sa\.m\.\s*[–-]\s*5:00\sp\.m\.$/);

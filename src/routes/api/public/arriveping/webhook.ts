@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 
+/** Reasons an event was set aside that a redelivery could get past. */
+const RETRY_IGNORED = new Set<unknown>(["no matching visit", "unrecognised event"]);
+
 /**
  * ArrivePing reports crew status, assignment and rescheduling here. The shared secret in X-Webhook-Secret is the only way in.
  * Every delivery that gets past the secret and parses as JSON is logged in sync_events before anything changes, and its row is
@@ -41,15 +44,17 @@ export const Route = createFileRoute("/api/public/arriveping/webhook")({
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const admin = supabaseAdmin as any;
-          // A redelivery of an event already applied or set aside changes nothing. One still pending or failed is tried again.
+          // A redelivery of an event already applied or set aside changes nothing. One still pending or failed is tried again,
+          // and so is one set aside only because BMD could not place it then: the visit may have been linked since.
           const key = inboundEventKey(body);
           if (key) {
             const { data: seen } = await admin
               .from("sync_events")
-              .select("id,status")
+              .select("id,status,last_error")
               .eq("idempotency_key", key)
               .maybeSingle();
-            if (seen?.status === "acked" || seen?.status === "ignored")
+            const retryable = seen?.status === "ignored" && RETRY_IGNORED.has(seen.last_error);
+            if ((seen?.status === "acked" || seen?.status === "ignored") && !retryable)
               return Response.json({ ok: true, ignored: "duplicate" });
           }
           const ev = parseArrivePingEvent(body);
@@ -77,7 +82,7 @@ export const Route = createFileRoute("/api/public/arriveping/webhook")({
           const q = admin
             .from("install_visits")
             .select(
-              "id,project_id,status,crew,starts_at,ends_at,arriveping_job_id,arriveping_assigned_to",
+              "id,project_id,status,crew,starts_at,ends_at,arriveping_job_id,arriveping_assigned_to,arriveping_last_event_at",
             );
           const { data: visit, error: findError } = await (
             ev.visitId ? q.eq("id", ev.visitId) : q.eq("arriveping_job_id", ev.jobId)
