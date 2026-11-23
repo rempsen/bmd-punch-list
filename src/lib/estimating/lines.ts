@@ -80,3 +80,46 @@ export function costTarget(c: SnapComponent, finish: Pick<Finish, "id" | "tag" |
   if (finish.catalogue_material_id) return { kind: "material", id: finish.catalogue_material_id };
   return { kind: "new_material", name: [finish.tag, finish.description].filter(Boolean).join(" – "), category: guessCategory(finish.description ? `${finish.tag} ${finish.description}` : finish.tag), uom: c.cost_uom };
 }
+
+const AREA = (u: Uom) => u === "SF" || u === "SY";
+const ALL_UNITS: Uom[] = ["SF", "SY", "LF", "EA", "carton", "roll", "pail", "hour", "LS"];
+const round4 = (n: number) => Math.round(n * 10000) / 10000;
+
+/** The units a line can be switched to: any for a line made of one thing; square feet or yards for an assembly measured by area. */
+export const unitChoices = (current: Uom, partCount: number): Uom[] => (partCount <= 1 ? ALL_UNITS : AREA(current) ? ["SF", "SY"] : [current]);
+
+/**
+ * Changes the unit a line is measured in.
+ * Square feet and square yards convert: the quantity and (for a line made of one thing) the unit cost are converted, so the line's cost stays the same.
+ * Any other change keeps the numbers as typed and changes only the unit, because there is no fixed conversion (SF to LF, say).
+ */
+export function changeLineUnit(line: { driver_qty: number; driver_uom: Uom }, components: SnapComponent[], to: Uom): { line: { driver_qty: number; driver_uom: Uom }; components: SnapComponent[]; converted: boolean } {
+  const from = line.driver_uom;
+  if (from === to) return { line: { driver_qty: line.driver_qty, driver_uom: to }, components, converted: false };
+  const area = AREA(from) && AREA(to);
+  const perNew = area ? (to === "SY" ? 9 : 1 / 9) : 1;   // how many old units make one new unit
+  const qty = area ? round4(line.driver_qty / perNew) : line.driver_qty;
+  if (components.length > 1) {
+    if (!area) throw new Error("This line is an assembly of several parts priced per " + from + ". It can only be switched between SF and SY.");
+    // Parts keep their own cost units; only what one purchase unit covers is stated in the line's unit, so that is converted.
+    return { line: { driver_qty: qty, driver_uom: to }, converted: true, components: components.map((c) => (c.coverage_per_purchase_unit ? { ...c, coverage_per_purchase_unit: round4(c.coverage_per_purchase_unit / perNew) } : c)) };
+  }
+  return {
+    line: { driver_qty: qty, driver_uom: to },
+    converted: area,
+    components: components.map((c) => ({
+      ...c,
+      cost_uom: c.cost_uom === from ? to : c.cost_uom,
+      purchase_uom: c.purchase_uom === from ? to : c.purchase_uom,
+      unit_cost_cents: area && c.cost_uom === from && c.unit_cost_cents != null ? Math.round(c.unit_cost_cents * perNew) : c.unit_cost_cents,
+      coverage_per_purchase_unit: c.coverage_per_purchase_unit && area ? round4(c.coverage_per_purchase_unit / perNew) : c.coverage_per_purchase_unit,
+    })),
+  };
+}
+
+/** A unit cost restated in another unit: SF and SY convert, any other pair cannot be (null). */
+export function costInUnit(cents: number, from: Uom, to: Uom): number | null {
+  if (from === to) return cents;
+  if (!AREA(from) || !AREA(to)) return null;
+  return Math.round(from === "SY" ? cents / 9 : cents * 9);
+}

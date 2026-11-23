@@ -31,7 +31,8 @@ import {
   type EstVersion,
   type SaveItem,
 } from "@/lib/estimating/data";
-import { costTarget, lineFromFinish, setLineWaste, simpleLine } from "@/lib/estimating/lines";
+import { changeLineUnit, costInUnit, costTarget, lineFromFinish, setLineWaste, simpleLine, unitChoices } from "@/lib/estimating/lines";
+import type { Uom } from "@/lib/estimating/calc";
 import { versionSummary, type Rates } from "@/lib/estimating/worksheet";
 import { errText } from "@/lib/platform/db";
 import { cn } from "@/lib/utils";
@@ -108,9 +109,18 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       let patch: Partial<SnapComponent> = { unit_cost_cents: cents, cost_overridden: cents != null };
       let said = cents == null ? "Cost cleared on this line" : "Cost saved on this line";
       if (target.kind === "material" || target.kind === "labour") {
-        await setUnitCost(target.kind, target.id, cents);
-        patch = { unit_cost_cents: cents, cost_overridden: false };
-        said = `${dollars(cents!)} / ${c.cost_uom} is now the catalogue price for ${c.label}`;
+        // The catalogue keeps each price in its own unit. A cost typed per SY for a material priced per SF is converted; an unrelated unit stays on the line.
+        const id = target.id;
+        const catUom = (target.kind === "material" ? materials.find((m) => m.id === id)?.cost_uom : labour.find((r) => r.id === id)?.uom) ?? c.cost_uom;
+        const catCents = costInUnit(cents!, c.cost_uom, catUom);
+        if (catCents == null) {
+          said = `Cost saved on this line. The catalogue prices ${c.label} per ${catUom}, not per ${c.cost_uom}, so its price was not changed`;
+          target = { kind: "line_only" };
+        } else {
+          await setUnitCost(target.kind, id, catCents);
+          patch = { unit_cost_cents: cents, cost_overridden: false };
+          said = `${dollars(catCents)} / ${catUom} is now the catalogue price for ${c.label}`;
+        }
       } else if (target.kind === "new_material" && finish) {
         const id = await saveMaterial(null, {
           category: target.category as never, name: target.name, manufacturer: null, product_line: null, colour: null, sku: null, supplier_id: null, cost_uom: target.uom, unit_cost_cents: cents, purchase_uom: target.uom,
@@ -572,7 +582,28 @@ function LineRows({
         </td>
         <td className={cn(cell, "whitespace-nowrap text-right")}>
           <input key={`${line.id}-q-${line.row_version}`} aria-label="Quantity" disabled={!editable} inputMode="decimal" defaultValue={line.driver_qty} onBlur={(e) => commitNumber(e.target.value, line.driver_qty, 1e9, (n) => [{ driver_qty: n }])} className={cn(numInput, "w-24")} />
-          <span className="ml-1 text-xs text-muted-foreground">{line.driver_uom}</span>
+          <select
+            key={`${line.id}-uom-${line.row_version}`}
+            aria-label={`Unit of measure for ${line.description || "this line"}`}
+            disabled={!editable || fixed || unitChoices(line.driver_uom, line.components.length).length < 2}
+            value={line.driver_uom}
+            onChange={(e) => {
+              try {
+                const r = changeLineUnit({ driver_qty: line.driver_qty, driver_uom: line.driver_uom }, line.components, e.target.value as Uom);
+                onSave(r.line, r.components);
+                toast.success(r.converted ? `Changed to ${r.line.driver_uom}. The quantity and cost were converted, so the line total is the same.` : `Changed to ${r.line.driver_uom}. The quantity and cost are as typed; check they are right per ${r.line.driver_uom}.`);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : String(err));
+              }
+            }}
+            className="ml-1 h-10 rounded-md border border-input bg-background px-1 text-xs disabled:border-transparent disabled:bg-transparent disabled:opacity-100"
+          >
+            {unitChoices(line.driver_uom, line.components.length).map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
         </td>
         <td className={cn(cell, "text-right")}>
           <input key={`${line.id}-w-${line.row_version}`} aria-label="Waste percent" disabled={!editable || fixed} inputMode="decimal" defaultValue={line.waste_pct} onBlur={(e) => commitNumber(e.target.value, line.waste_pct, 100, (n) => [{ waste_pct: n }, setLineWaste(line.components, n)])} className={numInput} />

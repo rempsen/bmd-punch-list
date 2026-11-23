@@ -53,3 +53,61 @@ describe("where a cost typed on an estimate line is kept", () => {
     expect(["CPT-1", "LVT-1", "LVP-2", "RB-1", "SV-1", "CT-3", "WT-1", "TR-1", "Millwork Base", "BRD-1"].map(guessCategory)).toEqual(["carpet_tile", "lvt", "lvp", "wall_base", "sheet_vinyl", "floor_tile", "wall_tile", "transitions", "wall_base", "other"]);
   });
 });
+
+import { changeLineUnit, unitChoices } from "./lines";
+import { priceEstimateLine } from "./assemble";
+describe("changing a line's unit of measure", () => {
+  const one = (uom: "SF" | "SY" | "LF" | "EA", cents: number | null): SnapComponent => ({ ...simpleComponent("CPT-1", cents, uom), kind: "material", source: "catalogue" });
+  const cost = (qty: number, uom: "SF" | "SY" | "LF" | "EA", comps: SnapComponent[]) => priceEstimateLine({ driver_qty: qty, driver_uom: uom, markup_pct: 0, tax_code: "GST", price_basis: "markup", margin_pct: null, fixed_sell_cents: null } as never, comps, { pstPct: 7 }).costCents;
+
+  test("square feet to square yards converts the quantity and the unit cost, so the line's cost does not move", () => {
+    const before = [one("SF", 200)];
+    const r = changeLineUnit({ driver_qty: 900, driver_uom: "SF" }, before, "SY");
+    expect(r.line).toEqual({ driver_qty: 100, driver_uom: "SY" });
+    expect(r.components[0]).toMatchObject({ cost_uom: "SY", purchase_uom: "SY", unit_cost_cents: 1800 });
+    expect(r.converted).toBe(true);
+    expect(cost(100, "SY", r.components)).toBe(cost(900, "SF", before));
+  });
+  test("and back again", () => {
+    const r = changeLineUnit({ driver_qty: 100, driver_uom: "SY" }, [one("SY", 1800)], "SF");
+    expect(r.line).toEqual({ driver_qty: 900, driver_uom: "SF" });
+    expect(r.components[0]!.unit_cost_cents).toBe(200);
+  });
+  test("an unknown cost stays unknown", () => {
+    expect(changeLineUnit({ driver_qty: 90, driver_uom: "SF" }, [one("SF", null)], "SY").components[0]!.unit_cost_cents).toBeNull();
+  });
+  test("to an unrelated unit the numbers are kept as typed and only the unit changes", () => {
+    const r = changeLineUnit({ driver_qty: 135.97, driver_uom: "SF" }, [one("SF", 250)], "LF");
+    expect(r.line).toEqual({ driver_qty: 135.97, driver_uom: "LF" });
+    expect(r.components[0]).toMatchObject({ cost_uom: "LF", purchase_uom: "LF", unit_cost_cents: 250 });
+    expect(r.converted).toBe(false);
+  });
+  test("an assembly of several parts converts between square feet and yards without changing its cost", () => {
+    const parts: SnapComponent[] = [
+      { ...one("SF", 300), label: "Tile", coverage_per_purchase_unit: 45, purchase_uom: "carton", cost_uom: "SF", round_up: true },
+      { ...one("SF", 150), label: "Install", kind: "labour", source: "labour_rate" },
+    ];
+    const r = changeLineUnit({ driver_qty: 900, driver_uom: "SF" }, parts, "SY");
+    expect(r.line).toEqual({ driver_qty: 100, driver_uom: "SY" });
+    expect(r.components[0]).toMatchObject({ coverage_per_purchase_unit: 5, cost_uom: "SF", unit_cost_cents: 300 });
+    expect(cost(100, "SY", r.components)).toBe(cost(900, "SF", parts));
+  });
+  test("an assembly cannot be switched to an unrelated unit", () => {
+    expect(() => changeLineUnit({ driver_qty: 9, driver_uom: "SF" }, [one("SF", 1), one("SF", 2)], "EA")).toThrow(/assembly/i);
+  });
+  test("the choices offered match what can be done", () => {
+    expect(unitChoices("SF", 1)).toContain("LF");
+    expect(unitChoices("SF", 3)).toEqual(["SF", "SY"]);
+    expect(unitChoices("EA", 3)).toEqual(["EA"]);
+  });
+});
+
+import { costInUnit } from "./lines";
+describe("a cost typed in one unit, kept in the catalogue's unit", () => {
+  test("the same unit is unchanged; square feet and yards convert; anything else cannot be", () => {
+    expect(costInUnit(250, "SF", "SF")).toBe(250);
+    expect(costInUnit(1800, "SY", "SF")).toBe(200);
+    expect(costInUnit(200, "SF", "SY")).toBe(1800);
+    expect(costInUnit(250, "LF", "SF")).toBeNull();
+  });
+});
