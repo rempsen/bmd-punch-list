@@ -183,6 +183,22 @@ describe("ensureArrivePingClient", () => {
     expect(path).toBe(`${AP_PATHS.clients}/cl_4`);
     expect(init).toMatchObject({ method: "PATCH", body: { external_source: "bmd_projects", external_ref: client.id } });
   });
+  test("a match by email that already belongs to another record is refused, never overwritten", async () => {
+    const fetchJson = sequence({ ok: false, status: 409, code: "http", error: "exists", json: { error: { code: "client_exists" }, client: { id: "cl_4", external_source: "bmd_projects", external_ref: "someone-else" } } });
+    const out = await ensureArrivePingClient({ fetchJson, client, linkedId: null });
+    expect(out.outcome).toBe("failed");
+    if (out.outcome === "failed") expect(out.error).toContain("another BMD client");
+    expect(fetchJson).toHaveBeenCalledTimes(1);
+  });
+  test("a match by email already tagged as this BMD client is used without a PATCH", async () => {
+    const fetchJson = sequence({ ok: false, status: 409, code: "http", error: "exists", json: { error: { code: "client_exists" }, client: { id: "cl_4", external_source: "bmd_projects", external_ref: client.id } } });
+    expect(await ensureArrivePingClient({ fetchJson, client, linkedId: null })).toEqual({ outcome: "linked", clientId: "cl_4", via: "email" });
+    expect(fetchJson).toHaveBeenCalledTimes(1);
+  });
+  test("a 409 for our reference with no record handed back is failed", async () => {
+    const fetchJson = sequence({ ok: false, status: 409, code: "http", error: "dup", json: { error: { code: "duplicate_external_ref" }, client: null } });
+    expect((await ensureArrivePingClient({ fetchJson, client, linkedId: null })).outcome).toBe("failed");
+  });
   test("a matched client is still used when adding our reference fails", async () => {
     const fetchJson = sequence(
       { ok: false, status: 409, code: "http", error: "exists", json: { error: { code: "client_exists" }, client: { id: "cl_4" } } },

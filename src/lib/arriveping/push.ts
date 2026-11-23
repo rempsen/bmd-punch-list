@@ -170,8 +170,16 @@ async function createClient(
     const existing = existingFromConflict(res.json, "client");
     if (existing) {
       if (existing.via === "email") {
-        // Found by email: tag it with our reference so the next lookup finds it by id. The client is usable either way.
-        await call(fetchJson, `${AP_PATHS.clients}/${encodeURIComponent(existing.id)}`, { external_source: EXTERNAL_SOURCE, external_ref: client.id }, undefined, "PATCH");
+        // ArrivePing keeps one reference per client: never overwrite one that belongs to another BMD client or another system.
+        const record = field(res.json, "client");
+        const theirSource = field(record, "external_source");
+        const theirRef = field(record, "external_ref");
+        if (theirRef && (theirSource !== EXTERNAL_SOURCE || theirRef !== client.id))
+          return clientFailure(
+            `ArrivePing already has a client with ${client.email ? `the email ${client.email}` : "this email"}, linked to ${theirSource === EXTERNAL_SOURCE ? "another BMD client" : `another system (${String(theirSource)})`}. Give "${client.name}" its own email or merge the two clients, then send again.`,
+          );
+        // Untagged: tag it with our reference so the next lookup finds it by id. The client is usable either way.
+        if (!theirRef) await call(fetchJson, `${AP_PATHS.clients}/${encodeURIComponent(existing.id)}`, { external_source: EXTERNAL_SOURCE, external_ref: client.id }, undefined, "PATCH");
       }
       return { outcome: "linked", clientId: existing.id, via: existing.via };
     }

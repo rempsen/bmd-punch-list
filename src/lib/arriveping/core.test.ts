@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_BASE, apWorkOrderUrl, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
+import { AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -74,6 +74,27 @@ describe("work order payload", () => {
   });
 });
 
+describe("site address and the checks before sending", () => {
+  test("the one-line address wins; otherwise the parts are joined", () => {
+    expect(siteAddress(project)).toBe("Winnipeg, MB");
+    expect(siteAddress({ ...project, address: " ", street: "325 Broadway", city: "Winnipeg", province: "MB", postal_code: "" })).toBe("325 Broadway, Winnipeg, MB");
+    expect(siteAddress({ ...project, address: null })).toBeNull();
+  });
+  test("the work order uses the joined parts when the one-line address is blank", () => {
+    expect(workOrderPayload(visit, { ...project, address: null, street: "325 Broadway", city: "Winnipeg" }, "c")["address"]).toBe("325 Broadway, Winnipeg");
+  });
+  test("a visit with an address, within a day, can go", () => {
+    expect(visitPushProblem(visit, project)).toBeNull();
+  });
+  test("no address is caught before sending", () => {
+    expect(visitPushProblem(visit, { ...project, address: null })).toContain("no site address");
+  });
+  test("a visit over 24 hours is caught before sending, with the one-per-day rule", () => {
+    expect(visitPushProblem({ ...visit, ends_at: "2026-12-04T22:00:00Z" }, project)).toContain("one day per work order");
+    expect(visitPushProblem({ ...visit, ends_at: "2026-12-02T14:00:00Z" }, project)).toBeNull();
+  });
+});
+
 describe("client payload", () => {
   const client = { id: "11111111-2222-4333-8444-555555555555", name: "Brian & Gail Chornoboy", email: "brian@example.com", phone: "204-555-0100", billing_address: "1 Main St, Winnipeg, MB" };
   test("carries BMD's id so a repeat create finds the same client", () => {
@@ -97,6 +118,22 @@ describe("client payload", () => {
   test("keys are stable per client", () => {
     expect(clientKey(client.id)).toBe(`bmd-client-${client.id}`);
     expect(clientKey(client.id, "no-email")).toBe(`bmd-client-${client.id}-no-email`);
+  });
+});
+
+describe("the Idempotency-Key sent on the wire", () => {
+  const key = "bmd-visit-v1";
+  test("the same request always sends the same key, so a lost reply is replayed, not repeated", () => {
+    expect(wireIdempotencyKey(key, { a: 1, b: "x" })).toBe(wireIdempotencyKey(key, { a: 1, b: "x" }));
+  });
+  test("a corrected request gets a new key, so ArrivePing does not refuse it as a reused key", () => {
+    expect(wireIdempotencyKey(key, { a: 1 })).not.toBe(wireIdempotencyKey(key, { a: 2 }));
+  });
+  test("it stays readable and inside ArrivePing's 200-character limit", () => {
+    const out = wireIdempotencyKey(key, { big: "x".repeat(10_000) });
+    expect(out.startsWith(`${key}-`)).toBe(true);
+    expect(out).toMatch(/^bmd-visit-v1-[0-9a-f]{8}$/);
+    expect(wireIdempotencyKey("k".repeat(300), {}).length).toBeLessThanOrEqual(200);
   });
 });
 

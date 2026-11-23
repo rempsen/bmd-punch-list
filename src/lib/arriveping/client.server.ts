@@ -1,4 +1,4 @@
-import { AP_BASE, AP_MCP, describeApiError, mcpErrorMessage, parseJsonReply, parseMcpToolsList, pickKey } from "./core";
+import { AP_BASE, AP_MCP, describeApiError, mcpErrorMessage, parseJsonReply, parseMcpToolsList, pickKey, wireIdempotencyKey } from "./core";
 
 /** Server only: the key is read from the environment on each call and never reaches the browser. */
 export const arrivepingKey = (): string | null => pickKey(process.env);
@@ -32,7 +32,8 @@ export async function apFetch(path: string, init: ApRequest, fetchImpl: typeof f
   const key = arrivepingKey();
   if (!key) return { ok: false, status: 0, code: "not_configured", error: "ArrivePing is not configured — add secret ArrivePing_Api" };
   const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
-  if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;
+  // BMD's key stays the same per record; the wire key also fingerprints the body (see wireIdempotencyKey).
+  if (init.idempotencyKey) headers["Idempotency-Key"] = wireIdempotencyKey(init.idempotencyKey, init.body);
   try {
     // The host's fetch must be called bare; handing it over as a property makes it throw "Illegal invocation".
     const res = await fetchImpl(`${AP_BASE}${path.startsWith("/") ? path : `/${path}`}`, {

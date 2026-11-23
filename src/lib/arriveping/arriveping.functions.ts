@@ -69,7 +69,7 @@ async function loadVisit(
   if (!visit) return { error: VISIT_NOT_FOUND };
   const { data: p, error: pError } = await db
     .from("projects")
-    .select("id,name,project_number,address,client_id,client_name")
+    .select("id,name,project_number,address,street,city,province,postal_code,client_id,client_name")
     .eq("id", visit.project_id)
     .maybeSingle();
   if (pError) return { error: `Could not load the project: ${pError.message}` };
@@ -83,6 +83,10 @@ async function loadVisit(
       address: p.address,
       client: p.client_name,
       client_id: p.client_id,
+      street: p.street,
+      city: p.city,
+      province: p.province,
+      postal_code: p.postal_code,
     },
   };
 }
@@ -144,11 +148,6 @@ async function linkVisit(
   }
 }
 
-/**
- * Sends a visit to ArrivePing as a work order: logs it as pending, calls ArrivePing, then marks the log sent or failed.
- * On success the visit is linked to the work order. If an earlier attempt already got a work order back, that one is
- * linked and ArrivePing is not called again.
- */
 /** The BMD client a project belongs to: its linked client, or else the one whose name matches the project's client name. */
 async function loadClient(project: import("./core").ProjectForPush): Promise<{ client: import("./core").ClientForPush; linkedId: string | null } | { error: string }> {
   const db = await admin();
@@ -191,10 +190,15 @@ async function saveClientLink(client: import("./core").ClientForPush, apClientId
     synced_at: new Date().toISOString(),
   });
   if (error && error.code === "23505") {
-    // Already linked: the same pair (a race between two pushes) is fine; this ArrivePing client on another BMD client is not.
-    const { data: other } = await db.from("sync_links").select("bmd_id").eq("kind", "client").eq("system", "arriveping").eq("external_id", apClientId).maybeSingle();
-    if (other && other.bmd_id !== client.id)
+    // Already linked: the same pair (a race between two pushes) is fine; any other pairing is not.
+    const [{ data: byExternal }, { data: byBmd }] = await Promise.all([
+      db.from("sync_links").select("bmd_id,external_id").eq("kind", "client").eq("system", "arriveping").eq("external_id", apClientId).maybeSingle(),
+      db.from("sync_links").select("bmd_id,external_id").eq("kind", "client").eq("system", "arriveping").eq("bmd_id", client.id).maybeSingle(),
+    ]);
+    if (byExternal && byExternal.bmd_id !== client.id)
       return `ArrivePing client ${apClientId} is already linked to another BMD client. Two BMD clients may share an email; merge them or give "${client.name}" its own email, then send again.`;
+    if (byBmd && byBmd.external_id !== apClientId)
+      return `"${client.name}" is already linked to ArrivePing client ${byBmd.external_id}, not ${apClientId}. Check the client in ArrivePing before sending again.`;
   } else if (error) {
     return `Could not save the client's ArrivePing link: ${error.message}`;
   }
@@ -206,6 +210,11 @@ async function saveClientLink(client: import("./core").ClientForPush, apClientId
   return null;
 }
 
+/**
+ * Sends a visit to ArrivePing as a work order: logs it as pending, calls ArrivePing, then marks the log sent or failed.
+ * On success the visit is linked to the work order. If an earlier attempt already got a work order back, that one is
+ * linked and ArrivePing is not called again.
+ */
 async function runPushCreate(
   visitId: string,
   existingKey?: string | null,
@@ -251,6 +260,12 @@ async function runPushCreate(
   try {
     const { apFetch } = await import("./client.server");
     const { ensureArrivePingClient, pushVisitCreate } = await import("./push");
+    const { visitPushProblem } = await import("./core");
+    const problem = visitPushProblem(visit, project);
+    if (problem) {
+      await markFailed(eventId, problem);
+      return { outcome: "failed", error: problem, key };
+    }
     // ArrivePing files every work order under a client: find or create it first.
     const loadedClient = await loadClient(project);
     if ("error" in loadedClient) {

@@ -24,7 +24,19 @@ export const idempotencyKey = (kind: "create" | "cancel", visitId: string): stri
 export const rescheduleKey = (visitId: string, nowMs: number): string => `bmd-visit-${visitId}-reschedule-${nowMs}`;
 
 export type VisitForPush = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null };
-export type ProjectForPush = { id: string; name: string; number: string | null; address: string | null; client: string | null; client_id?: string | null };
+export type ProjectForPush = {
+  id: string;
+  name: string;
+  number: string | null;
+  address: string | null;
+  client: string | null;
+  client_id?: string | null;
+  /** Address parts, used when the one-line address is blank. */
+  street?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postal_code?: string | null;
+};
 /** A BMD client as ArrivePing needs it. */
 export type ClientForPush = { id: string; name: string; email: string | null; phone: string | null; billing_address: string | null };
 
@@ -36,6 +48,26 @@ function endOf(visit: VisitForPush): string | null {
 }
 
 /** The work order ArrivePing creates for an install visit. Anything we do not know is left out, never sent as null. */
+/** The site address on one line: the project's address, or else its street, city, province and postal code. Null when there is none. */
+export function siteAddress(project: ProjectForPush): string | null {
+  const one = (project.address ?? "").trim();
+  if (one) return one;
+  const parts = [project.street, project.city, project.province, project.postal_code].map((p) => (p ?? "").trim()).filter(Boolean);
+  return parts.length ? parts.join(", ") : null;
+}
+
+/** ArrivePing takes one visit of up to 24 hours per work order. */
+export const MAX_WORK_ORDER_MS = 24 * 60 * 60 * 1000;
+
+/** Why ArrivePing would refuse this visit before it is sent, in words for the person scheduling it; null when it can go. */
+export function visitPushProblem(visit: VisitForPush, project: ProjectForPush): string | null {
+  if (!siteAddress(project)) return "The project has no site address, and ArrivePing needs one. Add it under Overview → Details → Edit, then send again.";
+  const end = endOf(visit);
+  if (end && Date.parse(end) - Date.parse(visit.starts_at) > MAX_WORK_ORDER_MS)
+    return "ArrivePing takes one day per work order, and this visit runs longer than 24 hours. Schedule one visit per day, then send each.";
+  return null;
+}
+
 /** A trimmed value, or nothing when it is blank. */
 const filled = (v: string | null | undefined): string | null => {
   const t = (v ?? "").trim();
@@ -55,7 +87,7 @@ export function workOrderPayload(visit: VisitForPush, project: ProjectForPush, c
     external_ref: visit.id,
     ...(clientId ? { client_id: clientId } : {}),
     title: `${project.number ? `${project.number} ` : ""}${project.name} — Install`,
-    ...(filled(project.address) ? { address: filled(project.address) } : {}),
+    ...(siteAddress(project) ? { address: siteAddress(project) } : {}),
     ...(filled(visit.site_contact) ? { site_contact: { name: filled(visit.site_contact) } } : {}),
     start_at: visit.starts_at,
     ...(end ? { end_at: end } : {}),
@@ -74,6 +106,23 @@ export function clientPayload(client: ClientForPush, opts: { withEmail: boolean 
     ...(filled(client.phone) ? { phone: filled(client.phone) } : {}),
     ...(filled(client.billing_address) ? { billing_address: filled(client.billing_address) } : {}),
   };
+}
+
+/**
+ * The Idempotency-Key sent to ArrivePing: BMD's own key plus a fingerprint of the request body.
+ * ArrivePing keeps a key's answer (4xx included) for 24 hours and refuses the key with a different body, so a fixed key would
+ * block a corrected retry for a day. With the fingerprint an identical retry is still replayed, and a corrected one runs;
+ * duplicates stay impossible because ArrivePing also matches on `external_ref`.
+ */
+export function wireIdempotencyKey(key: string, body: unknown): string {
+  // FNV-1a, 32-bit: a fingerprint, not a security measure.
+  const text = JSON.stringify(body ?? null);
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `${key.slice(0, 190)}-${(h >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 /** The Idempotency-Key for creating a client: one per BMD client, and a second for the retry without email. */
