@@ -42,6 +42,27 @@ export const ccStatus = createServerFn({ method: "POST" })
     }
   });
 
+/** CompanyCam for the whole company, no job needed: whether the token works, the webhook, and how many jobs are linked. */
+export const ccCompanyStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await need(context.supabase, "manage_settings");
+    const { hasToken, cc } = await import("./companycam.server");
+    const a = await admin();
+    const [{ data: wh }, { count }] = await Promise.all([
+      a.from("companycam_webhook").select("webhook_id,url,created_at").eq("id", 1).maybeSingle(),
+      a.from("projects").select("id", { count: "exact", head: true }).not("companycam_project_id", "is", null),
+    ]);
+    const base = { webhook: wh ?? null, linkedJobs: count ?? 0 };
+    if (!hasToken()) return { ...base, connected: false as const, company: null, error: null };
+    try {
+      const company = await cc<{ name: string }>("/company");
+      return { ...base, connected: true as const, company: company?.name ?? "CompanyCam", error: null };
+    } catch (e) {
+      return { ...base, connected: false as const, company: null, error: (e as Error).message };
+    }
+  });
+
 export const ccSearchProjects = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { projectId: string; query?: string | undefined }) => ({ ...pid(d), query: (d.query ?? "").slice(0, 120) }))
