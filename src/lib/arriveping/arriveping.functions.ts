@@ -305,9 +305,12 @@ async function runCancel(visitId: string): Promise<PushCancelOutcome> {
 }
 
 export type RetryOutcome =
-  PushCreateOutcome | { outcome: "ignored"; reason: string } | { outcome: "not_found" };
+  | PushCreateOutcome
+  | PushCancelOutcome
+  | { outcome: "ignored"; reason: string }
+  | { outcome: "not_found" };
 
-/** Retries one logged event, as `planRetry` decides: re-link a work order already created, send again, or set aside. */
+/** Retries one logged event, as `planRetry` decides: re-link a work order already created, send or cancel again, leave an incoming event for ArrivePing to redeliver, or set aside. */
 async function runRetry(id: string): Promise<RetryOutcome> {
   const { markIgnored } = await import("./outbox.server");
   const { planRetry } = await import("./push");
@@ -329,6 +332,17 @@ async function runRetry(id: string): Promise<RetryOutcome> {
   }
   if (plan.action === "relink")
     return runRelink(row.id, plan.visitId, plan.jobId, row.idempotency_key ?? "");
+  if (plan.action === "cancel") {
+    // Same stable cancel key, so recordPending picks this row up again and ArrivePing treats it as the one cancel.
+    const result = await runCancel(plan.visitId);
+    if (result.outcome === "skipped") {
+      await markIgnored(row.id, result.reason);
+    } else if (result.outcome === "failed" && result.error === VISIT_NOT_FOUND) {
+      await markIgnored(row.id, "the install visit no longer exists");
+      return { outcome: "ignored", reason: "the install visit no longer exists" };
+    }
+    return result;
+  }
 
   const result = await runPushCreate(plan.visitId, plan.key);
   if (result.outcome === "skipped") {
@@ -464,7 +478,10 @@ export const retrySyncEvent = createServerFn({ method: "POST" })
 const RETRY_BATCH = 20;
 const RETRY_BUDGET_MS = 20_000;
 
-/** Retries up to 20 failed events, oldest first, one at a time, stopping after about 20 seconds. `remaining` counts failed events this batch did not reach. */
+/**
+ * Retries up to 20 failed outgoing events, oldest first, one at a time, stopping after about 20 seconds. `remaining` counts
+ * failed outgoing events this batch did not reach. Failed incoming events are left for ArrivePing to redeliver.
+ */
 export const retryAllFailed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -475,6 +492,7 @@ export const retryAllFailed = createServerFn({ method: "POST" })
       .from("sync_events")
       .select("id")
       .eq("system", "arriveping")
+      .eq("direction", "out")
       .eq("status", "failed")
       .order("created_at", { ascending: true })
       .limit(RETRY_BATCH);
@@ -503,6 +521,7 @@ export const retryAllFailed = createServerFn({ method: "POST" })
       .from("sync_events")
       .select("id", { count: "exact", head: true })
       .eq("system", "arriveping")
+      .eq("direction", "out")
       .eq("status", "failed");
     // Failed rows not attempted in this batch: the ones retried here that failed again are reported in `failed` instead.
     counts.remaining = Math.max(0, (count ?? 0) - counts.failed);

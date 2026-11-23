@@ -112,24 +112,24 @@ export type RetryRow = {
 export type RetryPlan =
   | { action: "resend"; visitId: string; key: string }
   | { action: "relink"; visitId: string; jobId: string }
+  | { action: "cancel"; visitId: string }
   | { action: "ignore"; reason: string }
   | { action: "skip"; reason: string };
 
 /**
  * What a retry of a logged event should do. A send that already got a work order id back is only re-linked to the visit:
- * calling ArrivePing again would trust an idempotency key that may have expired, and could make a duplicate.
+ * calling ArrivePing again would trust an idempotency key that may have expired, and could make a duplicate. A cancel is
+ * sent again under its own stable key. An incoming event is left failed: ArrivePing redelivers it, and setting it aside
+ * here would make that redelivery look like a duplicate.
  */
 export function planRetry(row: RetryRow): RetryPlan {
   if (row.status !== "failed" && row.status !== "pending")
     return { action: "skip", reason: `already ${row.status}` };
-  if (
-    row.direction !== "out" ||
-    row.entity_type !== "visit" ||
-    row.event_type !== "create" ||
-    !row.entity_id
-  ) {
+  if (row.direction === "in") return { action: "skip", reason: "ArrivePing will redeliver" };
+  if (row.direction !== "out" || row.entity_type !== "visit" || !row.entity_id)
     return { action: "ignore", reason: "retry not supported yet" };
-  }
+  if (row.event_type === "cancel") return { action: "cancel", visitId: row.entity_id };
+  if (row.event_type !== "create") return { action: "ignore", reason: "retry not supported yet" };
   if (row.external_id) return { action: "relink", visitId: row.entity_id, jobId: row.external_id };
   if (!row.idempotency_key) return { action: "ignore", reason: "no idempotency key" };
   return { action: "resend", visitId: row.entity_id, key: row.idempotency_key };

@@ -38,11 +38,22 @@ const eventLabel = (t: string) => EVENT[t] ?? capitalise(t.replace(/_/g, " "));
 const when = (iso: string) =>
   new Date(iso).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" });
 
+const SKIPPED: Record<string, string> = {
+  "already linked": "Already linked to a work order — nothing was sent",
+  "not linked": "The visit was never sent to ArrivePing — nothing to cancel",
+  "already requested": "The cancel was already sent — nothing was sent again",
+};
+
 /** Tells the person what a retry did, in the same words the rest of the card uses. */
-function retryToast(r: RetryOutcome) {
-  if (r.outcome === "sent") toast.success(`Sent to ArrivePing as work order ${r.jobId}`);
+function retryToast(r: RetryOutcome, eventType: string) {
+  if (r.outcome === "sent")
+    toast.success(
+      eventType === "cancel"
+        ? `Cancel sent to ArrivePing for work order ${r.jobId}`
+        : `Sent to ArrivePing as work order ${r.jobId}`,
+    );
   else if (r.outcome === "failed") toast.error(r.error || "ArrivePing did not accept it");
-  else if (r.outcome === "skipped") toast.info("Already linked to a work order — nothing was sent");
+  else if (r.outcome === "skipped") toast.info(SKIPPED[r.reason] ?? "Nothing was sent");
   else if (r.outcome === "ignored") toast.info(`Set aside: ${r.reason}`);
   else toast.error("That event is no longer in the log");
 }
@@ -66,10 +77,10 @@ export function SyncQueue({
     placeholderData: keepPreviousData,
   });
 
-  const retry = async (id: string) => {
-    setBusy(id);
+  const retry = async (row: SyncEventRow) => {
+    setBusy(row.id);
     try {
-      retryToast(await retryFn({ data: { id } }));
+      retryToast(await retryFn({ data: { id: row.id } }), row.event_type);
     } catch (e) {
       toast.error(errText(e));
     } finally {
@@ -198,6 +209,7 @@ export function SyncQueue({
                       {r.status === "failed" && (
                         <RetryButton row={r} busy={busy} onRetry={retry} className="h-9" />
                       )}
+                      {r.status === "failed" && r.direction === "in" && <Redelivered />}
                     </td>
                   </tr>
                 ))}
@@ -228,6 +240,9 @@ export function SyncQueue({
                   )}
                   {r.status === "failed" && (
                     <RetryButton row={r} busy={busy} onRetry={retry} className="mt-3 h-11 w-full" />
+                  )}
+                  {r.status === "failed" && r.direction === "in" && (
+                    <Redelivered className="mt-3" />
                   )}
                 </li>
               ))}
@@ -284,6 +299,14 @@ function WorkOrderLink({ row }: { row: SyncEventRow }) {
   );
 }
 
+/** A failed webhook is not retried from BMD: ArrivePing sends it again, and a retry here would make that look like a duplicate. */
+function Redelivered({ className }: { className?: string }) {
+  return (
+    <p className={cn("text-xs text-muted-foreground", className)}>Redelivered by ArrivePing</p>
+  );
+}
+
+/** Retry for a failed push to ArrivePing. Incoming events get none; see `Redelivered`. */
 function RetryButton({
   row,
   busy,
@@ -292,16 +315,17 @@ function RetryButton({
 }: {
   row: SyncEventRow;
   busy: string | null;
-  onRetry: (id: string) => void;
+  onRetry: (row: SyncEventRow) => void;
   className?: string;
 }) {
+  if (row.direction === "in") return null;
   const mine = busy === row.id;
   return (
     <Button
       variant="outline"
       className={className}
       disabled={busy !== null}
-      onClick={() => onRetry(row.id)}
+      onClick={() => onRetry(row)}
       aria-label={`Retry ${eventLabel(row.event_type).toLowerCase()} from ${when(row.created_at)}`}
     >
       <RotateCw className={cn("mr-1.5 h-4 w-4", mine && "animate-spin")} aria-hidden />

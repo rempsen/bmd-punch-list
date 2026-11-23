@@ -232,11 +232,37 @@ describe("planRetry", () => {
     });
   });
 
-  test("anything but an outgoing visit send is not retried yet", () => {
+  test("a failed cancel is sent again, so the work order does not stay live in ArrivePing", () => {
+    const cancel = {
+      ...row,
+      event_type: "cancel",
+      idempotency_key: "bmd-visit-v1-cancel",
+      external_id: "wo_7",
+    };
+    expect(planRetry(cancel)).toEqual({ action: "cancel", visitId: "v1" });
+    expect(planRetry({ ...cancel, status: "pending" })).toEqual({
+      action: "cancel",
+      visitId: "v1",
+    });
+    expect(planRetry({ ...cancel, status: "sent" })).toEqual({
+      action: "skip",
+      reason: "already sent",
+    });
+  });
+
+  test("a failed incoming event is left failed for ArrivePing to redeliver, never set aside", () => {
+    const inbound = { ...row, direction: "in", event_type: "arrived", idempotency_key: "ap-evt-1" };
+    const redeliver = { action: "skip", reason: "ArrivePing will redeliver" };
+    expect(planRetry(inbound)).toEqual(redeliver);
+    expect(planRetry({ ...inbound, status: "pending" })).toEqual(redeliver);
+    expect(planRetry({ ...inbound, entity_id: null })).toEqual(redeliver);
+  });
+
+  test("anything else is not retried yet", () => {
     const notYet = { action: "ignore", reason: "retry not supported yet" };
-    expect(planRetry({ ...row, event_type: "cancel" })).toEqual(notYet);
-    expect(planRetry({ ...row, direction: "in" })).toEqual(notYet);
+    expect(planRetry({ ...row, event_type: "update" })).toEqual(notYet);
     expect(planRetry({ ...row, entity_type: "project" })).toEqual(notYet);
     expect(planRetry({ ...row, entity_id: null })).toEqual(notYet);
+    expect(planRetry({ ...row, event_type: "cancel", entity_id: null })).toEqual(notYet);
   });
 });
