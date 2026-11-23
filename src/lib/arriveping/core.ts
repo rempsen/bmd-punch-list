@@ -9,7 +9,8 @@ export const EXTERNAL_SOURCE = "bmd_projects";
 const EIGHT_HOURS_MS = 8 * 60 * 60 * 1000;
 
 /** Link to a work order in the ArrivePing admin. */
-export const apWorkOrderUrl = (id: string): string => `${AP_BASE}/admin/workorders/${encodeURIComponent(id)}`;
+/** The work order in ArrivePing's office app; ArrivePing opens it from its Work orders page. */
+export const apWorkOrderUrl = (id: string): string => `${AP_BASE}/admin/work-orders?open=${encodeURIComponent(id)}`;
 
 /** The API key from the environment, or null when it is missing or blank. */
 export function pickKey(env: Record<string, string | undefined>): string | null {
