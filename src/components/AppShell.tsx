@@ -66,7 +66,7 @@ export function useNavItems() {
   if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
   if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });
   // Settings come in two kinds. Company settings sit with the company-wide areas; job settings sit with the current job.
-  const companyTab = canAny("send_quotes") ? "quotes" : canAny("manage_integrations") ? "microsoft" : isSuperAdmin ? "allusers" : can("manage_settings") ? "projects" : null;
+  const companyTab = canAny("send_quotes") ? "quotes" : canAny("manage_integrations") ? "integrations" : isSuperAdmin ? "allusers" : can("manage_settings") ? "projects" : null;
   if (companyTab) items.push({ to: "/settings", search: { tab: companyTab }, label: "Company settings", short: "Company", icon: Settings, group: "company" });
   if (can("manage_settings") || can("manage_users"))
     items.push({ to: "/settings", search: { tab: can("manage_settings") ? "project" : "users" }, label: "Job settings", short: "Job", icon: Settings });

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Mail, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { OneDriveMirrorPanel } from "@/components/settings/OneDriveMirrorPanel";
+import { SettingsBox as Box } from "@/components/settings/SettingsBox";
 import { Button } from "@/components/ui/button";
 import { msConnectStart, msDisconnect, msSendTest, msStatus } from "@/lib/ms/ms.functions";
 import { errText } from "@/lib/platform/db";
@@ -143,10 +144,6 @@ export function Microsoft365Panel({ result, message }: { result?: string | undef
       )}
     </div>
   );
-}
-
-function Box({ children }: { children: React.ReactNode }) {
-  return <section className="rounded-lg border border-border bg-card p-4 md:p-5">{children}</section>;
 }
 
 function Status({ email, since, problem }: { email: string; since: string; problem: string | null }) {

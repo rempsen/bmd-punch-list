@@ -4,7 +4,7 @@ const back = (origin: string, params: Record<string, string>) =>
   new Response(null, {
     status: 302,
     headers: {
-      location: `${origin}/settings?${new URLSearchParams({ tab: "sync", ...params })}`,
+      location: `${origin}/settings?${new URLSearchParams({ tab: "integrations", ...params })}`,
       "set-cookie": "bmd_qbo_nonce=; Path=/api/qbo; Max-Age=0; HttpOnly; Secure; SameSite=Lax",
     },
   });

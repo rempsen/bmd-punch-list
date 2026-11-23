@@ -73,8 +73,8 @@ function CataloguePage() {
     setPulling(true);
     try {
       const r = await pullFn();
-      if (r.ok) toast.success(`Read from QuickBooks: ${pullSummary(r.counts)}. They are held for review under Company settings → Sync; nothing has been added to the catalogue yet.`, { duration: 9000 });
-      else toast.error(r.reason === "error" ? r.message : `${r.message} Go to Company settings → Sync.`, { duration: 9000 });
+      if (r.ok) toast.success(`Read from QuickBooks: ${pullSummary(r.counts)}. They are held for review under Company settings → Integrations; nothing has been added to the catalogue yet.`, { duration: 9000 });
+      else toast.error(r.reason === "error" ? r.message : `${r.message} Go to Company settings → Integrations.`, { duration: 9000 });
     } catch (e) {
       toast.error(errText(e));
     } finally {

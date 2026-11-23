@@ -1,13 +1,12 @@
 import { toast } from "sonner";
-import { QuickBooksPanel } from "@/components/settings/QuickBooksPanel";
 import { Button } from "@/components/ui/button";
 import { errText } from "@/lib/platform/db";
 import { markReviewed, useRefreshSync, useSync } from "@/lib/sync/data";
 import { changeSummary } from "@/lib/sync/logic";
 
 const SYSTEMS: { id: string; name: string; note: string }[] = [
-  { id: "quickbooks", name: "QuickBooks", note: "Connected directly from BMD Projects. See below." },
-  { id: "arriveping", name: "ArrivePing", note: "Waiting on the BMD Projects key and the catalogue endpoints. Not connected yet." },
+  { id: "quickbooks", name: "QuickBooks", note: "Connected directly from BMD Projects, under Integrations." },
+  { id: "arriveping", name: "ArrivePing", note: "Customers and work orders connect under Integrations. Catalogue items are not exchanged with ArrivePing yet." },
   { id: "companycam", name: "CompanyCam", note: "Read-only for now. Not connected to the sync yet." },
 ];
 const KIND: Record<string, string> = { material: "Material", labour: "Labour rate", supplier: "Supplier", client: "Client", cost_code: "Cost code", project: "Project" };
@@ -15,7 +14,7 @@ const OP: Record<string, string> = { create: "New", update: "Changed", delete: "
 const when = (iso: string) => new Date(iso).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" });
 
 /** Company settings → Sync: what BMD Projects is holding for the other systems, and what has moved between them. */
-export function SyncPanel({ qboResult, message }: { qboResult?: string | undefined; message?: string | undefined } = {}) {
+export function SyncPanel() {
   const { data, isLoading, error } = useSync();
   const refresh = useRefreshSync();
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
@@ -39,8 +38,6 @@ export function SyncPanel({ qboResult, message }: { qboResult?: string | undefin
           ))}
         </ul>
       </section>
-
-      <QuickBooksPanel result={qboResult} message={message} />
 
       <section className="rounded-lg border border-border bg-card p-4">
         <div className="flex flex-wrap items-center gap-2">

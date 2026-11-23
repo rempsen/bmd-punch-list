@@ -6,6 +6,7 @@ import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { BillingTab } from "@/components/billing/BillingTab";
 import { QuotesTab } from "@/components/quotes/QuotesTab";
+import { CrewStatusPanel } from "@/components/visits/CrewStatusPanel";
 import { VisitsPanel } from "@/components/visits/VisitsPanel";
 import { useProjectDocuments } from "@/lib/documents/data";
 import { buildTimeline } from "@/lib/projects/timeline";
@@ -381,39 +382,46 @@ function SiteTab({ project, canEdit }: { project: PipelineProject; canEdit: bool
   const isMine = jobs.some((j) => j.id === project.id);
   const won = project.stage === "won" || project.stage === "in_progress" || project.stage === "closed";
 
+  const crew = <CrewStatusPanel projectId={project.id} canEdit={canEdit} />;
   if (project.floorCount > 0)
     return (
-      <Panel title="Site">
-        <p className="text-sm text-muted-foreground">
-          {project.floorCount} {project.floorCount === 1 ? "floor" : "floors"} set up. The site tracker holds the dashboard, board, floors, deficiency list, exports and job photos.
-        </p>
-        {isMine ? (
-          <Button
-            className="mt-4 h-11"
-            onClick={() => {
-              setProjectId(project.id);
-              void navigate({ to: "/dashboard" });
-            }}
-          >
-            <LayoutDashboard className="mr-2 h-4 w-4" /> Open site tracker
-          </Button>
-        ) : (
-          <p className="mt-3 text-sm">You aren't on this job's site team yet. Ask an admin to add you in Job settings → Users on this job.</p>
-        )}
-      </Panel>
+      <div className="space-y-4">
+        {crew}
+        <Panel title="Site">
+          <p className="text-sm text-muted-foreground">
+            {project.floorCount} {project.floorCount === 1 ? "floor" : "floors"} set up. The site tracker holds the dashboard, board, floors, deficiency list, exports and job photos.
+          </p>
+          {isMine ? (
+            <Button
+              className="mt-4 h-11"
+              onClick={() => {
+                setProjectId(project.id);
+                void navigate({ to: "/dashboard" });
+              }}
+            >
+              <LayoutDashboard className="mr-2 h-4 w-4" /> Open site tracker
+            </Button>
+          ) : (
+            <p className="mt-3 text-sm">You aren't on this job's site team yet. Ask an admin to add you in Job settings → Users on this job.</p>
+          )}
+        </Panel>
+      </div>
     );
 
   return (
-    <Panel title="Site">
-      <p className="text-sm text-muted-foreground">
-        {won ? "Floors and rooms haven't been set up for this job yet." : "Floors and rooms are set up once the job is won."}
-      </p>
-      {won && canEdit && (
-        <Button className="mt-4 h-11" onClick={() => void navigate({ to: "/new-job", search: { project: project.id } })}>
-          <Hammer className="mr-2 h-4 w-4" /> Set up site
-        </Button>
-      )}
-    </Panel>
+    <div className="space-y-4">
+      {crew}
+      <Panel title="Site">
+        <p className="text-sm text-muted-foreground">
+          {won ? "Floors and rooms haven't been set up for this job yet." : "Floors and rooms are set up once the job is won."}
+        </p>
+        {won && canEdit && (
+          <Button className="mt-4 h-11" onClick={() => void navigate({ to: "/new-job", search: { project: project.id } })}>
+            <Hammer className="mr-2 h-4 w-4" /> Set up site
+          </Button>
+        )}
+      </Panel>
+    </div>
   );
 }
 

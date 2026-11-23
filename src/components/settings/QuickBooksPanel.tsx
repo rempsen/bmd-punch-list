@@ -21,7 +21,7 @@ const KINDS: [string, string][] = [
 export const pullSummary = (counts: Record<string, number>) => KINDS.filter(([k]) => counts[k]).map(([k, label]) => `${counts[k]!.toLocaleString("en-CA")} ${label}`).join(", ") || "nothing";
 const when = (iso: string) => new Date(iso).toLocaleString("en-CA", { dateStyle: "medium", timeStyle: "short" });
 
-/** Company settings → Sync: the app's own QuickBooks connection, and pulling products and vendors from it. */
+/** Company settings → Integrations: the app's own QuickBooks connection, and pulling products and vendors from it. */
 export function QuickBooksPanel({ result, message }: { result?: string | undefined; message?: string | undefined }) {
   const statusFn = useServerFn(qboStatus);
   const startFn = useServerFn(qboConnectStart);
