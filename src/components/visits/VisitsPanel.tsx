@@ -22,7 +22,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
   const qc = useQueryClient();
   const pushFn = useServerFn(pushVisit);
   const cancelFn = useServerFn(cancelVisitPush);
-  const { data: visits = [] } = useProjectVisits(projectId);
+  const { data: visits = [], isLoading, isError, error: loadError } = useProjectVisits(projectId);
   const [form, setForm] = useState<VisitForm | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = () => {
@@ -205,7 +205,14 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
           </div>
         </form>
       )}
-      {visits.length === 0 ? (
+      {isLoading ? (
+        <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
+      ) : isError ? (
+        // Never "No install visits" when the list could not be read (a missing migration, a lost connection).
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          Couldn't load install visits: {errText(loadError)}
+        </p>
+      ) : visits.length === 0 ? (
         !form && <p className="mt-2 text-sm text-muted-foreground">No install visits scheduled.</p>
       ) : (
         <ul className="mt-3 divide-y divide-border">

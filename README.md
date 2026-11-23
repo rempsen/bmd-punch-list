@@ -77,12 +77,12 @@ BMD Projects schedules site visits in ArrivePing and takes crew status back from
 **Webhook URL**: `https://<app-origin>/api/public/arriveping/webhook` — point ArrivePing's webhooks here.
 
 **What the buttons do**
-- *Schedule* saves the visit in BMD Projects.
-- *Send to ArrivePing* pushes it as a work order (or updates it if already sent).
-- *Cancel* cancels the visit and the ArrivePing work order.
+- *Schedule* saves the visit in BMD Projects and sends it to ArrivePing as a work order. If ArrivePing can't be reached, the visit is still saved and the failure goes to the Sync queue.
+- *Send to ArrivePing* appears only on a scheduled visit that hasn't been sent yet. It never updates a visit already in ArrivePing.
+- *Cancel visit* cancels the visit in BMD Projects first, then asks ArrivePing to cancel the work order. The visit reads "Cancel requested" until ArrivePing confirms.
 
-**When something fails**: Company settings → Integrations → ArrivePing → Sync queue. Failed pushes sit there with the error and a Retry button.
+**When something fails**: Company settings → Integrations → ArrivePing → Sync queue. Failed sends and cancels sit there with the error and a Retry button (or use *Retry all failed*); a retry reuses the same idempotency key, so ArrivePing never gets a duplicate. Failed webhooks have no Retry button: ArrivePing redelivers them, and they're applied when it does.
 
 **Setup notes**
-- Apply migration `0044_arriveping_sync` (`drizzle/migrations/`) before using the integration.
+- Apply migration `0044_arriveping_sync` (`drizzle/migrations/`) before deploying. Without it, install visits can't be loaded and the integration doesn't work.
 - The ArrivePing API paths live in `src/lib/arriveping/core.ts` (`AP_PATHS`). They may need adjusting once ArrivePing publishes its OpenAPI.
