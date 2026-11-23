@@ -19,6 +19,8 @@ import {
   saveLabourRate,
   saveSupplier,
   saveTaxSettings,
+  sellsMaterials,
+  SUPPLIES,
   useCostCodes,
   useLabourRates,
   useMaterials,
@@ -29,6 +31,7 @@ import {
   type LabourRate,
   type Material,
   type Supplier,
+  type Supplies,
   type Template,
 } from "@/lib/catalogue/data";
 import { CATEGORIES, categoryLabel, parseMaterialRows, parseMoneyCents, planMaterialImport, type MaterialInput } from "@/lib/catalogue/logic";
@@ -64,6 +67,7 @@ function CataloguePage() {
   const [material, setMaterial] = useState<Material | "new" | null>(null);
   const [rate, setRate] = useState<LabourRate | "new" | null>(null);
   const [supplier, setSupplier] = useState<Supplier | "new" | null>(null);
+  const [vendorKind, setVendorKind] = useState<"" | Supplies>("");
   const [template, setTemplate] = useState<Template | "new" | null>(null);
   const [importing, setImporting] = useState(false);
   const pullFn = useServerFn(qboPullProducts);
@@ -118,7 +122,7 @@ function CataloguePage() {
             <TabsTrigger value="materials">Materials</TabsTrigger>
             <TabsTrigger value="labour">Labour</TabsTrigger>
             <TabsTrigger value="assemblies">Assemblies</TabsTrigger>
-            <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+            <TabsTrigger value="suppliers">Suppliers &amp; subcontractors</TabsTrigger>
             <TabsTrigger value="tax">Tax rates</TabsTrigger>
           </TabsList>
 
@@ -286,21 +290,29 @@ function CataloguePage() {
           </TabsContent>
 
           <TabsContent value="suppliers" className="space-y-3">
-            {canEdit && (
-              <div className="flex justify-end">
-                <Button className="h-11" onClick={() => setSupplier("new")}>
-                  <Plus className="mr-2 h-4 w-4" /> New supplier
-                </Button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Show">
+                {([["", "All"], ["materials", "Materials"], ["labour", "Labour"], ["both", "Both"]] as const).map(([v, label]) => (
+                  <Button key={v} size="sm" variant={vendorKind === v ? "default" : "outline"} className="h-9" aria-pressed={vendorKind === v} onClick={() => setVendorKind(v)}>
+                    {label} ({(v ? suppliers.filter((s) => s.supplies === v) : suppliers).length})
+                  </Button>
+                ))}
               </div>
-            )}
+              {canEdit && (
+                <Button className="h-11" onClick={() => setSupplier("new")}>
+                  <Plus className="mr-2 h-4 w-4" /> New vendor
+                </Button>
+              )}
+            </div>
             {suppliers.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">No suppliers yet.</p>
+              <p className="rounded-lg border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">No suppliers or subcontractors yet.</p>
             ) : (
               <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
-                {suppliers.map((s) => (
+                {suppliers.filter((s) => !vendorKind || s.supplies === vendorKind).map((s) => (
                   <li key={s.id}>
                     <button type="button" onClick={() => setSupplier(s)} className="flex min-h-14 w-full flex-wrap items-center gap-x-4 px-4 py-3 text-left hover:bg-muted/60">
                       <span className="min-w-0 flex-1 truncate font-medium">{s.name}</span>
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{SUPPLIES.find((x) => x.value === s.supplies)?.short}</span>
                       <span className="truncate text-sm text-muted-foreground">{[s.contact_name, s.email, s.phone].filter(Boolean).join(" · ")}</span>
                       {canEdit && (
                         <span className="inline-flex items-center text-xs font-medium text-primary">
@@ -424,6 +436,7 @@ function SupplierDialog({ supplier, canEdit, onClose, onSaved }: { supplier: Sup
     account_number: supplier?.account_number ?? "",
     notes: supplier?.notes ?? "",
     active: supplier?.active ?? true,
+    supplies: supplier?.supplies ?? ("materials" as Supplies),
   });
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF((cur) => ({ ...cur, [k]: e.target.value }));
@@ -431,8 +444,8 @@ function SupplierDialog({ supplier, canEdit, onClose, onSaved }: { supplier: Sup
     setBusy(true);
     try {
       const n = (s: string) => s.trim() || null;
-      await saveSupplier(supplier?.id ?? null, { name: f.name.trim(), contact_name: n(f.contact_name), email: n(f.email), phone: n(f.phone), account_number: n(f.account_number), notes: n(f.notes), active: f.active });
-      toast.success("Supplier saved");
+      await saveSupplier(supplier?.id ?? null, { name: f.name.trim(), contact_name: n(f.contact_name), email: n(f.email), phone: n(f.phone), account_number: n(f.account_number), notes: n(f.notes), active: f.active, supplies: f.supplies });
+      toast.success("Saved");
       onSaved();
     } catch (e) {
       toast.error(`Could not save: ${errText(e)}`);
@@ -444,12 +457,21 @@ function SupplierDialog({ supplier, canEdit, onClose, onSaved }: { supplier: Sup
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{supplier ? supplier.name : "New supplier"}</DialogTitle>
-          <DialogDescription>Supplier names stay inside BMD; they never appear on a quote.</DialogDescription>
+          <DialogTitle>{supplier ? supplier.name : "New vendor"}</DialogTitle>
+          <DialogDescription>Vendor names stay inside BMD; they never appear on a quote.</DialogDescription>
         </DialogHeader>
         <fieldset disabled={!canEdit} className="grid gap-4">
           <F label="Name">
             <Input className="h-11" value={f.name} onChange={set("name")} />
+          </F>
+          <F label="Supplies BMD with">
+            <select className={selectCls} value={f.supplies} onChange={(e) => setF((cur) => ({ ...cur, supplies: e.target.value as Supplies }))}>
+              {SUPPLIES.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </F>
           <F label="Contact">
             <Input className="h-11" value={f.contact_name} onChange={set("contact_name")} />
@@ -621,7 +643,7 @@ function ImportDialog({ existing, suppliers, onClose, onDone }: { existing: Mate
             <F label="Supplier for the new products">
               <select className={selectCls} value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
                 <option value="">Not set</option>
-                {suppliers.filter((s) => s.active).map((s) => (
+                {suppliers.filter((s) => s.active && sellsMaterials(s)).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>

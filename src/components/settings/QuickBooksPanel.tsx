@@ -185,7 +185,7 @@ const n = (count: number, one: string, many: string) => `${count.toLocaleString(
 const ROWS: [keyof ReturnType<typeof planSummary>["byKind"], string][] = [
   ["material", "Materials"],
   ["labour", "Labour rates"],
-  ["supplier", "Suppliers"],
+  ["supplier", "Suppliers & subcontractors"],
   ["cost_code", "Cost codes"],
 ];
 
@@ -221,7 +221,7 @@ function DryRun({ plan, picks, ticked, setTicked, busy, onImport, onClose }: { p
   return (
     <div className="mt-3 rounded-md border border-border p-3 text-sm">
       <h3 className="font-semibold">Dry run: nothing has been imported yet</h3>
-      <p className="mt-1 text-muted-foreground">Tap a number to see the rows and tick what comes in. Suppliers start ticked only if BMD has bought materials from them; tax, billing and one-job lines start unticked.</p>
+      <p className="mt-1 text-muted-foreground">Tap a number to see the rows and tick what comes in. Vendors start ticked only if BMD has bought materials or labour from them; tax, billing and one-job lines start unticked.</p>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full min-w-[420px] text-sm">
           <thead className="text-left text-xs text-muted-foreground">
@@ -268,6 +268,7 @@ function DryRun({ plan, picks, ticked, setTicked, busy, onImport, onClose }: { p
                       <span>
                         {a.name}
                         {cost}
+                        {a.kind === "supplier" && (a.fields["supplies"] === "labour" || a.fields["supplies"] === "both") && <span className="font-medium"> · {a.fields["supplies"] === "both" ? "materials and labour" : "labour"}</span>}
                         {a.kept?.length ? " · BMD's own value kept" : ""}
                         {why && <span className="text-muted-foreground"> · {why}</span>}
                       </span>

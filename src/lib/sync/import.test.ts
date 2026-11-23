@@ -8,7 +8,7 @@ const none: Existing = { materials: [], labour: [], suppliers: [], costCodes: []
 describe("planning the first load from QuickBooks", () => {
   test("a vendor BMD does not have becomes a supplier", () => {
     const p = planImport([vendor("7", "Gerflor", { email: "a@b.c" })], none);
-    expect(p).toEqual([{ op: "create", kind: "supplier", external_id: "7", name: "Gerflor", bmd_id: null, fields: { name: "Gerflor", contact_name: null, email: "a@b.c", phone: null, account_number: null, active: true } }]);
+    expect(p).toEqual([{ op: "create", kind: "supplier", external_id: "7", name: "Gerflor", bmd_id: null, fields: { name: "Gerflor", contact_name: null, email: "a@b.c", phone: null, account_number: null, active: true, supplies: "materials" } }]);
   });
   test("a vendor BMD already has, by name, is linked and only its blanks are filled", () => {
     const p = planImport([vendor("7", "gerflor ", { email: "a@b.c", phone: "204" })], { ...none, suppliers: [{ id: "s1", name: "Gerflor", contact_name: null, email: "own@bmd.ca", phone: null, account_number: null, active: true }] });
@@ -67,16 +67,23 @@ describe("the dry-run summary", () => {
 });
 
 describe("choosing what comes in", () => {
-  const purchases = (material_lines: number, other_lines: number) => ({ purchases: { material_lines, other_lines, last_purchase: "2026-01-01" } });
+  const purchases = (material_lines: number, other_lines: number, labour_lines = 0) => ({ purchases: { material_lines, labour_lines, other_lines, last_purchase: "2026-01-01" } });
   test("suppliers start ticked only when BMD has bought materials from them or a product names them", () => {
     const staged = [vendor("1", "Interface", purchases(12, 0)), vendor("2", "Olive Garden", purchases(0, 4)), vendor("3", "Shell Gas", purchases(0, 0)), vendor("4", "Gerflor", purchases(0, 0)), vendor("5", "Old Co"), vendor("6", "American Express", purchases(2, 37)), item("9", "material", "Mipolam", { vendor_id: "4" })];
     const picks = suggestPicks(planImport(staged, none), staged);
-    expect(picks.get("supplier|1")).toEqual({ on: true, why: "12 material purchase lines" });
-    expect(picks.get("supplier|2")).toEqual({ on: false, why: "bought from, but never materials" });
+    expect(picks.get("supplier|1")).toEqual({ on: true, why: "12 material lines" });
+    expect(picks.get("supplier|2")).toEqual({ on: false, why: "bought from, but never materials or labour" });
     expect(picks.get("supplier|3")).toEqual({ on: false, why: "never bought from in 3 years" });
     expect(picks.get("supplier|4")).toEqual({ on: true, why: "a product names it as its vendor" });
     expect(picks.get("supplier|5")).toEqual({ on: false, why: "no purchase history read yet" });
-    expect(picks.get("supplier|6")).toEqual({ on: false, why: "mostly not materials (2 of 39 lines)" });
+    expect(picks.get("supplier|6")).toEqual({ on: false, why: "mostly not materials or labour (2 of 39 lines)" });
+  });
+  test("installers start ticked and arrive as labour vendors; a vendor with plenty of both supplies both", () => {
+    const staged = [vendor("1", "Tylor Beardy", purchases(0, 18, 172)), vendor("2", "Brolee", purchases(97, 5, 30)), vendor("3", "Prosol", purchases(283, 7, 2))];
+    const plan = planImport(staged, none);
+    const picks = suggestPicks(plan, staged);
+    expect(picks.get("supplier|1")).toEqual({ on: true, why: "172 labour lines" });
+    expect(plan.map((a) => a.fields["supplies"])).toEqual(["labour", "both", "materials"]);
   });
   test("tax, billing and one-job lines start unticked; real products and matches start ticked", () => {
     const staged = [item("1", "material", "Tax"), item("2", "material", "Tile - Supply"), item("3", "material", "Grand Pacific Gardens - Window Coverings - Gimli A Suite 2 Window Coverings"), item("4", "material", "Dante Pro 2.0 - Glue Down - Acacia Sereno"), item("5", "material", "Old tile", { active: false }), item("6", "cost_code", "01-04 - LVT", { code: "01-04" })];

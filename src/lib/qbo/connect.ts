@@ -145,30 +145,41 @@ export function stageItem(item: QboItem): Staged {
   };
 }
 
-/** What BMD's purchases from one vendor show: how many lines were for materials (or job costs) and how many for anything else. */
-export type VendorEvidence = { material_lines: number; other_lines: number; last_purchase: string | null };
+/** What BMD's purchases from one vendor show: lines for materials, for labour (installers, subcontractors), and for anything else. */
+export type VendorEvidence = { material_lines: number; labour_lines: number; other_lines: number; last_purchase: string | null };
 type QboLine = { DetailType?: string; ItemBasedExpenseLineDetail?: { ItemRef?: Ref }; AccountBasedExpenseLineDetail?: { AccountRef?: Ref } };
 type QboTxn = { TxnDate?: string; VendorRef?: Ref; EntityRef?: Ref & { type?: string }; Line?: QboLine[] };
+type QboAccount = { Id?: string; Name?: string; FullyQualifiedName?: string; AccountType?: string; AccountSubType?: string };
+
+const LABOUR_NAME = /install|subcontract|labou?r/i;
 
 /**
- * Reads bills and expenses to tell a material supplier from a restaurant or a software subscription.
- * A line counts as materials when it names a product, or is booked to a supplies-and-materials cost account.
- * Subcontractors, labour, freight and other cost-of-sales accounts do not count: those vendors are installers,
- * couriers and the like, not suppliers.
+ * Reads bills and expenses to tell a material supplier and an installer from a restaurant or a software subscription.
+ * Materials: a product line, or a supplies-and-materials cost account.
+ * Labour: a labour item or an install cost-code item, or a cost-of-labour, subcontractor or installation cost account.
+ * Freight and other costs count as neither.
  */
-export function vendorEvidence(txns: QboTxn[], items: { Id?: string; Type?: string; Name?: string }[], accounts: { Id?: string; AccountType?: string; AccountSubType?: string }[]): Map<string, VendorEvidence> {
-  const jobItems = new Set(items.filter((i) => classifyItem(i as QboItem).kind === "material").map((i) => String(i.Id)));
-  const cogs = new Set(accounts.filter((a) => a.AccountSubType === "SuppliesMaterialsCogs").map((a) => String(a.Id)));
+export function vendorEvidence(txns: QboTxn[], items: { Id?: string; Type?: string; Name?: string; PurchaseCost?: number }[], accounts: QboAccount[]): Map<string, VendorEvidence> {
+  const materialItems = new Set<string>();
+  const labourItems = new Set<string>();
+  for (const i of items) {
+    const k = classifyItem(i as QboItem).kind;
+    if (k === "material") materialItems.add(String(i.Id));
+    else if (k === "labour" || (k === "cost_code" && LABOUR_NAME.test(String(i.Name ?? "")))) labourItems.add(String(i.Id));
+  }
+  const materialAccounts = new Set(accounts.filter((a) => a.AccountSubType === "SuppliesMaterialsCogs").map((a) => String(a.Id)));
+  const labourAccounts = new Set(accounts.filter((a) => a.AccountType === "Cost of Goods Sold" && (a.AccountSubType === "CostOfLaborCos" || LABOUR_NAME.test(a.FullyQualifiedName ?? a.Name ?? ""))).map((a) => String(a.Id)));
   const out = new Map<string, VendorEvidence>();
   for (const t of txns) {
     const ref = t.VendorRef ?? (t.EntityRef && (!t.EntityRef.type || t.EntityRef.type === "Vendor") ? t.EntityRef : undefined);
     if (!ref?.value) continue;
-    const e = out.get(ref.value) ?? { material_lines: 0, other_lines: 0, last_purchase: null };
+    const e = out.get(ref.value) ?? { material_lines: 0, labour_lines: 0, other_lines: 0, last_purchase: null };
     for (const l of t.Line ?? []) {
       const item = l.ItemBasedExpenseLineDetail?.ItemRef?.value;
       const account = l.AccountBasedExpenseLineDetail?.AccountRef?.value;
       if (item == null && account == null) continue;
-      if ((item != null && jobItems.has(item)) || (account != null && cogs.has(account))) e.material_lines++;
+      if ((item != null && materialItems.has(item)) || (account != null && materialAccounts.has(account))) e.material_lines++;
+      else if ((item != null && labourItems.has(item)) || (account != null && labourAccounts.has(account))) e.labour_lines++;
       else e.other_lines++;
     }
     if (t.TxnDate && (!e.last_purchase || t.TxnDate > e.last_purchase)) e.last_purchase = t.TxnDate;
@@ -179,7 +190,7 @@ export function vendorEvidence(txns: QboTxn[], items: { Id?: string; Type?: stri
 
 type QboVendor = { Id?: string; DisplayName?: string; Active?: boolean; PrimaryEmailAddr?: { Address?: string }; PrimaryPhone?: { FreeFormNumber?: string }; AcctNum?: string; GivenName?: string; FamilyName?: string };
 export function stageVendor(v: QboVendor, evidence?: Map<string, VendorEvidence>): Staged {
-  const e = evidence ? (evidence.get(String(v.Id ?? "")) ?? { material_lines: 0, other_lines: 0, last_purchase: null }) : null;
+  const e = evidence ? (evidence.get(String(v.Id ?? "")) ?? { material_lines: 0, labour_lines: 0, other_lines: 0, last_purchase: null }) : null;
   return {
     external_id: String(v.Id ?? ""),
     kind: "supplier",

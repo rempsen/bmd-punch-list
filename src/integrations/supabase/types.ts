@@ -2720,6 +2720,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          supplies: string
         }
         Insert: {
           account_number?: string | null
@@ -2731,6 +2732,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          supplies?: string
         }
         Update: {
           account_number?: string | null
@@ -2742,6 +2744,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          supplies?: string
         }
         Relationships: []
       }
