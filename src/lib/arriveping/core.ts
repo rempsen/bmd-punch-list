@@ -11,8 +11,7 @@ export const apWorkOrderUrl = (id: string): string => `${AP_BASE}/admin/workorde
 
 /** The API key from the environment, or null when it is missing or blank. */
 export function pickKey(env: Record<string, string | undefined>): string | null {
-  const key = (env["ArrivePing_Api"] ?? env["ARRIVEPING_API_KEY"] ?? "").trim();
-  return key === "" ? null : key;
+  return (env["ArrivePing_Api"] ?? "").trim() || (env["ARRIVEPING_API_KEY"] ?? "").trim() || null;
 }
 
 /** Same visit, same key: a retry after a timeout cannot create a second work order. */
@@ -51,8 +50,18 @@ export function workOrderPayload(visit: VisitForPush, project: ProjectForPush): 
   };
 }
 
+/** The message of a JSON-RPC error reply, or null when the body is not one. */
+export function mcpErrorMessage(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const error = (body as { error?: unknown }).error;
+  const message = error && typeof error === "object" ? (error as { message?: unknown }).message : undefined;
+  return typeof message === "string" && message !== "" ? message : null;
+}
+
 /** Tool names out of a JSON-RPC `tools/list` reply. Anything else (an HTML error page, an empty body) is reported, not guessed at. */
 export function parseMcpToolsList(body: unknown): { tools: string[] } | { error: string } {
+  const rpcError = mcpErrorMessage(body);
+  if (rpcError) return { error: rpcError };
   const unexpected = { error: "unexpected response" };
   if (!body || typeof body !== "object") return unexpected;
   const result = (body as { result?: unknown }).result;
@@ -73,5 +82,16 @@ export function describeApiError(status: number, body: string): string {
   if (status === 403) return "ArrivePing refused: the API key lacks the scope for this call (403)";
   if (status === 401) return "ArrivePing rejected the API key (401)";
   if (status === 404) return "ArrivePing endpoint not found (404) — check AP_PATHS";
-  return `ArrivePing error ${status}: ${body.slice(0, 200)}`;
+  const detail = body.slice(0, 200);
+  return detail === "" ? `ArrivePing error ${status}` : `ArrivePing error ${status}: ${detail}`;
+}
+
+/** A successful reply's JSON. An empty body (204) is `null`; anything else that is not JSON means we reached the wrong place. */
+export function parseJsonReply(status: number, text: string): { ok: true; json: unknown } | { ok: false; error: string } {
+  if (text.trim() === "") return { ok: true, json: null };
+  try {
+    return { ok: true, json: JSON.parse(text) };
+  } catch {
+    return { ok: false, error: `ArrivePing returned a non-JSON reply (${status}) — check AP_PATHS` };
+  }
 }

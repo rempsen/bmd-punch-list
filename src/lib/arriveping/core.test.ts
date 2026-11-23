@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_BASE, apWorkOrderUrl, describeApiError, idempotencyKey, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload } from "./core";
+import { AP_BASE, apWorkOrderUrl, describeApiError, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -20,6 +20,9 @@ describe("API key", () => {
     expect(pickKey({})).toBeNull();
     expect(pickKey({ ArrivePing_Api: "   " })).toBeNull();
     expect(pickKey({ ArrivePing_Api: "", ARRIVEPING_API_KEY: undefined })).toBeNull();
+  });
+  test("a blank primary falls back to the other name", () => {
+    expect(pickKey({ ArrivePing_Api: "  ", ARRIVEPING_API_KEY: " fallback " })).toBe("fallback");
   });
 });
 
@@ -70,6 +73,9 @@ describe("MCP tools list", () => {
   test("reads tool names from a JSON-RPC result", () => {
     expect(parseMcpToolsList({ jsonrpc: "2.0", result: { tools: [{ name: "list_workorders" }, { name: "create_workorder" }] } })).toEqual({ tools: ["list_workorders", "create_workorder"] });
   });
+  test("a JSON-RPC error keeps its message", () => {
+    expect(parseMcpToolsList({ jsonrpc: "2.0", id: 2, error: { code: -32001, message: "Invalid session" } })).toEqual({ error: "Invalid session" });
+  });
   test("anything else is an unexpected response", () => {
     expect(parseMcpToolsList("<html>")).toEqual({ error: "unexpected response" });
     expect(parseMcpToolsList(null)).toEqual({ error: "unexpected response" });
@@ -84,6 +90,9 @@ describe("API errors", () => {
     expect(describeApiError(401, "")).toBe("ArrivePing rejected the API key (401)");
     expect(describeApiError(404, "")).toContain("check AP_PATHS");
   });
+  test("an empty body leaves no dangling colon", () => {
+    expect(describeApiError(500, "")).toBe("ArrivePing error 500");
+  });
   test("other statuses carry the first 200 characters of the body", () => {
     const text = describeApiError(500, "x".repeat(500));
     expect(text).toBe(`ArrivePing error 500: ${"x".repeat(200)}`);
@@ -93,5 +102,15 @@ describe("API errors", () => {
 describe("work order link", () => {
   test("points at the admin page and escapes the id", () => {
     expect(apWorkOrderUrl("wo 1/2")).toBe(`${AP_BASE}/admin/workorders/wo%201%2F2`);
+  });
+});
+
+describe("success replies", () => {
+  test("JSON is parsed and an empty body is null", () => {
+    expect(parseJsonReply(201, '{"id":"wo_1"}')).toEqual({ ok: true, json: { id: "wo_1" } });
+    expect(parseJsonReply(204, "")).toEqual({ ok: true, json: null });
+  });
+  test("a 200 that is not JSON is a failure, not a push", () => {
+    expect(parseJsonReply(200, "<!doctype html><html>")).toEqual({ ok: false, error: "ArrivePing returned a non-JSON reply (200) — check AP_PATHS" });
   });
 });

@@ -1,11 +1,12 @@
-import { AP_BASE, AP_MCP, describeApiError, parseMcpToolsList, pickKey } from "./core";
+import { AP_BASE, AP_MCP, describeApiError, mcpErrorMessage, parseJsonReply, parseMcpToolsList, pickKey } from "./core";
 
 /** Server only: the key is read from the environment on each call and never reaches the browser. */
 export const arrivepingKey = (): string | null => pickKey(process.env);
 
 const TIMEOUT_MS = 15_000;
 
-export type ApResult = { ok: true; status: number; json: unknown } | { ok: false; status: number; error: string };
+/** `not_configured` and `unreachable` have status 0; `http` is a reply ArrivePing sent that we could not use. */
+export type ApResult = { ok: true; status: number; json: unknown } | { ok: false; status: number; code: "not_configured" | "unreachable" | "http"; error: string };
 export type ApRequest = { method: "GET" | "POST" | "PATCH"; body?: unknown; idempotencyKey?: string };
 
 const failure = (error: unknown): string => `Could not reach ArrivePing: ${error instanceof Error ? error.message : String(error)}`;
@@ -29,7 +30,7 @@ function parseMcpBody(text: string, contentType: string | null): unknown {
 /** Calls the ArrivePing REST API with the key. Never throws: a missing key, a refusal and a timeout all come back as `ok: false`. */
 export async function apFetch(path: string, init: ApRequest, fetchImpl: typeof fetch = fetch): Promise<ApResult> {
   const key = arrivepingKey();
-  if (!key) return { ok: false, status: 0, error: "ArrivePing is not configured — add secret ArrivePing_Api" };
+  if (!key) return { ok: false, status: 0, code: "not_configured", error: "ArrivePing is not configured — add secret ArrivePing_Api" };
   const headers: Record<string, string> = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
   if (init.idempotencyKey) headers["Idempotency-Key"] = init.idempotencyKey;
   try {
@@ -41,10 +42,11 @@ export async function apFetch(path: string, init: ApRequest, fetchImpl: typeof f
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const text = await res.text();
-    if (!res.ok) return { ok: false, status: res.status, error: describeApiError(res.status, text) };
-    return { ok: true, status: res.status, json: parseJson(text) };
+    if (!res.ok) return { ok: false, status: res.status, code: "http", error: describeApiError(res.status, text) };
+    const reply = parseJsonReply(res.status, text);
+    return reply.ok ? { ok: true, status: res.status, json: reply.json } : { ok: false, status: res.status, code: "http", error: reply.error };
   } catch (error) {
-    return { ok: false, status: 0, error: failure(error) };
+    return { ok: false, status: 0, code: "unreachable", error: failure(error) };
   }
 }
 
@@ -59,7 +61,8 @@ export async function mcpProbe(fetchImpl: typeof fetch = fetch): Promise<{ ok: t
     const init = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "bmd-projects", version: "1.0" } } });
     if (!init.ok) return { ok: false, error: describeApiError(init.status, await init.text()) };
     const sessionId = init.headers.get("Mcp-Session-Id");
-    await init.text();
+    const initError = mcpErrorMessage(parseMcpBody(await init.text(), init.headers.get("content-type")));
+    if (initError) return { ok: false, error: initError };
     const list = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }, sessionId ? { "Mcp-Session-Id": sessionId } : {});
     const text = await list.text();
     if (!list.ok) return { ok: false, error: describeApiError(list.status, text) };
