@@ -1,3 +1,4 @@
+import { STALE_PENDING_MS } from "./core";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { PushCancelOutcome, PushCreateOutcome } from "./push";
@@ -45,6 +46,7 @@ const idInput = (d: { id: string }) => {
 type VisitRow = {
   id: string;
   project_id: string;
+  status: string;
   starts_at: string;
   ends_at: string | null;
   crew: string | null;
@@ -60,7 +62,7 @@ async function loadVisit(
   const db = await admin();
   const { data: visit, error } = await db
     .from("install_visits")
-    .select("id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id")
+    .select("id,project_id,status,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id")
     .eq("id", visitId)
     .maybeSingle();
   if (error) return { error: `Could not load the install visit: ${error.message}` };
@@ -156,6 +158,9 @@ async function runPushCreate(
   if ("error" in loaded) return { outcome: "failed", error: loaded.error, key };
   const { visit, project } = loaded;
   if (visit.arriveping_job_id) return { outcome: "skipped", reason: "already linked" };
+  // Only a visit that is still scheduled may be sent: another tab may have completed or cancelled it since the button was drawn.
+  if (visit.status !== "scheduled")
+    return { outcome: "failed", error: `The visit is ${visit.status}, so it was not sent to ArrivePing.`, key };
 
   const db = await admin();
   const { data: earlier } = await db
@@ -475,6 +480,7 @@ export const retrySyncEvent = createServerFn({ method: "POST" })
     return runRetry(data.id);
   });
 
+const stalePendingBefore = () => new Date(Date.now() - STALE_PENDING_MS).toISOString();
 const RETRY_BATCH = 20;
 const RETRY_BUDGET_MS = 20_000;
 
@@ -493,7 +499,7 @@ export const retryAllFailed = createServerFn({ method: "POST" })
       .select("id")
       .eq("system", "arriveping")
       .eq("direction", "out")
-      .eq("status", "failed")
+      .or(`status.eq.failed,and(status.eq.pending,created_at.lt.${stalePendingBefore()})`)
       .order("created_at", { ascending: true })
       .limit(RETRY_BATCH);
     if (error)
@@ -522,7 +528,7 @@ export const retryAllFailed = createServerFn({ method: "POST" })
       .select("id", { count: "exact", head: true })
       .eq("system", "arriveping")
       .eq("direction", "out")
-      .eq("status", "failed");
+      .or(`status.eq.failed,and(status.eq.pending,created_at.lt.${stalePendingBefore()})`);
     // Failed rows not attempted in this batch: the ones retried here that failed again are reported in `failed` instead.
     counts.remaining = Math.max(0, (count ?? 0) - counts.failed);
     return { ok: true as const, ...counts };

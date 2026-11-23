@@ -10,7 +10,7 @@ import {
   type RetryOutcome,
 } from "@/lib/arriveping/arriveping.functions";
 import type { SyncEventRow, SyncStatus } from "@/lib/arriveping/outbox.server";
-import { apWorkOrderUrl } from "@/lib/arriveping/core";
+import { apWorkOrderUrl, retryable } from "@/lib/arriveping/core";
 import { errText } from "@/lib/platform/db";
 import { cn } from "@/lib/utils";
 
@@ -206,7 +206,7 @@ export function SyncQueue({
                       )}
                     </td>
                     <td className="py-1.5 text-right">
-                      {r.status === "failed" && (
+                      {retryable(r) && (
                         <RetryButton row={r} busy={busy} onRetry={retry} className="h-9" />
                       )}
                       {r.status === "failed" && r.direction === "in" && <Redelivered />}
@@ -238,7 +238,7 @@ export function SyncQueue({
                   {r.last_error && (
                     <p className="mt-2 break-words text-muted-foreground">{r.last_error}</p>
                   )}
-                  {r.status === "failed" && (
+                  {retryable(r) && (
                     <RetryButton row={r} busy={busy} onRetry={retry} className="mt-3 h-11 w-full" />
                   )}
                   {r.status === "failed" && r.direction === "in" && (

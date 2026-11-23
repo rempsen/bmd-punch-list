@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_BASE, apWorkOrderUrl, describeApiError, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload } from "./core";
+import { AP_BASE, apWorkOrderUrl, describeApiError, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -112,5 +112,19 @@ describe("success replies", () => {
   });
   test("a 200 that is not JSON is a failure, not a push", () => {
     expect(parseJsonReply(200, "<!doctype html><html>")).toEqual({ ok: false, error: "ArrivePing returned a non-JSON reply (200) — check AP_PATHS" });
+  });
+});
+
+describe("retryable", () => {
+  const now = Date.parse("2026-12-01T12:00:00Z");
+  const row = (o: Partial<{ direction: "out" | "in"; status: string; created_at: string }>) => ({
+    direction: "out" as const, status: "failed", created_at: "2026-12-01T11:00:00Z", ...o,
+  });
+  test("a failed outbound row may be retried", () => expect(retryable(row({}), now)).toBe(true));
+  test("an inbound row is never retried here", () => expect(retryable(row({ direction: "in" }), now)).toBe(false));
+  test("a fresh pending row is still in flight", () => expect(retryable(row({ status: "pending", created_at: "2026-12-01T11:55:00Z" }), now)).toBe(false));
+  test("a pending row older than the stale window may be retried", () => expect(retryable(row({ status: "pending", created_at: "2026-12-01T11:40:00Z" }), now)).toBe(true));
+  test("sent, acked and ignored rows are not retried", () => {
+    for (const status of ["sent", "acked", "ignored"]) expect(retryable(row({ status }), now)).toBe(false);
   });
 });

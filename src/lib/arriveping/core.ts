@@ -95,3 +95,18 @@ export function parseJsonReply(status: number, text: string): { ok: true; json: 
     return { ok: false, error: `ArrivePing returned a non-JSON reply (${status}) — check AP_PATHS` };
   }
 }
+
+/** A row still pending after this long was interrupted mid-push (the process stopped between recording and sending). */
+export const STALE_PENDING_MS = 10 * 60 * 1000;
+
+/** Whether a person may retry this outbox row: failed outbound rows, and outbound rows stuck pending past STALE_PENDING_MS. Inbound rows are never retried here; ArrivePing redelivers them. */
+export function retryable(
+  row: { direction: "out" | "in"; status: string; created_at: string },
+  nowMs = Date.now(),
+): boolean {
+  if (row.direction !== "out") return false;
+  if (row.status === "failed") return true;
+  if (row.status !== "pending") return false;
+  const created = Date.parse(row.created_at);
+  return Number.isFinite(created) && nowMs - created >= STALE_PENDING_MS;
+}
