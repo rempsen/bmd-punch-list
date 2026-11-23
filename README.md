@@ -65,3 +65,24 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Integrations → ArrivePing
+
+BMD Projects schedules site visits in ArrivePing and takes crew status back from it.
+
+**Server secrets** (never exposed to the browser):
+- `ArrivePing_Api` — Bearer key from ArrivePing → Settings → API & MCP. `ARRIVEPING_API_KEY` is accepted as a fallback name.
+- `ARRIVEPING_WEBHOOK_SECRET` — shared secret ArrivePing sends in the `X-Webhook-Secret` header.
+
+**Webhook URL**: `https://<app-origin>/api/public/arriveping/webhook` — point ArrivePing's webhooks here.
+
+**What the buttons do**
+- *Schedule* saves the visit in BMD Projects.
+- *Send to ArrivePing* pushes it as a work order (or updates it if already sent).
+- *Cancel* cancels the visit and the ArrivePing work order.
+
+**When something fails**: Company settings → Integrations → ArrivePing → Sync queue. Failed pushes sit there with the error and a Retry button.
+
+**Setup notes**
+- Apply migration `0044_arriveping_sync` (`drizzle/migrations/`) before using the integration.
+- The ArrivePing API paths live in `src/lib/arriveping/core.ts` (`AP_PATHS`). They may need adjusting once ArrivePing publishes its OpenAPI.
