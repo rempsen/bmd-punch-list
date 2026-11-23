@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { db, errText } from "@/lib/platform/db";
 import { qboConnectStart, qboDisconnect, qboPullProducts, qboStatus } from "@/lib/qbo/qbo.functions";
 import { actionKey, chosenActions, planSummary, type Action, type ImportPick } from "@/lib/sync/import";
-import { applyImport, loadImportPlan } from "@/lib/sync/import.data";
+import { applyImport, applyRetypes, loadImportPlan } from "@/lib/sync/import.data";
 
 const KINDS: [string, string][] = [
   ["material", "products"],
@@ -60,13 +60,15 @@ export function QuickBooksPanel({ result, message }: { result?: string | undefin
   };
   const runImport = async () => {
     if (!plan) return;
-    const { actions, addedSuppliers } = chosenActions(plan, (k) => ticked.has(k));
+    const { actions, addedSuppliers, retypes } = chosenActions(plan, (k) => ticked.has(k));
     const also = addedSuppliers.length ? `\n\n${addedSuppliers.length === 1 ? "1 supplier you left unticked comes" : `${addedSuppliers.length} suppliers you left unticked come`} along because a ticked product names ${addedSuppliers.length === 1 ? "it" : "them"}: ${addedSuppliers.slice(0, 5).join(", ")}${addedSuppliers.length > 5 ? "…" : ""}.` : "";
-    if (!window.confirm(`Import ${actions.length.toLocaleString("en-CA")} records into BMD Projects? Nothing in QuickBooks is changed. Where BMD already has a value, BMD's value stays. What you left unticked stays held for later.${also}`)) return;
+    const re = retypes.length ? `\n\n${retypes.length === 1 ? "1 vendor BMD already has is" : `${retypes.length} vendors BMD already has are`} also marked as supplying materials and labour, as their bills show both.` : "";
+    if (!window.confirm(`Import ${(actions.length + retypes.length).toLocaleString("en-CA")} records into BMD Projects? Nothing in QuickBooks is changed. Where BMD already has a value, BMD's value stays. What you left unticked stays held for later.${also}${re}`)) return;
     setBusy("import");
     try {
-      const r = await applyImport("quickbooks", actions);
-      toast.success(`Imported: ${r.created.toLocaleString("en-CA")} added, ${r.linked.toLocaleString("en-CA")} matched to what BMD already had.`, { duration: 9000 });
+      const r = actions.length ? await applyImport("quickbooks", actions) : { created: 0, linked: 0, skipped: 0 };
+      const changed = await applyRetypes(retypes);
+      toast.success(`Imported: ${r.created.toLocaleString("en-CA")} added, ${r.linked.toLocaleString("en-CA")} matched to what BMD already had${changed ? `, ${changed.toLocaleString("en-CA")} vendor${changed === 1 ? "" : "s"} re-marked` : ""}.`, { duration: 9000 });
       setPlan(null);
       for (const k of ["catalogue", "sync", "qbo-staged"]) void qc.invalidateQueries({ queryKey: [k] });
     } catch (e) {
@@ -192,7 +194,7 @@ const ROWS: [keyof ReturnType<typeof planSummary>["byKind"], string][] = [
 /** The dry run: exactly what an import would add and match, with a tick on every row, before anything is written. */
 function DryRun({ plan, picks, ticked, setTicked, busy, onImport, onClose }: { plan: Action[]; picks: Map<string, ImportPick>; ticked: Set<string>; setTicked: (s: Set<string>) => void; busy: boolean; onImport: () => void; onClose: () => void }) {
   const [show, setShow] = useState<string | null>(null);
-  const { actions } = chosenActions(plan, (k) => ticked.has(k));
+  const { actions, retypes } = chosenActions(plan, (k) => ticked.has(k));
   const all = planSummary(plan);
   const chosen = planSummary([...actions, ...plan.filter((a) => a.op === "skip")]);
   const rows = (kind: string, op: string) => plan.filter((a) => a.kind === kind && a.op === op);
@@ -281,6 +283,13 @@ function DryRun({ plan, picks, ticked, setTicked, busy, onImport, onClose }: { p
         </div>
       )}
       <ul className="mt-3 list-disc space-y-1 pl-5 text-muted-foreground">
+        {retypes.length > 0 && (
+          <li className="text-foreground">
+            {n(retypes.length, "vendor BMD already has", "vendors BMD already has")} will be marked as supplying materials and labour, because {retypes.length === 1 ? "its" : "their"} bills show both:{" "}
+            {retypes.slice(0, 6).map((a) => a.name).join(", ")}
+            {retypes.length > 6 ? ` and ${retypes.length - 6} more` : ""}.
+          </li>
+        )}
         {left > 0 && <li>{n(left, "row is", "rows are")} unticked. {left === 1 ? "It stays" : "They stay"} held here and can be imported later.</li>}
         <li>{n(all.skipped, "QuickBooks item is", "QuickBooks items are")} left where {all.skipped === 1 ? "it is" : "they are"} (categories, fees, holdback and similar).</li>
         <li>New materials and labour arrive with the unit still to confirm, because QuickBooks does not hold units.</li>
@@ -293,8 +302,8 @@ function DryRun({ plan, picks, ticked, setTicked, busy, onImport, onClose }: { p
         )}
       </ul>
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button className="h-11" disabled={busy || actions.length === 0} onClick={onImport}>
-          {actions.length === 0 ? "Nothing ticked to import" : `Import ${actions.length.toLocaleString("en-CA")} records`}
+        <Button className="h-11" disabled={busy || actions.length + retypes.length === 0} onClick={onImport}>
+          {actions.length + retypes.length === 0 ? "Nothing ticked to import" : `Import ${(actions.length + retypes.length).toLocaleString("en-CA")} records`}
         </Button>
         <Button variant="ghost" className="h-11" disabled={busy} onClick={onClose}>
           Close
