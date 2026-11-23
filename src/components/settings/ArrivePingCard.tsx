@@ -32,7 +32,8 @@ export function ArrivePingCard() {
     isLoading,
     error,
   } = useQuery({ queryKey: ["arriveping-status"], queryFn: () => statusFn() });
-  const [busy, setBusy] = useState<"test" | "retry" | null>(null);
+  // One action at a time across the card and the queue: "test", "retry" (all failed), or the id of the row being retried.
+  const [busy, setBusy] = useState<string | null>(null);
   const [test, setTest] = useState<TestResult | null>(null);
 
   const runTest = async () => {
@@ -92,7 +93,7 @@ export function ArrivePingCard() {
         <h3 id="arriveping-heading" className="flex items-center gap-2 font-semibold">
           <RouteIcon className="h-4 w-4" aria-hidden /> ArrivePing
         </h3>
-        {s && <Pill configured={s.configured} test={test} />}
+        {s && <Pill configured={s.configured} canTest={s.canManage} test={test} />}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Install visits go to ArrivePing as work orders. ArrivePing sends back crew assignments,
@@ -108,7 +109,7 @@ export function ArrivePingCard() {
       ) : (
         <>
           {test && !test.ok && (
-            <p className="mt-3 flex items-start gap-2 text-sm text-destructive" role="alert">
+            <p className="mt-3 flex items-start gap-2 text-sm text-destructive">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
               <span>{test.error}</span>
             </p>
@@ -263,7 +264,7 @@ export function ArrivePingCard() {
                 </Button>
               </div>
 
-              <SyncQueue />
+              <SyncQueue busy={busy} setBusy={setBusy} />
             </>
           ) : (
             <p className="mt-3 text-sm text-muted-foreground">
@@ -278,17 +279,24 @@ export function ArrivePingCard() {
 
 const toolCount = (n: number) => `${n} ${n === 1 ? "tool" : "tools"}`;
 
-function Pill({ configured, test }: { configured: boolean; test: TestResult | null }) {
+function Pill({
+  configured,
+  canTest,
+  test,
+}: {
+  configured: boolean;
+  canTest: boolean;
+  test: TestResult | null;
+}) {
   const [label, cls] = !configured
     ? ["Not configured", "bg-amber-100 text-amber-900"]
     : !test
-      ? ["Configured — not tested", "bg-slate-100 text-slate-800"]
+      ? [canTest ? "Configured — not tested" : "Configured", "bg-slate-100 text-slate-800"]
       : test.ok
         ? [`Connected · ${toolCount(test.tools.length)}`, "bg-emerald-100 text-emerald-900"]
         : ["Connection failed", "bg-rose-100 text-rose-900"];
   return (
     <span
-      role="status"
       className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium", cls)}
     >
       {label}

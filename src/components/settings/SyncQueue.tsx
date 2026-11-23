@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, ExternalLink, RotateCw } from "lucide-react";
@@ -48,19 +48,26 @@ function retryToast(r: RetryOutcome) {
 }
 
 /** The ArrivePing sync log: every push to ArrivePing and every webhook from it, newest first. Failed rows can be retried. */
-export function SyncQueue() {
+export function SyncQueue({
+  busy,
+  setBusy,
+}: {
+  /** The action running anywhere on the ArrivePing card, so a row retry and "Retry all failed" never overlap. */
+  busy: string | null;
+  setBusy: (busy: string | null) => void;
+}) {
   const listFn = useServerFn(listSyncEvents);
   const retryFn = useServerFn(retrySyncEvent);
   const qc = useQueryClient();
   const [filter, setFilter] = useState<Filter>("all");
-  const [retrying, setRetrying] = useState<string | null>(null);
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ["sync-events", filter],
     queryFn: () => listFn({ data: { status: filter, limit: 50 } }),
+    placeholderData: keepPreviousData,
   });
 
   const retry = async (id: string) => {
-    setRetrying(id);
+    setBusy(id);
     try {
       retryToast(await retryFn({ data: { id } }));
     } catch (e) {
@@ -70,7 +77,7 @@ export function SyncQueue() {
         qc.invalidateQueries({ queryKey: ["arriveping-status"] }),
         qc.invalidateQueries({ queryKey: ["sync-events"] }),
       ]);
-      setRetrying(null);
+      setBusy(null);
     }
   };
 
@@ -106,7 +113,11 @@ export function SyncQueue() {
         </div>
       </div>
 
-      <div className="mt-3" aria-live="polite" aria-busy={isLoading}>
+      <div
+        className={cn("mt-3 transition-opacity", isFetching && !isLoading && "opacity-60")}
+        aria-live="polite"
+        aria-busy={isFetching}
+      >
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : loadError ? (
@@ -177,14 +188,15 @@ export function SyncQueue() {
                           {r.last_error}
                         </span>
                       ) : (
-                        <span className="text-muted-foreground" aria-label="No error">
-                          —
+                        <span className="text-muted-foreground">
+                          <span aria-hidden>—</span>
+                          <span className="sr-only">No error</span>
                         </span>
                       )}
                     </td>
                     <td className="py-1.5 text-right">
                       {r.status === "failed" && (
-                        <RetryButton row={r} busy={retrying} onRetry={retry} className="h-9" />
+                        <RetryButton row={r} busy={busy} onRetry={retry} className="h-9" />
                       )}
                     </td>
                   </tr>
@@ -212,15 +224,10 @@ export function SyncQueue() {
                     <WorkOrderLink row={r} />
                   </p>
                   {r.last_error && (
-                    <p className="mt-2 break-words text-destructive">{r.last_error}</p>
+                    <p className="mt-2 break-words text-muted-foreground">{r.last_error}</p>
                   )}
                   {r.status === "failed" && (
-                    <RetryButton
-                      row={r}
-                      busy={retrying}
-                      onRetry={retry}
-                      className="mt-3 h-11 w-full"
-                    />
+                    <RetryButton row={r} busy={busy} onRetry={retry} className="mt-3 h-11 w-full" />
                   )}
                 </li>
               ))}
