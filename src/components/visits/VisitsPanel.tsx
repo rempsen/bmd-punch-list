@@ -9,6 +9,7 @@ import { db, errText } from "@/lib/platform/db";
 import { useProjectVisits } from "@/lib/visits/data";
 import { ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
 import { applyVisitEvent, arrivepingPill, visitNote, visitRange, visitsCsv, visitTimes, VISIT_LABEL, type Visit, type VisitStatus } from "@/lib/visits/logic";
+import { useArrivePingCheck } from "@/components/visits/useArrivePingCheck";
 
 const SEE_SETTINGS = "see Company settings → Integrations.";
 
@@ -23,6 +24,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
   const pushFn = useServerFn(pushVisit);
   const cancelFn = useServerFn(cancelVisitPush);
   const { data: visits = [], isLoading, isError, error: loadError } = useProjectVisits(projectId);
+  useArrivePingCheck(projectId, visits.some((v) => v.arriveping_job_id));
   const [form, setForm] = useState<VisitForm | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = () => {

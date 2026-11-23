@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CheckCircle2, Copy, RotateCw, Route as RouteIcon, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { SettingsBox } from "@/components/settings/SettingsBox";
+import { ArrivePingLiveUpdates } from "@/components/settings/ArrivePingLiveUpdates";
 import { SyncQueue } from "@/components/settings/SyncQueue";
 import { Button } from "@/components/ui/button";
 import {
@@ -143,6 +144,8 @@ export function ArrivePingCard() {
 
           {s.canManage ? (
             <>
+              <ArrivePingLiveUpdates busy={busy} setBusy={setBusy} />
+
               <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[max-content_1fr]">
                 <div className="grid gap-1 sm:contents">
                   <dt className="text-muted-foreground">API key</dt>
@@ -157,7 +160,7 @@ export function ArrivePingCard() {
                 </div>
 
                 <div className="grid gap-1 sm:contents">
-                  <dt className="text-muted-foreground">Webhook address</dt>
+                  <dt className="text-muted-foreground">Office alerts address</dt>
                   <dd className="flex min-w-0 flex-wrap items-center gap-2">
                     <code className="min-w-0 break-all rounded bg-muted px-1.5 py-0.5 text-foreground">
                       {s.webhookUrl}
@@ -175,7 +178,7 @@ export function ArrivePingCard() {
                 </div>
 
                 <div className="grid gap-1 sm:contents">
-                  <dt className="text-muted-foreground">Webhook secret</dt>
+                  <dt className="text-muted-foreground">Office alerts secret</dt>
                   <dd>
                     {s.webhookSecretSet ? (
                       <span className="inline-flex items-center gap-1.5">

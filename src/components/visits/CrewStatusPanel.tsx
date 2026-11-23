@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { crewLabel, crewStatusGroups, updatedAt, visitRange, type Visit } from "@/lib/visits/logic";
 import { useProjectVisits } from "@/lib/visits/data";
 import { OpenInArrivePing, StatusPill } from "./visit-bits";
+import { useArrivePingCheck } from "@/components/visits/useArrivePingCheck";
 
 function VisitRow({ v }: { v: Visit }) {
   const range = visitRange(v.starts_at, v.ends_at);
@@ -27,6 +28,7 @@ function VisitRow({ v }: { v: Visit }) {
 /** Who is on site and what is coming, read from the install visits ArrivePing keeps current. Read only: changes are made on the Overview tab. */
 export function CrewStatusPanel({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
   const { data: visits = [], isLoading, isError } = useProjectVisits(projectId);
+  useArrivePingCheck(projectId, visits.some((v) => v.arriveping_job_id));
   const [showPast, setShowPast] = useState(false);
   const headingId = useId();
   const pastId = useId();

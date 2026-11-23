@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
+import { verifyArrivePingSignature, webhookSetupError, AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -219,5 +219,31 @@ describe("retryable", () => {
   test("a pending row older than the stale window may be retried", () => expect(retryable(row({ status: "pending", created_at: "2026-12-01T11:40:00Z" }), now)).toBe(true));
   test("sent, acked and ignored rows are not retried", () => {
     for (const status of ["sent", "acked", "ignored"]) expect(retryable(row({ status }), now)).toBe(false);
+  });
+});
+
+describe("ArrivePing webhook signatures", () => {
+  const { createHmac } = require("node:crypto") as typeof import("node:crypto");
+  const secret = "whsec_test";
+  const body = '{"id":"evt_1","type":"workorder.assigned"}';
+  const sign = (t: number, b = body, s = secret) => `t=${t},v1=${createHmac("sha256", s).update(`${t}.${b}`).digest("hex")}`;
+  const now = 1_800_000_000;
+
+  test("a signature made with the subscription's secret over the raw body passes", async () => {
+    expect(await verifyArrivePingSignature(secret, body, sign(now), now)).toBe(true);
+    expect(await verifyArrivePingSignature(secret, body, sign(now - 200), now)).toBe(true);
+  });
+  test("a changed body, another secret, an old or future time, or a mangled header fails", async () => {
+    expect(await verifyArrivePingSignature(secret, body + " ", sign(now), now)).toBe(false);
+    expect(await verifyArrivePingSignature(secret, body, sign(now, body, "whsec_other"), now)).toBe(false);
+    expect(await verifyArrivePingSignature(secret, body, sign(now - 301), now)).toBe(false);
+    expect(await verifyArrivePingSignature(secret, body, sign(now + 301), now)).toBe(false);
+    expect(await verifyArrivePingSignature(secret, body, "v1=abc", now)).toBe(false);
+    expect(await verifyArrivePingSignature(secret, body, null, now)).toBe(false);
+    expect(await verifyArrivePingSignature("", body, sign(now), now)).toBe(false);
+  });
+  test("a refusal while setting up the webhook reads as what to do", () => {
+    expect(webhookSetupError(403, "x")).toContain("Manage webhook subscriptions");
+    expect(webhookSetupError(500, "Server error")).toBe("Server error");
   });
 });

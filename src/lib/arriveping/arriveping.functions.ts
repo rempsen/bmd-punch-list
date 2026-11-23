@@ -624,3 +624,151 @@ export const retryAllFailed = createServerFn({ method: "POST" })
     counts.remaining = Math.max(0, (count ?? 0) - counts.failed);
     return { ok: true as const, ...counts };
   });
+
+// ---------------------------------------------------------------------------
+// Live updates from ArrivePing: BMD's webhook subscription, and checking visits against ArrivePing
+// ---------------------------------------------------------------------------
+
+const WEBHOOKS_PATH = "/api/v1/webhooks";
+
+export type LiveSyncState = {
+  canManage: boolean;
+  connected: boolean;
+  /** Where ArrivePing sends events, as subscribed. */
+  url: string | null;
+  /** Where this copy of BMD would ask ArrivePing to send them. */
+  expectedUrl: string;
+  connectedAt: string | null;
+  lastCheckAt: string | null;
+  lastCheckError: string | null;
+  remote: { active: boolean; lastSuccessAt: string | null; lastFailureAt: string | null } | null;
+  remoteError: string | null;
+};
+
+const webhookUrlFor = (requestUrl: string) => `${new URL(requestUrl).origin}/api/public/arriveping/webhook`;
+
+/** Settings → Integrations → ArrivePing → Live updates. Asks ArrivePing whether the subscription is still there and healthy. */
+export const arrivepingLiveSync = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<LiveSyncState> => {
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const canManage = await allowed(context.supabase as never, "manage_integrations");
+    const expectedUrl = webhookUrlFor(getRequest().url);
+    const empty: LiveSyncState = { canManage, connected: false, url: null, expectedUrl, connectedAt: null, lastCheckAt: null, lastCheckError: null, remote: null, remoteError: null };
+    if (!canManage) return empty;
+    const { readLink } = await import("./inbound.server");
+    let link;
+    try {
+      link = await readLink();
+    } catch (error) {
+      return { ...empty, remoteError: message(error) };
+    }
+    const base = { ...empty, connected: !!link?.subscription_id, url: link?.webhook_url ?? null, connectedAt: link?.connected_at ?? null, lastCheckAt: link?.last_check_at ?? null, lastCheckError: link?.last_check_error ?? null };
+    if (!link?.subscription_id) return base;
+    const { apFetch } = await import("./client.server");
+    const { webhookSetupError } = await import("./core");
+    const res = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(link.subscription_id)}`, { method: "GET" });
+    if (!res.ok)
+      return { ...base, remoteError: res.status === 404 ? "ArrivePing no longer has this subscription. Connect again." : webhookSetupError(res.status, res.error) };
+    const sub = (res.json ?? {}) as Record<string, unknown>;
+    const str = (v: unknown) => (typeof v === "string" ? v : null);
+    return { ...base, remote: { active: sub["active"] !== false, lastSuccessAt: str(sub["last_success_at"]), lastFailureAt: str(sub["last_failure_at"]) } };
+  });
+
+/**
+ * Subscribes BMD to ArrivePing's integration webhooks, keeping the signing secret ArrivePing hands back (once) encrypted on
+ * the server. Connecting again replaces the old subscription, so there is only ever one. Then checks every open visit, so
+ * anything that changed in ArrivePing before now comes across too.
+ */
+export const connectArrivePingSync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: true; check: import("./inbound.server").CheckResult } | { ok: false; error: string }> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const { getRequest } = await import("@tanstack/react-start/server");
+    const { apFetch } = await import("./client.server");
+    const { AP_WEBHOOK_EVENTS, webhookSetupError } = await import("./core");
+    const { readLink, saveLink, sealSecret, reconcileVisits } = await import("./inbound.server");
+    const url = webhookUrlFor(getRequest().url);
+    if (!url.startsWith("https://")) return { ok: false, error: "Connect from BMD's published https:// address, so ArrivePing can reach it." };
+    const created = await apFetch(WEBHOOKS_PATH, {
+      method: "POST",
+      body: { url, events: [...AP_WEBHOOK_EVENTS], description: "BMD Projects — install visits" },
+      idempotencyKey: `bmd-webhook-connect-${Date.now()}`,
+    });
+    if (!created.ok) return { ok: false, error: webhookSetupError(created.status, created.error) };
+    const sub = (created.json ?? {}) as Record<string, unknown>;
+    const id = typeof sub["id"] === "string" ? sub["id"] : null;
+    const secret = typeof sub["secret"] === "string" ? sub["secret"] : null;
+    if (!id || !secret) return { ok: false, error: "ArrivePing created the subscription but did not return its id and secret." };
+    let previous: string | null = null;
+    try {
+      previous = (await readLink())?.subscription_id ?? null;
+      const { data: user } = await (context.supabase as never as { auth: { getUser: () => Promise<{ data: { user: { id: string } | null } }> } }).auth.getUser();
+      await saveLink({ subscription_id: id, webhook_url: url, secret_enc: await sealSecret(secret), events: AP_WEBHOOK_EVENTS.join(","), connected_at: new Date().toISOString(), connected_by: user.user?.id ?? null });
+    } catch (error) {
+      // Without the secret BMD can't verify deliveries, so the new subscription is useless: take it back down.
+      await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(id)}`, { method: "DELETE" });
+      return { ok: false, error: message(error) };
+    }
+    if (previous && previous !== id) {
+      const gone = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(previous)}`, { method: "DELETE" });
+      if (!gone.ok && gone.status !== 404) console.error(`ArrivePing: could not remove old webhook subscription ${previous}: ${gone.error}`);
+    }
+    const check = await reconcileVisits({ force: true });
+    return { ok: true, check };
+  });
+
+/** Stops ArrivePing's integration webhooks to BMD. Visits keep everything already received. */
+export const disconnectArrivePingSync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: boolean; error?: string }> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const { apFetch } = await import("./client.server");
+    const { webhookSetupError } = await import("./core");
+    const { readLink, saveLink } = await import("./inbound.server");
+    try {
+      const link = await readLink();
+      if (link?.subscription_id) {
+        const res = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(link.subscription_id)}`, { method: "DELETE" });
+        if (!res.ok && res.status !== 404) return { ok: false, error: webhookSetupError(res.status, res.error) };
+      }
+      await saveLink({ subscription_id: null, webhook_url: null, secret_enc: null, events: null, connected_at: null, connected_by: null });
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: message(error) };
+    }
+  });
+
+/** Asks ArrivePing to send a test event to BMD now. It shows up in the sync queue as "ping" within a few seconds. */
+export const testArrivePingSync = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ ok: boolean; error?: string }> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const { apFetch } = await import("./client.server");
+    const { webhookSetupError } = await import("./core");
+    const { readLink } = await import("./inbound.server");
+    const link = await readLink().catch(() => null);
+    if (!link?.subscription_id) return { ok: false, error: "Connect live updates first." };
+    const res = await apFetch(`${WEBHOOKS_PATH}/${encodeURIComponent(link.subscription_id)}/test`, { method: "POST", body: {} });
+    return res.ok ? { ok: true } : { ok: false, error: webhookSetupError(res.status, res.error) };
+  });
+
+/**
+ * Checks open install visits against ArrivePing. Pages call it as they open (at most once every two minutes across
+ * everyone); "Check now" in Settings forces it.
+ */
+export const checkArrivePingNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { force?: boolean; projectId?: string } | undefined) => ({
+    force: d?.force === true,
+    projectId: typeof d?.projectId === "string" && d.projectId.trim() ? d.projectId.trim() : undefined,
+  }))
+  .handler(async ({ context, data }): Promise<import("./inbound.server").CheckResult> => {
+    // Anyone signed in may trigger the spaced-out automatic check: it only applies what ArrivePing already says and answers counts.
+    if (data.force) await requireAny(context.supabase as never, "manage_integrations");
+    const { arrivepingKey } = await import("./client.server");
+    if (!arrivepingKey()) return { ran: false, checked: 0, updated: 0, failed: 0 };
+    const { reconcileVisits } = await import("./inbound.server");
+    // An automatic check covers every open visit; the project only narrows a forced one.
+    return reconcileVisits({ force: data.force, projectId: data.force ? data.projectId : undefined });
+  });

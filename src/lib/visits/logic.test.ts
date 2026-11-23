@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_LABEL, applyInboundEvent, crewLabel, crewStatusGroups, applyVisitEvent, arrivepingBadge, arrivepingPill, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, updatedAt, visitRange, visitTimes, visitsCsv } from "./logic";
+import { reconcileWithWorkOrder, AP_LABEL, applyInboundEvent, crewLabel, crewStatusGroups, applyVisitEvent, arrivepingBadge, arrivepingPill, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, updatedAt, visitRange, visitTimes, visitsCsv } from "./logic";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100", arriveping_job_id: "AP-77", status: "scheduled" as const, arriveping_status: null, arriveping_assigned_to: null, arriveping_last_event_at: null };
 
@@ -332,5 +332,66 @@ describe("crew status view", () => {
     expect(crewLabel({ ...base, status: "arrived", arriveping_status: "assigned" })).toBe("On site");
     expect(crewLabel({ ...base, status: "en_route", arriveping_status: "cancel_requested" })).toBe("Cancel requested");
     expect(crewLabel({ ...base, status: "completed", arriveping_status: "mystery" })).toBe("Completed");
+  });
+});
+
+describe("ArrivePing's real payloads", () => {
+  const visitId = "037505ac-9b2f-4469-8816-8d4e882d890a";
+  const wo = {
+    id: "a66cf402-4e85-41c7-bd4c-5f6d5c5f3fd2",
+    status: "assigned",
+    start_at: "2026-11-30T17:00:00.000Z",
+    end_at: "2026-12-01T00:00:00.000Z",
+    assigned_tech: { id: "t1", name: "Dan Rosenblat" },
+    external_source: "bmd_projects",
+    external_ref: visitId,
+  };
+  const envelope = (type: string, data: Record<string, unknown> = wo) => ({ id: "evt_1", type, api_version: "v1", created_at: "2026-11-23T20:11:12.000Z", tenant_id: "co", actor: { type: "user" }, data, changes: null });
+
+  test("an office alert from the Notifications webhook names the job as bookingId and the technician as plain text", () => {
+    const alert = { event: "assigned", bookingId: wo.id, tech: "Dan Rosenblat", scheduledAt: "2026-11-23T17:00:00.000Z", at: "2026-11-23T20:11:12.125Z", status: "assigned" };
+    expect(parseArrivePingEvent(alert)).toEqual({ kind: "assigned", assignee: "Dan Rosenblat", jobId: wo.id, visitId: null, at: "2026-11-23T20:11:12.125Z" });
+  });
+  test("an office alert's scheduledAt is never read as a new time", () => {
+    expect(parseArrivePingEvent({ event: "rescheduled", bookingId: wo.id, scheduledAt: "2026-11-23T17:00:00.000Z" })).toBeNull();
+  });
+  test("integration webhooks carry the whole work order and BMD's visit id", () => {
+    expect(parseArrivePingEvent(envelope("workorder.assigned"))).toEqual({ kind: "assigned", assignee: "Dan Rosenblat", jobId: wo.id, visitId, at: "2026-11-23T20:11:12.000Z" });
+    expect(parseArrivePingEvent(envelope("workorder.unassigned", { ...wo, assigned_tech: null }))).toMatchObject({ kind: "assigned", assignee: null, visitId });
+    expect(parseArrivePingEvent(envelope("workorder.rescheduled"))).toMatchObject({ kind: "rescheduled", startsAt: "2026-11-30T17:00:00.000Z", endsAt: "2026-12-01T00:00:00.000Z", visitId });
+    expect(parseArrivePingEvent(envelope("workorder.enroute"))).toMatchObject({ kind: "status", status: "en_route" });
+    expect(parseArrivePingEvent(envelope("workorder.arrived"))).toMatchObject({ kind: "status", status: "arrived" });
+    expect(parseArrivePingEvent(envelope("workorder.started"))).toMatchObject({ kind: "status", status: "arrived" });
+    expect(parseArrivePingEvent(envelope("workorder.completed"))).toMatchObject({ kind: "status", status: "completed" });
+    expect(parseArrivePingEvent(envelope("workorder.cancelled"))).toMatchObject({ kind: "status", status: "cancelled" });
+    expect(parseArrivePingEvent(envelope("workorder.deleted"))).toMatchObject({ kind: "status", status: "cancelled" });
+  });
+  test("events BMD does not act on are not guessed at", () => {
+    expect(parseArrivePingEvent(envelope("workorder.updated"))).toBeNull();
+    expect(parseArrivePingEvent(envelope("workorder.created"))).toBeNull();
+  });
+});
+
+describe("checking a visit against its work order in ArrivePing", () => {
+  const now = "2026-11-23T21:00:00.000Z";
+  const visit = { status: "scheduled" as const, crew: "Brodie", starts_at: "2026-11-30T14:00:00.000Z", ends_at: "2026-11-30T21:00:00.000Z", arriveping_job_id: "wo1", arriveping_status: "scheduled", arriveping_assigned_to: null, arriveping_last_event_at: "2026-11-23T20:11:12.000Z" };
+  const wo = { id: "wo1", status: "assigned", start_at: "2026-11-30T17:00:00.000Z", end_at: "2026-12-01T00:00:00.000Z", assigned_tech: { id: "t1", name: "Dan Rosenblat" }, external_ref: "037505ac-9b2f-4469-8816-8d4e882d890a" };
+
+  test("a job moved and assigned in ArrivePing moves and assigns the visit, with one activity entry each", () => {
+    const r = reconcileWithWorkOrder(visit, wo, now);
+    expect(r.patch).toMatchObject({ arriveping_assigned_to: "Dan Rosenblat", arriveping_status: "assigned", starts_at: "2026-11-30T17:00:00.000Z", ends_at: "2026-12-01T00:00:00.000Z", arriveping_last_event_at: now });
+    expect(r.events.map((e) => e.status)).toEqual(["assigned", "rescheduled"]);
+  });
+  test("a visit that already matches changes nothing", () => {
+    const same = { ...visit, starts_at: wo.start_at, ends_at: wo.end_at, arriveping_assigned_to: "Dan Rosenblat", arriveping_status: "assigned" };
+    expect(reconcileWithWorkOrder(same, wo, now)).toEqual({ patch: {}, events: [] });
+  });
+  test("crew progress comes across, and a finished visit is left alone", () => {
+    const r = reconcileWithWorkOrder({ ...visit, starts_at: wo.start_at, ends_at: wo.end_at, arriveping_assigned_to: "Dan Rosenblat" }, { ...wo, status: "in_progress" }, now);
+    expect(r.patch).toMatchObject({ status: "arrived" });
+    expect(reconcileWithWorkOrder({ ...visit, status: "completed" }, wo, now).events).toEqual([]);
+  });
+  test("nothing readable, nothing changed", () => {
+    expect(reconcileWithWorkOrder(visit, null, now)).toEqual({ patch: {}, events: [] });
   });
 });
