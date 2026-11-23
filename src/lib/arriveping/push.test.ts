@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { ApResult } from "./client.server";
 import { AP_PATHS } from "./core";
-import { pushVisitCancel, pushVisitCreate } from "./push";
+import { planRetry, pushVisitCancel, pushVisitCreate } from "./push";
 
 const visit = {
   id: "v1",
@@ -156,6 +156,16 @@ describe("pushVisitCancel", () => {
     expect(fetchJson).not.toHaveBeenCalled();
   });
 
+  test("a cancel already requested is skipped, not sent again", async () => {
+    const fetchJson = replying({ ok: true, status: 200, json: null });
+    const out = await pushVisitCancel({
+      fetchJson,
+      visit: { id: "v1", arriveping_job_id: "wo_9", arriveping_status: "cancel_requested" },
+    });
+    expect(out).toEqual({ outcome: "skipped", reason: "already requested" });
+    expect(fetchJson).not.toHaveBeenCalled();
+  });
+
   test("a refusal is failed and keeps the key", async () => {
     const fetchJson = replying({
       ok: false,
@@ -170,5 +180,63 @@ describe("pushVisitCancel", () => {
       error: "ArrivePing endpoint not found (404) — check AP_PATHS",
       key: "bmd-visit-v1-cancel",
     });
+  });
+});
+
+describe("planRetry", () => {
+  const row = {
+    direction: "out",
+    entity_type: "visit",
+    event_type: "create",
+    entity_id: "v1",
+    idempotency_key: "bmd-visit-v1",
+    external_id: null,
+    status: "failed",
+  };
+
+  test("a failed send with no work order id is sent again with its own key", () => {
+    expect(planRetry(row)).toEqual({ action: "resend", visitId: "v1", key: "bmd-visit-v1" });
+  });
+
+  test("a work order ArrivePing already created is re-linked, never sent again", () => {
+    expect(planRetry({ ...row, external_id: "wo_7" })).toEqual({
+      action: "relink",
+      visitId: "v1",
+      jobId: "wo_7",
+    });
+  });
+
+  test("a stuck pending row is retried like a failed one", () => {
+    expect(planRetry({ ...row, status: "pending" })).toEqual({
+      action: "resend",
+      visitId: "v1",
+      key: "bmd-visit-v1",
+    });
+  });
+
+  test("a row that is already done is left alone", () => {
+    expect(planRetry({ ...row, status: "sent" })).toEqual({
+      action: "skip",
+      reason: "already sent",
+    });
+    expect(planRetry({ ...row, status: "ignored" })).toEqual({
+      action: "skip",
+      reason: "already ignored",
+    });
+  });
+
+  test("a row with no idempotency key is set aside rather than guessed", () => {
+    expect(planRetry({ ...row, idempotency_key: null })).toEqual({
+      action: "ignore",
+      reason: "no idempotency key",
+    });
+  });
+
+  test("anything but an outgoing visit send is not retried yet", () => {
+    const notYet = { action: "ignore", reason: "retry not supported yet" };
+    expect(planRetry({ ...row, event_type: "cancel" })).toEqual(notYet);
+    expect(planRetry({ ...row, direction: "in" })).toEqual(notYet);
+    expect(planRetry({ ...row, entity_type: "project" })).toEqual(notYet);
+    expect(planRetry({ ...row, entity_id: null })).toEqual(notYet);
   });
 });

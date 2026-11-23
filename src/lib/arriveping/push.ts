@@ -20,7 +20,7 @@ export type PushCreateOutcome =
 export type PushCancelOutcome =
   | { outcome: "sent"; jobId: string; key: string }
   | { outcome: "failed"; error: string; key: string }
-  | { outcome: "skipped"; reason: "not linked" };
+  | { outcome: "skipped"; reason: "not linked" | "already requested" };
 
 const NO_ID = "ArrivePing did not return a work order id";
 
@@ -81,12 +81,14 @@ export async function pushVisitCreate(deps: {
 /** Cancels the visit's ArrivePing work order. A visit that was never sent has nothing to cancel. Never throws. */
 export async function pushVisitCancel(deps: {
   fetchJson: FetchJson;
-  visit: { id: string; arriveping_job_id: string | null };
+  visit: { id: string; arriveping_job_id: string | null; arriveping_status?: string | null };
   existingKey?: string | null;
 }): Promise<PushCancelOutcome> {
   const { fetchJson, visit } = deps;
   const jobId = visit.arriveping_job_id;
   if (!jobId) return { outcome: "skipped", reason: "not linked" };
+  if (visit.arriveping_status === "cancel_requested")
+    return { outcome: "skipped", reason: "already requested" };
   const key = deps.existingKey ?? idempotencyKey("cancel", visit.id);
   const res = await call(
     fetchJson,
@@ -95,4 +97,40 @@ export async function pushVisitCancel(deps: {
     key,
   );
   return res.ok ? { outcome: "sent", jobId, key } : { outcome: "failed", error: res.error, key };
+}
+
+export type RetryRow = {
+  direction: string;
+  entity_type: string;
+  event_type: string;
+  entity_id: string | null;
+  idempotency_key: string | null;
+  external_id: string | null;
+  status: string;
+};
+
+export type RetryPlan =
+  | { action: "resend"; visitId: string; key: string }
+  | { action: "relink"; visitId: string; jobId: string }
+  | { action: "ignore"; reason: string }
+  | { action: "skip"; reason: string };
+
+/**
+ * What a retry of a logged event should do. A send that already got a work order id back is only re-linked to the visit:
+ * calling ArrivePing again would trust an idempotency key that may have expired, and could make a duplicate.
+ */
+export function planRetry(row: RetryRow): RetryPlan {
+  if (row.status !== "failed" && row.status !== "pending")
+    return { action: "skip", reason: `already ${row.status}` };
+  if (
+    row.direction !== "out" ||
+    row.entity_type !== "visit" ||
+    row.event_type !== "create" ||
+    !row.entity_id
+  ) {
+    return { action: "ignore", reason: "retry not supported yet" };
+  }
+  if (row.external_id) return { action: "relink", visitId: row.entity_id, jobId: row.external_id };
+  if (!row.idempotency_key) return { action: "ignore", reason: "no idempotency key" };
+  return { action: "resend", visitId: row.entity_id, key: row.idempotency_key };
 }

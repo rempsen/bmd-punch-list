@@ -84,22 +84,90 @@ async function loadVisit(
   };
 }
 
+/** Records the visit's activity log entry. A failure here is logged; the sync itself already succeeded. */
+async function logVisitEvent(
+  visit: { id: string; project_id: string },
+  status: string,
+  note: string,
+) {
+  try {
+    const db = await admin();
+    const { error } = await db
+      .from("install_visit_events")
+      .insert({ visit_id: visit.id, project_id: visit.project_id, status, note, source: "sync" });
+    if (error)
+      console.error(
+        `install_visit_events: could not log "${note}" for ${visit.id}: ${error.message}`,
+      );
+  } catch (error) {
+    console.error(`install_visit_events: could not log "${note}" for ${visit.id}:`, error);
+  }
+}
+
+/**
+ * Links a visit to the work order ArrivePing created and closes out the log row. If the link cannot be made, the row is
+ * marked failed with the work order id kept in external_id, so a retry re-links it instead of sending again.
+ */
+async function linkVisit(
+  eventId: string,
+  visit: { id: string; project_id: string },
+  jobId: string,
+  key: string,
+): Promise<PushCreateOutcome> {
+  const { markFailed, markSent } = await import("./outbox.server");
+  try {
+    const db = await admin();
+    const { data: linked, error: linkError } = await db
+      .from("install_visits")
+      .update({ arriveping_job_id: jobId, arriveping_status: "scheduled" })
+      .eq("id", visit.id)
+      .is("arriveping_job_id", null)
+      .select("id");
+    if (linkError || !linked?.length) {
+      const why = linkError
+        ? linkError.message
+        : "the visit was linked to another work order meanwhile";
+      const error = `Sent to ArrivePing as work order ${jobId}, but could not link it to the visit: ${why}`;
+      await markFailed(eventId, error, jobId);
+      return { outcome: "failed", error, key };
+    }
+    await markSent(eventId, jobId);
+    await logVisitEvent(visit, "scheduled", `Sent to ArrivePing (work order ${jobId})`);
+    return { outcome: "sent", jobId, key };
+  } catch (e) {
+    const error = `Sent to ArrivePing as work order ${jobId}, but could not link it to the visit: ${message(e)}`;
+    await markFailed(eventId, error, jobId);
+    return { outcome: "failed", error, key };
+  }
+}
+
 /**
  * Sends a visit to ArrivePing as a work order: logs it as pending, calls ArrivePing, then marks the log sent or failed.
- * On success the visit is linked to the work order. A retry passes the key it used before, so ArrivePing never makes a second one.
+ * On success the visit is linked to the work order. If an earlier attempt already got a work order back, that one is
+ * linked and ArrivePing is not called again.
  */
 async function runPushCreate(
   visitId: string,
   existingKey?: string | null,
 ): Promise<PushCreateOutcome> {
   const { idempotencyKey, workOrderPayload } = await import("./core");
-  const fallbackKey = existingKey ?? idempotencyKey("create", visitId);
+  const key = existingKey ?? idempotencyKey("create", visitId);
   const loaded = await loadVisit(visitId);
-  if ("error" in loaded) return { outcome: "failed", error: loaded.error, key: fallbackKey };
+  if ("error" in loaded) return { outcome: "failed", error: loaded.error, key };
   const { visit, project } = loaded;
   if (visit.arriveping_job_id) return { outcome: "skipped", reason: "already linked" };
 
-  const { recordPending, markFailed, markSent } = await import("./outbox.server");
+  const db = await admin();
+  const { data: earlier } = await db
+    .from("sync_events")
+    .select("id,status,external_id")
+    .eq("idempotency_key", key)
+    .maybeSingle();
+  if (earlier?.external_id && earlier.status !== "sent" && earlier.status !== "acked") {
+    return linkVisit(earlier.id, visit, earlier.external_id, key);
+  }
+
+  const { recordPending, markFailed, markIgnored } = await import("./outbox.server");
   let eventId: string;
   try {
     eventId = await recordPending({
@@ -108,74 +176,45 @@ async function runPushCreate(
       entity_id: visit.id,
       project_id: visit.project_id,
       event_type: "create",
-      idempotency_key: fallbackKey,
+      idempotency_key: key,
       payload: workOrderPayload(visit, project),
     });
   } catch (error) {
     // Without a log row a failure could not be shown or retried, so ArrivePing is not called.
-    return { outcome: "failed", error: message(error), key: fallbackKey };
+    return { outcome: "failed", error: message(error), key };
   }
 
+  let jobId: string | undefined;
   try {
     const { apFetch } = await import("./client.server");
     const { pushVisitCreate } = await import("./push");
-    const result = await pushVisitCreate({
-      fetchJson: apFetch,
-      visit,
-      project,
-      existingKey: fallbackKey,
-    });
+    const result = await pushVisitCreate({ fetchJson: apFetch, visit, project, existingKey: key });
     if (result.outcome === "failed") {
       await markFailed(eventId, result.error);
       return result;
     }
     if (result.outcome === "skipped") {
       // Only reachable if the visit was linked between our read and the call; nothing was sent.
-      const { markIgnored } = await import("./outbox.server");
       await markIgnored(eventId, "already linked");
       return result;
     }
-
-    const db = await admin();
-    const { data: linked, error: linkError } = await db
-      .from("install_visits")
-      .update({ arriveping_job_id: result.jobId, arriveping_status: "scheduled" })
-      .eq("id", visit.id)
-      .is("arriveping_job_id", null)
-      .select("id");
-    if (linkError || !linked?.length) {
-      // The work order exists in ArrivePing. Marking this failed keeps it visible; a retry reuses the key, gets the same work order back, and links it.
-      const why = linkError
-        ? linkError.message
-        : "the visit was linked to another work order meanwhile";
-      const error = `Sent to ArrivePing as work order ${result.jobId}, but could not link it to the visit: ${why}`;
-      await markFailed(eventId, error);
-      return { outcome: "failed", error, key: result.key };
-    }
-    await markSent(eventId, result.jobId);
-    const { error: logError } = await db.from("install_visit_events").insert({
-      visit_id: visit.id,
-      project_id: visit.project_id,
-      status: "scheduled",
-      note: `Sent to ArrivePing (work order ${result.jobId})`,
-      source: "sync",
-    });
-    if (logError)
-      console.error(
-        `install_visit_events: could not log the ArrivePing send for ${visit.id}: ${logError.message}`,
-      );
-    return result;
+    jobId = result.jobId;
+    return await linkVisit(eventId, visit, result.jobId, result.key);
   } catch (error) {
     const text = `Unexpected error sending to ArrivePing: ${message(error)}`;
-    await markFailed(eventId, text);
-    return { outcome: "failed", error: text, key: fallbackKey };
+    await markFailed(eventId, text, jobId);
+    return { outcome: "failed", error: text, key };
   }
 }
 
-/** Asks ArrivePing to cancel the visit's work order, logged the same way as a send. */
-async function runCancel(visitId: string): Promise<PushCancelOutcome> {
-  const { idempotencyKey } = await import("./core");
-  const key = idempotencyKey("cancel", visitId);
+/** Re-links a work order ArrivePing already created. Never calls ArrivePing. */
+async function runRelink(
+  eventId: string,
+  visitId: string,
+  jobId: string,
+  key: string,
+): Promise<RetryOutcome> {
+  const { markIgnored, markSent } = await import("./outbox.server");
   const db = await admin();
   const { data: visit, error } = await db
     .from("install_visits")
@@ -184,8 +223,40 @@ async function runCancel(visitId: string): Promise<PushCancelOutcome> {
     .maybeSingle();
   if (error)
     return { outcome: "failed", error: `Could not load the install visit: ${error.message}`, key };
+  if (!visit) {
+    await markIgnored(eventId, "the install visit no longer exists");
+    return { outcome: "ignored", reason: "the install visit no longer exists" };
+  }
+  if (visit.arriveping_job_id === jobId) {
+    await markSent(eventId, jobId);
+    return { outcome: "sent", jobId, key };
+  }
+  if (visit.arriveping_job_id) {
+    await markIgnored(
+      eventId,
+      `the visit is linked to work order ${visit.arriveping_job_id}, not ${jobId}`,
+    );
+    return { outcome: "skipped", reason: "already linked" };
+  }
+  return linkVisit(eventId, visit, jobId, key);
+}
+
+/** Asks ArrivePing to cancel the visit's work order, logged the same way as a send. The job id is kept so the webhook can still match the visit. */
+async function runCancel(visitId: string): Promise<PushCancelOutcome> {
+  const { idempotencyKey } = await import("./core");
+  const key = idempotencyKey("cancel", visitId);
+  const db = await admin();
+  const { data: visit, error } = await db
+    .from("install_visits")
+    .select("id,project_id,arriveping_job_id,arriveping_status")
+    .eq("id", visitId)
+    .maybeSingle();
+  if (error)
+    return { outcome: "failed", error: `Could not load the install visit: ${error.message}`, key };
   if (!visit) return { outcome: "failed", error: VISIT_NOT_FOUND, key };
   if (!visit.arriveping_job_id) return { outcome: "skipped", reason: "not linked" };
+  if (visit.arriveping_status === "cancel_requested")
+    return { outcome: "skipped", reason: "already requested" };
 
   const { recordPending, markFailed, markSent } = await import("./outbox.server");
   let eventId: string;
@@ -208,8 +279,23 @@ async function runCancel(visitId: string): Promise<PushCancelOutcome> {
     const { apFetch } = await import("./client.server");
     const { pushVisitCancel } = await import("./push");
     const result = await pushVisitCancel({ fetchJson: apFetch, visit, existingKey: key });
-    if (result.outcome === "sent") await markSent(eventId, result.jobId);
-    else if (result.outcome === "failed") await markFailed(eventId, result.error);
+    if (result.outcome === "failed") await markFailed(eventId, result.error);
+    if (result.outcome !== "sent") return result;
+    await markSent(eventId, result.jobId);
+    const { error: statusError } = await db
+      .from("install_visits")
+      .update({ arriveping_status: "cancel_requested" })
+      .eq("id", visit.id);
+    // The cancel reached ArrivePing; pressing again re-sends with the same key, which ArrivePing treats as one cancel.
+    if (statusError)
+      console.error(
+        `install_visits ${visit.id}: could not mark cancel_requested: ${statusError.message}`,
+      );
+    await logVisitEvent(
+      visit,
+      "cancelled",
+      `Cancel sent to ArrivePing (work order ${result.jobId})`,
+    );
     return result;
   } catch (e) {
     const text = `Unexpected error cancelling in ArrivePing: ${message(e)}`;
@@ -221,31 +307,30 @@ async function runCancel(visitId: string): Promise<PushCancelOutcome> {
 export type RetryOutcome =
   PushCreateOutcome | { outcome: "ignored"; reason: string } | { outcome: "not_found" };
 
-/** Retries one logged event. Only visit sends can be retried for now; anything else is set aside as ignored. */
+/** Retries one logged event, as `planRetry` decides: re-link a work order already created, send again, or set aside. */
 async function runRetry(id: string): Promise<RetryOutcome> {
   const { markIgnored } = await import("./outbox.server");
+  const { planRetry } = await import("./push");
   const db = await admin();
   const { data: row, error } = await db
     .from("sync_events")
-    .select("id,direction,entity_type,entity_id,event_type,idempotency_key,status")
+    .select("id,direction,entity_type,entity_id,event_type,idempotency_key,external_id,status")
     .eq("id", id)
     .maybeSingle();
   if (error)
     return { outcome: "failed", error: `Could not load the sync event: ${error.message}`, key: "" };
   if (!row) return { outcome: "not_found" };
-  if (row.status !== "failed" && row.status !== "pending")
-    return { outcome: "ignored", reason: `already ${row.status}` };
 
-  if (
-    row.direction !== "out" ||
-    row.entity_type !== "visit" ||
-    row.event_type !== "create" ||
-    !row.entity_id
-  ) {
-    await markIgnored(row.id, "retry not supported yet");
-    return { outcome: "ignored", reason: "retry not supported yet" };
+  const plan = planRetry(row);
+  if (plan.action === "skip") return { outcome: "ignored", reason: plan.reason };
+  if (plan.action === "ignore") {
+    await markIgnored(row.id, plan.reason);
+    return { outcome: "ignored", reason: plan.reason };
   }
-  const result = await runPushCreate(row.entity_id, row.idempotency_key);
+  if (plan.action === "relink")
+    return runRelink(row.id, plan.visitId, plan.jobId, row.idempotency_key ?? "");
+
+  const result = await runPushCreate(plan.visitId, plan.key);
   if (result.outcome === "skipped") {
     await markIgnored(row.id, "already linked");
   } else if (result.outcome === "failed" && result.error === VISIT_NOT_FOUND) {
@@ -376,12 +461,15 @@ export const retrySyncEvent = createServerFn({ method: "POST" })
     return runRetry(data.id);
   });
 
-/** Retries up to 50 failed events, oldest first, one at a time. */
+const RETRY_BATCH = 20;
+const RETRY_BUDGET_MS = 20_000;
+
+/** Retries up to 20 failed events, oldest first, one at a time, stopping after about 20 seconds. `remaining` counts failed events this batch did not reach. */
 export const retryAllFailed = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireAny(context.supabase as never, "manage_integrations");
-    const counts = { total: 0, sent: 0, failed: 0, skipped: 0, ignored: 0 };
+    const counts = { total: 0, sent: 0, failed: 0, skipped: 0, ignored: 0, remaining: 0 };
     const db = await admin();
     const { data: rows, error } = await db
       .from("sync_events")
@@ -389,20 +477,34 @@ export const retryAllFailed = createServerFn({ method: "POST" })
       .eq("system", "arriveping")
       .eq("status", "failed")
       .order("created_at", { ascending: true })
-      .limit(50);
+      .limit(RETRY_BATCH);
     if (error)
       return {
         ok: false as const,
         error: `Could not load failed events: ${error.message}`,
         ...counts,
       };
+    const started = Date.now();
     for (const row of (rows ?? []) as { id: string }[]) {
+      if (Date.now() - started > RETRY_BUDGET_MS) break;
       counts.total += 1;
-      const result = await runRetry(row.id);
-      if (result.outcome === "sent") counts.sent += 1;
-      else if (result.outcome === "failed") counts.failed += 1;
-      else if (result.outcome === "skipped") counts.skipped += 1;
-      else counts.ignored += 1;
+      try {
+        const result = await runRetry(row.id);
+        if (result.outcome === "sent") counts.sent += 1;
+        else if (result.outcome === "failed") counts.failed += 1;
+        else if (result.outcome === "skipped") counts.skipped += 1;
+        else counts.ignored += 1;
+      } catch (e) {
+        console.error(`retryAllFailed: sync event ${row.id} threw:`, e);
+        counts.failed += 1;
+      }
     }
+    const { count } = await db
+      .from("sync_events")
+      .select("id", { count: "exact", head: true })
+      .eq("system", "arriveping")
+      .eq("status", "failed");
+    // Failed rows not attempted in this batch: the ones retried here that failed again are reported in `failed` instead.
+    counts.remaining = Math.max(0, (count ?? 0) - counts.failed);
     return { ok: true as const, ...counts };
   });

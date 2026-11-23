@@ -60,10 +60,24 @@ export async function recordPending(e: {
   if (error.code === UNIQUE_VIOLATION && e.idempotency_key) {
     const { data: existing, error: findError } = await db
       .from("sync_events")
-      .select("id")
+      .select("id,status")
       .eq("idempotency_key", e.idempotency_key)
       .maybeSingle();
-    if (existing?.id) return existing.id as string;
+    if (existing?.id) {
+      // A retry of an unfinished event starts it afresh; a finished one keeps its record. external_id is never cleared.
+      if (existing.status !== "sent" && existing.status !== "acked") {
+        const { error: resetError } = await db
+          .from("sync_events")
+          .update({ status: "pending", last_error: null, payload: e.payload ?? {} })
+          .eq("id", existing.id)
+          .not("status", "in", "(sent,acked)");
+        if (resetError)
+          console.error(
+            `sync_events ${existing.id}: could not reset to pending: ${resetError.message}`,
+          );
+      }
+      return existing.id as string;
+    }
     if (findError) throw new Error(`Could not record the sync event: ${findError.message}`);
   }
   throw new Error(`Could not record the sync event: ${error.message}`);
@@ -98,29 +112,12 @@ export const markSent = (id: string, externalId?: string): Promise<void> =>
     last_error: null,
     ...(externalId ? { external_id: externalId } : {}),
   });
-export const markFailed = (id: string, error: string): Promise<void> =>
-  finish(id, { status: "failed", last_error: error });
+/** Pass the work order id when ArrivePing created one, so a retry re-links it instead of sending again. */
+export const markFailed = (id: string, error: string, externalId?: string): Promise<void> =>
+  finish(id, {
+    status: "failed",
+    last_error: error,
+    ...(externalId ? { external_id: externalId } : {}),
+  });
 export const markIgnored = (id: string, reason: string): Promise<void> =>
   finish(id, { status: "ignored", last_error: reason });
-
-/** The newest pending or failed row for this entity and event, so a retry can reuse its idempotency key. Null when there is none (or it cannot be read). */
-export async function findPendingOrFailed(
-  entity_type: string,
-  entity_id: string,
-  event_type: string,
-): Promise<SyncEventRow | null> {
-  const db = await admin();
-  const { data, error } = await db
-    .from("sync_events")
-    .select("*")
-    .eq("system", SYSTEM)
-    .eq("entity_type", entity_type)
-    .eq("entity_id", entity_id)
-    .eq("event_type", event_type)
-    .in("status", ["pending", "failed"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) console.error(`sync_events lookup failed: ${error.message}`);
-  return (data as SyncEventRow | null) ?? null;
-}
