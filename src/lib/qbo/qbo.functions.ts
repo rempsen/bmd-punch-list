@@ -58,15 +58,24 @@ export const qboPullProducts = createServerFn({ method: "POST" })
     const sb = context.supabase as never;
     if (!(await allowed(sb, "manage_integrations")) && !(await allowed(sb, "manage_catalogue"))) throw new Error("You don't have permission to pull from QuickBooks.");
     const { qbo, qboEnv, qboConnection, restage } = await import("./qbo.server");
-    const { stageItem, stageVendor, QboReconnectError } = await import("./connect");
+    const { stageItem, stageVendor, vendorEvidence, QboReconnectError } = await import("./connect");
     if (!qboEnv()) return { ok: false as const, reason: "setup" as const, message: "QuickBooks is not set up yet." };
     if (!(await qboConnection())) return { ok: false as const, reason: "connect" as const, message: "Connect QuickBooks first." };
     try {
       const q = qbo();
       const auth = await q.getAccessToken();
       const [items, vendors] = await Promise.all([q.queryAll("Item", auth), q.queryAll("Vendor", auth)]);
+      // Three years of bills and expenses say which vendors BMD buys materials from. Reading them is optional:
+      // if QuickBooks refuses, the pull still succeeds and the import simply suggests fewer suppliers.
+      const since = new Date(Date.now() - 3 * 365 * 86_400_000).toISOString().slice(0, 10);
+      const evidence = await Promise.all([q.queryAll("Account", auth), q.queryAll("Bill", auth, `TxnDate >= '${since}'`), q.queryAll("Purchase", auth, `TxnDate >= '${since}'`)])
+        .then(([accounts, bills, purchases]) => vendorEvidence([...bills, ...purchases] as never, items as never, accounts as never))
+        .catch((e: unknown) => {
+          console.error(`[qbo] purchase history not read: ${e instanceof Error ? e.message : String(e)}`);
+          return undefined;
+        });
       const stagedItems = items.map((i) => stageItem(i as never));
-      const stagedVendors = vendors.map((v) => stageVendor(v as never));
+      const stagedVendors = vendors.map((v) => stageVendor(v as never, evidence));
       await restage("Item", stagedItems);
       await restage("Vendor", stagedVendors);
       const counts: Record<string, number> = {};
