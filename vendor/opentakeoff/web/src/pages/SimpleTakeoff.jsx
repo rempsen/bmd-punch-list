@@ -10,7 +10,7 @@ import "../styles/simpleTakeoff.css";
 import { store } from "../lib/store.js";
 import { PALETTE } from "../lib/takeoffConstants.ts";
 import { createSheetEngine, RENDER_SCALE, STANDARD_SCALES } from "../lib/bmd/engine.js";
-import { mergeSheets, pickDrawings } from "../lib/bmd/drawings.js";
+import { labelsToSave, mergeSheets, pickDrawings } from "../lib/bmd/drawings.js";
 import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
 import { parseFeet } from "../lib/bmd/feet.js";
@@ -167,6 +167,16 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   };
   const pickerInput = <input ref={picker} type="file" accept="application/pdf,.pdf" multiple hidden onChange={(e) => { const f = [...e.target.files]; e.target.value = ""; void addDrawings(f); }} />;
   const dropVeil = dropping ? <div className="st-drop" aria-hidden="true"><div>Drop PDF drawings to add them to this project's Plans</div></div> : null;
+
+  // Remember the sheet numbers of measured sheets in BMD Projects, so a quote can name its marked-up drawings.
+  const sentLabels = useRef(new Map());
+  useEffect(() => {
+    if (readOnly || !doc) return;
+    const rows = labelsToSave(sheets, doc, sentLabels.current);
+    if (!rows.length) return;
+    for (const r of rows) sentLabels.current.set(r.sheet_key, r.label);
+    store.saveSheetLabels?.(rows)?.catch(() => { for (const r of rows) sentLabels.current.delete(r.sheet_key); });
+  }, [sheets, doc, readOnly]);
 
   // Keep the open sheet in view in the list. Only the list itself is scrolled, never the page.
   useEffect(() => {

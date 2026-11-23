@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { useCostCodes } from "@/lib/catalogue/data";
-import { takeoffLinks, totalsByCondition } from "@/lib/takeoff/geometry";
-import { useTakeoff } from "@/lib/takeoff/store";
+import { drawingFiles, measuredSheets as sheetsMeasured, sheetLabel, sheetMarks, type TakeoffDoc } from "@/lib/takeoff/marked";
+import { finishLinks, totalsByFinish, useTakeoffQuantities } from "@/lib/takeoff/quantities";
 import { buildQboEstimate } from "@/lib/qbo/estimate";
 import { signedUrl } from "@/lib/documents/upload";
 import { createVersion, dollars, useEstimate } from "@/lib/estimating/data";
@@ -403,7 +403,7 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
   const [busy, setBusy] = useState(false);
   const display = normalizeDisplay(quote.display, quote.presentation);
   const { data: settings } = useQuoteSettings();
-  const stamp = JSON.stringify([settings?.branding, settings?.logo?.dataUrl.length, quote.attention, quote.client_notes, quote.display, quote.drawing_sheet_ids, quote.validity_days, quote.presentation, quote.inclusions, quote.exclusions, quote.clarifications, quote.deposit, quote.version_ids]);
+  const stamp = JSON.stringify([settings?.branding, settings?.logo?.dataUrl.length, quote.attention, quote.client_notes, quote.display, quote.drawing_sheets, quote.validity_days, quote.presentation, quote.inclusions, quote.exclusions, quote.clarifications, quote.deposit, quote.version_ids]);
 
   useEffect(() => {
     if (!preparer) return;
@@ -412,22 +412,23 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
     void (async () => {
       try {
         const c = await loadQuoteContext(db, quote.id, preparer);
-        // Colour-coded drawings are drawn here from the plans and this project's measurements, then added as pages.
+        // Colour-coded drawings are drawn here from the plans and this project's takeoff, then added as pages.
         const drawings = [];
         if (c.drawingSheets.length) {
-          const [{ renderMarkedSheet }, { openPdf }, { signedUrl: sign }] = await Promise.all([import("@/lib/takeoff/markup"), import("@/lib/takeoff/pdf"), import("@/lib/documents/upload")]);
-          const { data: docRows } = await db.from("project_documents").select("id,storage_path").in("id", [...new Set(c.drawingSheets.map((x) => x.document_id))]);
-          const pathOf = new Map(((docRows ?? []) as { id: string; storage_path: string }[]).map((d) => [d.id, d.storage_path]));
-          const { data: t } = await db.from("takeoff_shapes").select("id,sheet_id,condition_id,kind,vertices,cutouts,openings_ft,multiplier,section,scale_feet_per_point").in("sheet_id", c.drawingSheets.map((x) => x.id));
-          const { data: conds } = await db.from("takeoff_conditions").select("id,label,kind,colour,finish_id").eq("project_id", quote.project_id).order("sort_order");
+          const [{ renderTakeoffSheet }, { openPdf }, { signedUrl: sign }] = await Promise.all([import("@/lib/takeoff/markedRender"), import("@/lib/takeoff/pdf"), import("@/lib/documents/upload")]);
+          const [{ data: docRows }, { data: tk }] = await Promise.all([
+            db.from("project_documents").select("id,section,file_name,version,storage_path,mime").eq("project_id", quote.project_id).in("section", ["plans", "specifications"]),
+            db.from("project_takeoffs").select("doc").eq("project_id", quote.project_id).maybeSingle(),
+          ]);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const shapes = ((t ?? []) as any[]).map((r) => ({ ...r, cutouts: r.cutouts ?? [], openings_ft: Number(r.openings_ft), multiplier: Number(r.multiplier), scale_feet_per_point: Number(r.scale_feet_per_point) }));
+          const files = drawingFiles((docRows ?? []) as any);
+          const takeoffDoc = (tk as { doc: TakeoffDoc } | null)?.doc;
           for (const sh of c.drawingSheets) {
-            const path = pathOf.get(sh.document_id);
-            if (!path) continue;
-            const pdfDoc = await openPdf(sh.document_id, await sign(path));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            drawings.push(await renderMarkedSheet(pdfDoc, sh.page_number, shapes.filter((x) => x.sheet_id === sh.id), (conds ?? []) as any, { title: sh.label, maxWidth: c.drawingSheets.length > 4 ? 1400 : 1800 }));
+            const file = files.get(sh.file);
+            if (!file) throw new Error(`${sh.label} cannot be attached: ${sh.file} is no longer under this project's Plans. Untick it under Colour-coded drawings.`);
+            const pdfDoc = await openPdf(file.id, await sign(file.path));
+            const { marks, key } = sheetMarks(takeoffDoc, sh.key);
+            drawings.push(await renderTakeoffSheet(pdfDoc, sh.page, marks, key, { title: sh.label, maxWidth: c.drawingSheets.length > 4 ? 1400 : 1800 }));
           }
         }
         const doc = renderQuotePdf(c.snapshot, { logo: await loadLogo(), drawings });
@@ -460,19 +461,22 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
   };
   const byKind = useMemo(() => (k: Clause["kind"]) => library.filter((c) => c.kind === k), [library]);
   // A takeoff that moved after pricing must be accepted or detached on the Estimate tab before the quote goes out.
-  const { data: takeoff } = useTakeoff(quote.project_id);
-  const moved = ctx && takeoff ? ctx.versions.flatMap((v) => takeoffLinks(v.lines, totalsByCondition(takeoff.counted ?? takeoff.shapes)).filter((l) => l.changed).map((l) => `${v.name}: ${v.lines.find((x) => x.id === l.lineId)?.description ?? "line"} (priced at ${l.pricedQty.toLocaleString("en-CA")}, takeoff now ${l.takeoffQty.toLocaleString("en-CA")})`)) : [];
+  const { data: measuredQty } = useTakeoffQuantities(quote.project_id);
+  const takeoffTotals = useMemo(() => totalsByFinish(measuredQty ?? []), [measuredQty]);
+  const moved = ctx && measuredQty ? ctx.versions.flatMap((v) => finishLinks(v.lines, takeoffTotals).filter((l) => l.changed).map((l) => `${v.name}: ${v.lines.find((x) => x.id === l.lineId)?.description ?? "line"} (priced at ${l.pricedQty.toLocaleString("en-CA")}, takeoff now ${l.takeoffQty.toLocaleString("en-CA")})`)) : [];
   const blocked = !!ctx && (ctx.unknown.length > 0 || moved.length > 0);
-  // Sheets of the current drawings that have something measured on them.
-  const { data: projectSheets = [] } = useQuery({
+  // Sheets of the takeoff that have something measured on them, named by their sheet number where the takeoff read one.
+  const { data: measuredSheets = [] } = useQuery({
     queryKey: ["quote-sheets", quote.project_id],
     queryFn: async () => {
-      const { data } = await db.from("plan_sheets").select("id,page_number,sheet_number,title").eq("project_id", quote.project_id).order("page_number");
-      return (data ?? []) as { id: string; page_number: number; sheet_number: string | null; title: string | null }[];
+      const [{ data: tk }, { data: lab }] = await Promise.all([
+        db.from("project_takeoffs").select("doc").eq("project_id", quote.project_id).maybeSingle(),
+        db.from("takeoff_sheet_labels").select("sheet_key,label").eq("project_id", quote.project_id),
+      ]);
+      const labels = Object.fromEntries(((lab ?? []) as { sheet_key: string; label: string }[]).map((r) => [r.sheet_key, r.label]));
+      return sheetsMeasured((tk as { doc: TakeoffDoc } | null)?.doc).map((x) => ({ id: x.key, label: sheetLabel(x.key, labels), shapes: x.shapes }));
     },
   });
-  const live = new Set((takeoff?.counted ?? []).map((x) => x.sheet_id));
-  const measuredSheets = projectSheets.filter((x) => live.has(x.id)).map((x) => ({ id: x.id, label: [x.sheet_number?.trim() || `Page ${x.page_number}`, x.title?.trim()].filter(Boolean).join(" ") }));
   const list = (s: string) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
 
   const issue = async (withEmail: boolean) => {
@@ -566,8 +570,9 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
                       {measuredSheets.map((sh) => (
                         <li key={sh.id}>
                           <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
-                            <input type="checkbox" className="h-4 w-4" checked={quote.drawing_sheet_ids.includes(sh.id)} onChange={(e) => void save({ drawing_sheet_ids: e.target.checked ? [...quote.drawing_sheet_ids, sh.id] : quote.drawing_sheet_ids.filter((x) => x !== sh.id) })} />
+                            <input type="checkbox" className="h-4 w-4" checked={quote.drawing_sheets.includes(sh.id)} onChange={(e) => void save({ drawing_sheets: e.target.checked ? [...quote.drawing_sheets, sh.id] : quote.drawing_sheets.filter((x) => x !== sh.id) })} />
                             <span className="truncate">{sh.label}</span>
+                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">{sh.shapes} measured</span>
                           </label>
                         </li>
                       ))}

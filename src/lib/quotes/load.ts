@@ -1,5 +1,6 @@
 /** Loads a quote with everything needed to show or send it. Works with the browser client and the signed-in server client alike. */
 import { shapeLine, type EstVersion } from "@/lib/estimating/data";
+import { chosenDrawings, type ChosenDrawing, type TakeoffDoc } from "@/lib/takeoff/marked";
 import type { Rates } from "@/lib/estimating/worksheet";
 import { categoryLabel } from "@/lib/catalogue/logic";
 import { brandingFrom, SETTINGS_COLS, type Branding, type SettingsRow } from "./branding";
@@ -19,6 +20,8 @@ export type QuoteRow = {
   presentation: Presentation;
   display: Partial<QuoteDisplay> | null;
   drawing_sheet_ids: string[];
+  /** The takeoff sheets ("Plans.pdf#4") whose marked-up drawings go with the quote. */
+  drawing_sheets: string[];
   inclusions: string[];
   exclusions: string[];
   clarifications: string[];
@@ -41,7 +44,7 @@ export type QuoteRow = {
   created_at: string;
 };
 export const QUOTE_COLS =
-  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,display,drawing_sheet_ids,inclusions,exclusions,clarifications,deposit,attention,client_notes,snapshot,rollup,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
+  "id,project_id,kind,co_number,revision,number,status,version_ids,validity_days,presentation,display,drawing_sheet_ids,drawing_sheets,inclusions,exclusions,clarifications,deposit,attention,client_notes,snapshot,rollup,value_cents,recipients,sent_at,accepted_version_id,accepted_at,accepted_value_cents,decision_note,document_id,created_at";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };
@@ -91,10 +94,17 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
       else if (l.cost_code === "02-100") materialOf[l.id] = "Window coverings";
     }
   }
-  // The drawing sheets chosen to go with the quote, in sheet order.
-  type SheetRow = { id: string; page_number: number; sheet_number: string | null; title: string | null; document_id: string };
-  const { data: sheetRows } = quote.drawing_sheet_ids.length ? await sb.from("plan_sheets").select("id,page_number,sheet_number,title,document_id").in("id", quote.drawing_sheet_ids).order("page_number") : { data: [] };
-  const drawingSheets = ((sheetRows ?? []) as SheetRow[]).map((s) => ({ ...s, label: [s.sheet_number?.trim() || `Page ${s.page_number}`, s.title?.trim()].filter(Boolean).join(" ") }));
+  // The marked-up drawings chosen to go with the quote, from the project's takeoff, in sheet order.
+  const chosen = quote.drawing_sheets ?? [];
+  let drawingSheets: ChosenDrawing[] = [];
+  if (chosen.length) {
+    const [{ data: tk }, { data: lab }] = await Promise.all([
+      sb.from("project_takeoffs").select("doc").eq("project_id", quote.project_id).maybeSingle(),
+      sb.from("takeoff_sheet_labels").select("sheet_key,label").eq("project_id", quote.project_id),
+    ]);
+    const labels = Object.fromEntries(((lab ?? []) as { sheet_key: string; label: string }[]).map((r) => [r.sheet_key, r.label]));
+    drawingSheets = chosenDrawings(chosen, (tk as { doc: TakeoffDoc } | null)?.doc, labels);
+  }
   const date = todayInWinnipeg();
   const branding = await loadBranding(sb);
   const snapshot = buildSnapshot({

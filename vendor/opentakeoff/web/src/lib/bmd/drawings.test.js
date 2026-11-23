@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MAX_DRAWING_BYTES, mergeSheets, pickDrawings } from "./drawings.js";
+import { MAX_DRAWING_BYTES, labelsToSave, mergeSheets, pickDrawings } from "./drawings.js";
 
 const f = (name, type = "application/pdf", size = 1000) => ({ name, type, size });
 
@@ -32,5 +32,21 @@ describe("adding an uploaded drawing's pages to the sheet list", () => {
     const out = mergeSheets([s("A.pdf", 1), s("A.pdf", 2), s("B.pdf", 1)], "A.pdf", [{ key: "A.pdf#1", file: "A.pdf", page: 1, label: null }]);
     expect(out.map((x) => x.key)).toEqual(["A.pdf#1", "B.pdf#1"]);
     expect(out[0].label).toBeNull();
+  });
+});
+
+describe("remembering sheet numbers for quotes", () => {
+  const sheets = [{ key: "A.pdf#1", label: "A-101" }, { key: "A.pdf#2", label: "A-102" }, { key: "A.pdf#3", label: "" }, { key: "A.pdf#4", label: null }];
+  const doc = { shapes: [{ sheet_id: "A.pdf#1" }, { sheet_id: "A.pdf#3" }, { sheet_id: "A.pdf#4" }] };
+  test("only measured sheets whose number has been read are sent, and each only once", () => {
+    const sent = new Map();
+    expect(labelsToSave(sheets, doc, sent)).toEqual([{ sheet_key: "A.pdf#1", label: "A-101" }]);
+    sent.set("A.pdf#1", "A-101");
+    expect(labelsToSave(sheets, doc, sent)).toEqual([]);
+  });
+  test("a number that changed with a new drawing version is sent again, and long ones are trimmed", () => {
+    const sent = new Map([["A.pdf#1", "A-100"]]);
+    expect(labelsToSave(sheets, doc, sent)).toEqual([{ sheet_key: "A.pdf#1", label: "A-101" }]);
+    expect(labelsToSave([{ key: "A.pdf#1", label: "x".repeat(90) }], doc, new Map())[0].label.length).toBe(60);
   });
 });

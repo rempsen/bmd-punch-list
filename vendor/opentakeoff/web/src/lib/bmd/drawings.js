@@ -29,3 +29,21 @@ export function mergeSheets(sheets, file, pages) {
   const before = sheets.slice(0, at).filter((s) => s.file !== file).length;
   return [...rest.slice(0, before), ...pages, ...rest.slice(before)];
 }
+
+/**
+ * The sheet numbers ("A-101") worth remembering in BMD Projects: sheets with something measured on them whose
+ * number has been read from the title block and has not been sent yet. Quotes name their drawings from these.
+ * @param {{key: string, label: string | null}[]} sheets
+ * @param {{shapes?: {sheet_id: string}[]}} doc
+ * @param {Map<string, string>} sent what this window has already sent, by sheet key
+ */
+export function labelsToSave(sheets, doc, sent) {
+  const measured = new Set((doc?.shapes || []).map((s) => s.sheet_id));
+  const out = [];
+  for (const s of sheets) {
+    const label = String(s.label ?? "").trim().slice(0, 60);
+    if (!label || !measured.has(s.key) || sent.get(s.key) === label) continue;
+    out.push({ sheet_key: s.key, label });
+  }
+  return out;
+}

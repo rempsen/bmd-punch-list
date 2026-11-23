@@ -153,6 +153,11 @@ export function createBmdStore({ projectId, api, cache, onState = () => {} }) {
       const rev = entry ? (await trail(file.name, entry)).meta.revs.length : 1;
       return existed ? { name: file.name, rev, prev_rev: rev - 1, revised: rev > 1, unchanged: rev <= 1 } : { name: file.name, rev };
     },
+    /** Sheet numbers read from title blocks, kept for quotes. A failure here never interrupts measuring. */
+    async saveSheetLabels(rows) {
+      if (!api.canSave || !rows?.length || !api.saveSheetLabels) return;
+      await api.saveSheetLabels(rows);
+    },
     async removePdf() {
       throw new Error("Remove drawings in Documents. The takeoff workspace never deletes a project's documents.");
     },

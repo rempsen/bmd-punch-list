@@ -87,6 +87,12 @@ export function createBmdApi(supabase, projectId, { canSave }) {
       const { error: rowError } = await docs().insert({ id, project_id: projectId, section: "plans", file_name: file.name, storage_path: path, size_bytes: file.size, mime: file.type || "application/pdf", note: "Added from the takeoff workspace" });
       fail(rowError, `${file.name} was uploaded but could not be filed under Plans`);
     },
+    /** Remember the sheet numbers read from title blocks, so quotes can name their drawings. Never blocks measuring. */
+    async saveSheetLabels(rows) {
+      if (!canSave || !rows.length) return;
+      const { error } = await supabase.from("takeoff_sheet_labels").upsert(rows.map((r) => ({ project_id: projectId, sheet_key: r.sheet_key, label: r.label, updated_at: new Date().toISOString() })), { onConflict: "project_id,sheet_key" });
+      fail(error, "The sheet numbers could not be saved");
+    },
     async loadTakeoff() {
       const { data, error } = await supabase.from("project_takeoffs").select("doc,version").eq("project_id", projectId).maybeSingle();
       fail(error, "The takeoff could not be loaded");
