@@ -112,6 +112,9 @@ export const markSent = (id: string, externalId?: string): Promise<void> =>
     last_error: null,
     ...(externalId ? { external_id: externalId } : {}),
   });
+/** An inbound event that was applied to BMD. */
+export const markAcked = (id: string): Promise<void> =>
+  finish(id, { status: "acked", last_error: null });
 /** Pass the work order id when ArrivePing created one, so a retry re-links it instead of sending again. */
 export const markFailed = (id: string, error: string, externalId?: string): Promise<void> =>
   finish(id, {
