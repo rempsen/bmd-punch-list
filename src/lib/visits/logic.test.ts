@@ -129,6 +129,27 @@ describe("applying an ArrivePing event to a visit", () => {
     const ev = { kind: "status" as const, status: "arrived" as const, jobId: "AP-77", visitId: null, at: "2026-12-02T09:00:00Z" };
     expect(applyInboundEvent(seen, ev, now)).toMatchObject({ ok: true, patch: { status: "arrived", arriveping_last_event_at: "2026-12-02T10:00:00.000Z" }, event: { at: "2026-12-02T09:00:00.000Z" } });
   });
+  test("ArrivePing confirming a cancel BMD asked for clears \"Cancel requested\"", () => {
+    const asked = { ...v, status: "cancelled" as const, arriveping_status: "cancel_requested" };
+    const ev = { kind: "status" as const, status: "cancelled" as const, jobId: "AP-77", visitId: null, at: "2026-12-02T11:00:00Z" };
+    expect(applyInboundEvent(asked, ev, now)).toEqual({ ok: true, patch: { arriveping_status: "cancelled", arriveping_last_event_at: "2026-12-02T11:00:00.000Z" }, event: { status: "cancelled", note: "Cancel confirmed by ArrivePing", at: "2026-12-02T11:00:00.000Z" } });
+    expect(applyInboundEvent({ ...asked, arriveping_status: "cancelled" }, ev, now)).toEqual({ ok: false, reason: "no change" });
+    expect(applyInboundEvent({ ...asked, arriveping_status: null }, ev, now)).toEqual({ ok: false, reason: "no change" });
+    expect(applyInboundEvent(asked, { ...ev, status: "arrived" as const }, now)).toEqual({ ok: false, reason: "no change" });
+  });
+  test("a confirmed cancel never winds the last-event time back", () => {
+    const asked = { ...v, status: "cancelled" as const, arriveping_status: "cancel_requested", arriveping_last_event_at: "2026-12-02T11:30:00.000Z" };
+    const ev = { kind: "status" as const, status: "cancelled" as const, jobId: "AP-77", visitId: null, at: "2026-12-02T11:00:00Z" };
+    expect(applyInboundEvent(asked, ev, now)).toMatchObject({ ok: true, patch: { arriveping_status: "cancelled", arriveping_last_event_at: "2026-12-02T11:30:00.000Z" } });
+  });
+  test("an event dated in the future counts as now, so it cannot make later events look stale", () => {
+    const ev = { kind: "assigned" as const, assignee: "Sam", jobId: "AP-77", visitId: null, at: "2026-12-09T12:00:00Z" };
+    const r = applyInboundEvent(v, ev, now);
+    expect(r).toMatchObject({ ok: true, patch: { arriveping_last_event_at: now }, event: { at: now } });
+    const after = { ...v, arriveping_assigned_to: "Sam", arriveping_last_event_at: now };
+    const next = { ...ev, assignee: "Brodie", at: "2026-12-02T12:30:00Z" };
+    expect(applyInboundEvent(after, next, "2026-12-02T13:00:00.000Z")).toMatchObject({ ok: true, patch: { arriveping_assigned_to: "Brodie", arriveping_last_event_at: "2026-12-02T12:30:00.000Z" } });
+  });
   test("a reschedule moves the visit's times and says where to", () => {
     const ev = { kind: "rescheduled" as const, startsAt: "2026-12-03T09:00:00.000Z", endsAt: "2026-12-03T17:00:00.000Z", jobId: "AP-77", visitId: null, at: null };
     const r = applyInboundEvent(v, ev, now, "UTC");

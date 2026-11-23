@@ -82,7 +82,7 @@ export const Route = createFileRoute("/api/public/arriveping/webhook")({
           const q = admin
             .from("install_visits")
             .select(
-              "id,project_id,status,crew,starts_at,ends_at,arriveping_job_id,arriveping_assigned_to,arriveping_last_event_at",
+              "id,project_id,status,crew,starts_at,ends_at,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at",
             );
           const { data: visit, error: findError } = await (
             ev.visitId ? q.eq("id", ev.visitId) : q.eq("arriveping_job_id", ev.jobId)

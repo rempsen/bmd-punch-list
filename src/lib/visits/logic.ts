@@ -111,7 +111,7 @@ export function scheduleRange(startsAt: string, endsAt: string | null, timeZone 
   return endsAt ? f.formatRange(new Date(startsAt), new Date(endsAt)) : f.format(new Date(startsAt));
 }
 
-export type InboundVisit = Pick<Visit, "status" | "crew" | "starts_at" | "ends_at" | "arriveping_job_id"> & { arriveping_assigned_to?: string | null; arriveping_last_event_at?: string | null };
+export type InboundVisit = Pick<Visit, "status" | "crew" | "starts_at" | "ends_at" | "arriveping_job_id"> & { arriveping_status?: string | null; arriveping_assigned_to?: string | null; arriveping_last_event_at?: string | null };
 export type InboundPlan =
   | { ok: true; patch: Record<string, string | null>; event: { status: string; note: string; at: string } }
   | { ok: false; reason: "no change" | "stale" };
@@ -120,17 +120,22 @@ const sameTime = (a: string | null, b: string | null) => (a == null || b == null
 
 /**
  * What an ArrivePing event does to a visit: the columns to update and the activity entry to log, or why it changes nothing.
- * A finished visit (completed or cancelled) is never changed. `now` stands in for an event time that is missing or unreadable.
- * ArrivePing does not promise order, so an assignment or reschedule older than the last event applied is stale (last write
- * wins by event time); status only ever moves forward, so a late one still applies. The last-event time never goes back.
+ * A finished visit (completed or cancelled) is never changed, except that ArrivePing confirming a cancel BMD asked for clears
+ * "Cancel requested". `now` stands in for an event time that is missing or unreadable, and caps one dated in the future, which
+ * would otherwise make every later event look stale. ArrivePing does not promise order, so an assignment or reschedule older
+ * than the last event applied is stale (last write wins by event time); status only ever moves forward, so a late one still
+ * applies. The last-event time never goes back.
  */
 export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now: string, timeZone = SCHEDULE_TZ): InboundPlan {
-  const at = iso(ev.at) ?? now;
+  const sent = iso(ev.at);
+  const at = sent && Date.parse(sent) < Date.parse(now) ? sent : now;
   const last = iso(visit.arriveping_last_event_at) ?? null;
   const behind = last != null && Date.parse(at) < Date.parse(last);
   const common = { arriveping_last_event_at: behind ? last : at, ...(ev.jobId && !visit.arriveping_job_id ? { arriveping_job_id: ev.jobId } : {}) };
   const closed = visit.status === "completed" || visit.status === "cancelled";
   if (ev.kind === "status") {
+    if (ev.status === "cancelled" && visit.status === "cancelled" && visit.arriveping_status === "cancel_requested")
+      return { ok: true, patch: { arriveping_status: "cancelled", ...common }, event: { status: "cancelled", note: "Cancel confirmed by ArrivePing", at } };
     const next = applyVisitEvent(visit, ev.status);
     if (!next) return { ok: false, reason: "no change" };
     return { ok: true, patch: { status: next.status, arriveping_status: next.status, ...common }, event: { status: next.status, note: next.note, at } };
