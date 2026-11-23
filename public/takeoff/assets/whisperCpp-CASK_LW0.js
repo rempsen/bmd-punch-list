@@ -1,0 +1,1 @@
+function r(){return{id:"whisper-cpp",async init(e,n){throw new Error("whisper-cpp adapter is benchmark-only and not wired yet (see docs/VOICE.md engine notes)")},async transcribe(e){throw new Error("engine not initialized")},async dispose(){}}}export{r as createWhisperCppEngine};
