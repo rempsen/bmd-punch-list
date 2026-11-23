@@ -1,16 +1,14 @@
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cancelVisitPush, pushVisit } from "@/lib/arriveping/arriveping.functions";
-import { apWorkOrderUrl } from "@/lib/arriveping/core";
 import { db, errText } from "@/lib/platform/db";
+import { ArrivePingPill, OpenInArrivePing, StatusPill, useProjectVisits, VISIT_LABEL } from "./visit-bits";
 import { applyVisitEvent, arrivepingPill, visitNote, visitRange, visitsCsv, visitTimes, type Visit, type VisitStatus } from "@/lib/visits/logic";
 
-const LABEL: Record<VisitStatus, string> = { scheduled: "Scheduled", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled" };
 const SEE_SETTINGS = "see Company settings → Integrations.";
 
 type VisitForm = { date: string; endDate: string; endDateEdited: boolean; start: string; end: string; crew: string; contact: string; notes: string };
@@ -23,18 +21,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
   const qc = useQueryClient();
   const pushFn = useServerFn(pushVisit);
   const cancelFn = useServerFn(cancelVisitPush);
-  const { data: visits = [] } = useQuery({
-    queryKey: ["visits", projectId],
-    queryFn: async () => {
-      const { data, error } = await db
-        .from("install_visits")
-        .select("id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,status")
-        .eq("project_id", projectId)
-        .order("starts_at");
-      if (error) throw error;
-      return (data ?? []) as Visit[];
-    },
-  });
+  const { data: visits = [] } = useProjectVisits(projectId);
   const [form, setForm] = useState<VisitForm | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = () => {
@@ -119,7 +106,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
     }
     try {
       if (to !== "cancelled") {
-        toast.success(`Marked ${LABEL[to].toLowerCase()}.`);
+        toast.success(`Marked ${VISIT_LABEL[to].toLowerCase()}.`);
         return;
       }
       // The cancel here already stands; ArrivePing is told afterwards and its answer never undoes it.
@@ -237,15 +224,9 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{LABEL[v.status]}</span>
-                    {ap && <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">{ap}</span>}
-                    {v.arriveping_job_id && (
-                      <a href={apWorkOrderUrl(v.arriveping_job_id)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-medium text-primary underline-offset-4 hover:underline">
-                        Open in ArrivePing
-                        <ExternalLink className="h-3 w-3" aria-hidden />
-                        <span className="sr-only">(opens in a new tab)</span>
-                      </a>
-                    )}
+                    <StatusPill label={VISIT_LABEL[v.status]} />
+                    {ap && <ArrivePingPill label={ap} />}
+                    {v.arriveping_job_id && <OpenInArrivePing jobId={v.arriveping_job_id} />}
                   </div>
                 </div>
                 {canEdit && (v.status === "scheduled" || v.status === "en_route" || v.status === "arrived") && (

@@ -1,6 +1,6 @@
 /** Install visits and what ArrivePing tells us about them. */
 export type VisitStatus = "scheduled" | "en_route" | "arrived" | "completed" | "cancelled";
-export type Visit = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null; arriveping_job_id: string | null; status: VisitStatus; arriveping_status: string | null; arriveping_assigned_to: string | null };
+export type Visit = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null; arriveping_job_id: string | null; status: VisitStatus; arriveping_status: string | null; arriveping_assigned_to: string | null; arriveping_last_event_at?: string | null };
 
 /** Compares the secret a caller sent with ours without leaking where they differ. No secret configured means nobody gets in. */
 export function secretMatches(got: string | null | undefined, expected: string | null | undefined): boolean {
@@ -211,4 +211,30 @@ export function arrivepingBadge(v: { arriveping_job_id: string | null; arrivepin
 export function arrivepingPill(v: { status: VisitStatus; arriveping_job_id: string | null; arriveping_status: string | null; arriveping_assigned_to: string | null }): string | null {
   const badge = arrivepingBadge(v);
   return badge != null && v.arriveping_status === v.status && v.status !== "scheduled" ? null : badge;
+}
+
+/** Visits for the crew status view: out on site first, then what is coming up, then what is over. Each group runs by start time. */
+export function crewStatusGroups<T extends Pick<Visit, "status" | "starts_at">>(visits: T[]): { active: T[]; upcoming: T[]; past: T[] } {
+  const byStart = (a: T, b: T) => Date.parse(a.starts_at) - Date.parse(b.starts_at);
+  const pick = (f: (v: T) => boolean) => visits.filter(f).sort(byStart);
+  return {
+    active: pick((v) => v.status === "en_route" || v.status === "arrived"),
+    upcoming: pick((v) => v.status === "scheduled"),
+    past: pick((v) => v.status === "completed" || v.status === "cancelled").reverse(),
+  };
+}
+
+/** When ArrivePing last reported on a visit, in Winnipeg time: "2:14 p.m." for today, "Dec 1, 2:14 p.m." for any other day. */
+export function updatedAt(at: string, now: Date = new Date(), timeZone = SCHEDULE_TZ): string {
+  const d = new Date(at);
+  const day = (x: Date) => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone }).format(x);
+  const time = new Intl.DateTimeFormat("en-CA", { timeStyle: "short", timeZone }).format(d);
+  return day(d) === day(now) ? time : `${new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", timeZone }).format(d)}, ${time}`;
+}
+
+/** The one word for where a visit stands on the crew view. ArrivePing's own word leads while the visit is still ahead or a cancel is pending; once the crew is out or done, BMD's status is the live one. */
+export function crewLabel(v: Pick<Visit, "status" | "arriveping_job_id" | "arriveping_status">): string {
+  const ap = v.arriveping_job_id && v.arriveping_status && Object.hasOwn(AP_LABEL, v.arriveping_status) ? AP_LABEL[v.arriveping_status]! : null;
+  if (ap && (v.status === "scheduled" || v.arriveping_status === "cancel_requested")) return ap;
+  return AP_LABEL[v.status]!;
 }

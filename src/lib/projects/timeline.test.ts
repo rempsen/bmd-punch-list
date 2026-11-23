@@ -24,4 +24,15 @@ describe("project activity", () => {
     expect(hidden).not.toMatch(/\$|Bill /);
     expect(hidden).toContain("Quote Q-26-041-R0 accepted");
   });
+  test("a visit entry says who reported it: ArrivePing, or BMD sending to ArrivePing; a plain one has no suffix", () => {
+    const base = { stages: [], documents: [], quotes: [], bills: [] };
+    const visits = [
+      { id: "v1", note: "Crew on the way (Brodie + 2)", at: "2026-12-01T14:00:00Z", source: "arriveping" },
+      { id: "v2", note: "Install visit scheduled", at: "2026-12-01T13:00:00Z", source: "sync" },
+      { id: "v3", note: "Install visit scheduled", at: "2026-12-01T12:00:00Z", source: "app" },
+    ];
+    const t = buildTimeline({ ...base, visits }, { showPrices: false });
+    expect(t.map((x) => x.text)).toEqual(["Crew on the way (Brodie + 2) · reported by ArrivePing", "Install visit scheduled · sent to ArrivePing", "Install visit scheduled"]);
+    expect(t.every((x) => x.kind === "visit")).toBe(true);
+  });
 });

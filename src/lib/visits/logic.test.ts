@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { AP_LABEL, applyInboundEvent, applyVisitEvent, arrivepingBadge, arrivepingPill, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, visitRange, visitTimes, visitsCsv } from "./logic";
+import { AP_LABEL, applyInboundEvent, crewLabel, crewStatusGroups, applyVisitEvent, arrivepingBadge, arrivepingPill, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, updatedAt, visitRange, visitTimes, visitsCsv } from "./logic";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100", arriveping_job_id: "AP-77", status: "scheduled" as const, arriveping_status: null, arriveping_assigned_to: null };
 
@@ -285,5 +285,31 @@ describe("the ArrivePing pill beside the visit's status", () => {
     expect(arrivepingPill(v)).toBe("Scheduled in ArrivePing");
     expect(arrivepingPill({ ...v, arriveping_status: "assigned", arriveping_assigned_to: "Brodie" })).toBe("Assigned to Brodie");
     expect(arrivepingPill({ ...v, status: "cancelled", arriveping_status: "cancel_requested" })).toBe("Cancel requested");
+  });
+});
+
+describe("crew status view", () => {
+  const v = (id: string, status: "scheduled" | "en_route" | "arrived" | "completed" | "cancelled", starts_at: string) => ({ id, status, starts_at });
+  test("groups active, upcoming and past; upcoming by start, past newest first", () => {
+    const g = crewStatusGroups([v("c", "completed", "2026-11-01T15:00:00Z"), v("s2", "scheduled", "2026-12-05T15:00:00Z"), v("a", "arrived", "2026-12-01T15:00:00Z"), v("s1", "scheduled", "2026-12-02T15:00:00Z"), v("x", "cancelled", "2026-11-20T15:00:00Z"), v("e", "en_route", "2026-11-30T15:00:00Z")]);
+    expect(g.active.map((x) => x.id)).toEqual(["e", "a"]);
+    expect(g.upcoming.map((x) => x.id)).toEqual(["s1", "s2"]);
+    expect(g.past.map((x) => x.id)).toEqual(["x", "c"]);
+  });
+  test("updatedAt reads in Winnipeg time, with the day only when it is not today", () => {
+    // Built from site wall-clock times so the test does not depend on which offset the runtime's zone data gives December.
+    const at = (date: string, time: string) => (visitTimes({ date, start: time, end: "" }) as { startsAt: Date }).startsAt;
+    const now = at("2026-12-01", "20:00");
+    expect(updatedAt(at("2026-12-01", "14:14").toISOString(), now)).toBe("2:14 p.m.");
+    expect(updatedAt(at("2026-11-30", "14:14").toISOString(), now)).toBe("Nov 30, 2:14 p.m.");
+  });
+  test("crewLabel prefers ArrivePing's word before the crew is out, then BMD's", () => {
+    const base = { arriveping_job_id: "AP-1" as string | null, arriveping_status: null as string | null };
+    expect(crewLabel({ ...base, status: "scheduled", arriveping_status: "assigned" })).toBe("Assigned");
+    expect(crewLabel({ ...base, status: "scheduled" })).toBe("Scheduled");
+    expect(crewLabel({ ...base, status: "scheduled", arriveping_job_id: null, arriveping_status: "assigned" })).toBe("Scheduled");
+    expect(crewLabel({ ...base, status: "arrived", arriveping_status: "assigned" })).toBe("On site");
+    expect(crewLabel({ ...base, status: "en_route", arriveping_status: "cancel_requested" })).toBe("Cancel requested");
+    expect(crewLabel({ ...base, status: "completed", arriveping_status: "mystery" })).toBe("Completed");
   });
 });
