@@ -4,14 +4,14 @@ import { classifyItem, createQbo, qboAuthorizeUrl, stageItem, stageVendor, type 
 
 const KEY = "test-key";
 const env = { clientId: "cid", clientSecret: "secret" };
-function harness(over: { conn?: { realm_id: string; refresh_token_enc: string } | null; responses: (url: string, init?: RequestInit) => { status?: number; body: unknown } }) {
+function harness(over: { conn?: { realm_id: string; refresh_token_enc: string } | null; responses: (url: string, init?: RequestInit) => { status?: number; body: unknown; tid?: string } }) {
   const calls: { url: string; init?: RequestInit }[] = [];
   const state = { conn: over.conn ?? null, saved: [] as string[], errors: [] as (string | null)[] };
   const store: QboStore = { get: async () => state.conn, saveToken: async (t) => void state.saved.push(t), setError: async (m) => void state.errors.push(m) };
   const fetchFn = (async (url: string, init?: RequestInit) => {
     calls.push({ url: String(url), init });
     const r = over.responses(String(url), init);
-    return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
+    return new Response(JSON.stringify(r.body), { status: r.status ?? 200, headers: r.tid ? { intuit_tid: r.tid } : {} });
   }) as unknown as typeof fetch;
   return { qbo: createQbo({ fetch: fetchFn, env, store, keyMaterial: KEY }), calls, state };
 }
@@ -85,5 +85,23 @@ describe("what each QuickBooks item is to BMD", () => {
     expect(stageVendor({ Id: "7", DisplayName: "Gerflor", Active: true, PrimaryEmailAddr: { Address: "a@b.c" }, PrimaryPhone: { FreeFormNumber: "204" }, AcctNum: "A1", GivenName: "Jo", FamilyName: "Lee" })).toEqual({
       external_id: "7", kind: "supplier", name: "Gerflor", data: { contact_name: "Jo Lee", email: "a@b.c", phone: "204", account_number: "A1", active: true },
     });
+  });
+  test("a refused request says why, with Intuit's trace id for their support team", async () => {
+    const h = harness({
+      conn: { realm_id: "9", refresh_token_enc: await encryptToken("rt-1", KEY) },
+      responses: (url) =>
+        url.includes("oauth")
+          ? { body: { access_token: "at", refresh_token: "rt-1" } }
+          : { status: 400, tid: "1-abc-123", body: { Fault: { Error: [{ Message: "Invalid query", Detail: "QueryParserError: Encountered \"FROMM\"", code: "4000" }], type: "ValidationFault" } } },
+    });
+    const err = await h.qbo.queryAll("Item").catch((e: Error) => e);
+    expect(String((err as Error).message)).toContain("400: Invalid query");
+    expect(String((err as Error).message)).toContain("QueryParserError");
+    expect(String((err as Error).message)).toContain("intuit_tid 1-abc-123");
+  });
+  test("a failed token request keeps Intuit's trace id in the recorded reason", async () => {
+    const h = harness({ conn: { realm_id: "9", refresh_token_enc: await encryptToken("rt-1", KEY) }, responses: () => ({ status: 400, tid: "1-def-456", body: { error: "invalid_grant" } }) });
+    await expect(h.qbo.getAccessToken()).rejects.toThrow(/reconnect/i);
+    expect(h.state.errors[0]).toContain("intuit_tid 1-def-456");
   });
 });

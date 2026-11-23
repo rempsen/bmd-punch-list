@@ -23,24 +23,30 @@ export function qboAuthorizeUrl(o: { clientId: string; redirectUri: string; stat
 
 type TokenResponse = { access_token?: string; refresh_token?: string; error?: string; error_description?: string };
 
+/** Intuit's trace id for a response, which their support team asks for. Empty when the header is missing. */
+const tidOf = (res: Response): string => {
+  const tid = res.headers.get("intuit_tid") ?? "";
+  return /^[\w.-]{1,100}$/.test(tid) ? ` (intuit_tid ${tid})` : "";
+};
+
 export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboStore; keyMaterial: string }) {
   const { env, store, keyMaterial } = deps;
   const api = env.sandbox ? "https://sandbox-quickbooks.api.intuit.com" : "https://quickbooks.api.intuit.com";
 
   // Intuit wants the app's credentials in the Authorization header, never in the body.
-  const token = async (params: Record<string, string>): Promise<{ status: number; body: TokenResponse }> => {
+  const token = async (params: Record<string, string>): Promise<{ status: number; body: TokenResponse; tid: string }> => {
     const res = await deps.fetch(TOKEN_URL, {
       method: "POST",
       headers: { authorization: `Basic ${btoa(`${env.clientId}:${env.clientSecret}`)}`, "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
       body: new URLSearchParams(params).toString(),
     });
-    return { status: res.status, body: (await res.json().catch(() => ({}))) as TokenResponse };
+    return { status: res.status, body: (await res.json().catch(() => ({}))) as TokenResponse, tid: tidOf(res) };
   };
 
   /** First connection: trade the authorization code for tokens. */
   async function exchangeCode(code: string, redirectUri: string): Promise<{ accessToken: string; refreshTokenEnc: string }> {
-    const { body } = await token({ grant_type: "authorization_code", code, redirect_uri: redirectUri });
-    if (!body.access_token || !body.refresh_token) throw new Error(body.error_description ?? body.error ?? "QuickBooks did not return a token");
+    const { body, tid } = await token({ grant_type: "authorization_code", code, redirect_uri: redirectUri });
+    if (!body.access_token || !body.refresh_token) throw new Error(`${body.error_description ?? body.error ?? "QuickBooks did not return a token"}${tid}`);
     return { accessToken: body.access_token, refreshTokenEnc: await encryptToken(body.refresh_token, keyMaterial) };
   }
 
@@ -55,9 +61,9 @@ export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboSt
       await store.setError("Stored token could not be read");
       throw new QboReconnectError("The stored QuickBooks sign-in could not be read. Reconnect QuickBooks.");
     }
-    const { status, body } = await token({ grant_type: "refresh_token", refresh_token: refresh });
+    const { status, body, tid } = await token({ grant_type: "refresh_token", refresh_token: refresh });
     if (!body.access_token) {
-      const reason = `${body.error ?? `HTTP ${status}`}${body.error_description ? `: ${body.error_description}` : ""}`;
+      const reason = `${body.error ?? `HTTP ${status}`}${body.error_description ? `: ${body.error_description}` : ""}${tid}`;
       await store.setError(reason);
       if (status >= 500) throw new Error(`QuickBooks is not answering (${reason}). Try again shortly.`);
       throw new QboReconnectError(`QuickBooks needs to be reconnected (${reason}).`);
@@ -73,7 +79,11 @@ export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboSt
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) {
       const fault = (body["Fault"] as { Error?: { Message?: string; Detail?: string }[] } | undefined)?.Error?.[0];
-      throw new Error(`QuickBooks refused the request (${res.status}${fault?.Message ? `: ${fault.Message}` : ""}).`);
+      const detail = fault?.Detail ? ` — ${fault.Detail.slice(0, 200)}` : "";
+      const message = `QuickBooks refused the request (${res.status}${fault?.Message ? `: ${fault.Message}` : ""})${detail}${tidOf(res)}.`;
+      // Kept in the server log too, so a failure can be traced with Intuit support afterwards.
+      console.error(`[qbo] ${path.split("?")[0]}: ${message}`);
+      throw new Error(message);
     }
     return body;
   }
