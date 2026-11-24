@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { roleLabel, type AppRole } from "@/lib/roles";
-import { accessSummary, canAct, userStatus, type AdminUser, type JobPick } from "@/lib/users/logic";
+import { accessSummary, canAct, userStatus, type AdminUser, type JobPick, isStaffLevel } from "@/lib/users/logic";
 import { deactivateUser, deleteUser, reactivateUser, resendUserInvite } from "@/lib/users/users.functions";
 import { errText, useJobOptions, useRefreshUsers, useUserJobs, useUserLog, type JobOption } from "./data";
 import { JobAccessPicker } from "./JobAccessPicker";
@@ -243,7 +243,7 @@ function UserBody({ person, onClose, actor, activeSuperCount }: { person: AdminU
           </p>
         </Block>
         <Block title="Level">
-          <LevelPicker value={level} onChange={change(setLevel)} actorIsSuper={actor.isSuper} disabled={!canEdit} />
+          <LevelPicker value={level} onChange={change((l: AppRole) => { if (isStaffLevel(l) && !isStaffLevel(level)) setAllJobs(true); setLevel(l); })} actorIsSuper={actor.isSuper} disabled={!canEdit} />
         </Block>
         <Block title="Jobs">
           {isLoading ? <p className="text-sm text-muted-foreground">Loading jobs…</p> : <JobAccessPicker level={level} allJobs={allJobs} onAllJobs={change(setAllJobs)} picks={picks} onPicks={change(setPicks)} jobs={options} actorIsSuper={actor.isSuper} disabled={!canEdit} />}

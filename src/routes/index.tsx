@@ -29,12 +29,14 @@ export const Route = createFileRoute("/")({
 });
 
 function Landing() {
-  const { loading, jobsLoaded, currentJob, role, projectId } = useAuth();
+  const { loading, jobsLoaded, currentJob, role, projectId, canAny } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
     if (loading || !jobsLoaded) return;
+    // BMD staff start on the company-wide Overview.
+    if (canAny("view_pipeline")) return void navigate({ to: "/overview", replace: true });
     if (!currentJob) return void navigate({ to: "/jobs", replace: true });
     void resolveHome(role, projectId).then((to) => navigate({ to, replace: true }));
-  }, [loading, jobsLoaded, currentJob, role, projectId, navigate]);
+  }, [loading, jobsLoaded, currentJob, role, projectId, canAny, navigate]);
   return null;
 }

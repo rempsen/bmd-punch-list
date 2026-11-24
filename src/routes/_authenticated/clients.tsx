@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
-import { Building2, Plus, Upload } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Building2, Plus, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
@@ -19,6 +21,7 @@ import {
   type ClientInput,
 } from "@/lib/clients/data";
 import { parseQboCustomers, planClientImport, type ParsedClient } from "@/lib/clients/import";
+import { qboImportClients, qboPullCustomers, qboStatus } from "@/lib/qbo/qbo.functions";
 
 export const Route = createFileRoute("/_authenticated/clients")({
   head: () => ({ meta: [{ title: "Clients — BMD Projects" }] }),
@@ -265,10 +268,10 @@ function ImportDialog({ existing, onClose, onDone }: { existing: Client[]; onClo
         <DialogHeader>
           <DialogTitle>Import clients from QuickBooks</DialogTitle>
           <DialogDescription>
-            Choose the customer list exported from QuickBooks (Excel or CSV). Jobs filed under a client are grouped under that client.
-            Existing clients are never changed or removed.
+            Read customers straight from the QuickBooks connection, or choose a customer list exported from QuickBooks (Excel or CSV). Jobs filed under a client are grouped under that client. Existing clients are never changed or removed.
           </DialogDescription>
         </DialogHeader>
+        <DirectImport onDone={onDone} />
         <input
           ref={fileRef}
           type="file"
@@ -312,6 +315,76 @@ function ImportDialog({ existing, onClose, onDone }: { existing: Client[]; onClo
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type DirectResult = Awaited<ReturnType<typeof qboImportClients>>;
+
+/** Clients straight from the app's QuickBooks connection: read, show what would happen, then import. */
+function DirectImport({ onDone }: { onDone: () => void }) {
+  const statusFn = useServerFn(qboStatus);
+  const pullFn = useServerFn(qboPullCustomers);
+  const importFn = useServerFn(qboImportClients);
+  const { data: s } = useQuery({ queryKey: ["qbo-status"], queryFn: () => statusFn() });
+  const [busy, setBusy] = useState<null | "read" | "import">(null);
+  const [preview, setPreview] = useState<(DirectResult & { jobs: number }) | null>(null);
+  if (!s?.configured) return null;
+  if (!s.connection) {
+    return <p className="rounded-md border border-dashed border-border p-3 text-sm text-muted-foreground">QuickBooks is set up but not connected. Connect it under Company settings → Integrations to read customers directly.</p>;
+  }
+  const read = async () => {
+    setBusy("read");
+    try {
+      const r = await pullFn();
+      if (!r.ok) return void toast.error(r.message);
+      const dry = await importFn({ data: { dryRun: true } });
+      setPreview({ ...dry, jobs: r.jobs });
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const run = async () => {
+    if (!preview) return;
+    setBusy("import");
+    try {
+      const r = await importFn({ data: { dryRun: false } });
+      toast.success(`${r.created} added, ${r.linked} matched to clients BMD already had, ${r.unchanged} already linked`);
+      onDone();
+    } catch (e) {
+      toast.error(`Import failed: ${errText(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const total = preview ? preview.inserts + preview.links : 0;
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">From the QuickBooks connection</p>
+          <p className="text-xs text-muted-foreground">Connected to {s.connection.company_name ?? "QuickBooks"}. Reads only; nothing in QuickBooks changes.</p>
+        </div>
+        <Button variant="outline" className="h-10" disabled={busy !== null} onClick={() => void read()}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${busy === "read" ? "animate-spin" : ""}`} /> {busy === "read" ? "Reading…" : preview ? "Read again" : "Read customers"}
+        </Button>
+      </div>
+      {preview && (
+        <div className="rounded-md bg-muted/40 p-3 text-sm">
+          <ul className="space-y-1">
+            <li>{preview.staged} customers read{preview.jobs ? `, ${preview.jobs} jobs grouped under them (not imported as clients)` : ""}</li>
+            <li className="font-medium">{preview.inserts} new · {preview.links} match a client BMD already has (linked, BMD's details kept) · {preview.unchanged} already linked{preview.skippedInactive ? ` · ${preview.skippedInactive} inactive in QuickBooks, left out` : ""}</li>
+          </ul>
+          {preview.sample.length > 0 && <p className="mt-2 truncate text-muted-foreground">New: {preview.sample.join(", ")}{preview.inserts > preview.sample.length ? ` and ${preview.inserts - preview.sample.length} more` : ""}</p>}
+          {preview.linkSample.length > 0 && <p className="mt-1 truncate text-muted-foreground">Linked: {preview.linkSample.join(", ")}{preview.links > preview.linkSample.length ? ` and ${preview.links - preview.linkSample.length} more` : ""}</p>}
+          <Button className="mt-3 h-10" disabled={busy !== null || total === 0} onClick={() => void run()}>
+            {busy === "import" ? "Importing…" : total > 0 ? `Import ${total} ${total === 1 ? "client" : "clients"}` : "Nothing to import"}
+          </Button>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">Or upload an export:</p>
+    </div>
   );
 }
 

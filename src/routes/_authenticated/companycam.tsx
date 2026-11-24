@@ -593,7 +593,7 @@ function SettingsTab({ st }: { st: St }) {
           {OPTS.map(([k, l]) => (
             <li key={k} className="flex items-center justify-between gap-3 text-sm">
               {l}
-              <Switch checked={opts[k] !== false} onCheckedChange={(v) => void update(!!st?.project?.companycam_sync_enabled, { ...opts, [k]: v })} />
+              <Switch checked={k === "tasks_out" ? opts[k] === true : opts[k] !== false} onCheckedChange={(v) => void update(!!st?.project?.companycam_sync_enabled, { ...opts, [k]: v })} />
             </li>
           ))}
         </ul>

@@ -25,6 +25,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
 import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenticated/email-intake'
+import { Route as AuthenticatedEstimatesRouteImport } from './routes/_authenticated/estimates'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
 import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
@@ -32,6 +33,7 @@ import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/l
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
 import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated/my-work'
 import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated/new-job'
+import { Route as AuthenticatedOverviewRouteImport } from './routes/_authenticated/overview'
 import { Route as AuthenticatedPhotosRouteImport } from './routes/_authenticated/photos'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -133,6 +135,11 @@ const AuthenticatedEmailIntakeRoute =
     path: '/email-intake',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEstimatesRoute = AuthenticatedEstimatesRouteImport.update({
+  id: '/estimates',
+  path: '/estimates',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedExportsRoute = AuthenticatedExportsRouteImport.update({
   id: '/exports',
   path: '/exports',
@@ -166,6 +173,11 @@ const AuthenticatedMyWorkRoute = AuthenticatedMyWorkRouteImport.update({
 const AuthenticatedNewJobRoute = AuthenticatedNewJobRouteImport.update({
   id: '/new-job',
   path: '/new-job',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedOverviewRoute = AuthenticatedOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPhotosRoute = AuthenticatedPhotosRouteImport.update({
@@ -275,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/documents': typeof AuthenticatedDocumentsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
+  '/estimates': typeof AuthenticatedEstimatesRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
@@ -282,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -316,6 +330,7 @@ export interface FileRoutesByTo {
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/documents': typeof AuthenticatedDocumentsRoute
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
+  '/estimates': typeof AuthenticatedEstimatesRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
@@ -323,6 +338,7 @@ export interface FileRoutesByTo {
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -359,6 +375,7 @@ export interface FileRoutesById {
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
   '/_authenticated/email-intake': typeof AuthenticatedEmailIntakeRoute
+  '/_authenticated/estimates': typeof AuthenticatedEstimatesRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
   '/_authenticated/jobs': typeof AuthenticatedJobsRoute
@@ -366,6 +383,7 @@ export interface FileRoutesById {
   '/_authenticated/more': typeof AuthenticatedMoreRoute
   '/_authenticated/my-work': typeof AuthenticatedMyWorkRoute
   '/_authenticated/new-job': typeof AuthenticatedNewJobRoute
+  '/_authenticated/overview': typeof AuthenticatedOverviewRoute
   '/_authenticated/photos': typeof AuthenticatedPhotosRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -402,6 +420,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/documents'
     | '/email-intake'
+    | '/estimates'
     | '/exports'
     | '/floors'
     | '/jobs'
@@ -409,6 +428,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/my-work'
     | '/new-job'
+    | '/overview'
     | '/photos'
     | '/pipeline'
     | '/settings'
@@ -443,6 +463,7 @@ export interface FileRouteTypes {
     | '/decisions'
     | '/documents'
     | '/email-intake'
+    | '/estimates'
     | '/exports'
     | '/floors'
     | '/jobs'
@@ -450,6 +471,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/my-work'
     | '/new-job'
+    | '/overview'
     | '/photos'
     | '/pipeline'
     | '/settings'
@@ -485,6 +507,7 @@ export interface FileRouteTypes {
     | '/_authenticated/decisions'
     | '/_authenticated/documents'
     | '/_authenticated/email-intake'
+    | '/_authenticated/estimates'
     | '/_authenticated/exports'
     | '/_authenticated/floors'
     | '/_authenticated/jobs'
@@ -492,6 +515,7 @@ export interface FileRouteTypes {
     | '/_authenticated/more'
     | '/_authenticated/my-work'
     | '/_authenticated/new-job'
+    | '/_authenticated/overview'
     | '/_authenticated/photos'
     | '/_authenticated/pipeline'
     | '/_authenticated/settings'
@@ -641,6 +665,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEmailIntakeRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/estimates': {
+      id: '/_authenticated/estimates'
+      path: '/estimates'
+      fullPath: '/estimates'
+      preLoaderRoute: typeof AuthenticatedEstimatesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/exports': {
       id: '/_authenticated/exports'
       path: '/exports'
@@ -688,6 +719,13 @@ declare module '@tanstack/react-router' {
       path: '/new-job'
       fullPath: '/new-job'
       preLoaderRoute: typeof AuthenticatedNewJobRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/overview': {
+      id: '/_authenticated/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof AuthenticatedOverviewRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/photos': {
@@ -824,6 +862,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
   AuthenticatedEmailIntakeRoute: typeof AuthenticatedEmailIntakeRoute
+  AuthenticatedEstimatesRoute: typeof AuthenticatedEstimatesRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
   AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
@@ -831,6 +870,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
   AuthenticatedMyWorkRoute: typeof AuthenticatedMyWorkRoute
   AuthenticatedNewJobRoute: typeof AuthenticatedNewJobRoute
+  AuthenticatedOverviewRoute: typeof AuthenticatedOverviewRoute
   AuthenticatedPhotosRoute: typeof AuthenticatedPhotosRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -854,6 +894,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,
   AuthenticatedEmailIntakeRoute: AuthenticatedEmailIntakeRoute,
+  AuthenticatedEstimatesRoute: AuthenticatedEstimatesRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
   AuthenticatedJobsRoute: AuthenticatedJobsRoute,
@@ -861,6 +902,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
   AuthenticatedMyWorkRoute: AuthenticatedMyWorkRoute,
   AuthenticatedNewJobRoute: AuthenticatedNewJobRoute,
+  AuthenticatedOverviewRoute: AuthenticatedOverviewRoute,
   AuthenticatedPhotosRoute: AuthenticatedPhotosRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,

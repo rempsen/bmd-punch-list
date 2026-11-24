@@ -116,7 +116,7 @@ export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboSt
 type Ref = { name?: string; value?: string };
 type QboItem = { Id?: string; Name?: string; Type?: string; Sku?: string; PurchaseCost?: number; UnitPrice?: number; Active?: boolean; PrefVendorRef?: Ref; ParentRef?: Ref };
 export type ItemKind = "cost_code" | "material" | "labour" | "category" | "other";
-export type Staged = { external_id: string; kind: ItemKind | "supplier"; name: string; data: Record<string, unknown> };
+export type Staged = { external_id: string; kind: ItemKind | "supplier" | "client" | "client_job"; name: string; data: Record<string, unknown> };
 
 const cents = (n: unknown): number | null => (typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.round(n * 100) : null);
 
@@ -196,5 +196,36 @@ export function stageVendor(v: QboVendor, evidence?: Map<string, VendorEvidence>
     kind: "supplier",
     name: String(v.DisplayName ?? "").trim(),
     data: { contact_name: [v.GivenName, v.FamilyName].filter(Boolean).join(" ") || null, email: v.PrimaryEmailAddr?.Address ?? null, phone: v.PrimaryPhone?.FreeFormNumber ?? null, account_number: v.AcctNum ?? null, active: v.Active !== false, ...(e ? { purchases: e } : {}) },
+  };
+}
+
+// ── Customers ───────────────────────────────────────────────────────────────────────────────────────────────────
+type QboAddr = { Line1?: string; Line2?: string; City?: string; CountrySubDivisionCode?: string; PostalCode?: string };
+export type QboCustomer = { Id?: string; DisplayName?: string; CompanyName?: string; FullyQualifiedName?: string; Job?: boolean; ParentRef?: Ref; Active?: boolean; PrimaryEmailAddr?: { Address?: string }; PrimaryPhone?: { FreeFormNumber?: string }; BillAddr?: QboAddr; GivenName?: string; FamilyName?: string };
+
+const addressLine = (a?: QboAddr): string | null => (a ? [a.Line1, a.Line2, [a.City, a.CountrySubDivisionCode].filter(Boolean).join(" "), a.PostalCode].map((s) => (s ?? "").trim()).filter(Boolean).join(", ") || null : null);
+
+/**
+ * A top-level QuickBooks customer is a BMD client. A sub-customer ("Kothari Group:Hyatt Centric") is one of that client's
+ * jobs: it is staged as `client_job` under its top-level parent so the import can count it, and is never a client itself.
+ */
+export function stageCustomer(c: QboCustomer, all: QboCustomer[] = []): Staged {
+  const byId = new Map(all.map((x) => [String(x.Id ?? ""), x]));
+  let top: QboCustomer = c;
+  for (let i = 0; i < 10 && top.ParentRef?.value && byId.has(top.ParentRef.value); i++) top = byId.get(top.ParentRef.value)!;
+  const isJob = c.Job === true || !!c.ParentRef?.value;
+  return {
+    external_id: String(c.Id ?? ""),
+    kind: isJob ? "client_job" : "client",
+    name: String(c.DisplayName ?? c.CompanyName ?? "").trim(),
+    data: {
+      email: c.PrimaryEmailAddr?.Address ?? null,
+      phone: c.PrimaryPhone?.FreeFormNumber ?? null,
+      billing_address: addressLine(c.BillAddr),
+      contact_name: [c.GivenName, c.FamilyName].filter(Boolean).join(" ") || null,
+      active: c.Active !== false,
+      fully_qualified_name: c.FullyQualifiedName ?? null,
+      ...(isJob ? { parent_id: String(top.Id ?? ""), parent_name: String(top.DisplayName ?? "").trim() } : {}),
+    },
   };
 }

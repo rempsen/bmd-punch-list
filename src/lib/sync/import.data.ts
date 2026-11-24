@@ -4,7 +4,7 @@ import { planImport, suggestPicks, type Action, type Existing, type ImportPick, 
 /** Reads what is held for review from one system and what BMD already has, and works out the import. Nothing is written. */
 export async function loadImportPlan(system: "quickbooks"): Promise<{ plan: Action[]; picks: Map<string, ImportPick>; staged: number }> {
   const [staged, materials, labour, suppliers, costCodes, links] = await Promise.all([
-    db.from("sync_staging").select("entity,external_id,kind,name,data").eq("system", system).order("name").limit(20000),
+    db.from("sync_staging").select("entity,external_id,kind,name,data").eq("system", system).neq("entity", "Customer").order("name").limit(20000),
     db.from("catalogue_materials").select("id,name,sku,unit_cost_cents,active").limit(20000),
     db.from("labour_rates").select("id,name,unit_cost_cents,active").limit(5000),
     db.from("suppliers").select("id,name,contact_name,email,phone,account_number,active,supplies").limit(20000),

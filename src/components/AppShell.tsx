@@ -25,6 +25,8 @@ import {
   Receipt,
   History,
   Boxes,
+  Home,
+  FileText,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import { useEffect, useState, type ReactNode } from "react";
@@ -57,7 +59,9 @@ export function useNavItems() {
   const items: NavItem[] = [];
   // Company-wide areas for BMD staff. Trades, clients and viewers never see these.
   if (canAny("view_pipeline")) {
+    items.push({ to: "/overview", label: "Overview", icon: Home, group: "company" });
     items.push({ to: "/pipeline", label: "Pipeline", icon: Columns3, group: "company" });
+    if (canAny("view_pricing")) items.push({ to: "/estimates", label: "Estimates & Quotes", short: "Quotes", icon: FileText, group: "company" });
     items.push({ to: "/projects", label: "Projects", icon: FolderKanban, group: "company" });
     if (canAny("view_pricing")) items.push({ to: "/catalogue", label: "Catalogue", icon: BookOpen, group: "resources" });
     items.push({ to: "/clients", label: "Clients", icon: Building2, group: "resources" });
