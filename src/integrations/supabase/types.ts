@@ -1315,10 +1315,13 @@ export type Database = {
       }
       install_visits: {
         Row: {
+          areas: Json
           arriveping_assigned_to: string | null
           arriveping_job_id: string | null
           arriveping_last_event_at: string | null
           arriveping_status: string | null
+          assigned_name: string | null
+          assigned_user_id: string | null
           created_at: string
           created_by: string | null
           crew: string | null
@@ -1326,15 +1329,19 @@ export type Database = {
           id: string
           notes: string | null
           project_id: string
+          scope: string | null
           site_contact: string | null
           starts_at: string
           status: string
         }
         Insert: {
+          areas?: Json
           arriveping_assigned_to?: string | null
           arriveping_job_id?: string | null
           arriveping_last_event_at?: string | null
           arriveping_status?: string | null
+          assigned_name?: string | null
+          assigned_user_id?: string | null
           created_at?: string
           created_by?: string | null
           crew?: string | null
@@ -1342,15 +1349,19 @@ export type Database = {
           id?: string
           notes?: string | null
           project_id: string
+          scope?: string | null
           site_contact?: string | null
           starts_at: string
           status?: string
         }
         Update: {
+          areas?: Json
           arriveping_assigned_to?: string | null
           arriveping_job_id?: string | null
           arriveping_last_event_at?: string | null
           arriveping_status?: string | null
+          assigned_name?: string | null
+          assigned_user_id?: string | null
           created_at?: string
           created_by?: string | null
           crew?: string | null
@@ -1358,11 +1369,19 @@ export type Database = {
           id?: string
           notes?: string | null
           project_id?: string
+          scope?: string | null
           site_contact?: string | null
           starts_at?: string
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "install_visits_assigned_user_id_fkey"
+            columns: ["assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "install_visits_project_id_fkey"
             columns: ["project_id"]
@@ -3601,6 +3620,67 @@ export type Database = {
         }
         Relationships: []
       }
+      visit_tasks: {
+        Row: {
+          created_at: string
+          details: string | null
+          done: boolean
+          done_at: string | null
+          done_by: string | null
+          id: string
+          project_id: string
+          sort: number
+          title: string
+          visit_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          done?: boolean
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          project_id: string
+          sort?: number
+          title: string
+          visit_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          done?: boolean
+          done_at?: string | null
+          done_by?: string | null
+          id?: string
+          project_id?: string
+          sort?: number
+          title?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_tasks_done_by_fkey"
+            columns: ["done_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_tasks_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "install_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -3714,6 +3794,14 @@ export type Database = {
         }[]
       }
       bmd_staff: {
+        Args: never
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+        }[]
+      }
+      bmd_technicians: {
         Args: never
         Returns: {
           email: string
@@ -3965,6 +4053,10 @@ export type Database = {
       setup_project_site: {
         Args: { _job: Json; _project: string }
         Returns: undefined
+      }
+      staff_all_jobs: {
+        Args: { _level: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
       }
       sync_import_apply: {
         Args: { _actions: Json; _system: string }
