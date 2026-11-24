@@ -133,6 +133,8 @@ function Scheduling() {
   const monthAnchor = search.week ? weekDays(monday)[6]! : calendarToday();
   const month = useMemo(() => (calMode === "month" ? calendarRange("month", monthAnchor) : null), [calMode, monthAnchor]);
   const monthVisits = useVisitsBetween(month?.from ?? monday, month?.to ?? monday, { job: search.job, enabled: !!month });
+  // The week calendar reads by overlap too, so a visit that began more than a week ago still shows its continuation.
+  const weekCal = useVisitsBetween(monday, shiftWeek(monday, 1), { job: search.job, enabled: !month && view === "calendar" });
   const monthText = new Date(`${monthOf(monthAnchor)}T12:00:00Z`).toLocaleDateString("en-CA", { month: "long", year: "numeric", timeZone: "UTC" });
   const current = thisMonday();
   const weekText =
@@ -245,7 +247,7 @@ function Scheduling() {
         ) : visits.error ? (
           <p className="text-sm text-destructive">{errText(visits.error)}</p>
         ) : view === "calendar" ? (
-          <CalendarView mode="week" anchor={monday} visits={week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
+          <CalendarView mode="week" anchor={monday} visits={weekCal.data ?? week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
         ) : view === "technicians" ? (
           <TechGrid
             visits={week}
