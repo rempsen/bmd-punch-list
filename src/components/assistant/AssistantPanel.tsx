@@ -14,10 +14,10 @@ import { deleteConversation, useConversations, useMessages } from "@/lib/assista
 import type { Source } from "@/lib/assistant/prompt";
 import { cn } from "@/lib/utils";
 
-/** Whether this person is offered the assistant: BMD staff (anyone who sees the pipeline), never trades, clients or viewers. */
+/** Whether this person is offered the assistant: BMD staff (Ask BMD access, or the pipeline), never trades, clients or viewers. */
 export function useAssistantAllowed(): boolean {
   const { isSuperAdmin, canAny } = useAuth();
-  return isSuperAdmin || canAny("view_pipeline");
+  return isSuperAdmin || canAny("use_assistant") || canAny("view_pipeline");
 }
 
 type Shown = { id: string; role: "user" | "assistant"; content: string; sources?: Source[]; pending?: boolean };

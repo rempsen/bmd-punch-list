@@ -38,6 +38,7 @@ import {
   MapPinCheck,
   ShoppingCart,
   Truck,
+  HardHat,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import { useEffect, useState, type ReactNode } from "react";
@@ -109,6 +110,8 @@ export function useNavItems() {
     if (canAny("view_pricing"))
       items.push({ to: "/catalogue", label: "Catalogue", icon: BookOpen, group: "resources" });
     items.push({ to: "/clients", label: "Clients", icon: Building2, group: "resources" });
+    if (canAny("view_pipeline"))
+      items.push({ to: "/technicians", label: "Crews and Subcontractors", short: "Crews", icon: HardHat, group: "resources" });
     items.push({
       to: "/materials",
       label: "Ordering",

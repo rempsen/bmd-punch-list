@@ -458,7 +458,7 @@
       "breakpoints": true
     },
     {
-      "idx": 64,
+      "idx": 65,
       "version": "7",
       "when": 1795539677748,
       "tag": "0064_document_text_index",
@@ -510,28 +510,21 @@
       "idx": 72,
       "version": "7",
       "when": 1795543615976,
-      "tag": "0064_inspections_signoff",
+      "tag": "0072_document_text_priced_sections",
       "breakpoints": true
     },
     {
       "idx": 73,
       "version": "7",
-      "when": 1795543615976,
-      "tag": "0065_inspections_signoff",
+      "when": 1795543905858,
+      "tag": "0073_catalogue_names_words",
       "breakpoints": true
     },
     {
       "idx": 74,
       "version": "7",
-      "when": 1795543615976,
-      "tag": "0072_document_text_priced_sections",
-      "breakpoints": true
-    },
-    {
-      "idx": 75,
-      "version": "7",
-      "when": 1795543905858,
-      "tag": "0073_catalogue_names_words",
+      "when": 1795544484863,
+      "tag": "0074_assistant_field_access",
       "breakpoints": true
     },
     {

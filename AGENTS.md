@@ -20,3 +20,8 @@
 - `effective_role(uid, project)` is the single rule; `is_super_admin`, `is_project_member`, `has_capability` and `my_projects` are built on it and refuse deactivated people. Don't read `project_members.role` directly for permission decisions.
 - Admin writes go through `admin_*` RPCs (guards: only super admins touch super admins; no self-deactivation; the last active super admin stays). Auth bans and deletes are in `src/lib/users/users.functions.ts` (service role, server only).
 - SQL tests: `bash scripts/sql-test/run.sh` (local Postgres 16, Supabase stub).
+## Migrations
+- Several sessions add migrations at once. Before adding one, fetch `main`. Name the file one above the highest number in `drizzle/migrations/`, and append its journal entry with `idx` = last `idx` + 1.
+- When merging `main`, take main's `meta/_journal.json` and re-append only your own entries. Never add entries for files another session left out of the journal on purpose.
+- `bun test src/lib/migrations-journal.test.ts` checks the files and the journal match (each file listed once, `idx` 0, 1, 2… with no repeats).
+- Migrations are applied to the live database by hand, and only when Dan says so. Keep them idempotent.

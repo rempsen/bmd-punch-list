@@ -81,7 +81,7 @@ function SettingsPage() {
   const canMicrosoft = canAny("send_quotes") || canAny("manage_integrations");
   const canQuotes = canAny("send_quotes");
   // Knowledge is for BMD staff: everyone who sees the pipeline can read it, managers and admins change it.
-  const canKnowledge = isSuperAdmin || canAny("view_pipeline");
+  const canKnowledge = isSuperAdmin || canAny("use_assistant") || canAny("view_pipeline");
   const canSync = canAny("manage_integrations") || canAny("manage_catalogue");
   const navigate = Route.useNavigate();
   // Company-wide settings first, then the settings of the job that is open. Each list holds only what this person may open.
