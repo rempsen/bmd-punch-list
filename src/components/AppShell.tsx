@@ -39,6 +39,7 @@ import {
   ShoppingCart,
   Truck,
   HardHat,
+  NotebookPen,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import { useEffect, useState, type ReactNode } from "react";
@@ -184,6 +185,8 @@ export function useNavItems() {
       icon: Wrench,
       group: "job",
     });
+  if (canAny("add_photos") || canAny("view_documents"))
+    items.push({ to: "/daily-log", label: "Daily log & requests", short: "Daily log", icon: NotebookPen, group: "job" });
   if (can("decide_client_items") && !can("capture_items"))
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck, group: "job" });
   if (role === "client")

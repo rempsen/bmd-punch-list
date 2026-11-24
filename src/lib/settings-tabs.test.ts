@@ -40,6 +40,7 @@ import { needsJob } from "./settings-tabs";
 describe("which screens need a job chosen first", () => {
   test("company-wide screens, including company settings, open with no job chosen", () => {
     for (const p of ["/jobs", "/new-job", "/projects/abc", "/clients", "/pipeline", "/catalogue"]) expect(needsJob(p, undefined)).toBe(false);
+    expect(needsJob("/daily-log", undefined)).toBe(false); // crews pick the job on the page itself
     expect(needsJob("/settings", "quotes")).toBe(false);
     expect(needsJob("/settings", "integrations")).toBe(false);
     expect(needsJob("/settings", "microsoft")).toBe(false);

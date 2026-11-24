@@ -21,6 +21,7 @@ import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authent
 import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
 import { Route as AuthenticatedCompanycamRouteImport } from './routes/_authenticated/companycam'
+import { Route as AuthenticatedDailyLogRouteImport } from './routes/_authenticated/daily-log'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
@@ -120,6 +121,11 @@ const AuthenticatedCompanyWorkRoute =
 const AuthenticatedCompanycamRoute = AuthenticatedCompanycamRouteImport.update({
   id: '/companycam',
   path: '/companycam',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDailyLogRoute = AuthenticatedDailyLogRouteImport.update({
+  id: '/daily-log',
+  path: '/daily-log',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -333,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/companycam': typeof AuthenticatedCompanycamRoute
+  '/daily-log': typeof AuthenticatedDailyLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/documents': typeof AuthenticatedDocumentsRoute
@@ -384,6 +391,7 @@ export interface FileRoutesByTo {
   '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/companycam': typeof AuthenticatedCompanycamRoute
+  '/daily-log': typeof AuthenticatedDailyLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/documents': typeof AuthenticatedDocumentsRoute
@@ -437,6 +445,7 @@ export interface FileRoutesById {
   '/_authenticated/clients': typeof AuthenticatedClientsRoute
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
   '/_authenticated/companycam': typeof AuthenticatedCompanycamRoute
+  '/_authenticated/daily-log': typeof AuthenticatedDailyLogRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
@@ -490,6 +499,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/company-work'
     | '/companycam'
+    | '/daily-log'
     | '/dashboard'
     | '/decisions'
     | '/documents'
@@ -541,6 +551,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/company-work'
     | '/companycam'
+    | '/daily-log'
     | '/dashboard'
     | '/decisions'
     | '/documents'
@@ -593,6 +604,7 @@ export interface FileRouteTypes {
     | '/_authenticated/clients'
     | '/_authenticated/company-work'
     | '/_authenticated/companycam'
+    | '/_authenticated/daily-log'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
     | '/_authenticated/documents'
@@ -735,6 +747,13 @@ declare module '@tanstack/react-router' {
       path: '/companycam'
       fullPath: '/companycam'
       preLoaderRoute: typeof AuthenticatedCompanycamRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/daily-log': {
+      id: '/_authenticated/daily-log'
+      path: '/daily-log'
+      fullPath: '/daily-log'
+      preLoaderRoute: typeof AuthenticatedDailyLogRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -1014,6 +1033,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
   AuthenticatedCompanycamRoute: typeof AuthenticatedCompanycamRoute
+  AuthenticatedDailyLogRoute: typeof AuthenticatedDailyLogRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
@@ -1052,6 +1072,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientsRoute: AuthenticatedClientsRoute,
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
   AuthenticatedCompanycamRoute: AuthenticatedCompanycamRoute,
+  AuthenticatedDailyLogRoute: AuthenticatedDailyLogRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,

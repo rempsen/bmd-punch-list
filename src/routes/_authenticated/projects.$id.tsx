@@ -9,6 +9,9 @@ import { QuotesTab } from "@/components/quotes/QuotesTab";
 import { CrewStatusPanel } from "@/components/visits/CrewStatusPanel";
 import { VisitsPanel } from "@/components/visits/VisitsPanel";
 import { InstallationPanel } from "@/components/installation/InstallTiles";
+import { DailyLogPanel } from "@/components/dailylog/DailyLogPanel";
+import { RequestsListsPanel } from "@/components/dailylog/RequestsListsPanel";
+import { SiteCounts } from "@/components/dailylog/SiteCounts";
 import { useProjectDocuments } from "@/lib/documents/data";
 import { buildTimeline } from "@/lib/projects/timeline";
 import { useQuotes } from "@/lib/quotes/data";
@@ -50,6 +53,8 @@ const TABS = [
   { key: "estimate", label: "Estimate" },
   { key: "quotes", label: "Quotes" },
   { key: "site", label: "Site" },
+  { key: "log", label: "Daily log" },
+  { key: "requests", label: "Requests & lists" },
   { key: "billing", label: "Billing" },
   { key: "activity", label: "Activity" },
 ] as const;
@@ -132,6 +137,7 @@ function ProjectPage() {
       {tab === "takeoff" && <TakeoffWorkspace projectId={project.id} />}
       <div className={cn("mx-auto p-4 md:p-6", tab === "takeoff" && "hidden", tab === "estimate" ? "max-w-7xl" : "max-w-5xl")}>
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
+        {tab === "overview" && <SiteCounts projectId={project.id} />}
         {tab === "overview" && (project.stage === "won" || project.stage === "in_progress") && <InstallationPanel projectId={project.id} />}
         {tab === "overview" && <VisitsPanel projectId={project.id} canEdit={canEdit} project={{ name: project.name, number: project.project_number, address: project.address, client: project.client_name }} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
@@ -139,6 +145,8 @@ function ProjectPage() {
         {tab === "quotes" && <QuotesTab projectId={project.id} />}
         {tab === "billing" && <BillingTab projectId={project.id} />}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
+        {tab === "log" && <DailyLogPanel projectId={project.id} />}
+        {tab === "requests" && <RequestsListsPanel projectId={project.id} />}
         {tab === "activity" && <Activity projectId={project.id} />}
       </div>
 

@@ -31,6 +31,7 @@ import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
+import { StandardToolsPanel } from "@/components/dailylog/StandardToolsPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
 import { canonicalTab, settingsHeading } from "@/lib/settings-tabs";
 import { ScopeKeywordsPanel } from "@/components/settings/ScopeKeywordsPanel";
@@ -308,6 +309,7 @@ function SettingsPage() {
           {canSettings && (
             <TabsContent value="jobs">
               <JobsAdminPanel />
+              <StandardToolsPanel />
             </TabsContent>
           )}
 
