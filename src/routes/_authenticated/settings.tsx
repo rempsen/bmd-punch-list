@@ -34,6 +34,7 @@ import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
 import { canonicalTab, settingsHeading } from "@/lib/settings-tabs";
 import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
+import { KnowledgePanel } from "@/components/settings/KnowledgePanel";
 import { SyncPanel } from "@/components/settings/SyncPanel";
 import { IntegrationsPanel } from "@/components/settings/IntegrationsPanel";
 
@@ -79,11 +80,14 @@ function SettingsPage() {
   const canManageAnyUsers = isSuperAdmin || canAny("manage_users");
   const canMicrosoft = canAny("send_quotes") || canAny("manage_integrations");
   const canQuotes = canAny("send_quotes");
+  // Knowledge is for BMD staff: everyone who sees the pipeline can read it, managers and admins change it.
+  const canKnowledge = isSuperAdmin || canAny("view_pipeline");
   const canSync = canAny("manage_integrations") || canAny("manage_catalogue");
   const navigate = Route.useNavigate();
   // Company-wide settings first, then the settings of the job that is open. Each list holds only what this person may open.
   const companyTabs = ([
     [canQuotes, "quotes", "Quotes"],
+    [canKnowledge, "knowledge", "Knowledge"],
     [canMicrosoft, "integrations", "Integrations"],
     [canSync, "sync", "Sync"],
     [canMicrosoft, "ai", "AI"],
@@ -256,6 +260,12 @@ function SettingsPage() {
           {canQuotes && (
             <TabsContent value="quotes">
               <QuoteSettingsPanel />
+            </TabsContent>
+          )}
+
+          {canKnowledge && (
+            <TabsContent value="knowledge">
+              <KnowledgePanel />
             </TabsContent>
           )}
 

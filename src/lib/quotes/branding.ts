@@ -10,6 +10,9 @@ export type Branding = {
   email: string;
   website: string;
   gstNumber: string;
+  /** Business number and opening hours: kept for the assistant and the company record; not printed on quotes. */
+  businessNumber: string;
+  hours: string;
   /** Printed at the foot of every page. */
   footer: string;
   /** Starting text for the notes on a new quote. */
@@ -31,6 +34,8 @@ export const DEFAULT_BRANDING: Branding = {
   email: "office@bmdmaterials.com",
   website: "",
   gstNumber: "",
+  businessNumber: "",
+  hours: "",
   footer: "",
   defaultNotes: "",
   shortTerms: ["Overdue accounts are charged interest at 2% per month.", "Workmanship is warranted for one year from completion. Materials carry their manufacturer's warranty.", "Prices are in Canadian dollars. GST is shown separately."],
@@ -46,13 +51,15 @@ export type SettingsRow = Partial<{
   email: string | null;
   website: string | null;
   gst_number: string | null;
+  business_number: string | null;
+  hours: string | null;
   footer_text: string | null;
   default_notes: string | null;
   short_terms: string[] | null;
   terms_title: string | null;
   terms_text: string | null;
 }>;
-export const SETTINGS_COLS = "company_name,office_address,mailing_address,phone,email,website,gst_number,footer_text,default_notes,short_terms,terms_title,terms_text";
+export const SETTINGS_COLS = "company_name,office_address,mailing_address,phone,email,website,gst_number,business_number,hours,footer_text,default_notes,short_terms,terms_title,terms_text";
 
 const clean = (s: unknown) => (typeof s === "string" ? s.trim() : "");
 
@@ -68,6 +75,8 @@ export function brandingFrom(row: SettingsRow | null | undefined): Branding {
     email: has("email") ? clean(row.email) : DEFAULT_BRANDING.email,
     website: clean(row.website),
     gstNumber: clean(row.gst_number),
+    businessNumber: clean(row.business_number),
+    hours: clean(row.hours),
     footer: clean(row.footer_text),
     defaultNotes: clean(row.default_notes),
     shortTerms: Array.isArray(row.short_terms) ? row.short_terms.map(clean).filter(Boolean) : [...DEFAULT_BRANDING.shortTerms],
