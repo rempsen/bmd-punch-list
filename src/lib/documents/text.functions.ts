@@ -43,7 +43,15 @@ export const storeDocumentText = createServerFn({ method: "POST" })
       .update({ text_status: rows.length ? "done" : "no_text", text_pages: data.pages.length, text_indexed_at: new Date().toISOString() })
       .eq("id", data.documentId);
     if (error) throw new Error(error.message);
-    return { pages: rows.length, status: rows.length ? ("done" as const) : ("no_text" as const) };
+    // Scope keywords: replace this document's hits with what the new text holds. The text is stored either way.
+    let scopeHits: number | null = null;
+    try {
+      const { scanDocumentScope } = await import("./scope.server");
+      scopeHits = await scanDocumentScope(admin, data.documentId);
+    } catch (e) {
+      console.error(`[scope] scan of ${data.documentId} failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return { pages: rows.length, status: rows.length ? ("done" as const) : ("no_text" as const), scopeHits };
   });
 
 /** Marks a document as unreadable (scanned, an image, an Office file) or as failed, so it shows as such and is not retried every time. */
@@ -59,5 +67,7 @@ export const markDocumentText = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabaseAdmin as any).from("project_documents").update({ text_status: data.status, text_pages: 0, text_indexed_at: new Date().toISOString() }).eq("id", data.documentId);
     if (error) throw new Error(error.message);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabaseAdmin as any).from("document_scope_hits").delete().eq("document_id", data.documentId);
     return { ok: true };
   });

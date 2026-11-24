@@ -11,7 +11,8 @@ import { useAuth } from "@/lib/auth";
 import { saveClient, useClients, useRefreshClients } from "@/lib/clients/data";
 import { checkFile, formatBytes, guessSection } from "@/lib/documents/logic";
 import { uploadDocument } from "@/lib/documents/upload";
-import { errText } from "@/lib/platform/db";
+import { scopeSummary } from "@/lib/documents/scope-keywords";
+import { db, errText } from "@/lib/platform/db";
 import { createPipelineProject, useBmdStaff, useRefreshPipeline } from "@/lib/projects/data";
 import { JOB_TYPES } from "@/lib/projects/stages";
 import { cn } from "@/lib/utils";
@@ -103,6 +104,14 @@ function NewProjectPage() {
         } catch {
           failed += 1;
         }
+      }
+      if (files.length - failed > 0) {
+        // Text is read in the background after each upload; give it a moment, then say what scope was found so far.
+        setProgress("Scanning for BMD scope…");
+        await new Promise((r) => setTimeout(r, 4000));
+        const { data: found } = await db.from("document_scope_hits").select("keyword_id,scope_keywords:keyword_id(term)").eq("project_id", id);
+        const terms = ((found ?? []) as unknown as { scope_keywords: { term: string } | null }[]).map((h) => h.scope_keywords?.term ?? "").filter(Boolean);
+        toast.message(terms.length ? scopeSummary(terms) : "Scanning for BMD scope… hits will show in the Documents tab.");
       }
       if (failed) toast.error(`${failed} ${failed === 1 ? "file" : "files"} did not upload. Add them again from the Documents tab.`);
       toast.success(`${f.name.trim()} created in Opportunity`);

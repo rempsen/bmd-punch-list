@@ -54,6 +54,8 @@ export const askAssistant = createServerFn({ method: "POST" })
     }
 
     const project = projectId ? ((await sb.from("projects").select("id,name,project_number").eq("id", projectId).maybeSingle()).data as { id: string; name: string; project_number: string | null } | null) : null;
+    const { data: termRows } = await sb.from("scope_keywords").select("term").eq("active", true).order("sort");
+    const scopeTerms = ((termRows ?? []) as { term: string }[]).map((t) => t.term);
     const { data: profile } = await sb.from("profiles").select("full_name,email").eq("id", context.userId).maybeSingle();
     const askerName = (profile as { full_name?: string | null; email?: string | null } | null)?.full_name || (profile as { email?: string | null } | null)?.email || "a BMD staff member";
 
@@ -81,7 +83,7 @@ export const askAssistant = createServerFn({ method: "POST" })
 
     const { askStrongModelWithTools } = await import("@/lib/ai/model.server");
     const result = await runConversation({
-      system: systemPrompt({ askerName, today: today(), project: project ? { id: project.id, name: project.name, number: project.project_number } : null, canPrice, canRemember }),
+      system: systemPrompt({ askerName, today: today(), project: project ? { id: project.id, name: project.name, number: project.project_number } : null, canPrice, canRemember, scopeTerms }),
       history,
       message: data.message,
       tools: LOOKUPS,

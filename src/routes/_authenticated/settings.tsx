@@ -33,6 +33,7 @@ import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
 import { canonicalTab, settingsHeading } from "@/lib/settings-tabs";
+import { ScopeKeywordsPanel } from "@/components/settings/ScopeKeywordsPanel";
 import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
 import { KnowledgePanel } from "@/components/settings/KnowledgePanel";
 import { SyncPanel } from "@/components/settings/SyncPanel";
@@ -91,6 +92,7 @@ function SettingsPage() {
     [canMicrosoft, "integrations", "Integrations"],
     [canSync, "sync", "Sync"],
     [canMicrosoft, "ai", "AI"],
+    [canAny("manage_settings") || isSuperAdmin, "scope", "Scope keywords"],
     [canManageAnyUsers, "allusers", "Users"],
     [isSuperAdmin, "roles", "Roles"],
     [canSettings, "projects", "All jobs"],
@@ -278,6 +280,12 @@ function SettingsPage() {
           {canMicrosoft && (
             <TabsContent value="integrations">
               <IntegrationsPanel result={search.ms} qboResult={search.qbo} message={search.message} />
+            </TabsContent>
+          )}
+
+          {(canAny("manage_settings") || isSuperAdmin) && (
+            <TabsContent value="scope">
+              <ScopeKeywordsPanel />
             </TabsContent>
           )}
 

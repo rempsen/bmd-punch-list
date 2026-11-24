@@ -1,3 +1,4 @@
+import { scopeTermsBlock } from "@/lib/documents/scope-keywords";
 /**
  * The assistant's instructions, the lookups it may ask for, and the small pure pieces around a conversation:
  * recognising "remember that…", keeping the lookup record, trimming results, and the sources shown under an answer.
@@ -27,7 +28,7 @@ export const LOOKUPS: ToolDef[] = [
   { name: "read_knowledge_page", description: "The full text of one page of a Knowledge file.", parameters: { type: "object", properties: { item_id: { type: "string" }, page: { type: "integer", minimum: 1 } }, required: ["item_id", "page"], additionalProperties: false } },
 ];
 
-export function systemPrompt(ctx: { askerName: string; today: string; project: { id: string; name: string; number: string | null } | null; canPrice: boolean; canRemember: boolean }): string {
+export function systemPrompt(ctx: { askerName: string; today: string; project: { id: string; name: string; number: string | null } | null; canPrice: boolean; canRemember: boolean; scopeTerms?: string[] }): string {
   const lines = [
     "You are the BMD Projects assistant for BMD Materials, a Winnipeg flooring contractor. You answer questions for BMD staff from the company's own records, which you reach only through the lookups provided. Nothing is memorised: look things up every time.",
     `Today is ${ctx.today}. You are talking to ${ctx.askerName}.`,
@@ -46,6 +47,8 @@ export function systemPrompt(ctx: { askerName: string; today: string; project: {
     "- Search before answering: search_knowledge for company rules of thumb and vendor information, search_documents for anything in plans, specs, quotes or contracts. Read a page (read_document_page / read_knowledge_page) when a snippet is not enough.",
     "- Dollar amounts are Canadian dollars. Write dates as e.g. 24 Nov 2026.",
   ];
+  const block = scopeTermsBlock(ctx.scopeTerms ?? []);
+  if (block) lines.push("", block);
   return lines.join("\n");
 }
 

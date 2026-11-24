@@ -8,6 +8,8 @@ import { useProjectDocuments, useRefreshDocuments } from "@/lib/documents/data";
 import { SECTIONS, checkFile, formatBytes, groupVersions, guessSection, previewKind, sectionLabel, type DocRow, type DocSection } from "@/lib/documents/logic";
 import { signedUrl, uploadDocument, type UploadHandle } from "@/lib/documents/upload";
 import { DocumentSearch, TextIndexStatus } from "@/components/projects/DocumentText";
+import { ScopeBadge, ScopeReviewPanel, useScopeBackfillOnce } from "@/components/projects/ScopeReview";
+import { useProjectScopeHits, type ScopeHitRow } from "@/lib/documents/scope-data";
 import { errText } from "@/lib/platform/db";
 import { shortDate, staffName, useBmdStaff } from "@/lib/projects/data";
 import { cn } from "@/lib/utils";
@@ -28,7 +30,19 @@ export function DocumentsTab({ projectId }: { projectId: string }) {
   const canAdd = isSuperAdmin || canAny("manage_documents");
   const { data: docs = [], isLoading, error } = useProjectDocuments(canView ? projectId : null);
   const { data: staff = [] } = useBmdStaff(canAny("view_pipeline"));
-  const refresh = useRefreshDocuments(projectId);
+  const refreshDocs = useRefreshDocuments(projectId);
+  const canScope = isSuperAdmin || canAny("view_pipeline");
+  const { data: scopeHits, refetch: refetchScope } = useProjectScopeHits(canView && canScope ? projectId : null);
+  useScopeBackfillOnce(canScope);
+  // Text is read (and scope scanned) a moment after an upload finishes, so look again shortly after a refresh.
+  const refresh = () => {
+    refreshDocs();
+    void refetchScope();
+    window.setTimeout(() => {
+      refreshDocs();
+      void refetchScope();
+    }, 8000);
+  };
   const [target, setTarget] = useState<DocSection | "auto">("auto");
   const [jobs, setJobs] = useState<Job[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -219,6 +233,7 @@ export function DocumentsTab({ projectId }: { projectId: string }) {
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {canView && docs.length > 0 && (
         <>
+          {scopeHits && scopeHits.length > 0 && <ScopeReviewPanel projectId={projectId} docs={docs} hits={scopeHits} />}
           <DocumentSearch projectId={projectId} docs={docs} onOpen={(d) => (previewKind(d.mime, d.file_name) ? setPreview(d) : void download(d))} />
           <TextIndexStatus projectId={projectId} docs={docs} onChanged={refresh} />
         </>
@@ -235,7 +250,7 @@ export function DocumentsTab({ projectId }: { projectId: string }) {
           </header>
           <ul className="divide-y divide-border">
             {grouped[s.value].map((e) => (
-              <Entry key={e.latest.id} latest={e.latest} older={e.older} uploader={(id) => staffName(staff, id ?? undefined)} onOpen={setPreview} />
+              <Entry key={e.latest.id} latest={e.latest} older={e.older} uploader={(id) => staffName(staff, id ?? undefined)} onOpen={setPreview} scopeHits={scopeHits} />
             ))}
           </ul>
         </section>
@@ -272,11 +287,13 @@ function Entry({
   older,
   uploader,
   onOpen,
+  scopeHits,
 }: {
   latest: DocRow;
   older: DocRow[];
   uploader: (id: string | null) => string | null;
   onOpen: (d: DocRow) => void;
+  scopeHits?: ScopeHitRow[] | undefined;
 }) {
   const [open, setOpen] = useState(false);
   const row = (d: DocRow, current: boolean) => {
@@ -307,6 +324,7 @@ function Entry({
               .join(" · ")}
           </p>
         </div>
+        {current && <ScopeBadge doc={d} hits={scopeHits} />}
         {current && older.length > 0 && (
           <button
             type="button"

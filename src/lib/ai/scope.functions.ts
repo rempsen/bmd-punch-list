@@ -17,7 +17,8 @@ export const proposeScope = createServerFn({ method: "POST" })
     const sb = context.supabase as any;
     const { data: ok } = await sb.rpc("has_capability", { _capability: "manage_estimates" });
     if (ok !== true) throw new Error("Not allowed");
-    const req = buildScopeRequest(data);
+    const { data: terms } = await sb.from("scope_keywords").select("term").eq("active", true).order("sort");
+    const req = buildScopeRequest({ ...data, scopeTerms: ((terms ?? []) as { term: string }[]).map((t) => t.term) });
     const { askStrongModel } = await import("./model.server");
     const { text, model } = await askStrongModel(req);
     const proposals = parseProposals(text);

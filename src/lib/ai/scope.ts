@@ -1,3 +1,4 @@
+import { scopeTermsBlock } from "@/lib/documents/scope-keywords";
 /**
  * AI help with reading specs and drawings. The model only ever receives text taken from the documents,
  * never a file and never a price, and what it returns is a proposal: nothing is saved as a finish until a person accepts it.
@@ -9,14 +10,14 @@ export const READ_LIMIT = 200_000;
 const LIMIT = READ_LIMIT;
 const looksBinary = (s: string) => /^\s*%PDF-/.test(s) || /^\s*data:[\w/+.-]+;base64,/i.test(s) || /[\u0000-\u0008]/.test(s.slice(0, 2000));
 
-export function buildScopeRequest(input: { specText: string; scheduleText: string }): { system: string; prompt: string } {
+export function buildScopeRequest(input: { specText: string; scheduleText: string; scopeTerms?: string[] }): { system: string; prompt: string } {
   for (const t of [input.specText, input.scheduleText]) if (typeof t !== "string" || looksBinary(t)) throw new Error("Send the text of the document, not the file itself.");
   const spec = input.specText.trim().slice(0, LIMIT);
   const schedule = input.scheduleText.trim().slice(0, LIMIT);
   if (!spec && !schedule) throw new Error("There is no text to read.");
   return {
     system:
-      "You read construction specifications and finish schedules for a flooring, tile and window covering contractor. List the floor, wall base, tile and window covering finishes the documents call for. Use only what the text says. Never invent a product, manufacturer or colour: leave a field null when the text does not state it. Reply with a JSON array only.",
+      "You read construction specifications and finish schedules for a flooring, tile and window covering contractor. List the floor, wall base, tile and window covering finishes the documents call for. Use only what the text says. Never invent a product, manufacturer or colour: leave a field null when the text does not state it. Reply with a JSON array only." + (input.scopeTerms?.length ? `\n\n${scopeTermsBlock(input.scopeTerms)}` : ""),
     prompt: [
       'Return a JSON array. Each item: {"tag": finish tag as written (e.g. LVP-1), "product": product or product line, "manufacturer": string or null, "colour": string or null, "appliesTo": rooms or areas it applies to or null, "specRef": section or page reference or null, "confidence": number from 0 to 1}.',
       "The text is taken from the project documents. Each document starts with a line like --- file name --- and each page with [page N]. Only the pages that mention flooring, base, tile or window coverings may be included, so do not assume a missing page says anything. For specRef give the spec section if stated, otherwise the page.",

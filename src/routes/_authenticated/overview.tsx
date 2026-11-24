@@ -7,6 +7,8 @@ import { db } from "@/lib/platform/db";
 import { money, shortDate, usePipelineProjects } from "@/lib/projects/data";
 import { STAGES } from "@/lib/projects/stages";
 import { cn } from "@/lib/utils";
+import { useUnreviewedScopeByProject } from "@/lib/documents/scope-data";
+import { useScopeBackfillOnce } from "@/components/projects/ScopeReview";
 
 export const Route = createFileRoute("/_authenticated/overview")({
   head: () => ({
@@ -58,6 +60,7 @@ function OverviewPage() {
         {canAny("view_dashboard") && <OpenDeficiencies />}
         {canAny("view_pricing") && <BillsNeedingAttention />}
         {canAny("manage_projects") && <NoSiteYet />}
+        <ScopeHitsToReview />
       </div>
     </div>
   );
@@ -254,6 +257,31 @@ function NoSiteYet() {
               <Link to="/new-job" search={{ project: p.id }} className="flex justify-between gap-2 py-2 hover:underline">
                 <span className="truncate">{p.name}</span>
                 <span className="shrink-0 text-primary">Set up site →</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function ScopeHitsToReview() {
+  useScopeBackfillOnce(true);
+  const { data, isLoading } = useUnreviewedScopeByProject(true);
+  const { data: projects } = usePipelineProjects();
+  const name = new Map((projects ?? []).map((p) => [p.id, p.name]));
+  return (
+    <Card title="Scope hits to review" loading={isLoading}>
+      {!data?.length ? (
+        <Empty>No scope hits waiting for review.</Empty>
+      ) : (
+        <ul className="divide-y divide-border">
+          {data.map((p) => (
+            <li key={p.id}>
+              <Link to="/projects/$id" params={{ id: p.id }} search={{ tab: "documents" }} className="flex justify-between gap-2 py-2 hover:underline">
+                <span className="truncate">{name.get(p.id) ?? "Project"}</span>
+                <span className="shrink-0 text-muted-foreground">{p.count}</span>
               </Link>
             </li>
           ))}

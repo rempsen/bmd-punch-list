@@ -115,6 +115,87 @@ export type Database = {
           },
         ]
       }
+      arriveping_inbox: {
+        Row: {
+          ap_status: string | null
+          arriveping_job_id: string
+          assigned_to: string | null
+          created_at: string
+          customer_id: string | null
+          customer_name: string | null
+          ends_at: string | null
+          id: string
+          notes: string | null
+          payload: Json
+          project_id: string | null
+          reason: string | null
+          reference: string | null
+          site_contact: string | null
+          starts_at: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          ap_status?: string | null
+          arriveping_job_id: string
+          assigned_to?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          ends_at?: string | null
+          id?: string
+          notes?: string | null
+          payload?: Json
+          project_id?: string | null
+          reason?: string | null
+          reference?: string | null
+          site_contact?: string | null
+          starts_at?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          ap_status?: string | null
+          arriveping_job_id?: string
+          assigned_to?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_name?: string | null
+          ends_at?: string | null
+          id?: string
+          notes?: string | null
+          payload?: Json
+          project_id?: string | null
+          reason?: string | null
+          reference?: string | null
+          site_contact?: string | null
+          starts_at?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "arriveping_inbox_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "arriveping_inbox_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "install_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       arriveping_link: {
         Row: {
           connected_at: string | null
@@ -123,6 +204,7 @@ export type Database = {
           id: number
           last_check_at: string | null
           last_check_error: string | null
+          last_pull_at: string | null
           secret_enc: string | null
           subscription_id: string | null
           webhook_url: string | null
@@ -134,6 +216,7 @@ export type Database = {
           id?: number
           last_check_at?: string | null
           last_check_error?: string | null
+          last_pull_at?: string | null
           secret_enc?: string | null
           subscription_id?: string | null
           webhook_url?: string | null
@@ -145,6 +228,7 @@ export type Database = {
           id?: number
           last_check_at?: string | null
           last_check_error?: string | null
+          last_pull_at?: string | null
           secret_enc?: string | null
           subscription_id?: string | null
           webhook_url?: string | null
@@ -968,6 +1052,60 @@ export type Database = {
           },
         ]
       }
+      document_scope_hits: {
+        Row: {
+          count: number
+          created_at: string
+          document_id: string
+          id: string
+          keyword_id: string
+          page: number | null
+          project_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          snippet: string
+        }
+        Insert: {
+          count?: number
+          created_at?: string
+          document_id: string
+          id?: string
+          keyword_id: string
+          page?: number | null
+          project_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          snippet?: string
+        }
+        Update: {
+          count?: number
+          created_at?: string
+          document_id?: string
+          id?: string
+          keyword_id?: string
+          page?: number | null
+          project_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          snippet?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_scope_hits_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_scope_hits_keyword_id_fkey"
+            columns: ["keyword_id"]
+            isOneToOne: false
+            referencedRelation: "scope_keywords"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_intake: {
         Row: {
           ai_json: Json | null
@@ -1662,6 +1800,7 @@ export type Database = {
           project_id: string
           scope: string | null
           site_contact: string | null
+          source: string
           starts_at: string
           status: string
           technician_supplier_id: string | null
@@ -1683,6 +1822,7 @@ export type Database = {
           project_id: string
           scope?: string | null
           site_contact?: string | null
+          source?: string
           starts_at: string
           status?: string
           technician_supplier_id?: string | null
@@ -1704,6 +1844,7 @@ export type Database = {
           project_id?: string
           scope?: string | null
           site_contact?: string | null
+          source?: string
           starts_at?: string
           status?: string
           technician_supplier_id?: string | null
@@ -3298,6 +3439,57 @@ export type Database = {
           capability?: string
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      scope_keywords: {
+        Row: {
+          active: boolean
+          created_at: string
+          group_key: string
+          id: string
+          sort: number
+          term: string
+          whole_word: boolean
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          group_key?: string
+          id?: string
+          sort?: number
+          term: string
+          whole_word?: boolean
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          group_key?: string
+          id?: string
+          sort?: number
+          term?: string
+          whole_word?: boolean
+        }
+        Relationships: []
+      }
+      scope_scan_state: {
+        Row: {
+          backfilled_at: string | null
+          documents: number | null
+          hits: number | null
+          id: boolean
+        }
+        Insert: {
+          backfilled_at?: string | null
+          documents?: number | null
+          hits?: number | null
+          id?: boolean
+        }
+        Update: {
+          backfilled_at?: string | null
+          documents?: number | null
+          hits?: number | null
+          id?: boolean
         }
         Relationships: []
       }
