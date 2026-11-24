@@ -386,6 +386,13 @@
       "when": 1795535911335,
       "tag": "0053_user_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1795537482927,
+      "tag": "0054_staff_all_jobs",
+      "breakpoints": true
     }
   ]
 }

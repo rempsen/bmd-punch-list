@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { accessSummary, canAct, filterUsers, levelsFor, userStatus, validateInvite, type AdminUser } from "./logic";
+import { accessSummary, canAct, filterUsers, levelsFor, userStatus, validateInvite, type AdminUser, defaultAllJobs } from "./logic";
 
 const user = (o: Partial<AdminUser> = {}): AdminUser => ({
   kind: "user",
@@ -125,5 +125,16 @@ describe("checking an invite before it is sent", () => {
   test("job ids must be real ids and the level must exist", () => {
     expect(validateInvite({ ...ok, jobs: [{ projectId: "x", role: null }] })).toEqual({ ok: false, why: "Unknown job" });
     expect(validateInvite({ ...ok, level: "owner" as never })).toEqual({ ok: false, why: "Choose a level" });
+  });
+});
+
+describe("the all-jobs default", () => {
+  test("BMD staff start on every job; trades, clients and viewers start on selected jobs", () => {
+    expect(defaultAllJobs("super_admin")).toBe(true);
+    expect(defaultAllJobs("bmd_manager")).toBe(true);
+    expect(defaultAllJobs("bmd_field")).toBe(true);
+    expect(defaultAllJobs("trade")).toBe(false);
+    expect(defaultAllJobs("client")).toBe(false);
+    expect(defaultAllJobs("viewer")).toBe(false);
   });
 });
