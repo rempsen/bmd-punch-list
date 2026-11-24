@@ -128,7 +128,17 @@ function WeekRow({
       if (n > MONTH_LIMIT && !expanded?.has(d)) hiddenPerDay.set(d, n - MONTH_LIMIT);
     }
   }
-  const visibleLanes = compact && hiddenPerDay.size ? Math.max(MONTH_LIMIT, lanes) : lanes;
+  // A block past the limit stays visible wherever one of its days is not crowded (or is expanded): a visit is never
+  // hidden on a day that has room for it. Each day's height then fits the blocks actually drawn across it.
+  const shown = placed.filter((p) => {
+    if (!compact || p.lane < MONTH_LIMIT) return true;
+    const cols = days.slice(p.col, p.col + p.span);
+    return cols.some((d) => expanded?.has(d) || !hiddenPerDay.has(d));
+  });
+  const lanesOn = (d: string) => {
+    const i = days.indexOf(d);
+    return shown.reduce((m, p) => (i >= p.col && i < p.col + p.span ? Math.max(m, p.lane + 1) : m), 0);
+  };
   const anyExpanded = compact && days.some((d) => expanded?.has(d));
   return (
     <div
@@ -157,7 +167,7 @@ function WeekRow({
               </div>
             )}
             {/* Space for the lanes drawn in the overlay below. */}
-            <div style={{ height: `${(compact ? Math.min(visibleLanes, expanded?.has(d) ? lanes : MONTH_LIMIT) : lanes) * 22}px` }} />
+            <div style={{ height: `${(compact ? Math.max(lanesOn(d), hidden > 0 ? MONTH_LIMIT : 0) : lanes) * 22}px` }} />
             {hidden > 0 && (
               <button
                 type="button"
@@ -172,12 +182,7 @@ function WeekRow({
         );
       })}
       <div className="pointer-events-none absolute inset-x-0 grid grid-cols-7" style={{ top: showNumbers ? 28 : 4 }}>
-        {placed.map((p) => {
-          // Month cells hide blocks past the limit unless one of the block's days is expanded.
-          if (compact && p.lane >= MONTH_LIMIT) {
-            const cols = days.slice(p.col, p.col + p.span);
-            if (!cols.some((d) => expanded?.has(d))) return null;
-          }
+        {shown.map((p) => {
           return (
             <div
               key={p.visit.id + p.col}
