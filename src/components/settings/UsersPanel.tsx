@@ -25,7 +25,15 @@ type UserRow = {
   role: string | null;
   is_super: boolean | null;
   last_sign_in_at: string | null;
+  /** Where their access to this job comes from: all jobs (company level), the company level on this job, or set on this job. */
+  access: "all_jobs" | "level" | "job" | null;
 };
+
+const ACCESS = {
+  all_jobs: "Company level · all jobs (change in Users)",
+  level: "Company level",
+  job: "Set on this job",
+} as const;
 
 function useUsers(projectId: string | null) {
   return useQuery({
@@ -266,7 +274,7 @@ export function UsersPanel() {
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase">
                 <th className="py-2 pr-3">Person</th>
-                <th className="py-2 pr-3">Role</th>
+                <th className="py-2 pr-3">Role on this job</th>
                 <th className="py-2 pr-3">Company</th>
                 <th className="py-2 pr-3">Last sign-in</th>
                 <th className="py-2" />
@@ -302,6 +310,7 @@ export function UsersPanel() {
                           </SelectContent>
                         </Select>
                       )}
+                      <p className="mt-1 text-xs text-muted-foreground">{ACCESS[u.access ?? "job"]}</p>
                     </td>
                     <td className="py-2 pr-3">
                       <Input
@@ -320,7 +329,7 @@ export function UsersPanel() {
                       {u.id === user?.id ? " (you)" : ""}
                     </td>
                     <td className="py-2">
-                      {!locked && u.id !== user?.id && (
+                      {!locked && u.id !== user?.id && u.access !== "all_jobs" && (
                         <Button variant="ghost" size="sm" aria-label="Remove from job" onClick={() => void removeMember(u.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -334,60 +343,5 @@ export function UsersPanel() {
         </div>
       </section>
     </div>
-  );
-}
-
-/** Super admin only: everyone in the system, and the global super admin flag. */
-export function AllUsersPanel() {
-  const qc = useQueryClient();
-  const { user } = useAuth();
-  const { data: users = [] } = useUsers(null);
-  const toggle = async (id: string, makeSuper: boolean) => {
-    const { error } = await supabase.rpc("set_user_role", { _user_id: id, _role: makeSuper ? "super_admin" : "viewer" });
-    if (error) toast.error(error.message);
-    else {
-      toast.success(makeSuper ? "Now a super admin (all jobs)" : "Super admin removed");
-      void qc.invalidateQueries({ queryKey: ["admin-users"] });
-    }
-  };
-  return (
-    <section className="rounded-lg border border-border bg-card p-4">
-      <h2 className="mb-1 text-sm font-semibold text-muted-foreground uppercase">All users</h2>
-      <p className="mb-3 text-sm text-muted-foreground">
-        Everyone with an account. Super admins see every job; everyone else only sees jobs they were added to.
-      </p>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase">
-              <th className="py-2 pr-3">Person</th>
-              <th className="py-2 pr-3">Company</th>
-              <th className="py-2 pr-3">Last sign-in</th>
-              <th className="py-2">Super admin</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-b border-border">
-                <td className="py-2 pr-3">
-                  <p className="font-medium">{u.full_name ?? u.email}</p>
-                  <p className="text-xs text-muted-foreground">{u.email}</p>
-                </td>
-                <td className="py-2 pr-3">{u.company ?? "—"}</td>
-                <td className="py-2 pr-3 text-muted-foreground">
-                  {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : "Never"}
-                  {u.id === user?.id ? " (you)" : ""}
-                </td>
-                <td className="py-2">
-                  <Button variant={u.is_super ? "default" : "outline"} size="sm" onClick={() => void toggle(u.id, !u.is_super)}>
-                    {u.is_super ? "Yes — remove" : "Make super admin"}
-                  </Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
   );
 }
