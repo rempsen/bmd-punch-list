@@ -1566,6 +1566,127 @@ export type Database = {
           },
         ]
       }
+      material_orders: {
+        Row: {
+          catalogue_item_id: string | null
+          created_at: string
+          description: string
+          estimate_line_id: string | null
+          id: string
+          notes: string | null
+          on_site_at: string | null
+          on_site_by: string | null
+          ordered_at: string
+          po_number: string | null
+          project_id: string
+          qbo_po_id: string | null
+          qbo_po_sent_at: string | null
+          quantity: number
+          received_at: string | null
+          received_by: string | null
+          received_note: string | null
+          received_qty: number | null
+          status: string
+          supplier_id: string | null
+          unit: string
+          unit_cost_cents: number | null
+          updated_at: string
+        }
+        Insert: {
+          catalogue_item_id?: string | null
+          created_at?: string
+          description?: string
+          estimate_line_id?: string | null
+          id?: string
+          notes?: string | null
+          on_site_at?: string | null
+          on_site_by?: string | null
+          ordered_at?: string
+          po_number?: string | null
+          project_id: string
+          qbo_po_id?: string | null
+          qbo_po_sent_at?: string | null
+          quantity?: number
+          received_at?: string | null
+          received_by?: string | null
+          received_note?: string | null
+          received_qty?: number | null
+          status?: string
+          supplier_id?: string | null
+          unit?: string
+          unit_cost_cents?: number | null
+          updated_at?: string
+        }
+        Update: {
+          catalogue_item_id?: string | null
+          created_at?: string
+          description?: string
+          estimate_line_id?: string | null
+          id?: string
+          notes?: string | null
+          on_site_at?: string | null
+          on_site_by?: string | null
+          ordered_at?: string
+          po_number?: string | null
+          project_id?: string
+          qbo_po_id?: string | null
+          qbo_po_sent_at?: string | null
+          quantity?: number
+          received_at?: string | null
+          received_by?: string | null
+          received_note?: string | null
+          received_qty?: number | null
+          status?: string
+          supplier_id?: string | null
+          unit?: string
+          unit_cost_cents?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_orders_catalogue_item_id_fkey"
+            columns: ["catalogue_item_id"]
+            isOneToOne: false
+            referencedRelation: "catalogue_materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_orders_estimate_line_id_fkey"
+            columns: ["estimate_line_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_orders_on_site_by_fkey"
+            columns: ["on_site_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_orders_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ms_connections: {
         Row: {
           account_email: string
@@ -3796,6 +3917,10 @@ export type Database = {
             }
             Returns: number
           }
+      seed_material_orders: {
+        Args: { _project: string; _version: string }
+        Returns: number
+      }
       set_member_role: {
         Args: {
           _company?: string
