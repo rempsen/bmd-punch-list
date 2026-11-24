@@ -540,6 +540,13 @@
       "when": 1795545481688,
       "tag": "0076_scope_keywords",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1795546007863,
+      "tag": "0077_scope_tables_staff_only",
+      "breakpoints": true
     }
   ]
 }
