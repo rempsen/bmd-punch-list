@@ -2040,6 +2040,7 @@ export type Database = {
           job_roles: Database["public"]["Enums"]["job_role"][]
           project_id: string
           role: Database["public"]["Enums"]["app_role"]
+          role_source: string
           user_id: string
         }
         Insert: {
@@ -2049,6 +2050,7 @@ export type Database = {
           job_roles?: Database["public"]["Enums"]["job_role"][]
           project_id: string
           role: Database["public"]["Enums"]["app_role"]
+          role_source?: string
           user_id: string
         }
         Update: {
@@ -2058,6 +2060,7 @@ export type Database = {
           job_roles?: Database["public"]["Enums"]["job_role"][]
           project_id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          role_source?: string
           user_id?: string
         }
         Relationships: [
@@ -3314,9 +3317,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_access: {
+        Row: {
+          all_jobs: boolean
+          deactivated_at: string | null
+          deactivated_by: string | null
+          level: Database["public"]["Enums"]["app_role"]
+          status: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          all_jobs?: boolean
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          level?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          all_jobs?: boolean
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          level?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_invites: {
         Row: {
           accepted_at: string | null
+          all_jobs: boolean
+          jobs: Json
+          level: Database["public"]["Enums"]["app_role"] | null
           company: string | null
           created_at: string
           email: string
@@ -3333,6 +3372,9 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          all_jobs?: boolean
+          jobs?: Json
+          level?: Database["public"]["Enums"]["app_role"] | null
           company?: string | null
           created_at?: string
           email: string
@@ -3349,6 +3391,9 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          all_jobs?: boolean
+          jobs?: Json
+          level?: Database["public"]["Enums"]["app_role"] | null
           company?: string | null
           created_at?: string
           email?: string
@@ -3399,6 +3444,48 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_cancel_invite: { Args: { _invite: string }; Returns: undefined }
+      admin_delete_user_data: { Args: { _user: string }; Returns: string }
+      admin_invite: {
+        Args: { _email: string; _full_name: string; _company: string; _level: Database["public"]["Enums"]["app_role"]; _all_jobs: boolean; _jobs: Json }
+        Returns: string
+      }
+      admin_list_users: {
+        Args: never
+        Returns: {
+          kind: string
+          id: string
+          email: string
+          full_name: string | null
+          company: string | null
+          level: Database["public"]["Enums"]["app_role"]
+          all_jobs: boolean
+          status: string
+          is_super: boolean
+          last_sign_in_at: string | null
+          job_count: number
+          jobs: Json | null
+          invite_id: string | null
+          invite_token: string | null
+          invite_sent_at: string | null
+          invite_error: string | null
+          has_records: boolean
+          created_at: string
+        }[]
+      }
+      admin_save_user: {
+        Args: { _user: string; _full_name: string; _company: string; _level: Database["public"]["Enums"]["app_role"]; _all_jobs: boolean; _jobs: Json }
+        Returns: undefined
+      }
+      admin_set_status: { Args: { _user: string; _status: string }; Returns: undefined }
+      admin_user_jobs: {
+        Args: { _user: string }
+        Returns: { project_id: string; name: string; archived_at: string | null; role: Database["public"]["Enums"]["app_role"]; source: string }[]
+      }
+      admin_user_log: {
+        Args: { _user: string }
+        Returns: { at: string; actor_name: string; action: string; detail: Json }[]
+      }
       accept_quote: {
         Args: { _id: string; _note?: string; _version: string }
         Returns: undefined
@@ -3532,6 +3619,7 @@ export type Database = {
           is_super: boolean
           last_sign_in_at: string
           role: Database["public"]["Enums"]["app_role"]
+          access: string | null
         }[]
       }
       location_project: { Args: { _loc: string }; Returns: string }

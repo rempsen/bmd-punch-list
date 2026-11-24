@@ -35,7 +35,7 @@ const list = (names: string[]) => (names.length <= 1 ? (names[0] ?? "") : `${nam
 /** What a person can reach, in one line: "Client on Hyatt Centric and Test Take Off", "BMD manager on all jobs (Viewer on Hyatt)". */
 export function accessSummary(level: AppRole, allJobs: boolean, jobs: { name: string; role: AppRole | null }[]): string {
   const lvl = roleLabel(level);
-  if (level === "super_admin" || level === "bmd_admin") return "Super admin on all jobs";
+  if (level === "super_admin") return "Super admin on all jobs";
   const exceptions = jobs.filter((j) => j.role && j.role !== level);
   const extra = exceptions.length ? ` (${exceptions.map((j) => `${roleLabel(j.role)} on ${j.name}`).join("; ")})` : "";
   if (allJobs) return `${lvl} on all jobs${extra}`;
