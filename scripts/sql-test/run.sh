@@ -13,8 +13,10 @@ MIGDIR=$(cd ../../drizzle/migrations && pwd)
 MIG=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 >= 53 && $NF ~ /(user|staff|admin)/) print }' | tr '\n' ' ')
 # The migration uses drizzle's statement-breakpoint comments, which psql ignores.
 # Materials: estimate/quote stand-ins, then the materials migrations (0055 material orders and later "material" ones).
-MAT=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 >= 55 && $NF ~ /material/) print }' | tr '\n' ' ')
-cat stub.sql seed.sql $MIG user-admin.test.sql materials.stub.sql $MAT materials.test.sql > /tmp/$DB.sql
+# 0055 first, then the state that existed before the later ones (materials.pre.sql), then the rest.
+MAT0=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 == 55 && $NF ~ /material/) print }' | tr '\n' ' ')
+MATN=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 > 55 && $NF ~ /material/) print }' | tr '\n' ' ')
+cat stub.sql seed.sql $MIG user-admin.test.sql materials.stub.sql $MAT0 materials.pre.sql $MATN materials.test.sql > /tmp/$DB.sql
 chmod 644 /tmp/$DB.sql
 as_pg "${PSQL[@]}" -d "$DB" -f /tmp/$DB.sql
 rm -f /tmp/$DB.sql

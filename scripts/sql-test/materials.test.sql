@@ -1,4 +1,6 @@
 -- Materials after acceptance: what lands in Ordering, and when.
+-- The 0063 backfill left the job seeded under 0055 alone (see materials.pre.sql).
+DO $$ BEGIN ASSERT (SELECT count(*) FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000002') = 1, 'backfill did not re-seed a version 0055 already seeded'; END $$;
 \set p1 '''10000000-0000-0000-0000-000000000001'''
 -- A job already in progress (as Test Take Off was) with one estimate version: an LVT line (material + labour) and an optional line.
 UPDATE projects SET stage = 'in_progress' WHERE id = :p1;
@@ -20,18 +22,18 @@ INSERT INTO quotes (id, project_id, kind, status) VALUES ('90000000-0000-0000-00
 UPDATE quotes SET status = 'accepted', accepted_at = now(), accepted_version_id = '70000000-0000-0000-0000-000000000001' WHERE id = '90000000-0000-0000-0000-000000000001';
 DO $$ BEGIN
   ASSERT (SELECT count(*) FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000001') = 1, 'one material line seeded (labour and optional lines are not)';
-  ASSERT (SELECT status FROM material_orders LIMIT 1) = 'to_order', 'lands in To order';
-  ASSERT (SELECT ordered_at FROM material_orders LIMIT 1) IS NULL, 'not marked ordered yet';
-  ASSERT (SELECT quantity FROM material_orders LIMIT 1) = 55, '1000 SF + 10% waste at 20 SF a box = 55 boxes';
-  ASSERT (SELECT supplier_id FROM material_orders LIMIT 1) = '50000000-0000-0000-0000-000000000001', 'supplier from the catalogue';
-  ASSERT (SELECT source_version_id FROM material_orders LIMIT 1) = '70000000-0000-0000-0000-000000000001', 'remembers which version it came from';
+  ASSERT (SELECT status FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000001' LIMIT 1) = 'to_order', 'lands in To order';
+  ASSERT (SELECT ordered_at FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000001' LIMIT 1) IS NULL, 'not marked ordered yet';
+  ASSERT (SELECT quantity FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000001' LIMIT 1) = 55, '1000 SF + 10% waste at 20 SF a box = 55 boxes';
+  ASSERT (SELECT supplier_id FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000001' LIMIT 1) = '50000000-0000-0000-0000-000000000001', 'supplier from the catalogue';
+  ASSERT (SELECT source_version_id FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000001' LIMIT 1) = '70000000-0000-0000-0000-000000000001', 'remembers which version it came from';
 END $$;
 
 -- Re-accepting, or the job then moving to Won, does not seed the same version twice.
 UPDATE quotes SET status = 'sent' WHERE id = '90000000-0000-0000-0000-000000000001';
 UPDATE quotes SET status = 'accepted' WHERE id = '90000000-0000-0000-0000-000000000001';
 UPDATE projects SET stage = 'won' WHERE id = :p1;
-DO $$ BEGIN ASSERT (SELECT count(*) FROM material_orders) = 1, 'no duplicates'; END $$;
+DO $$ BEGIN ASSERT (SELECT count(*) FROM material_orders WHERE project_id = '10000000-0000-0000-0000-000000000001') = 1, 'no duplicates'; END $$;
 
 -- An accepted change order adds its own version's material, whatever the stage.
 INSERT INTO quotes (id, project_id, kind, status) VALUES ('90000000-0000-0000-0000-000000000002', :p1, 'change_order', 'sent');
