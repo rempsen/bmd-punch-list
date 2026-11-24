@@ -16,6 +16,12 @@ async function capability(sb: Sb, cap: string): Promise<boolean> {
   return data === true;
 }
 
+/** BMD staff who may use Ask BMD: the use_assistant capability (BMD field and up) or the pipeline. */
+async function assistantAllowed(sb: Sb): Promise<boolean> {
+  const { data } = await sb.rpc("assistant_allowed", {});
+  return data === true;
+}
+
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Winnipeg", day: "numeric", month: "short", year: "numeric" });
 
 /** Asks the assistant. Lookups run as the caller; the question, the answer and the lookups made are kept on the conversation. */
@@ -30,7 +36,7 @@ export const askAssistant = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }): Promise<AskResult> => {
     const sb = context.supabase as unknown as Sb;
-    const [staff, canPrice, canRemember] = await Promise.all([capability(sb, "view_pipeline"), capability(sb, "view_pricing"), capability(sb, "manage_settings")]);
+    const [staff, canPrice, canRemember] = await Promise.all([assistantAllowed(sb), capability(sb, "view_pricing"), capability(sb, "manage_settings")]);
     if (!staff) throw new Error("The assistant is for BMD staff.");
 
     // The conversation, new or continued (the row policy keeps it the caller's own).

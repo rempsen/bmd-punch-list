@@ -519,6 +519,13 @@
       "when": 1795543905858,
       "tag": "0073_catalogue_names_words",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1795544484863,
+      "tag": "0074_assistant_field_access",
+      "breakpoints": true
     }
   ]
 }

@@ -40,7 +40,8 @@ export type Capability =
   | "send_quotes"
   | "manage_catalogue"
   | "manage_integrations"
-  | "manage_materials";
+  | "manage_materials"
+  | "use_assistant";
 
 export const CAPABILITIES: { value: Capability; label: string }[] = [
   { value: "capture_items", label: "Add deficiencies" },
@@ -71,4 +72,5 @@ export const CAPABILITIES: { value: Capability; label: string }[] = [
   { value: "manage_catalogue", label: "Manage materials catalogue" },
   { value: "manage_integrations", label: "Manage integrations" },
   { value: "manage_materials", label: "Manage materials (order, receive, deliver)" },
+  { value: "use_assistant", label: "Use Ask BMD (the assistant)" },
 ];
