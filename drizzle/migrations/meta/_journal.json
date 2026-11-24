@@ -397,8 +397,15 @@
     {
       "idx": 56,
       "version": "7",
-      "when": 1795537978640,
+      "when": 1795538113492,
       "tag": "0055_admin_save_user_safeupdate",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1795537934188,
+      "tag": "0056_staff_all_jobs_signin",
       "breakpoints": true
     }
   ]
