@@ -86,3 +86,50 @@ export const qboPullProducts = createServerFn({ method: "POST" })
       return { ok: false as const, reason: e instanceof QboReconnectError ? ("connect" as const) : ("error" as const), message };
     }
   });
+
+/** Reads every customer from QuickBooks into the staging area. Reads only; nothing in BMD or QuickBooks changes. */
+export const qboPullCustomers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const sb = context.supabase as never;
+    if (!(await allowed(sb, "manage_integrations")) && !(await allowed(sb, "manage_projects"))) throw new Error("You don't have permission to pull from QuickBooks.");
+    const { qbo, qboEnv, qboConnection, restage } = await import("./qbo.server");
+    const { stageCustomer, QboReconnectError } = await import("./connect");
+    if (!qboEnv()) return { ok: false as const, reason: "setup" as const, message: "QuickBooks is not set up yet." };
+    if (!(await qboConnection())) return { ok: false as const, reason: "connect" as const, message: "Connect QuickBooks first." };
+    try {
+      const q = qbo();
+      const auth = await q.getAccessToken();
+      const customers = await q.queryAll("Customer", auth);
+      const staged = customers.map((c) => stageCustomer(c as never, customers as never));
+      await restage("Customer", staged);
+      const clients = staged.filter((s) => s.kind === "client").length;
+      return { ok: true as const, clients, jobs: staged.length - clients };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return { ok: false as const, reason: e instanceof QboReconnectError ? ("connect" as const) : ("error" as const), message };
+    }
+  });
+
+/**
+ * Turns the staged QuickBooks customers into BMD clients. With `dryRun` it only says what would happen.
+ * BMD is the centre of truth: a client BMD already has keeps its details and only gains the QuickBooks id.
+ */
+export const qboImportClients = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { dryRun: boolean }) => ({ dryRun: !!d?.dryRun }))
+  .handler(async ({ data, context }) => {
+    const sb = context.supabase as never;
+    if (!(await allowed(sb, "manage_projects"))) throw new Error("You don't have permission to change clients.");
+    const { stagedClients, applyClientPlan } = await import("./qbo.server");
+    const { planQboClientImport } = await import("@/lib/clients/import");
+    const staged = await stagedClients();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing, error } = await (context.supabase as any).from("clients").select("id,name,qbo_customer_id");
+    if (error) throw new Error(error.message);
+    const plan = planQboClientImport(staged as never, existing ?? []);
+    const summary = { staged: staged.length, inserts: plan.inserts.length, links: plan.links.length, unchanged: plan.unchanged, skippedInactive: plan.skippedInactive, sample: plan.inserts.slice(0, 8).map((c) => c.name), linkSample: plan.links.slice(0, 8).map((l) => l.name) };
+    if (data.dryRun) return { ...summary, created: 0, linked: 0 };
+    const r = await applyClientPlan(plan, context.userId);
+    return { ...summary, ...r };
+  });
