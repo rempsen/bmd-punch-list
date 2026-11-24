@@ -89,6 +89,33 @@ export function useScheduledVisits(
   });
 }
 
+/** Visits touching any site day from `from` to `to` (YYYY-MM-DD, inclusive), for the calendar. Reads a day either side for Winnipeg midnight. */
+export function useVisitsBetween(from: string, to: string, opts: { job?: string | undefined; enabled?: boolean } = {}) {
+  return useQuery({
+    queryKey: ["sched-visits-range", from, to, opts.job ?? null],
+    enabled: opts.enabled ?? true,
+    queryFn: async () => {
+      const before = new Date(`${from}T00:00:00Z`);
+      before.setUTCDate(before.getUTCDate() - 1);
+      const after = new Date(`${to}T00:00:00Z`);
+      after.setUTCDate(after.getUTCDate() + 2);
+      // A visit started up to two months earlier can still be running (visitDays caps at 62 days).
+      const earliest = new Date(before);
+      earliest.setUTCDate(earliest.getUTCDate() - 62);
+      let q = db
+        .from("install_visits")
+        .select(COLS)
+        .gte("starts_at", earliest.toISOString())
+        .lt("starts_at", after.toISOString())
+        .or(`ends_at.is.null,ends_at.gte.${before.toISOString()}`);
+      if (opts.job) q = q.eq("project_id", opts.job);
+      const { data, error } = await q.order("starts_at");
+      if (error) throw error;
+      return (data ?? []) as unknown as SchedVisit[];
+    },
+  });
+}
+
 export function useVisit(id: string | null) {
   return useQuery({
     queryKey: ["sched-visit", id],
@@ -157,6 +184,7 @@ export function useRefreshSchedule() {
   return () => {
     for (const k of [
       "sched-visits",
+      "sched-visits-range",
       "sched-visit",
       "visit-tasks",
       "visits",
