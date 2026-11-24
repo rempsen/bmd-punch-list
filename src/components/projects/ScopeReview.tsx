@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Sparkles } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { reviewScopeHitsWithAi } from "@/lib/documents/scope.functions";
+import { verdictLabel } from "@/lib/documents/scope-ai";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,10 +52,25 @@ export function ScopeReviewPanel({ projectId, docs, hits }: { projectId: string;
   const canReview = isSuperAdmin || canAny("manage_projects") || canAny("capture_items");
   const { data: keywords = [] } = useScopeKeywords();
   const refresh = useRefreshScope();
-  const [filter, setFilter] = useState<"unreviewed" | "all">("unreviewed");
+  const [filter, setFilter] = useState<"unreviewed" | "all" | "in_scope">("unreviewed");
+  const [aiBusy, setAiBusy] = useState(false);
+  const reviewAi = useServerFn(reviewScopeHitsWithAi);
+  const canAi = isSuperAdmin || canAny("view_pipeline");
+  const runAi = async () => {
+    setAiBusy(true);
+    try {
+      const r = await reviewAi({ data: { projectId } });
+      toast.success(r.reviewed ? `AI reviewed ${r.reviewed} hit${r.reviewed === 1 ? "" : "s"} · ${r.inScope} likely BMD scope` : "Nothing new for the AI to review.");
+      refresh();
+    } catch (e) {
+      toast.error(`AI review failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setAiBusy(false);
+    }
+  };
   const docName = useMemo(() => new Map(docs.map((d) => [d.id, d.file_name])), [docs]);
   const kwById = useMemo(() => new Map(keywords.map((k) => [k.id, k])), [keywords]);
-  const shown = hits.filter((h) => filter === "all" || !h.reviewed_at);
+  const shown = hits.filter((h) => filter === "all" || (filter === "in_scope" ? !h.reviewed_at && h.ai_verdict === "in_scope" : !h.reviewed_at));
   const unreviewed = hits.filter((h) => !h.reviewed_at).length;
 
   const groups = SCOPE_GROUPS.map((g) => {
@@ -67,10 +85,10 @@ export function ScopeReviewPanel({ projectId, docs, hits }: { projectId: string;
   };
 
   const exportCsv = () => {
-    const rows: (string | number | null)[][] = [["Group", "Keyword", "Document", "Page", "Count", "Snippet", "Reviewed"]];
+    const rows: (string | number | null)[][] = [["Group", "Keyword", "Document", "Page", "Count", "Snippet", "AI verdict", "AI suggestion", "Reviewed"]];
     for (const h of hits) {
       const k = kwById.get(h.keyword_id);
-      rows.push([scopeGroupLabel(k?.group_key ?? ""), k?.term ?? "", docName.get(h.document_id) ?? "", h.page, h.count, h.snippet, h.reviewed_at ? h.reviewed_at.slice(0, 10) : ""]);
+      rows.push([scopeGroupLabel(k?.group_key ?? ""), k?.term ?? "", docName.get(h.document_id) ?? "", h.page, h.count, h.snippet, verdictLabel(h.ai_verdict), h.ai_suggestion ?? "", h.reviewed_at ? h.reviewed_at.slice(0, 10) : ""]);
     }
     const url = URL.createObjectURL(new Blob([`\uFEFF${toCsv(rows)}`], { type: "text/csv;charset=utf-8" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: `bmd-scope-hits-${projectId.slice(0, 8)}.csv` });
@@ -86,10 +104,16 @@ export function ScopeReviewPanel({ projectId, docs, hits }: { projectId: string;
           <p className="text-xs text-muted-foreground">BMD scope terms found in plans and specs · {unreviewed} to review</p>
         </div>
         <div className="flex items-center gap-2">
-          <select className="h-10 rounded-md border border-input bg-background px-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value as "unreviewed" | "all")} aria-label="Show">
+          <select className="h-10 rounded-md border border-input bg-background px-2 text-sm" value={filter} onChange={(e) => setFilter(e.target.value as "unreviewed" | "all" | "in_scope")} aria-label="Show">
             <option value="unreviewed">Unreviewed</option>
+            <option value="in_scope">AI: likely scope</option>
             <option value="all">All</option>
           </select>
+          {canAi && (
+            <Button variant="outline" size="sm" className="h-10" onClick={() => void runAi()} disabled={aiBusy || unreviewed === 0}>
+              <Sparkles className="mr-2 h-4 w-4" /> {aiBusy ? "Reviewing…" : "AI review"}
+            </Button>
+          )}
           <Button variant="outline" size="sm" className="h-10" onClick={exportCsv}>
             <Download className="mr-2 h-4 w-4" /> Export CSV
           </Button>
@@ -116,6 +140,12 @@ export function ScopeReviewPanel({ projectId, docs, hits }: { projectId: string;
                             {h.count > 1 ? ` · ${h.count}×` : ""}
                           </p>
                           <p className="text-sm">{h.snippet}</p>
+                          {h.ai_verdict && (
+                            <p className="mt-0.5 text-xs">
+                              <span className={cn("mr-1.5 rounded px-1.5 py-0.5 font-medium", h.ai_verdict === "in_scope" ? "bg-primary/10 text-primary" : h.ai_verdict === "not_scope" ? "bg-muted text-muted-foreground" : "bg-accent text-accent-foreground")}>{verdictLabel(h.ai_verdict)}</span>
+                              <span className="text-muted-foreground">{h.ai_suggestion}</span>
+                            </p>
+                          )}
                         </div>
                       </li>
                     ))}

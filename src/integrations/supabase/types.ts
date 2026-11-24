@@ -1054,6 +1054,10 @@ export type Database = {
       }
       document_scope_hits: {
         Row: {
+          ai_at: string | null
+          ai_model: string | null
+          ai_suggestion: string | null
+          ai_verdict: string | null
           count: number
           created_at: string
           document_id: string
@@ -1066,6 +1070,10 @@ export type Database = {
           snippet: string
         }
         Insert: {
+          ai_at?: string | null
+          ai_model?: string | null
+          ai_suggestion?: string | null
+          ai_verdict?: string | null
           count?: number
           created_at?: string
           document_id: string
@@ -1078,6 +1086,10 @@ export type Database = {
           snippet?: string
         }
         Update: {
+          ai_at?: string | null
+          ai_model?: string | null
+          ai_suggestion?: string | null
+          ai_verdict?: string | null
           count?: number
           created_at?: string
           document_id?: string
