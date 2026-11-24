@@ -7,11 +7,12 @@ const UUID = /^[0-9a-f-]{36}$/i;
 type Sb = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }>; from: (t: string) => any };
 
 /** The document's project when the caller may read that project's documents; otherwise an error. */
-async function readableDocument(sb: Sb, documentId: string): Promise<{ project_id: string }> {
+async function writableDocument(sb: Sb, documentId: string): Promise<{ project_id: string }> {
   const { data, error } = await sb.from("project_documents").select("project_id").eq("id", documentId).maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Document not found");
-  const { data: ok } = await sb.rpc("can_project_documents", { _project: data.project_id, _write: false });
+  // Writing page text needs the same permission as uploading the document: a viewer must not be able to plant text into search.
+  const { data: ok } = await sb.rpc("can_project_documents", { _project: data.project_id, _write: true });
   if (ok !== true) throw new Error("Not allowed");
   return data as { project_id: string };
 }
@@ -26,7 +27,7 @@ export const storeDocumentText = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data, context }) => {
-    await readableDocument(context.supabase as unknown as Sb, data.documentId);
+    await writableDocument(context.supabase as unknown as Sb, data.documentId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const admin = supabaseAdmin as any;
@@ -53,7 +54,7 @@ export const markDocumentText = createServerFn({ method: "POST" })
     return d;
   })
   .handler(async ({ data, context }) => {
-    await readableDocument(context.supabase as unknown as Sb, data.documentId);
+    await writableDocument(context.supabase as unknown as Sb, data.documentId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabaseAdmin as any).from("project_documents").update({ text_status: data.status, text_pages: 0, text_indexed_at: new Date().toISOString() }).eq("id", data.documentId);
