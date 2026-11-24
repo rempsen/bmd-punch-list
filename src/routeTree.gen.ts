@@ -28,6 +28,7 @@ import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenti
 import { Route as AuthenticatedEstimatesRouteImport } from './routes/_authenticated/estimates'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
+import { Route as AuthenticatedInstallationRouteImport } from './routes/_authenticated/installation'
 import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
 import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
 import { Route as AuthenticatedMaterialsRouteImport } from './routes/_authenticated/materials'
@@ -152,6 +153,12 @@ const AuthenticatedFloorsRoute = AuthenticatedFloorsRouteImport.update({
   path: '/floors',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedInstallationRoute =
+  AuthenticatedInstallationRouteImport.update({
+    id: '/installation',
+    path: '/installation',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedJobsRoute = AuthenticatedJobsRouteImport.update({
   id: '/jobs',
   path: '/jobs',
@@ -302,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/estimates': typeof AuthenticatedEstimatesRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
+  '/installation': typeof AuthenticatedInstallationRoute
   '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
   '/materials': typeof AuthenticatedMaterialsRoute
@@ -347,6 +355,7 @@ export interface FileRoutesByTo {
   '/estimates': typeof AuthenticatedEstimatesRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
+  '/installation': typeof AuthenticatedInstallationRoute
   '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
   '/materials': typeof AuthenticatedMaterialsRoute
@@ -394,6 +403,7 @@ export interface FileRoutesById {
   '/_authenticated/estimates': typeof AuthenticatedEstimatesRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
+  '/_authenticated/installation': typeof AuthenticatedInstallationRoute
   '/_authenticated/jobs': typeof AuthenticatedJobsRoute
   '/_authenticated/list': typeof AuthenticatedListRoute
   '/_authenticated/materials': typeof AuthenticatedMaterialsRoute
@@ -441,6 +451,7 @@ export interface FileRouteTypes {
     | '/estimates'
     | '/exports'
     | '/floors'
+    | '/installation'
     | '/jobs'
     | '/list'
     | '/materials'
@@ -486,6 +497,7 @@ export interface FileRouteTypes {
     | '/estimates'
     | '/exports'
     | '/floors'
+    | '/installation'
     | '/jobs'
     | '/list'
     | '/materials'
@@ -532,6 +544,7 @@ export interface FileRouteTypes {
     | '/_authenticated/estimates'
     | '/_authenticated/exports'
     | '/_authenticated/floors'
+    | '/_authenticated/installation'
     | '/_authenticated/jobs'
     | '/_authenticated/list'
     | '/_authenticated/materials'
@@ -708,6 +721,13 @@ declare module '@tanstack/react-router' {
       path: '/floors'
       fullPath: '/floors'
       preLoaderRoute: typeof AuthenticatedFloorsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/installation': {
+      id: '/_authenticated/installation'
+      path: '/installation'
+      fullPath: '/installation'
+      preLoaderRoute: typeof AuthenticatedInstallationRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/jobs': {
@@ -903,6 +923,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEstimatesRoute: typeof AuthenticatedEstimatesRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
+  AuthenticatedInstallationRoute: typeof AuthenticatedInstallationRoute
   AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
   AuthenticatedListRoute: typeof AuthenticatedListRoute
   AuthenticatedMaterialsRoute: typeof AuthenticatedMaterialsRoute
@@ -937,6 +958,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEstimatesRoute: AuthenticatedEstimatesRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
+  AuthenticatedInstallationRoute: AuthenticatedInstallationRoute,
   AuthenticatedJobsRoute: AuthenticatedJobsRoute,
   AuthenticatedListRoute: AuthenticatedListRoute,
   AuthenticatedMaterialsRoute: AuthenticatedMaterialsRoute,

@@ -170,6 +170,7 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
       return /duplicate|unique/i.test(error.message)
         ? await ignore(rowId, "job id belongs to another visit")
         : await fail(rowId, `could not update visit ${visit.id}: ${error.message}`);
+    await prefillAreaProgress(db, visit.id, plan.patch["status"]);
     const logError = await logActivity(db, visit, [plan.event]);
     await markAcked(rowId);
     return done({
@@ -339,6 +340,7 @@ export async function reconcileVisits(
     // Something else updated the visit in between; the next check will see it.
     if (!wrote?.length) continue;
     updated++;
+    await prefillAreaProgress(db, visit.id, (patch as Record<string, unknown>)["status"]);
     await logActivity(db, visit, events);
     // The sync queue shows what the check changed, the same as a webhook would have.
     const { recordPending, markAcked } = await import("./outbox.server");
@@ -362,4 +364,47 @@ export async function reconcileVisits(
   const checked = (visits ?? []).length;
   await saveLink({ last_check_error: firstError ?? null }).catch(() => {});
   return { ran: true, checked, updated, failed, ...(firstError ? { error: firstError } : {}) };
+}
+
+/**
+ * Installation Progress pre-fill: a work order going out or finishing moves the visit's rooms for the visit's scope.
+ * Never downgrades and never overwrites complete / not required (mergeArrivePingStatus). Failures are logged, not
+ * thrown, so the visit update itself always stands.
+ */
+async function prefillAreaProgress(
+  db: Awaited<ReturnType<typeof admin>>,
+  visitId: string,
+  status: unknown,
+): Promise<void> {
+  try {
+    const { incomingFromVisit, mergeArrivePingStatus, scopeForVisit } = await import("@/lib/installation/logic");
+    const incoming = incomingFromVisit(typeof status === "string" ? status : null);
+    if (!incoming) return;
+    const { data: v } = await db.from("install_visits").select("project_id,scope,areas").eq("id", visitId).maybeSingle();
+    const rooms = Array.isArray(v?.areas)
+      ? [...new Set((v.areas as { room_id?: unknown }[]).map((a) => a?.room_id).filter((r): r is string => typeof r === "string"))]
+      : [];
+    if (!v || !rooms.length) return;
+    const { loadJobScopes } = await import("@/lib/installation/scopes");
+    const scope = scopeForVisit(v.scope, await loadJobScopes(db, v.project_id));
+    if (!scope) return;
+    const { data: cur } = await db
+      .from("area_progress")
+      .select("room_id,status")
+      .eq("project_id", v.project_id)
+      .eq("scope", scope)
+      .in("room_id", rooms);
+    const now = new Map(((cur ?? []) as { room_id: string; status: string }[]).map((r) => [r.room_id, r.status]));
+    const rows = rooms.flatMap((room_id) => {
+      const next = mergeArrivePingStatus(now.get(room_id) as never, incoming);
+      return next
+        ? [{ project_id: v.project_id, room_id, scope, status: next, source: "arriveping", updated_by: null, updated_at: new Date().toISOString() }]
+        : [];
+    });
+    if (!rows.length) return;
+    const { error } = await db.from("area_progress").upsert(rows, { onConflict: "project_id,room_id,scope" });
+    if (error) console.error(`ArrivePing: could not update installation progress: ${error.message}`);
+  } catch (error) {
+    console.error("ArrivePing: installation progress pre-fill failed:", error);
+  }
 }
