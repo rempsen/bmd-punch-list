@@ -30,6 +30,7 @@ import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
 import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
 import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
+import { Route as AuthenticatedMaterialsRouteImport } from './routes/_authenticated/materials'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
 import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated/my-work'
 import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated/new-job'
@@ -158,6 +159,11 @@ const AuthenticatedJobsRoute = AuthenticatedJobsRouteImport.update({
 const AuthenticatedListRoute = AuthenticatedListRouteImport.update({
   id: '/list',
   path: '/list',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedMaterialsRoute = AuthenticatedMaterialsRouteImport.update({
+  id: '/materials',
+  path: '/materials',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedMoreRoute = AuthenticatedMoreRouteImport.update({
@@ -292,6 +298,7 @@ export interface FileRoutesByFullPath {
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
+  '/materials': typeof AuthenticatedMaterialsRoute
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
@@ -335,6 +342,7 @@ export interface FileRoutesByTo {
   '/floors': typeof AuthenticatedFloorsRoute
   '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
+  '/materials': typeof AuthenticatedMaterialsRoute
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
@@ -380,6 +388,7 @@ export interface FileRoutesById {
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
   '/_authenticated/jobs': typeof AuthenticatedJobsRoute
   '/_authenticated/list': typeof AuthenticatedListRoute
+  '/_authenticated/materials': typeof AuthenticatedMaterialsRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
   '/_authenticated/my-work': typeof AuthenticatedMyWorkRoute
   '/_authenticated/new-job': typeof AuthenticatedNewJobRoute
@@ -425,6 +434,7 @@ export interface FileRouteTypes {
     | '/floors'
     | '/jobs'
     | '/list'
+    | '/materials'
     | '/more'
     | '/my-work'
     | '/new-job'
@@ -468,6 +478,7 @@ export interface FileRouteTypes {
     | '/floors'
     | '/jobs'
     | '/list'
+    | '/materials'
     | '/more'
     | '/my-work'
     | '/new-job'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/_authenticated/floors'
     | '/_authenticated/jobs'
     | '/_authenticated/list'
+    | '/_authenticated/materials'
     | '/_authenticated/more'
     | '/_authenticated/my-work'
     | '/_authenticated/new-job'
@@ -700,6 +712,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedListRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/materials': {
+      id: '/_authenticated/materials'
+      path: '/materials'
+      fullPath: '/materials'
+      preLoaderRoute: typeof AuthenticatedMaterialsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/more': {
       id: '/_authenticated/more'
       path: '/more'
@@ -867,6 +886,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
   AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
   AuthenticatedListRoute: typeof AuthenticatedListRoute
+  AuthenticatedMaterialsRoute: typeof AuthenticatedMaterialsRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
   AuthenticatedMyWorkRoute: typeof AuthenticatedMyWorkRoute
   AuthenticatedNewJobRoute: typeof AuthenticatedNewJobRoute
@@ -899,6 +919,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
   AuthenticatedJobsRoute: AuthenticatedJobsRoute,
   AuthenticatedListRoute: AuthenticatedListRoute,
+  AuthenticatedMaterialsRoute: AuthenticatedMaterialsRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
   AuthenticatedMyWorkRoute: AuthenticatedMyWorkRoute,
   AuthenticatedNewJobRoute: AuthenticatedNewJobRoute,
