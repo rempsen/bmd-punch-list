@@ -8,9 +8,11 @@ as_pg() { if [ "$(id -un)" = postgres ]; then "$@"; else su postgres -c "$(print
 as_pg psql -X -q -c "DO \$\$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; DO \$\$ BEGIN CREATE ROLE anon NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$; DO \$\$ BEGIN CREATE ROLE service_role NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END \$\$;" >/dev/null
 as_pg createdb "$DB"
 trap 'as_pg dropdb "$DB"' EXIT
-MIG=$(cd ../../drizzle/migrations && pwd)/0053_user_admin.sql
+MIGDIR=$(cd ../../drizzle/migrations && pwd)
+# The user-access migrations (0053 on) in order. Others need tables the stub doesn't have.
+MIG=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 >= 53 && $NF ~ /(user|staff|admin)/) print }' | tr '\n' ' ')
 # The migration uses drizzle's statement-breakpoint comments, which psql ignores.
-cat stub.sql seed.sql "$MIG" user-admin.test.sql > /tmp/$DB.sql
+cat stub.sql seed.sql $MIG user-admin.test.sql > /tmp/$DB.sql
 chmod 644 /tmp/$DB.sql
 as_pg "${PSQL[@]}" -d "$DB" -f /tmp/$DB.sql
 rm -f /tmp/$DB.sql
