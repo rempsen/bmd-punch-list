@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 // The plan viewer brings pdf.js with it, so it is fetched only when the Takeoff tab is opened.
 import { TakeoffWorkspace } from "@/components/takeoff/TakeoffWorkspace";
 import { DocumentsTab } from "@/components/projects/DocumentsTab";
+import { JobExtras } from "@/components/projects/JobExtras";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
 import { SearchSelect } from "@/components/SearchSelect";
@@ -98,7 +99,7 @@ function ProjectPage() {
               <span className="mr-2 font-mono text-sm font-normal text-muted-foreground">{project.project_number}</span>
               {project.name}
             </h1>
-            <p className="text-sm text-muted-foreground">{[project.client_name, project.address].filter(Boolean).join(" · ") || "No client"}</p>
+            <p className="text-sm text-muted-foreground">{[project.kind === "internal" ? "Internal job" : project.client_name, project.address].filter(Boolean).join(" · ") || "No client"}</p>
           </div>
           <div className="flex items-center gap-2">
             <StageBadge stage={project.stage} className="px-3 py-1 text-sm" />
@@ -131,6 +132,7 @@ function ProjectPage() {
       {tab === "takeoff" && <TakeoffWorkspace projectId={project.id} />}
       <div className={cn("mx-auto p-4 md:p-6", tab === "takeoff" && "hidden", tab === "estimate" ? "max-w-7xl" : "max-w-5xl")}>
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
+        {tab === "overview" && <JobExtras project={project} canEdit={canEdit} onChanged={refresh} />}
         {tab === "overview" && (project.stage === "won" || project.stage === "in_progress") && <InstallationPanel projectId={project.id} />}
         {tab === "overview" && <VisitsPanel projectId={project.id} canEdit={canEdit} project={{ name: project.name, number: project.project_number, address: project.address, client: project.client_name }} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}

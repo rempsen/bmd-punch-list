@@ -47,6 +47,7 @@ import { NAV_GROUP_KEYS, navGroupOpen } from "@/lib/nav";
 import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { AskBmdButton } from "@/components/assistant/AssistantPanel";
+import { OpenJobsNav } from "@/components/OpenJobsNav";
 import { cn } from "@/lib/utils";
 
 type NavGroup =
@@ -478,6 +479,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="px-0.5 pb-1">
               <JobBadge />
             </div>
+            <OpenJobsNav />
             {jobItems.map((i) => navLink(i))}
             {showPost && (
               <>

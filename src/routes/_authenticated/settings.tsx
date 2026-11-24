@@ -34,6 +34,7 @@ import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
 import { canonicalTab, settingsHeading } from "@/lib/settings-tabs";
 import { ScopeKeywordsPanel } from "@/components/settings/ScopeKeywordsPanel";
+import { JobTemplatesPanel } from "@/components/settings/JobTemplatesPanel";
 import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
 import { KnowledgePanel } from "@/components/settings/KnowledgePanel";
 import { SyncPanel } from "@/components/settings/SyncPanel";
@@ -97,6 +98,7 @@ function SettingsPage() {
     [isSuperAdmin, "roles", "Roles"],
     [canSettings, "projects", "All jobs"],
     [canSettings, "jobs", "Jobs admin"],
+    [canAny("manage_projects"), "templates", "Job templates"],
   ] as const).filter(([ok]) => ok).map(([, value, label]) => [value, label] as const);
   const jobTabs = ([
     [canSettings, "project", "Job details"],
@@ -298,6 +300,12 @@ function SettingsPage() {
           {canSettings && (
             <TabsContent value="jobs">
               <JobsAdminPanel />
+            </TabsContent>
+          )}
+
+          {canAny("manage_projects") && (
+            <TabsContent value="templates">
+              <JobTemplatesPanel />
             </TabsContent>
           )}
 

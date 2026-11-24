@@ -113,7 +113,7 @@ export type WizardFloor = {
 };
 
 export type Contact = {
-  kind: "client" | "gc" | "site" | "other";
+  kind: "client" | "pm" | "super" | "gc" | "site" | "other";
   name: string;
   company: string;
   title: string;

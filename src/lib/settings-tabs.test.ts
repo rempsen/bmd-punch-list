@@ -21,6 +21,10 @@ describe("settings are split into company-wide and this-job", () => {
     expect(canonicalTab("structure")).toBe("structure");
     expect(canonicalTab(undefined)).toBeUndefined();
   });
+  test("job templates are a company setting", () => {
+    expect(COMPANY_TABS).toContain("templates");
+    expect(settingsGroup("templates")).toBe("company");
+  });
   test("every tab belongs to exactly one group", () => {
     expect(COMPANY_TABS.filter((t) => JOB_TABS.includes(t))).toEqual([]);
     expect(settingsGroup("nonsense")).toBe("company");

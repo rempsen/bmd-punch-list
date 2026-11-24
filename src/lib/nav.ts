@@ -5,6 +5,7 @@ export const NAV_GROUP_KEYS = {
   scheduling: "bmd:nav:scheduling",
   deficiencies: "bmd:nav:deficiencies",
   records: "bmd:nav:records",
+  openJobs: "bmd:nav:openjobs",
 } as const;
 
 /** Kept for older code: the Deficiencies accordion key. */

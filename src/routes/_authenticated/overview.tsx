@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
 import { db } from "@/lib/platform/db";
 import { money, shortDate, usePipelineProjects } from "@/lib/projects/data";
+import { clientJobs } from "@/lib/projects/joblist";
 import { STAGES } from "@/lib/projects/stages";
 import { cn } from "@/lib/utils";
 import { useUnreviewedScopeByProject } from "@/lib/documents/scope-data";
@@ -72,9 +73,9 @@ function JobsByStage() {
   const pricing = canAny("view_pricing");
   return (
     <Card title="Jobs by stage" loading={isLoading} className="md:col-span-2 xl:col-span-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
         {STAGES.map((s) => {
-          const rows = (data ?? []).filter((p) => p.stage === s.value);
+          const rows = clientJobs(data ?? []).filter((p) => p.stage === s.value);
           const total = rows.reduce((t, p) => t + (p.estimated_value_cents ?? 0), 0);
           return (
             <Link key={s.value} to="/pipeline" className="rounded-md border border-border p-3 hover:bg-muted">
@@ -245,7 +246,7 @@ function BillsNeedingAttention() {
 
 function NoSiteYet() {
   const { data, isLoading } = usePipelineProjects();
-  const rows = (data ?? []).filter((p) => (p.stage === "won" || p.stage === "in_progress") && p.floorCount === 0);
+  const rows = clientJobs(data ?? []).filter((p) => (p.stage === "won" || p.stage === "in_progress") && p.floorCount === 0);
   return (
     <Card title="Won but no site set up" loading={isLoading}>
       {rows.length === 0 ? (

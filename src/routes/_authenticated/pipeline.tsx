@@ -22,6 +22,7 @@ import {
   type Staff,
 } from "@/lib/projects/data";
 import { NO_FILTERS, applyFilters, columnSummary, toCsv, winRate, type DueWindow, type Filters } from "@/lib/projects/pipeline";
+import { clientJobs } from "@/lib/projects/joblist";
 import { JOB_TYPES, STAGES, daysInStage, isOverdue, stageLabel, type ProjectStage } from "@/lib/projects/stages";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +37,9 @@ function PipelinePage() {
   const { canAny, user } = useAuth();
   const canSee = canAny("view_pipeline");
   const canEdit = canAny("manage_projects");
-  const { data: projects = [], isLoading, error } = usePipelineProjects();
+  const { data: allProjects, isLoading, error } = usePipelineProjects();
+  // Internal jobs are BMD's own time: they are not on the board, in the list or in any total here.
+  const projects = useMemo(() => clientJobs(allProjects ?? []), [allProjects]);
   const { data: staff = [] } = useBmdStaff();
   const { data: clients = [] } = useClients();
   const refresh = useRefreshPipeline();
