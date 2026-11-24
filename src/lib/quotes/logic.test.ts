@@ -229,7 +229,7 @@ describe("what a quote shows", () => {
   const snap = (display: Parameters<typeof normalizeDisplay>[0]) => buildSnapshot({ ...head, display: normalizeDisplay(display, "by_section"), materialOf, versions: [v], rates });
 
   test("the three presets: one lump sum, a subtotal per section, every line priced", () => {
-    expect(displayFor("lump_sum")).toEqual({ groupBy: "section", showLines: true, showQuantities: true, showUnitPrices: false, showLineAmounts: false, showGroupSubtotals: false });
+    expect(displayFor("lump_sum")).toEqual({ groupBy: "section", showLines: true, showQuantities: true, showUnitPrices: false, showLineAmounts: false, showGroupSubtotals: false, showAreas: false });
     expect(displayFor("by_section")).toMatchObject({ showGroupSubtotals: true, showLineAmounts: false });
     expect(displayFor("itemised")).toMatchObject({ showUnitPrices: true, showLineAmounts: true, showGroupSubtotals: true });
     expect(normalizeDisplay({ groupBy: "nonsense", showLines: "yes", extra: 1 } as never, "itemised")).toEqual(displayFor("itemised"));
@@ -282,5 +282,41 @@ describe("colour-coded drawings on a quote", () => {
     const text = doc.output();
     expect(text).toContain("Colour-coded drawings attached: ID-201 Level 2 Finish Plan, ID-301");
     expect(snapshotFingerprint(plain)).not.toBe(snapshotFingerprint(withDrawings));
+  });
+});
+
+describe("base broken out by area on a quote", () => {
+  const rb = line("rb", { section: "Level 2", description: "RB-1 rubber base", driver_qty: 3016, driver_uom: "LF", price_basis: "fixed_sell", fixed_sell_cents: 900000 });
+  const cpt = line("cp", { section: "Level 2", description: "CPT-1 carpet", driver_qty: 100, driver_uom: "SY", price_basis: "fixed_sell", fixed_sell_cents: 500000 });
+  const v = version("v1", "Base", [cpt, rb]);
+  const areasOf = { rb: [{ label: "Suites", qty: 1248.5 }, { label: "Common areas", qty: 1622.4 }, { label: "Washrooms", qty: 145.1 }] };
+  const snap = (showAreas: boolean | undefined, display: Record<string, unknown> = {}) => buildSnapshot({ ...head, presentation: "by_section", display: normalizeDisplay({ ...display, ...(showAreas === undefined ? {} : { showAreas }) }, "by_section"), areasOf, versions: [v], rates });
+  const lineOf = (s: ReturnType<typeof snap>, id: string) => layoutVersion(s.versions[0]!, s.display).flatMap((g) => g.lines).find((l) => l.line.id === id)!;
+
+  test("off unless it is switched on: an existing quote is unchanged", () => {
+    expect(normalizeDisplay(null, "itemised").showAreas).toBe(false);
+    expect(normalizeDisplay({ showAreas: "yes" as never }, "itemised").showAreas).toBe(false);
+    const off = snap(undefined);
+    expect(off.versions[0]!.sections[0]!.lines.every((l) => l.areas === undefined)).toBe(true);
+    expect(lineOf(off, "rb").areas).toBeNull();
+    expect(snapshotFingerprint(off)).toBe(snapshotFingerprint(snap(false)));
+  });
+  test("on: the base line carries its areas and the layout prints them; other lines are untouched", () => {
+    const on = snap(true);
+    expect(on.display.showAreas).toBe(true);
+    expect(on.versions[0]!.sections[0]!.lines.find((l) => l.id === "rb")!.areas).toEqual(areasOf.rb);
+    expect(lineOf(on, "rb").areas).toBe("Suites 1,248.5 LF · Common areas 1,622.4 LF · Washrooms 145.1 LF");
+    expect(lineOf(on, "cp").areas).toBeNull();
+    expect(snapshotFingerprint(on)).not.toBe(snapshotFingerprint(snap(false)));
+  });
+  test("the total never changes, and the breakdown still prints when quantities are hidden", () => {
+    expect(snap(true).versions[0]!.totalCents).toBe(snap(false).versions[0]!.totalCents);
+    expect(lineOf(snap(true, { showQuantities: false }), "rb").areas).toContain("Suites 1,248.5 LF");
+  });
+  test("the PDF prints the breakdown under the line only when it is on", () => {
+    const pdf = (s: ReturnType<typeof snap>) => renderQuotePdf(s, { compress: false }).output();
+    expect(pdf(snap(true))).toContain("Suites 1,248.5 LF");
+    expect(pdf(snap(true))).toContain("Washrooms 145.1 LF");
+    expect(pdf(snap(false))).not.toContain("Suites 1,248.5 LF");
   });
 });

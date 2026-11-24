@@ -1,6 +1,7 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { ImportDialog } from "./ImportDialog";
 import { ScopeProposals } from "./ScopeProposals";
+import { areasText, lineAreas, useTakeoffAreas } from "@/lib/takeoff/areas";
 import { finishLinks, offerQty, offerUom, takeoffOffers, totalsByFinish, useTakeoffQuantities, type Offer } from "@/lib/takeoff/quantities";
 import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, GripVertical, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
@@ -60,6 +61,26 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const canCatalogue = canAny("manage_catalogue");
   const { data: measured } = useTakeoffQuantities(projectId, canSee);
   const takeoffTotals = useMemo(() => totalsByFinish(measured ?? []), [measured]);
+  // Base by area (suites, common areas, washrooms) under each line that follows the takeoff in LF. A view setting,
+  // remembered on this computer; it never changes a quantity or a price.
+  const { data: takeoffAreas } = useTakeoffAreas(projectId, canSee);
+  const [byArea, setByArea] = useState(true);
+  useEffect(() => {
+    try {
+      setByArea(window.localStorage.getItem(BY_AREA_KEY) !== "off");
+    } catch {
+      /* storage blocked: the breakdown just starts shown */
+    }
+  }, []);
+  const toggleByArea = () => {
+    const next = !byArea;
+    setByArea(next);
+    try {
+      window.localStorage.setItem(BY_AREA_KEY, next ? "on" : "off");
+    } catch {
+      /* not remembered */
+    }
+  };
 
   const estimates = versions.filter((v) => v.kind === "estimate");
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -325,6 +346,11 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
           <VersionName version={active} editable={editable} onSaved={refresh} />
           <div className="ml-auto flex flex-wrap gap-2">
+            {active.lines.some((l) => lineAreas(l, active.lines, takeoffAreas ?? {})) && (
+              <Button variant="outline" className="h-10" aria-pressed={byArea} onClick={toggleByArea} title="Show where each base line's LF is: suites, common areas, washrooms">
+                Base by area: {byArea ? "On" : "Off"}
+              </Button>
+            )}
             {editable && (
               <>
                 <Button className="h-10" onClick={() => setDialog("add")}>
@@ -439,6 +465,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                         <LineRows
                           key={l.id}
                           line={l}
+                          areas={byArea ? lineAreas(l, active.lines, takeoffAreas ?? {}) : null}
                           priced={sum.priced[l.id]!}
                           editable={editable}
                           expanded={open.has(l.id)}
@@ -572,8 +599,11 @@ function VersionName({ version, editable, onSaved }: { version: EstVersion; edit
   );
 }
 
+const BY_AREA_KEY = "bmd.estimate.byArea";
+
 function LineRows({
   line,
+  areas,
   priced,
   editable,
   expanded,
@@ -596,6 +626,7 @@ function LineRows({
   onOpen,
 }: {
   line: EstLine;
+  areas: ReturnType<typeof lineAreas>;
   priced: ReturnType<typeof versionSummary>["priced"][string];
   editable: boolean;
   expanded: boolean;
@@ -747,6 +778,12 @@ function LineRows({
               </span>
             )}
           </div>
+          {areas && (
+            <p className="px-2 text-xs text-muted-foreground">
+              By area: {areasText(areas.areas)}
+              {!areas.matches && <span className="text-amber-700"> · the takeoff's areas no longer add up to this line's quantity</span>}
+            </p>
+          )}
         </td>
         <td className={cn(cell, "whitespace-nowrap text-right")}>
           <input key={`${line.id}-q-${line.row_version}`} aria-label="Quantity" disabled={!editable} inputMode="decimal" defaultValue={line.driver_qty} onBlur={(e) => commitNumber(e.target.value, line.driver_qty, 1e9, (n) => [{ driver_qty: n }])} className={cn(numInput, "w-20")} />
