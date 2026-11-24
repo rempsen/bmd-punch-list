@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { MaterialDialog } from "@/components/catalogue/MaterialDialog";
 import { selectCls } from "@/components/catalogue/fields";
@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { priceLabel, type CostCode, type Material, type Supplier, type Template } from "@/lib/catalogue/data";
 import { deleteFinish, saveFinish, type Finish } from "@/lib/estimating/data";
+import { FINISHES_PANEL_KEY, finishesPanelOpen, finishesSummary } from "@/lib/estimating/finishesPanel";
 import { errText } from "@/lib/platform/db";
+import { cn } from "@/lib/utils";
 
 /** The job's finish tags as they appear on the drawings (CPT-1, LVP-1…), each tied to an assembly and a material. */
 export function FinishesPanel({
@@ -34,6 +36,25 @@ export function FinishesPanel({
   const [draft, setDraft] = useState({ tag: "", description: "", template: "", material: "" });
   const [newFor, setNewFor] = useState<{ finishId: string | null; category: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // The panel starts closed and stays the way this person left it, in this browser.
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    try {
+      setOpen(finishesPanelOpen(window.localStorage.getItem(FINISHES_PANEL_KEY)));
+    } catch {
+      /* storage blocked: the panel just starts closed */
+    }
+  }, []);
+  const toggleOpen = () => {
+    const next = !open;
+    setOpen(next);
+    try {
+      window.localStorage.setItem(FINISHES_PANEL_KEY, next ? "open" : "closed");
+    } catch {
+      /* not remembered */
+    }
+  };
+  const summary = finishesSummary(finishes);
 
   const patch = async (f: Finish, p: Partial<Finish>) => {
     try {
@@ -96,11 +117,31 @@ export function FinishesPanel({
 
   return (
     <section className="rounded-lg border border-border bg-card">
-      <header className="border-b border-border px-4 py-2.5">
-        <h2 className="text-sm font-semibold">Finishes on this job</h2>
-        <p className="text-xs text-muted-foreground">One row per tag on the drawings. Lines added for a tag use its assembly and material.</p>
-      </header>
-      <div className="overflow-x-auto">
+      <h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="finishes-panel-body"
+          onClick={toggleOpen}
+          className={cn("flex min-h-11 w-full items-center gap-3 rounded-lg px-4 py-2.5 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", open && "rounded-b-none border-b border-border")}
+        >
+          {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />}
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Finishes on this job</span>
+            {open && <span className="block text-xs font-normal text-muted-foreground">One row per tag on the drawings. Lines added for a tag use its assembly and material.</span>}
+          </span>
+          <span className="shrink-0 text-right text-xs font-normal text-muted-foreground">
+            {summary.countText}
+            {summary.materialText && (
+              <>
+                {" · "}
+                <span className={summary.needMaterial > 0 ? "font-medium text-amber-700" : undefined}>{summary.materialText}</span>
+              </>
+            )}
+          </span>
+        </button>
+      </h2>
+      <div id="finishes-panel-body" hidden={!open} className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>

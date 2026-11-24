@@ -149,3 +149,75 @@ describe("sections a line can be moved to", () => {
     expect(sectionChoices([])).toEqual(["Flooring", "Window coverings", "Prep", "General"]);
   });
 });
+
+import { lineWasteShown, mainPart, setPartCoverage, setPartWaste, wasteApplies } from "./lines";
+import { priceEstimateLine } from "./assemble";
+describe("waste typed on an estimate line", () => {
+  const line = { driver_qty: 100, driver_uom: "SF" as const, markup_pct: 0, price_basis: "markup" as const, margin_pct: null, fixed_sell_cents: null, tax_code: "GST" as const };
+  const cost = (parts: SnapComponent[]) => priceEstimateLine(line, parts, { pstPct: 7 }).costCents;
+  const mat = (p: Partial<SnapComponent> = {}) => c({ kind: "material", source: "catalogue", catalogue_material_id: "m1", unit_cost_cents: 400, ...p });
+  const lab = (p: Partial<SnapComponent> = {}) => c({ kind: "labour", source: "labour_rate", labour_rate_id: "l1", unit_cost_cents: 75, ...p });
+
+  test("the line's waste drives its main part: the finish material, or failing that the first part that is not labour", () => {
+    expect(mainPart([lab(), mat({ source: "finish_material" }), mat()])).toBe(1);
+    expect(mainPart([lab(), mat(), mat()])).toBe(1);
+    expect(mainPart([c({})])).toBe(0);
+    expect(mainPart([lab()])).toBe(0);
+    expect(mainPart([lab(), lab()])).toBe(-1);
+    expect(mainPart([])).toBe(-1);
+  });
+  test("a part left out of the line is never the main part while another is in", () => {
+    expect(mainPart([mat({ not_applicable: true }), mat()])).toBe(1);
+  });
+  test("a line whose material came from the catalogue takes the line's waste (it used to be ignored)", () => {
+    const out = setLineWaste([mat(), lab()], 5);
+    expect(out.map((x) => x.waste_pct)).toEqual([5, 0]);
+    expect(cost(out)).toBe(100 * 1.05 * 400 + 100 * 75);
+  });
+  test("a one-cost line (prep, misc, something measured in the takeoff) takes the line's waste", () => {
+    const out = setLineWaste([c({ unit_cost_cents: 275 })], 10);
+    expect(wasteApplies(out[0]!)).toBe(true);
+    expect(cost(out)).toBe(30250);
+    // and back to none
+    expect(cost(setLineWaste(out, 0))).toBe(27500);
+  });
+  test("waste typed on the main part is the line's waste", () => {
+    const r = setPartWaste([mat({ source: "finish_material" }), lab({ on_gross: true }), mat({ label: "Adhesive" })], 0, 8);
+    expect(r.lineWastePct).toBe(8);
+    expect(r.components.map((x) => x.waste_pct)).toEqual([8, 8, 0]);
+  });
+  test("waste typed on another part changes only that part, and the line's waste is left alone", () => {
+    const r = setPartWaste([mat({ source: "finish_material", waste_pct: 5 }), lab(), mat({ label: "Adhesive" })], 2, 12);
+    expect(r.lineWastePct).toBeUndefined();
+    expect(r.components.map((x) => x.waste_pct)).toEqual([5, 0, 12]);
+  });
+  test("waste typed on labour pays it on the wasted quantity; zero pays it on the measured quantity again", () => {
+    const parts = [mat({ source: "finish_material", waste_pct: 5 }), lab()];
+    const on = setPartWaste(parts, 1, 5).components;
+    expect(on[1]).toMatchObject({ waste_pct: 5, on_gross: true });
+    expect(cost(on)).toBe(100 * 1.05 * 400 + Math.round(100 * 1.05 * 75));
+    const off = setPartWaste(on, 1, 0).components;
+    expect(off[1]).toMatchObject({ waste_pct: 0, on_gross: false });
+    expect(cost(off)).toBe(100 * 1.05 * 400 + 7500);
+  });
+  test("typing waste never touches a cost, so an unknown cost stays unknown", () => {
+    const r = setPartWaste([mat({ unit_cost_cents: null })], 0, 5);
+    expect(r.components[0]!.unit_cost_cents).toBeNull();
+    expect(r.components[0]!.cost_overridden).toBe(false);
+  });
+  test("the waste shown on the line is the waste its cost really includes", () => {
+    expect(lineWasteShown(5, [mat({ waste_pct: 0 }), lab()])).toBe(0); // stored 5 that was never applied
+    expect(lineWasteShown(5, [mat({ source: "finish_material", waste_pct: 5 })])).toBe(5);
+    expect(lineWasteShown(5, [c({ waste_pct: 5 })])).toBe(0); // a plain cost row with waste not switched on
+    expect(lineWasteShown(7, [lab(), lab()])).toBe(7); // nothing to read it from
+  });
+});
+
+describe("what one purchase unit covers, typed on a line", () => {
+  test("changes that part only", () => {
+    const parts = [c({ kind: "material", purchase_uom: "pail", cost_uom: "pail", coverage_per_purchase_unit: 250, round_up: true }), c({})];
+    const out = setPartCoverage(parts, 0, 200);
+    expect(out[0]!.coverage_per_purchase_unit).toBe(200);
+    expect(out[1]).toEqual(parts[1]!);
+  });
+});

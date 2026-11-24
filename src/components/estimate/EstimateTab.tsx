@@ -31,7 +31,7 @@ import {
   type EstVersion,
   type SaveItem,
 } from "@/lib/estimating/data";
-import { changeLineUnit, costInUnit, costTarget, lineFromFinish, partChoices, partFor, sectionChoices, setLineWaste, simpleLine, unitChoices, type PartKind } from "@/lib/estimating/lines";
+import { changeLineUnit, costInUnit, costTarget, lineFromFinish, lineWasteShown, partChoices, partFor, sectionChoices, setLineWaste, setPartCoverage, setPartWaste, simpleLine, unitChoices, wasteApplies, type PartKind } from "@/lib/estimating/lines";
 import type { CatalogueView } from "@/lib/estimating/assemble";
 import type { LabourRate, Material } from "@/lib/catalogue/data";
 import type { Uom } from "@/lib/estimating/calc";
@@ -39,8 +39,8 @@ import { versionSummary, type Rates } from "@/lib/estimating/worksheet";
 import { errText } from "@/lib/platform/db";
 import { cn } from "@/lib/utils";
 
-const cell = "px-3 py-2 align-middle";
-const numInput = "h-10 w-20 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums disabled:border-transparent disabled:bg-transparent";
+const cell = "px-2 py-2 align-middle";
+const numInput = "h-10 w-16 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums disabled:border-transparent disabled:bg-transparent";
 
 /** The project's estimate: Base and alternates, each a worksheet of priced lines. */
 export function EstimateTab({ projectId }: { projectId: string }) {
@@ -395,17 +395,18 @@ export function EstimateTab({ projectId }: { projectId: string }) {
           <p className="p-8 text-center text-sm text-muted-foreground">No lines yet. Add the job's finishes above, then add a line for each area.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-[1040px] text-sm">
               <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="w-10 px-3 py-2" />
-                  <th className="px-3 py-2 font-medium">Line</th>
-                  <th className="px-3 py-2 text-right font-medium">Quantity</th>
-                  <th className="px-3 py-2 text-right font-medium">Waste %</th>
-                  <th className="px-3 py-2 text-right font-medium">Cost</th>
-                  <th className="px-3 py-2 text-right font-medium">Markup %</th>
-                  <th className="px-3 py-2 text-right font-medium">Margin</th>
-                  <th className="px-3 py-2 text-right font-medium">Sell</th>
+                  <th className="px-2 py-2 font-medium">Line</th>
+                  <th className="px-2 py-2 text-right font-medium">Quantity</th>
+                  <th className="px-2 py-2 text-right font-medium">Waste %</th>
+                  <th className="px-2 py-2 text-right font-medium">Unit cost</th>
+                  <th className="px-2 py-2 text-right font-medium">Cost</th>
+                  <th className="px-2 py-2 text-right font-medium whitespace-nowrap">Markup %</th>
+                  <th className="px-2 py-2 text-right font-medium">Margin</th>
+                  <th className="px-2 py-2 text-right font-medium">Sell</th>
                   <th className="w-10" />
                 </tr>
               </thead>
@@ -427,11 +428,11 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                           if (dragId) moveTo([dragId], section);
                         }}
                       >
-                        <th colSpan={7} scope="rowgroup" className="px-3 py-1.5 text-left text-sm font-semibold">
+                        <th colSpan={8} scope="rowgroup" className="px-3 py-1.5 text-left text-sm font-semibold">
                           {section}
                           {dragId && <span className="ml-2 text-xs font-normal text-muted-foreground">drop here to move it to {section}</span>}
                         </th>
-                        <td className="px-3 py-1.5 text-right text-sm font-semibold tabular-nums">{dollars(sub?.sellCents ?? 0)}</td>
+                        <td className="px-2 py-1.5 text-right text-sm font-semibold tabular-nums">{dollars(sub?.sellCents ?? 0)}</td>
                         <td />
                       </tr>
                       {lines.map((l) => (
@@ -469,31 +470,31 @@ export function EstimateTab({ projectId }: { projectId: string }) {
               </tbody>
               <tfoot className="border-t-2 border-border text-sm">
                 <tr>
-                  <td colSpan={4} className="px-3 py-2 text-right font-medium">
+                  <td colSpan={5} className="px-2 py-2 text-right font-medium">
                     Subtotal
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">{dollars(sum.costCents)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{dollars(sum.costCents)}</td>
                   <td />
-                  <td className="px-3 py-2 text-right tabular-nums">{sum.marginPct.toFixed(1)}%</td>
-                  <td className="px-3 py-2 text-right font-semibold tabular-nums">{dollars(sum.sellCents)}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{sum.marginPct.toFixed(1)}%</td>
+                  <td className="px-2 py-2 text-right font-semibold tabular-nums">{dollars(sum.sellCents)}</td>
                   <td />
                 </tr>
                 {Object.entries(sum.totals.taxByCode)
                   .filter(([, cents]) => cents > 0)
                   .map(([code, cents]) => (
                     <tr key={code}>
-                      <td colSpan={7} className="px-3 py-1 text-right text-muted-foreground">
+                      <td colSpan={8} className="px-2 py-1 text-right text-muted-foreground">
                         {code} {code === "GST" ? rates.gstPct : rates.hstPct}%
                       </td>
-                      <td className="px-3 py-1 text-right tabular-nums">{dollars(cents)}</td>
+                      <td className="px-2 py-1 text-right tabular-nums">{dollars(cents)}</td>
                       <td />
                     </tr>
                   ))}
                 <tr>
-                  <td colSpan={7} className="px-3 py-2 text-right font-semibold">
+                  <td colSpan={8} className="px-2 py-2 text-right font-semibold">
                     Total
                   </td>
-                  <td className="px-3 py-2 text-right text-base font-semibold tabular-nums">{dollars(sum.totals.totalCents)}</td>
+                  <td className="px-2 py-2 text-right text-base font-semibold tabular-nums">{dollars(sum.totals.totalCents)}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -638,6 +639,26 @@ function LineRows({
     if (raw.trim() !== "" && cents == null) return void toast.error("Enter the cost in dollars, or leave it blank if unknown");
     if (cents !== c.unit_cost_cents) onCost(i, cents);
   };
+  /** Waste typed on one part. On the line's main part it is the line's waste; it is kept on the line and never changes the catalogue. */
+  const commitPartWaste = (i: number, raw: string) => {
+    const c = line.components[i]!;
+    commitNumber(raw, wasteApplies(c) ? c.waste_pct : 0, 100, (n) => {
+      const r = setPartWaste(line.components, i, n);
+      return [r.lineWastePct == null ? {} : { waste_pct: r.lineWastePct }, r.components];
+    });
+  };
+  const commitCoverage = (i: number, raw: string) => {
+    const n = Number(raw.replace(/,/g, ""));
+    if (raw.trim() === "" || !Number.isFinite(n) || n <= 0) return void toast.error("Enter how much one covers, above zero");
+    if (n !== line.components[i]!.coverage_per_purchase_unit) onSave({}, setPartCoverage(line.components, i, n));
+  };
+  /** A selling price set by hand (an imported line). Blank means not known yet, never zero. */
+  const commitFixedSell = (raw: string) => {
+    const cents = raw.trim() === "" ? null : parseMoneyCents(raw);
+    if (raw.trim() !== "" && cents == null) return void toast.error("Enter the selling price in dollars, or leave it blank if unknown");
+    if (cents !== line.fixed_sell_cents) onSave({ fixed_sell_cents: cents });
+  };
+  const wasteShown = lineWasteShown(line.waste_pct, line.components);
   // A line made of one thing has its unit cost right on the row. A line made of several opens to show each.
   const needed = line.components.map((c, i) => ({ c, i })).filter((x) => !x.c.not_applicable);
   const single = needed.length === 1 ? needed[0]! : null;
@@ -693,7 +714,7 @@ function LineRows({
           <div className="flex flex-wrap items-center gap-x-2 px-2 text-xs text-muted-foreground">
             <span>{line.cost_code ?? "No cost code"}</span>
             {editable && (
-              <select aria-label={`Section for ${line.description || "this line"}`} value={line.section} onChange={(e) => onMove(e.target.value)} className="h-7 rounded border border-transparent bg-transparent px-1 text-xs hover:border-input">
+              <select aria-label={`Section for ${line.description || "this line"}`} value={line.section} onChange={(e) => onMove(e.target.value)} className="h-7 max-w-40 rounded border border-transparent bg-transparent px-1 text-xs hover:border-input">
                 {sectionChoices(sections).map((x) => (
                   <option key={x} value={x}>
                     in {x}
@@ -705,7 +726,7 @@ function LineRows({
             {editable && !fixed && (
               <span className="inline-flex items-center gap-1">
                 {(["install", "adhesive", "prep"] as const).map((kind) => (
-                  <select key={kind} aria-label={`Add ${kind} to ${line.description || "this line"}`} value="" onChange={(e) => e.target.value && addPart(kind, e.target.value)} className="h-7 rounded border border-input bg-background px-1 text-xs">
+                  <select key={kind} aria-label={`Add ${kind} to ${line.description || "this line"}`} value="" onChange={(e) => e.target.value && addPart(kind, e.target.value)} className="h-7 w-20 rounded border border-input bg-background px-1 text-xs">
                     <option value="">+ {kind === "install" ? "Install" : kind === "adhesive" ? "Adhesive" : "Prep"}</option>
                     {partChoices(kind, materials, labour, line.driver_uom).map((c) => (
                       <option key={c.id} value={`${c.type}:${c.id}`}>
@@ -728,7 +749,7 @@ function LineRows({
           </div>
         </td>
         <td className={cn(cell, "whitespace-nowrap text-right")}>
-          <input key={`${line.id}-q-${line.row_version}`} aria-label="Quantity" disabled={!editable} inputMode="decimal" defaultValue={line.driver_qty} onBlur={(e) => commitNumber(e.target.value, line.driver_qty, 1e9, (n) => [{ driver_qty: n }])} className={cn(numInput, "w-24")} />
+          <input key={`${line.id}-q-${line.row_version}`} aria-label="Quantity" disabled={!editable} inputMode="decimal" defaultValue={line.driver_qty} onBlur={(e) => commitNumber(e.target.value, line.driver_qty, 1e9, (n) => [{ driver_qty: n }])} className={cn(numInput, "w-20")} />
           <select
             key={`${line.id}-uom-${line.row_version}`}
             aria-label={`Unit of measure for ${line.description || "this line"}`}
@@ -753,45 +774,72 @@ function LineRows({
           </select>
         </td>
         <td className={cn(cell, "text-right")}>
-          <input key={`${line.id}-w-${line.row_version}`} aria-label="Waste percent" disabled={!editable || fixed} inputMode="decimal" defaultValue={line.waste_pct} onBlur={(e) => commitNumber(e.target.value, line.waste_pct, 100, (n) => [{ waste_pct: n }, setLineWaste(line.components, n)])} className={numInput} />
+          <input key={`${line.id}-w-${line.row_version}`} aria-label="Waste percent" disabled={!editable || fixed} inputMode="decimal" defaultValue={wasteShown} onBlur={(e) => commitNumber(e.target.value, wasteShown, 100, (n) => [{ waste_pct: n }, setLineWaste(line.components, n)])} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className={numInput} />
         </td>
-        <td className={cn(cell, "text-right tabular-nums")}>
-          {single && !fixed && (editable || single.c.unit_cost_cents != null) && (
-            <div className="mb-0.5 flex items-center justify-end gap-1 whitespace-nowrap">
-              <span className="text-xs text-muted-foreground">$</span>
-              <input
-                key={`${line.id}-u-${line.row_version}`}
-                aria-label={`Unit cost of ${line.description || single.c.label} per ${single.c.cost_uom}`}
-                disabled={!editable}
-                inputMode="decimal"
-                placeholder="Add cost"
-                defaultValue={single.c.unit_cost_cents == null ? "" : (single.c.unit_cost_cents / 100).toFixed(2)}
-                onBlur={(e) => commitCost(single.i, e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                className={cn(numInput, "w-24", single.c.unit_cost_cents == null && "border-amber-400 bg-amber-50 placeholder:text-amber-800")}
-              />
-              <span className="text-xs text-muted-foreground">/ {single.c.cost_uom}</span>
-            </div>
-          )}
-          {priced.unknown ? (
-            single ? null : (
-              <button type="button" onClick={onToggle} className="rounded-md border border-amber-400 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100" title="Some costs are not known yet">
-                {dollars(priced.costCents)}+ · {expanded ? "Hide costs" : "Add costs"}
-              </button>
+        <td className={cn(cell, "text-right")}>
+          {single && !fixed ? (
+            (editable || single.c.unit_cost_cents != null) && (
+              <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                <span className="text-xs text-muted-foreground">$</span>
+                <input
+                  key={`${line.id}-u-${line.row_version}`}
+                  aria-label={`Unit cost of ${line.description || single.c.label} per ${single.c.cost_uom}`}
+                  disabled={!editable}
+                  inputMode="decimal"
+                  placeholder="Add cost"
+                  defaultValue={single.c.unit_cost_cents == null ? "" : (single.c.unit_cost_cents / 100).toFixed(2)}
+                  onBlur={(e) => commitCost(single.i, e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  className={cn(numInput, "w-20", single.c.unit_cost_cents == null && "border-amber-400 bg-amber-50 placeholder:text-amber-800")}
+                />
+                <span className="w-9 text-left text-xs text-muted-foreground">/ {single.c.cost_uom}</span>
+              </div>
             )
           ) : (
-            dollars(priced.costCents)
+            line.components.length > 0 && (
+              <button
+                type="button"
+                aria-expanded={expanded}
+                onClick={onToggle}
+                title={priced.unknown ? "Some costs are not known yet" : "Show each part and its unit cost"}
+                className={cn("h-10 whitespace-nowrap rounded-md border px-2 text-xs", priced.unknown ? "border-amber-400 bg-amber-50 font-medium text-amber-800 hover:bg-amber-100" : "border-transparent text-muted-foreground hover:border-input hover:text-foreground")}
+              >
+                {expanded ? "Hide parts" : priced.unknown && editable ? "Add costs" : `${needed.length} ${needed.length === 1 ? "part" : "parts"}`}
+              </button>
+            )
           )}
+        </td>
+        <td className={cn(cell, "whitespace-nowrap text-right tabular-nums", priced.unknown && "font-medium text-amber-800")} title={priced.unknown ? "Some costs are not known yet, so this is not the whole cost" : undefined}>
+          {dollars(priced.costCents)}
+          {priced.unknown ? "+" : ""}
         </td>
         <td className={cn(cell, "text-right")}>
           {fixed ? (
             <span className="tabular-nums text-muted-foreground">{priced.unknown ? "—" : priced.markupPct.toFixed(1)}</span>
           ) : (
-            <input key={`${line.id}-m-${line.row_version}`} aria-label="Markup percent" disabled={!editable} inputMode="decimal" defaultValue={line.price_basis === "margin" ? priced.markupPct : line.markup_pct} onBlur={(e) => commitNumber(e.target.value, line.price_basis === "margin" ? priced.markupPct : line.markup_pct, 1000, (n) => [{ markup_pct: n, price_basis: "markup" }])} className={numInput} />
+            <input key={`${line.id}-m-${line.row_version}`} aria-label="Markup percent" disabled={!editable} inputMode="decimal" defaultValue={line.price_basis === "margin" ? priced.markupPct : line.markup_pct} onBlur={(e) => commitNumber(e.target.value, line.price_basis === "margin" ? priced.markupPct : line.markup_pct, 1000, (n) => [{ markup_pct: n, price_basis: "markup" }])} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className={numInput} />
           )}
         </td>
         <td className={cn(cell, "text-right tabular-nums text-muted-foreground")}>{priced.unknown ? "—" : `${priced.marginPct.toFixed(1)}%`}</td>
-        <td className={cn(cell, "text-right font-medium tabular-nums")}>{dollars(priced.sellCents)}</td>
+        <td className={cn(cell, "whitespace-nowrap text-right font-medium tabular-nums")}>
+          {fixed && editable ? (
+            <>
+              <span className="text-xs font-normal text-muted-foreground">$ </span>
+              <input
+                key={`${line.id}-fs-${line.row_version}`}
+                aria-label={`Selling price of ${line.description || "this line"}`}
+                inputMode="decimal"
+                placeholder="Set price"
+                defaultValue={line.fixed_sell_cents == null ? "" : (line.fixed_sell_cents / 100).toFixed(2)}
+                onBlur={(e) => commitFixedSell(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                className={cn(numInput, "w-28 font-medium")}
+              />
+            </>
+          ) : (
+            dollars(priced.sellCents)
+          )}
+        </td>
         <td className="px-1">
           {editable && (
             <button type="button" aria-label={`Delete ${line.description}`} onClick={onDelete} className="grid h-9 w-9 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-destructive">
@@ -803,14 +851,14 @@ function LineRows({
       {expanded && (
         <tr className="border-b border-border bg-muted/30">
           <td />
-          <td colSpan={8} className="px-3 py-3">
+          <td colSpan={9} className="px-3 py-3">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="py-1 font-medium">Made up of</th>
                   <th className="py-1 text-right font-medium">Unit cost</th>
                   <th className="py-1 text-right font-medium">Order</th>
-                  <th className="py-1 text-right font-medium">Waste</th>
+                  <th className="py-1 text-right font-medium">Waste %</th>
                   <th className="py-1 text-right font-medium">Cost</th>
                   <th className="py-1 pl-4 font-medium">Not needed</th>
                 </tr>
@@ -825,25 +873,54 @@ function LineRows({
                         {c.cost_overridden ? " · typed here" : ""}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap py-1 text-right">
-                      $
-                      <input
-                        key={`${line.id}-c${i}-${line.row_version}`}
-                        aria-label={`Unit cost of ${c.label}`}
-                        disabled={!editable}
-                        inputMode="decimal"
-                        placeholder="Unknown"
-                        defaultValue={c.unit_cost_cents == null ? "" : (c.unit_cost_cents / 100).toFixed(2)}
-                        onBlur={(e) => commitCost(i, e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                        className={cn(numInput, "ml-1 w-24")}
-                      />
-                      <span className="ml-1 text-xs text-muted-foreground">/ {c.cost_uom}</span>
+                    <td className="py-1">
+                      <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                        <span className="text-xs text-muted-foreground">$</span>
+                        <input
+                          key={`${line.id}-c${i}-${line.row_version}`}
+                          aria-label={`Unit cost of ${c.label}`}
+                          disabled={!editable}
+                          inputMode="decimal"
+                          placeholder="Unknown"
+                          defaultValue={c.unit_cost_cents == null ? "" : (c.unit_cost_cents / 100).toFixed(2)}
+                          onBlur={(e) => commitCost(i, e.target.value)}
+                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                          className={cn(numInput, "w-24")}
+                        />
+                        <span className="w-12 text-left text-xs text-muted-foreground">/ {c.cost_uom}</span>
+                      </div>
                     </td>
                     <td className="py-1 text-right tabular-nums">
                       {priced.components[i]!.purchaseQty.toLocaleString("en-CA")} {c.purchase_uom}
+                      {c.coverage_per_purchase_unit != null && (
+                        <div className="flex items-center justify-end gap-1 whitespace-nowrap text-xs text-muted-foreground">
+                          one covers
+                          <input
+                            key={`${line.id}-cv${i}-${line.row_version}`}
+                            aria-label={`${line.driver_uom} covered by one ${c.purchase_uom} of ${c.label}`}
+                            disabled={!editable}
+                            inputMode="decimal"
+                            defaultValue={c.coverage_per_purchase_unit}
+                            onBlur={(e) => commitCoverage(i, e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                            className={cn(numInput, "h-8 w-20 text-xs")}
+                          />
+                          {line.driver_uom}
+                        </div>
+                      )}
                     </td>
-                    <td className="py-1 text-right tabular-nums">{c.kind === "material" || c.on_gross ? `${c.waste_pct}%` : "—"}</td>
+                    <td className="py-1 text-right">
+                      <input
+                        key={`${line.id}-w${i}-${line.row_version}`}
+                        aria-label={`Waste percent on ${c.label}`}
+                        disabled={!editable || fixed}
+                        inputMode="decimal"
+                        defaultValue={wasteApplies(c) ? c.waste_pct : 0}
+                        onBlur={(e) => commitPartWaste(i, e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                        className={numInput}
+                      />
+                    </td>
                     <td className="py-1 text-right tabular-nums">{c.unit_cost_cents == null && !c.not_applicable ? "Unknown" : dollars(priced.components[i]!.costCents)}</td>
                     <td className="py-1 pl-4">
                       <input type="checkbox" aria-label={`${c.label} is not needed on this line`} className="h-4 w-4" disabled={!editable} checked={c.not_applicable} onChange={(e) => saveComponent(i, { not_applicable: e.target.checked })} />

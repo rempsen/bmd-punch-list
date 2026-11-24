@@ -3,10 +3,46 @@ import { buildComponents, simpleComponent, type CatalogueView, type SnapComponen
 import type { Uom } from "./calc";
 import type { Finish, LineKind, SaveItem } from "./data";
 
-/** A line's waste drives its finish material, and labour that is paid on the wasted quantity. */
-export function setLineWaste(components: SnapComponent[], wastePct: number): SnapComponent[] {
-  return components.map((c) => (c.source === "finish_material" || (c.kind === "labour" && c.on_gross) ? { ...c, waste_pct: wastePct } : c));
+/** Whether a part's waste is in its cost: materials always, labour and plain costs only when paid on the wasted quantity. */
+export const wasteApplies = (c: SnapComponent): boolean => c.kind === "material" || (c.kind === "fixed" && c.pst_applies) || c.on_gross;
+
+/**
+ * The part a line's waste belongs to: its finish material, or failing that the first part that is not labour,
+ * or the only part there is. -1 when it cannot be told (several labour rows and nothing else).
+ */
+export function mainPart(components: SnapComponent[]): number {
+  const live = components.map((c, i) => ({ c, i })).filter((x) => !x.c.not_applicable);
+  const pool = live.length > 0 ? live : components.map((c, i) => ({ c, i }));
+  const found = pool.find((x) => x.c.source === "finish_material") ?? pool.find((x) => x.c.kind !== "labour") ?? (pool.length === 1 ? pool[0] : undefined);
+  return found?.i ?? -1;
 }
+
+/** One part with its waste typed. Labour and plain costs are paid on the wasted quantity exactly when there is waste to pay on. */
+const withWaste = (c: SnapComponent, wastePct: number): SnapComponent => (c.kind === "material" ? { ...c, waste_pct: wastePct } : { ...c, waste_pct: wastePct, on_gross: wastePct > 0 });
+
+/** A line's waste drives its main part, and labour that is paid on the wasted quantity. It is kept on the line and never changes the catalogue. */
+export function setLineWaste(components: SnapComponent[], wastePct: number): SnapComponent[] {
+  const main = mainPart(components);
+  return components.map((c, i) => (i === main ? withWaste(c, wastePct) : c.kind === "labour" && c.on_gross ? { ...c, waste_pct: wastePct } : c));
+}
+
+/**
+ * Waste typed on one part of a line. On the main part it is the line's waste (returned as `lineWastePct`, to save on the line);
+ * on any other part it changes that part alone.
+ */
+export function setPartWaste(components: SnapComponent[], index: number, wastePct: number): { components: SnapComponent[]; lineWastePct?: number } {
+  if (index === mainPart(components)) return { components: setLineWaste(components, wastePct), lineWastePct: wastePct };
+  return { components: components.map((c, i) => (i === index ? withWaste(c, wastePct) : c)) };
+}
+
+/** The waste a line's cost really includes: its main part's. Only when there is no main part is the stored figure all there is to show. */
+export function lineWasteShown(storedPct: number, components: SnapComponent[]): number {
+  const main = components[mainPart(components)];
+  return main ? (wasteApplies(main) ? main.waste_pct : 0) : storedPct;
+}
+
+/** How much of the line one purchase unit of a part covers (SF per pail, say), typed on the line. Kept on the line. */
+export const setPartCoverage = (components: SnapComponent[], index: number, coverage: number): SnapComponent[] => components.map((c, i) => (i === index ? { ...c, coverage_per_purchase_unit: coverage } : c));
 
 /** A new estimate line for a finish tag, with its assembly snapshotted from the catalogue as it is now. */
 export function lineFromFinish(a: { versionId: string; finish: Finish; template: Template; catalogue: CatalogueView; qty: number; section: string; markupPct: number; source?: "manual" | "import" | "takeoff" }): { item: SaveItem; issues: string[] } {
