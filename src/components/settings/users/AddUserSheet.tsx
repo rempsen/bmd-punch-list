@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { AppRole } from "@/lib/roles";
-import { accessSummary, validateInvite, type JobPick } from "@/lib/users/logic";
+import { accessSummary, validateInvite, type JobPick, defaultAllJobs } from "@/lib/users/logic";
 import { inviteUser } from "@/lib/users/users.functions";
 import { errText, useJobOptions, useRefreshUsers } from "./data";
 import { JobAccessPicker } from "./JobAccessPicker";
@@ -22,7 +22,7 @@ export function AddUserSheet({ open, onOpenChange, actorIsSuper }: { open: boole
   const [fullName, setFullName] = useState("");
   const [company, setCompany] = useState("");
   const [level, setLevel] = useState<AppRole>("bmd_field");
-  const [allJobs, setAllJobs] = useState(false);
+  const [allJobs, setAllJobs] = useState(defaultAllJobs("bmd_field"));
   const [picks, setPicks] = useState<JobPick[]>([]);
   const [send, setSend] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -32,7 +32,7 @@ export function AddUserSheet({ open, onOpenChange, actorIsSuper }: { open: boole
     setFullName("");
     setCompany("");
     setLevel("bmd_field");
-    setAllJobs(false);
+    setAllJobs(defaultAllJobs("bmd_field"));
     setPicks([]);
     setSend(true);
   };
@@ -86,7 +86,7 @@ export function AddUserSheet({ open, onOpenChange, actorIsSuper }: { open: boole
           </section>
           <section className="space-y-3">
             <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Level</h3>
-            <LevelPicker value={level} onChange={setLevel} actorIsSuper={actorIsSuper} />
+            <LevelPicker value={level} onChange={(l) => { setLevel(l); setAllJobs(defaultAllJobs(l)); }} actorIsSuper={actorIsSuper} />
             <p className="text-xs text-muted-foreground">What each level can do is set under Roles.</p>
           </section>
           <section className="space-y-3">
