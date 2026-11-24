@@ -1,7 +1,7 @@
 /**
  * BMD Projects' own connection to QuickBooks Online (Intuit OAuth 2 and the Accounting API).
  * No environment access here: callers pass fetch, the app's credentials and a store, so this runs on the server and under test.
- * One connection serves the whole company. Reading is all this file does; nothing here writes to QuickBooks.
+ * One connection serves the whole company. Reads, plus `post` for the few writes BMD makes (purchase orders and the vendors they need).
  */
 import { decryptToken, encryptToken } from "@/lib/ms/core";
 
@@ -109,7 +109,28 @@ export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboSt
     return ((body["CompanyInfo"] as { CompanyName?: string } | undefined)?.CompanyName ?? null) || null;
   }
 
-  return { exchangeCode, getAccessToken, queryAll, companyName };
+  /** Writes to QuickBooks (purchase orders, vendors). Same token handling and error reporting as reads. */
+  async function post(path: string, body: unknown, auth?: { accessToken: string; realmId: string }): Promise<Record<string, unknown>> {
+    const a = auth ?? (await getAccessToken());
+    const sep = path.includes("?") ? "&" : "?";
+    const res = await deps.fetch(`${api}/v3/company/${encodeURIComponent(a.realmId)}/${path}${sep}minorversion=75`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${a.accessToken}`, accept: "application/json", "content-type": "application/json" },
+      body: body === undefined ? null : JSON.stringify(body),
+    });
+    const out = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const fault = (out["Fault"] as { Error?: { Message?: string; Detail?: string }[] } | undefined)?.Error?.[0];
+      const detail = fault?.Detail ? ` — ${fault.Detail.slice(0, 200)}` : "";
+      const message = `QuickBooks refused the request (${res.status}${fault?.Message ? `: ${fault.Message}` : ""})${detail}${tidOf(res)}.`;
+      console.error(`[qbo] POST ${path.split("?")[0]}: ${message}`);
+      await store.setError(message.slice(0, 500)).catch(() => {});
+      throw new Error(message);
+    }
+    return out;
+  }
+
+  return { exchangeCode, getAccessToken, queryAll, companyName, post };
 }
 
 // ── What a QuickBooks record is to BMD ──────────────────────────────────────────────────────────────────────────
