@@ -421,6 +421,20 @@
       "when": 1795538300436,
       "tag": "0058_admin_save_user_safeupdate",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795538422036,
+      "tag": "0059_scheduling",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795538452374,
+      "tag": "0060_scheduling_assignment_queue",
+      "breakpoints": true
     }
   ]
 }

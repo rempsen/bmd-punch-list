@@ -108,7 +108,7 @@ export function visitsCsv(visits: Visit[], project: { name: string; number: stri
   return ["Reference,Project,Client,Address,Start,End,Crew,Site contact,Notes", ...rows].join("\r\n");
 }
 
-const SCHEDULE_TZ = "America/Winnipeg";
+export const SCHEDULE_TZ = "America/Winnipeg";
 /** A visit's times as BMD reads them, in Winnipeg time: "Dec 3, 2026, 8:00 a.m. – 4:00 p.m.". */
 export function scheduleRange(startsAt: string, endsAt: string | null, timeZone = SCHEDULE_TZ): string {
   const f = new Intl.DateTimeFormat("en-CA", { dateStyle: "medium", timeStyle: "short", timeZone });
