@@ -446,10 +446,15 @@
     {
       "idx": 63,
       "version": "7",
-      "when": 1795539420630,
-      "tag": "0063_document_text_index",
       "when": 1795539325128,
       "tag": "0063_material_orders_on_accept",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795539325129,
+      "tag": "0063_document_text_index",
       "breakpoints": true
     }
   ]
