@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import type { Visit } from "@/lib/visits/logic";
-import { mergeTechnicians, shiftWeek, SUP, type Area, type Subcontractor, type Technician } from "./logic";
+import { mergeTechnicians, monthOf, shiftWeek, siteDay, SUP, type Area, type Subcontractor, type Technician } from "./logic";
 
 export type SchedVisit = Visit & {
   project_id: string;
@@ -193,4 +193,37 @@ export function useRefreshSchedule() {
     ])
       void qc.invalidateQueries({ queryKey: [k] });
   };
+}
+
+/** Every visit starting in the current month (a day either side, for visits near midnight in Winnipeg), for the Technicians page counts. */
+export function useMonthVisits() {
+  const { from, to } = monthOf(siteDay(new Date()));
+  return useQuery({
+    queryKey: ["sched-visits", "month", from],
+    queryFn: async () => {
+      const { data, error } = await db
+        .from("install_visits")
+        .select("id,starts_at,ends_at,status,assigned_user_id,assigned_name,technician_supplier_id,arriveping_assigned_to")
+        .gte("starts_at", `${from}T00:00:00Z`)
+        .lt("starts_at", `${to}T12:00:00Z`);
+      if (error) throw error;
+      return (data ?? []) as Pick<SchedVisit, "id" | "starts_at" | "ends_at" | "status" | "assigned_user_id" | "assigned_name" | "technician_supplier_id" | "arriveping_assigned_to">[];
+    },
+  });
+}
+
+/** One technician's visits, newest first: a subcontractor ("sup:<vendor id>") by its vendor link, staff by their login. */
+export function useTechnicianVisits(techId: string | null) {
+  return useQuery({
+    queryKey: ["sched-visits", "of", techId],
+    enabled: !!techId,
+    queryFn: async () => {
+      const q = db.from("install_visits").select(COLS);
+      const { data, error } = await (techId!.startsWith(SUP) ? q.eq("technician_supplier_id", techId!.slice(SUP.length)) : q.eq("assigned_user_id", techId!))
+        .order("starts_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []) as unknown as SchedVisit[];
+    },
+  });
 }

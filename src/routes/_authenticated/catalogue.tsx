@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { TechnicianVisits } from "@/components/scheduling/TechnicianVisits";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useRef, useState } from "react";
 import { Pencil, Plus, RefreshCw, Upload } from "lucide-react";
@@ -491,6 +492,14 @@ function SupplierDialog({ supplier, canEdit, onClose, onSaved }: { supplier: Sup
             <Input className="h-11" value={f.notes} onChange={set("notes")} />
           </F>
         </fieldset>
+        {supplier && supplier.supplies !== "materials" && (
+          <section className="space-y-2">
+            <h3 className="text-sm font-semibold">Visits</h3>
+            <div className="max-h-56 overflow-y-auto">
+              <TechnicianVisits techId={`sup:${supplier.id}`} />
+            </div>
+          </section>
+        )}
         <DialogFooter>
           {canEdit && supplier && <DeleteButton kind="supplier" id={supplier.id} name={supplier.name} onDeleted={onSaved} />}
           <Button variant="ghost" onClick={onClose}>
