@@ -79,7 +79,7 @@ export async function webhookSecret(): Promise<string | null> {
 
 /** Applies one webhook delivery. Only a database failure answers 500, so ArrivePing retries exactly when a retry can help. */
 export async function processInbound(body: unknown): Promise<InboundReply> {
-  const { applyInboundEvent, inboundEventKey, parseArrivePingEvent } =
+  const { applyInboundEvent, inboundEventKey, isOwnEcho, parseArrivePingEvent } =
     await import("@/lib/visits/logic");
   const { markAcked, markFailed, markIgnored, recordPending } = await import("./outbox.server");
   const done = (b: Record<string, unknown>): InboundReply => ({ status: 200, body: b });
@@ -161,6 +161,9 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
       return done({ ok: true, ignored: "not a BMD job" });
     rowId = await record(visit ?? null, ev.kind === "status" ? ev.status : ev.kind, ev.jobId);
     if (!visit) return await ignore(rowId, "no matching visit");
+    // A reschedule BMD itself just sent comes straight back as an event; applying it would only log it twice.
+    if (ev.kind === "rescheduled" && isOwnEcho(body, process.env["ARRIVEPING_API_KEY_NAME"]))
+      return await ignore(rowId, "own change");
 
     const plan = applyInboundEvent(visit, ev, new Date().toISOString());
     if (!plan.ok) return await ignore(rowId, plan.reason);
@@ -173,6 +176,7 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
     await prefillAreaProgress(db, visit.id, plan.patch["status"]);
     const logError = await logActivity(db, visit, [plan.event]);
     await markAcked(rowId);
+    if (plan.patch["status"] === "completed") await copyCompletionPhotos(visit, data);
     return done({
       ok: true,
       kind: ev.kind,
@@ -342,6 +346,7 @@ export async function reconcileVisits(
     updated++;
     await prefillAreaProgress(db, visit.id, (patch as Record<string, unknown>)["status"]);
     await logActivity(db, visit, events);
+    if ((patch as Record<string, unknown>)["status"] === "completed") await copyCompletionPhotos(visit, wo);
     // The sync queue shows what the check changed, the same as a webhook would have.
     const { recordPending, markAcked } = await import("./outbox.server");
     try {
@@ -364,6 +369,21 @@ export async function reconcileVisits(
   const checked = (visits ?? []).length;
   await saveLink({ last_check_error: firstError ?? null }).catch(() => {});
   return { ran: true, checked, updated, failed, ...(firstError ? { error: firstError } : {}) };
+}
+
+/** The crew's photos come across when the visit completes. Never fails the event that brought the completion. */
+async function copyCompletionPhotos(
+  visit: { id: string; project_id: string; arriveping_job_id?: string | null },
+  workOrder: unknown,
+): Promise<void> {
+  try {
+    const { importVisitPhotos } = await import("./photos.server");
+    const jobId = visit.arriveping_job_id ?? (workOrder && typeof workOrder === "object" ? (workOrder as { id?: unknown }).id : null);
+    const r = await importVisitPhotos({ ...visit, arriveping_job_id: typeof jobId === "string" ? jobId : null }, workOrder);
+    if (r.error) console.error(`ArrivePing photos for visit ${visit.id}: ${r.error}`);
+  } catch (error) {
+    console.error(`ArrivePing photos for visit ${visit.id}:`, error);
+  }
 }
 
 /**

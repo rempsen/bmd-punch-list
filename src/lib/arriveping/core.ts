@@ -96,6 +96,56 @@ export function workOrderPayload(visit: VisitForPush, project: ProjectForPush, c
   };
 }
 
+/** The body ArrivePing's PATCH /api/v1/workorders/{id} takes when BMD re-times a visit: the schedule, and the site contact and crew notes as they now stand. */
+export function reschedulePayload(visit: VisitForPush): Record<string, unknown> {
+  const { start_at, end_at, site_contact, notes_for_crew } = workOrderPayload(visit, { id: "", name: "", number: null, address: null, client: null });
+  return { start_at, ...(end_at ? { end_at } : {}), ...(site_contact ? { site_contact } : {}), ...(notes_for_crew ? { notes_for_crew } : {}) };
+}
+
+/** A completion photo as ArrivePing describes it (§9 of the API requirements): a signed, time-limited `url` and whatever else it knows. */
+export type ApPhoto = { id: string; url: string; contentType: string | null; takenAt: string | null; takenBy: string | null; caption: string | null };
+
+/**
+ * The photos on a work order, from `photos[]` and `completion_photos[]` (on the record itself, or under `work_order`).
+ * A bare URL counts as a photo; its URL (without its signature) is its id. Anything without an https URL is skipped.
+ */
+export function parseWorkOrderPhotos(workOrder: unknown): ApPhoto[] {
+  const wo = pick(workOrder, "work_order") && typeof pick(workOrder, "work_order") === "object" ? pick(workOrder, "work_order") : workOrder;
+  const lists = [pick(wo, "photos"), pick(wo, "completion_photos")].filter(Array.isArray) as unknown[][];
+  const out: ApPhoto[] = [];
+  const seen = new Set<string>();
+  const str = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
+  for (const raw of lists.flat()) {
+    const url = typeof raw === "string" ? raw : str(pick(raw, "url"));
+    if (!url || !/^https:\/\//i.test(url)) continue;
+    const rawId = typeof raw === "string" ? null : pick(raw, "id");
+    const id = typeof rawId === "number" && Number.isFinite(rawId) ? String(rawId) : (str(rawId) ?? url.split("?")[0]!);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const takenAt = str(pick(raw, "taken_at"));
+    const parsedAt = takenAt && !Number.isNaN(Date.parse(takenAt)) ? new Date(Date.parse(takenAt)).toISOString() : null;
+    const by = pick(raw, "taken_by");
+    out.push({
+      id,
+      url,
+      contentType: str(pick(raw, "content_type")),
+      takenAt: parsedAt,
+      takenBy: str(by) ?? str(pick(by, "name")),
+      caption: str(pick(raw, "caption")),
+    });
+  }
+  return out;
+}
+
+const IMAGE_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif", "image/gif": "gif" };
+
+/** Where a copied ArrivePing photo lives in the photo bucket: under the visit (which is how the bucket's read rule finds the job), named by ArrivePing's id. */
+export function photoStoragePath(visitId: string, photo: Pick<ApPhoto, "id" | "contentType" | "url">): string {
+  const ext = IMAGE_EXT[(photo.contentType ?? "").toLowerCase()] ?? (/\.(png|webp|heic|heif|gif)(\?|$)/i.exec(photo.url)?.[1]?.toLowerCase() ?? "jpg");
+  const safe = photo.id.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120) || "photo";
+  return `${visitId}/ap-${safe}.${ext}`;
+}
+
 /** The body ArrivePing's POST /api/v1/clients takes. `withEmail: false` is for an email that already belongs to someone on the ArrivePing team. */
 export function clientPayload(client: ClientForPush, opts: { withEmail: boolean } = { withEmail: true }): Record<string, unknown> {
   const email = opts.withEmail ? filled(client.email) : null;
@@ -268,6 +318,7 @@ export const AP_WEBHOOK_EVENTS = [
   "workorder.arrived",
   "workorder.started",
   "workorder.completed",
+  "workorder.status_changed",
   "workorder.cancelled",
   "workorder.deleted",
 ] as const;

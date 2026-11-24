@@ -8,6 +8,7 @@ import {
   errorCode,
   existingFromConflict,
   idempotencyKey,
+  reschedulePayload,
   workOrderPayload,
   type ClientForPush,
   type ProjectForPush,
@@ -117,6 +118,24 @@ export async function pushVisitCancel(deps: {
   return res.ok ? { outcome: "sent", jobId, key } : { outcome: "failed", error: res.error, key };
 }
 
+export type PushRescheduleOutcome =
+  | { outcome: "sent"; jobId: string; key: string }
+  | { outcome: "failed"; error: string; key: string }
+  | { outcome: "skipped"; reason: "not linked" };
+
+/** Puts a visit's current schedule (and site contact and crew notes) onto its ArrivePing work order. A visit that was never sent is skipped. Never throws. */
+export async function pushVisitReschedule(deps: {
+  fetchJson: FetchJson;
+  visit: VisitForPush & { arriveping_job_id: string | null };
+  key: string;
+}): Promise<PushRescheduleOutcome> {
+  const { fetchJson, visit, key } = deps;
+  const jobId = visit.arriveping_job_id;
+  if (!jobId) return { outcome: "skipped", reason: "not linked" };
+  const res = await call(fetchJson, `${AP_PATHS.workorders}/${encodeURIComponent(jobId)}`, reschedulePayload(visit), key, "PATCH");
+  return res.ok ? { outcome: "sent", jobId, key } : { outcome: "failed", error: res.error, key };
+}
+
 export type RetryRow = {
   direction: string;
   entity_type: string;
@@ -131,6 +150,7 @@ export type RetryPlan =
   | { action: "resend"; visitId: string; key: string }
   | { action: "relink"; visitId: string; jobId: string }
   | { action: "cancel"; visitId: string }
+  | { action: "reschedule"; visitId: string; key: string }
   | { action: "ignore"; reason: string }
   | { action: "skip"; reason: string };
 
@@ -147,6 +167,11 @@ export function planRetry(row: RetryRow): RetryPlan {
   if (row.direction !== "out" || row.entity_type !== "visit" || !row.entity_id)
     return { action: "ignore", reason: "retry not supported yet" };
   if (row.event_type === "cancel") return { action: "cancel", visitId: row.entity_id };
+  // A reschedule carries the visit's times as they stand now; the same key makes a repeat of an identical body a no-op in ArrivePing.
+  if (row.event_type === "reschedule")
+    return row.idempotency_key
+      ? { action: "reschedule", visitId: row.entity_id, key: row.idempotency_key }
+      : { action: "ignore", reason: "no idempotency key" };
   if (row.event_type !== "create") return { action: "ignore", reason: "retry not supported yet" };
   if (row.external_id) return { action: "relink", visitId: row.entity_id, jobId: row.external_id };
   if (!row.idempotency_key) return { action: "ignore", reason: "no idempotency key" };

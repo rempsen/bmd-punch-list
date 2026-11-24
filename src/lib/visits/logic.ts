@@ -11,14 +11,16 @@ export function secretMatches(got: string | null | undefined, expected: string |
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const STATUSES: Record<string, VisitStatus> = { en_route: "en_route", enroute: "en_route", on_the_way: "en_route", arrived: "arrived", arrival: "arrived", completed: "completed", complete: "completed", cancelled: "cancelled", canceled: "cancelled", started: "arrived", in_progress: "arrived", deleted: "cancelled" };
+const STATUSES: Record<string, VisitStatus> = { en_route: "en_route", enroute: "en_route", on_the_way: "en_route", arrived: "arrived", arrival: "arrived", on_site: "arrived", completed: "completed", complete: "completed", cancelled: "cancelled", canceled: "cancelled", started: "arrived", in_progress: "arrived", deleted: "cancelled" };
 
 /** What a webhook body says happened, and to which visit. `at` is ArrivePing's own timestamp, as sent. */
 type EventRef = { jobId: string | null; visitId: string | null; at: string | null };
 export type ArrivePingEvent =
   | ({ kind: "status"; status: VisitStatus } & EventRef)
   | ({ kind: "assigned"; assignee: string | null } & EventRef)
-  | ({ kind: "rescheduled"; startsAt: string; endsAt: string | null } & EventRef);
+  | ({ kind: "rescheduled"; startsAt: string; endsAt: string | null } & EventRef)
+  /** A `workorder.status_changed` to a status BMD has no step for (paused, say): worth a line in Activity, nothing more. */
+  | ({ kind: "note"; status: string; from: string | null } & EventRef);
 
 const iso = (v: unknown): string | null | undefined => {
   if (v == null) return undefined;
@@ -65,6 +67,16 @@ export function parseArrivePingEvent(body: unknown): ArrivePingEvent | null {
     const assignee = personName(raw("assigned_to")) ?? personName(raw("tech")) ?? personName(raw("assignee"));
     return assignee ? { kind: "assigned", assignee, ...ref } : null;
   }
+  if (name === "status_changed") {
+    // The new status is in `changes.status.to` (the envelope's diff), on the record itself, or at the top level as `to`.
+    const changes = (b["changes"] && typeof b["changes"] === "object" ? b["changes"] : {}) as Record<string, unknown>;
+    const change = (changes["status"] && typeof changes["status"] === "object" ? changes["status"] : {}) as Record<string, unknown>;
+    const word = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim().toLowerCase() : null);
+    const to = word(change["to"]) ?? word(d["status"]) ?? word(b["to"]);
+    if (!to) return null;
+    const status = STATUSES[to];
+    return status ? { kind: "status", status, ...ref } : { kind: "note", status: to, from: word(change["from"]) ?? word(b["from"]), ...ref };
+  }
   if (name === "rescheduled" || name === "reschedule") {
     const sched = (d["schedule"] && typeof d["schedule"] === "object" ? d["schedule"] : {}) as Record<string, unknown>;
     const startsAt = iso(raw("start_at", "starts_at", "start") ?? sched["start_at"]);
@@ -75,6 +87,19 @@ export function parseArrivePingEvent(body: unknown): ArrivePingEvent | null {
   }
   const status = STATUSES[name];
   return status ? { kind: "status", status, ...ref } : null;
+}
+
+/**
+ * Whether a webhook delivery reports a change BMD itself made through the API, so it is not applied back. ArrivePing names
+ * the API key in `actor.api_key_name` on events its API caused; with no key name configured, nothing is treated as an echo.
+ */
+export function isOwnEcho(body: unknown, ownKeyName: string | null | undefined): boolean {
+  const want = (ownKeyName ?? "").trim().toLowerCase();
+  if (!want || !body || typeof body !== "object") return false;
+  const actor = (body as Record<string, unknown>)["actor"];
+  if (!actor || typeof actor !== "object") return false;
+  const a = actor as Record<string, unknown>;
+  return a["type"] === "api" && typeof a["api_key_name"] === "string" && a["api_key_name"].trim().toLowerCase() === want;
 }
 
 /** The sync log key for a delivery that carries ArrivePing's event id, so a redelivery is recognised. No id, no key. */
@@ -145,6 +170,12 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
     return { ok: true, patch: { status: next.status, arriveping_status: next.status, ...common }, event: { status: next.status, note: next.note, at } };
   }
   if (closed) return { ok: false, reason: "no change" };
+  if (ev.kind === "note") {
+    // ArrivePing's own word for where the work order stands; the visit's status is left where it is.
+    if ((visit.arriveping_status ?? null) === ev.status) return { ok: false, reason: "no change" };
+    const was = ev.from ? ` (was ${AP_LABEL[ev.from]?.toLowerCase() ?? ev.from.replace(/_/g, " ")})` : "";
+    return { ok: true, patch: { arriveping_status: ev.status, ...common }, event: { status: "note", note: `${apWord(ev.status)} in ArrivePing${was}`, at } };
+  }
   if (behind) return { ok: false, reason: "stale" };
   if (ev.kind === "assigned") {
     if ((visit.arriveping_assigned_to ?? null) === ev.assignee) return { ok: false, reason: "no change" };
@@ -237,7 +268,9 @@ export function visitRange(startsAt: string, endsAt: string | null, timeZone = S
 export const VISIT_LABEL: Record<VisitStatus, string> = { scheduled: "Scheduled", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled" };
 
 /** What ArrivePing says about a visit, in the crew's words. */
-export const AP_LABEL: Record<string, string> = { scheduled: "Scheduled", assigned: "Assigned", en_route: "On the way", arrived: "On site", completed: "Completed", cancelled: "Cancelled", cancel_requested: "Cancel requested" };
+export const AP_LABEL: Record<string, string> = { scheduled: "Scheduled", assigned: "Assigned", en_route: "On the way", arrived: "On site", on_site: "On site", completed: "Completed", cancelled: "Cancelled", cancel_requested: "Cancel requested", paused: "Paused" };
+/** ArrivePing's status as a word: BMD's label where there is one, else the status itself tidied ("needs_parts" → "Needs parts"). */
+export const apWord = (status: string): string => AP_LABEL[status] ?? status.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 /** The ArrivePing pill for a visit's row, or null when it was never sent: "Assigned to Brodie", "On the way", "Scheduled in ArrivePing". */
 export function arrivepingBadge(v: { arriveping_job_id: string | null; arriveping_status: string | null; arriveping_assigned_to: string | null }): string | null {

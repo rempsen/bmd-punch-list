@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { verifyArrivePingSignature, webhookSetupError, AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable } from "./core";
+import { verifyArrivePingSignature, webhookSetupError, AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable, reschedulePayload, parseWorkOrderPhotos, photoStoragePath } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -245,5 +245,48 @@ describe("ArrivePing webhook signatures", () => {
   test("a refusal while setting up the webhook reads as what to do", () => {
     expect(webhookSetupError(403, "x")).toContain("Manage webhook subscriptions");
     expect(webhookSetupError(500, "Server error")).toBe("Server error");
+  });
+});
+
+describe("rescheduling a work order", () => {
+  test("the PATCH carries the schedule and whatever else was typed, never nulls", () => {
+    expect(reschedulePayload({ id: "v1", starts_at: "2026-12-03T14:00:00.000Z", ends_at: "2026-12-03T22:00:00.000Z", crew: "Brodie", notes: "  ", site_contact: "Gail" })).toEqual({
+      start_at: "2026-12-03T14:00:00.000Z",
+      end_at: "2026-12-03T22:00:00.000Z",
+      site_contact: { name: "Gail" },
+      notes_for_crew: "Crew: Brodie",
+    });
+  });
+  test("a visit with no end gets eight hours, like a create", () => {
+    expect(reschedulePayload({ id: "v1", starts_at: "2026-12-03T14:00:00.000Z", ends_at: null, crew: null, notes: null, site_contact: null })).toEqual({ start_at: "2026-12-03T14:00:00.000Z", end_at: "2026-12-03T22:00:00.000Z" });
+  });
+
+  test("photos come out of photos[] or completion_photos[], by id, once each", () => {
+    const wo = {
+      photos: [
+        { id: "ph_1", url: "https://x/1.jpg?sig=a", content_type: "image/jpeg", taken_at: "2026-12-03T20:00:00Z", taken_by: { name: "Dan" }, caption: "Done" },
+        { id: "ph_1", url: "https://x/1.jpg?sig=b" },
+        "https://x/2.png",
+        { url: "not a url" },
+        { id: 7, url: "https://x/3.jpg" },
+      ],
+      completion_photos: [{ id: "ph_4", url: "https://x/4.jpg", taken_by: "Brodie" }],
+    };
+    expect(parseWorkOrderPhotos(wo)).toEqual([
+      { id: "ph_1", url: "https://x/1.jpg?sig=a", contentType: "image/jpeg", takenAt: "2026-12-03T20:00:00.000Z", takenBy: "Dan", caption: "Done" },
+      { id: "https://x/2.png", url: "https://x/2.png", contentType: null, takenAt: null, takenBy: null, caption: null },
+      { id: "7", url: "https://x/3.jpg", contentType: null, takenAt: null, takenBy: null, caption: null },
+      { id: "ph_4", url: "https://x/4.jpg", contentType: null, takenAt: null, takenBy: "Brodie", caption: null },
+    ]);
+    expect(parseWorkOrderPhotos({ work_order: wo })).toHaveLength(4);
+    expect(parseWorkOrderPhotos(null)).toEqual([]);
+    expect(parseWorkOrderPhotos({ photos: "nope" })).toEqual([]);
+  });
+
+  test("a photo's storage path sits under the visit and is safe to use as a file name", () => {
+    expect(photoStoragePath("v1", { id: "ph_1", contentType: "image/png", url: "https://x/1.png" })).toBe("v1/ap-ph_1.png");
+    expect(photoStoragePath("v1", { id: "https://x/a b.jpg", contentType: null, url: "https://x/a b.jpg" })).toBe("v1/ap-https-x-a-b-jpg.jpg");
+    expect(photoStoragePath("v1", { id: "p", contentType: "image/heic", url: "https://x/p" })).toBe("v1/ap-p.heic");
+    expect(photoStoragePath("v1", { id: "p", contentType: "application/octet-stream", url: "https://x/p" })).toBe("v1/ap-p.jpg");
   });
 });
