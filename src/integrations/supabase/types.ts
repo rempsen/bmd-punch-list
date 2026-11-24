@@ -61,6 +61,60 @@ export type Database = {
           },
         ]
       }
+      area_progress: {
+        Row: {
+          blocker: string | null
+          blocker_kind: string | null
+          id: string
+          project_id: string
+          room_id: string
+          scope: string
+          source: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          blocker?: string | null
+          blocker_kind?: string | null
+          id?: string
+          project_id: string
+          room_id: string
+          scope: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          blocker?: string | null
+          blocker_kind?: string | null
+          id?: string
+          project_id?: string
+          room_id?: string
+          scope?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "area_progress_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "area_progress_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       arriveping_link: {
         Row: {
           connected_at: string | null
