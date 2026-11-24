@@ -313,3 +313,20 @@ describe("subscription events", () => {
     expect(subscriptionEvents([...AP_WEBHOOK_EVENTS])).toContain("workorder.status_changed");
   });
 });
+
+describe("where and when the crew reports travels in the notes for the crew", () => {
+  const v = { id: "v1", starts_at: "2026-07-02T13:00:00.000Z", ends_at: null, crew: "Brodie", notes: "Bring the roller", site_contact: null };
+  const p = { id: "p1", name: "Job", number: null, address: "1 Main St", client: null };
+  test("shop for 7, ahead of the crew and the notes", () => {
+    expect(workOrderPayload({ ...v, report_to: "shop", report_to_other: null, report_time: "07:00:00" }, p, "c")["notes_for_crew"]).toBe("Report to: Shop for 7:00 a.m.\nCrew: Brodie\nBring the roller");
+  });
+  test("site at the start time when nothing else was chosen", () => {
+    expect(workOrderPayload({ ...v, report_to: "site", report_to_other: null, report_time: null }, p, "c")["notes_for_crew"]).toBe("Report to: Site for 8:00 a.m.\nCrew: Brodie\nBring the roller");
+  });
+  test("a reschedule carries it too", () => {
+    expect(reschedulePayload({ ...v, crew: null, notes: null, report_to: "other", report_to_other: "Supplier yard", report_time: "06:30" })["notes_for_crew"]).toBe("Report to: Supplier yard for 6:30 a.m.");
+  });
+  test("the shape sent to ArrivePing is unchanged: no new fields", () => {
+    expect(Object.keys(workOrderPayload({ ...v, report_to: "shop", report_to_other: null, report_time: "07:00" }, p, "c")).sort()).toEqual(["address", "client_id", "end_at", "external_ref", "external_source", "notes_for_crew", "start_at", "title"]);
+  });
+});

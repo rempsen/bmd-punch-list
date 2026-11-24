@@ -53,6 +53,10 @@ type VisitRow = {
   notes: string | null;
   site_contact: string | null;
   arriveping_job_id: string | null;
+  tentative?: boolean | null;
+  report_to?: string | null;
+  report_to_other?: string | null;
+  report_time?: string | null;
 };
 
 /** The visit and its project, or a sentence saying why not. */
@@ -62,7 +66,7 @@ async function loadVisit(
   const db = await admin();
   const { data: visit, error } = await db
     .from("install_visits")
-    .select("id,project_id,status,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id")
+    .select("*")
     .eq("id", visitId)
     .maybeSingle();
   if (error) return { error: `Could not load the install visit: ${error.message}` };
@@ -261,6 +265,8 @@ async function runPushCreate(
   const loaded = await loadVisit(visitId);
   if ("error" in loaded) return { outcome: "failed", error: loaded.error, key };
   const { visit, project } = loaded;
+  // A tentative visit is never sent, logged or queued: nothing reaches ArrivePing until the tick is cleared.
+  if ((await import("./core")).visitSendBlock(visit)) return { outcome: "skipped", reason: "tentative" };
   if (visit.arriveping_job_id) return { outcome: "skipped", reason: "already linked" };
   // Only a visit that is still scheduled may be sent: another tab may have completed or cancelled it since the button was drawn.
   if (visit.status !== "scheduled")
@@ -342,7 +348,7 @@ async function runPushCreate(
     }
     if (result.outcome === "skipped") {
       // Only reachable if the visit was linked between our read and the call; nothing was sent.
-      await markIgnored(eventId, "already linked");
+      await markIgnored(eventId, result.reason);
       return result;
     }
     jobId = result.jobId;
@@ -461,6 +467,7 @@ async function runReschedulePush(visitId: string, existingKey?: string | null): 
   const loaded = await loadVisit(visitId);
   if ("error" in loaded) return { outcome: "failed", error: loaded.error, key };
   const { visit, project } = loaded;
+  if ((await import("./core")).visitSendBlock(visit)) return { outcome: "skipped", reason: "tentative" };
   if (!visit.arriveping_job_id) return { outcome: "skipped", reason: "not linked" };
   if (visit.status !== "scheduled")
     return { outcome: "failed", error: `The visit is ${visit.status}, so its schedule was not sent to ArrivePing.`, key };
@@ -554,7 +561,7 @@ async function runRetry(id: string): Promise<RetryOutcome> {
 
   const result = await runPushCreate(plan.visitId, plan.key);
   if (result.outcome === "skipped") {
-    await markIgnored(row.id, "already linked");
+    await markIgnored(row.id, result.reason);
   } else if (result.outcome === "failed" && result.error === VISIT_NOT_FOUND) {
     await markIgnored(row.id, "the install visit no longer exists");
     return { outcome: "ignored", reason: "the install visit no longer exists" };

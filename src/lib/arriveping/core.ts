@@ -1,4 +1,6 @@
 /** ArrivePing: where it lives, how we name our calls to it, and what we send. Pure: no env, no network. */
+import { reportLine } from "@/lib/scheduling/assignments";
+
 export const AP_BASE = "https://arriveping.com";
 export const AP_MCP = `${AP_BASE}/api/mcp`;
 /** Every ArrivePing API path in one place, so a wrong guess is a one-line fix. */
@@ -24,7 +26,26 @@ export const idempotencyKey = (kind: "create" | "cancel", visitId: string): stri
 /** Each reschedule is its own action, so it carries the moment it was made. */
 export const rescheduleKey = (visitId: string, nowMs: number): string => `bmd-visit-${visitId}-reschedule-${nowMs}`;
 
-export type VisitForPush = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null };
+export type VisitForPush = {
+  id: string;
+  starts_at: string;
+  ends_at: string | null;
+  crew: string | null;
+  notes: string | null;
+  site_contact: string | null;
+  /** Not yet firm: never sent to ArrivePing until the tick is cleared. */
+  tentative?: boolean | null;
+  /** Where and when the crew reports. When present, it leads the notes for the crew. */
+  report_to?: string | null;
+  report_to_other?: string | null;
+  report_time?: string | null;
+};
+
+/** Why a visit must not go to ArrivePing at all, or null when it may. Every send checks this one rule. */
+export function visitSendBlock(visit: { tentative?: boolean | null }): "tentative" | null {
+  return visit.tentative ? "tentative" : null;
+}
+export const TENTATIVE_MESSAGE = "This visit is tentative, so it was not sent to ArrivePing. Clear Tentative on the visit to send it.";
 export type ProjectForPush = {
   id: string;
   name: string;
@@ -82,7 +103,9 @@ const filled = (v: string | null | undefined): string | null => {
 export function workOrderPayload(visit: VisitForPush, project: ProjectForPush, clientId?: string | null): Record<string, unknown> {
   const end = endOf(visit);
   const crew = filled(visit.crew);
-  const notes = [crew ? `Crew: ${crew}` : null, filled(visit.notes)].filter(Boolean).join("\n");
+  // "Report to: Shop for 7:00 a.m." leads, when the visit carries it (visits read before it existed do not).
+  const report = visit.report_to !== undefined ? reportLine(visit) : null;
+  const notes = [report, crew ? `Crew: ${crew}` : null, filled(visit.notes)].filter(Boolean).join("\n");
   return {
     external_source: EXTERNAL_SOURCE,
     external_ref: visit.id,
