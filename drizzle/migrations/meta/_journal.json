@@ -477,6 +477,13 @@
       "when": 1795540115274,
       "tag": "0067_inspections_signoff",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795542436006,
+      "tag": "0069_visit_photos",
+      "breakpoints": true
     }
   ]
 }

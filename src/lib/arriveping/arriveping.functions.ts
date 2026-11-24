@@ -1,7 +1,7 @@
 import { STALE_PENDING_MS } from "./core";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { PushCancelOutcome, PushCreateOutcome } from "./push";
+import type { PushCancelOutcome, PushCreateOutcome, PushRescheduleOutcome } from "./push";
 
 /**
  * ArrivePing server functions. The only thing these throw is "Not allowed": anything that goes wrong with ArrivePing
@@ -451,6 +451,56 @@ async function runCancel(visitId: string): Promise<PushCancelOutcome> {
   }
 }
 
+/**
+ * Puts the visit's schedule as it stands in BMD onto its ArrivePing work order, logged like a send. `key` is the retry's
+ * own key; a fresh push gets a new one, since every reschedule is its own action.
+ */
+async function runReschedulePush(visitId: string, existingKey?: string | null): Promise<PushRescheduleOutcome> {
+  const { rescheduleKey, reschedulePayload, visitPushProblem } = await import("./core");
+  const key = existingKey ?? rescheduleKey(visitId, Date.now());
+  const loaded = await loadVisit(visitId);
+  if ("error" in loaded) return { outcome: "failed", error: loaded.error, key };
+  const { visit, project } = loaded;
+  if (!visit.arriveping_job_id) return { outcome: "skipped", reason: "not linked" };
+  if (visit.status !== "scheduled")
+    return { outcome: "failed", error: `The visit is ${visit.status}, so its schedule was not sent to ArrivePing.`, key };
+  const { recordPending, markFailed, markSent } = await import("./outbox.server");
+  let eventId: string;
+  try {
+    eventId = await recordPending({
+      direction: "out",
+      entity_type: "visit",
+      entity_id: visit.id,
+      project_id: visit.project_id,
+      event_type: "reschedule",
+      idempotency_key: key,
+      external_id: visit.arriveping_job_id,
+      payload: reschedulePayload(visit),
+    });
+  } catch (e) {
+    return { outcome: "failed", error: message(e), key };
+  }
+  try {
+    // The 24-hour cap applies to a new schedule as much as to a new work order.
+    const problem = visitPushProblem(visit, project);
+    if (problem) {
+      await markFailed(eventId, problem);
+      return { outcome: "failed", error: problem, key };
+    }
+    const { apFetch } = await import("./client.server");
+    const { pushVisitReschedule } = await import("./push");
+    const result = await pushVisitReschedule({ fetchJson: apFetch, visit, key });
+    if (result.outcome === "failed") await markFailed(eventId, result.error);
+    if (result.outcome !== "sent") return result;
+    await markSent(eventId, result.jobId);
+    return result;
+  } catch (e) {
+    const text = `Unexpected error rescheduling in ArrivePing: ${message(e)}`;
+    await markFailed(eventId, text);
+    return { outcome: "failed", error: text, key };
+  }
+}
+
 export type RetryOutcome =
   | PushCreateOutcome
   | PushCancelOutcome
@@ -479,6 +529,17 @@ async function runRetry(id: string): Promise<RetryOutcome> {
   }
   if (plan.action === "relink")
     return runRelink(row.id, plan.visitId, plan.jobId, row.idempotency_key ?? "");
+  if (plan.action === "reschedule") {
+    // Same key, so recordPending picks this row up again; the body is the visit's schedule as it stands now.
+    const result = await runReschedulePush(plan.visitId, plan.key);
+    if (result.outcome === "skipped") {
+      await markIgnored(row.id, result.reason);
+    } else if (result.outcome === "failed" && result.error === VISIT_NOT_FOUND) {
+      await markIgnored(row.id, "the install visit no longer exists");
+      return { outcome: "ignored", reason: "the install visit no longer exists" };
+    }
+    return result;
+  }
   if (plan.action === "cancel") {
     // Same stable cancel key, so recordPending picks this row up again and ArrivePing treats it as the one cancel.
     const result = await runCancel(plan.visitId);
@@ -611,6 +672,70 @@ export const cancelVisitPush = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<PushCancelOutcome> => {
     await requireAny(context.supabase as never, "manage_projects", "manage_integrations");
     return runCancel(data.visitId);
+  });
+
+export type RescheduleOutcome = {
+  /** Whether the new times differ from the ones the form opened with; the Activity entry is only written when they do. */
+  changed: boolean;
+  push: PushRescheduleOutcome | null;
+};
+
+/**
+ * After a visit's schedule, site contact or crew notes were saved in BMD: writes the Activity entry ("Rescheduled in BMD by
+ * …") when the times moved, and puts the new details onto the ArrivePing work order when the visit is linked. The visit is
+ * already saved by the time this runs; a failure to reach ArrivePing is reported, never raised, and can be retried from the
+ * sync queue.
+ */
+export const rescheduleVisitPush = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { visitId: string; previousStartsAt?: string | null; previousEndsAt?: string | null }) => {
+    const { visitId } = visitIdInput(d);
+    const time = (v: unknown) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : null);
+    return { visitId, previousStartsAt: time(d.previousStartsAt), previousEndsAt: time(d.previousEndsAt) };
+  })
+  .handler(async ({ data, context }): Promise<RescheduleOutcome> => {
+    await requireAny(context.supabase as never, "manage_projects", "manage_integrations");
+    const { visitRange } = await import("@/lib/visits/logic");
+    const loaded = await loadVisit(data.visitId);
+    if ("error" in loaded) return { changed: false, push: { outcome: "failed", error: loaded.error, key: "" } };
+    const { visit } = loaded;
+    const same = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
+    const changed =
+      data.previousStartsAt != null &&
+      !(same(data.previousStartsAt, visit.starts_at) && same(data.previousEndsAt, visit.ends_at));
+    if (changed) {
+      const db = await admin();
+      const { data: who } = await db.from("profiles").select("full_name,email").eq("id", context.userId).maybeSingle();
+      const name = (who?.full_name ?? who?.email ?? "").trim() || "staff";
+      const { error } = await db.from("install_visit_events").insert({
+        visit_id: visit.id,
+        project_id: visit.project_id,
+        status: "rescheduled",
+        note: `Rescheduled in BMD by ${name}: ${visitRange(data.previousStartsAt!, data.previousEndsAt)} → ${visitRange(visit.starts_at, visit.ends_at)}`,
+        source: "staff",
+      });
+      if (error) console.error(`install_visit_events: could not log the reschedule of ${visit.id}: ${error.message}`);
+    }
+    if (!visit.arriveping_job_id) return { changed, push: null };
+    return { changed, push: await runReschedulePush(visit.id) };
+  });
+
+/** Copies the photos on a visit's ArrivePing work order into the job's photos. Safe to press again: photos already copied are skipped. */
+export const fetchVisitPhotos = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(visitIdInput)
+  .handler(async ({ data, context }): Promise<import("./photos.server").PhotoImport> => {
+    await requireAny(context.supabase as never, "manage_projects", "manage_integrations");
+    const db = await admin();
+    const { data: visit, error } = await db
+      .from("install_visits")
+      .select("id,project_id,arriveping_job_id")
+      .eq("id", data.visitId)
+      .maybeSingle();
+    if (error) return { found: 0, imported: 0, skipped: 0, failed: 0, error: `Could not load the install visit: ${error.message}` };
+    if (!visit) return { found: 0, imported: 0, skipped: 0, failed: 0, error: VISIT_NOT_FOUND };
+    const { importVisitPhotos } = await import("./photos.server");
+    return importVisitPhotos(visit);
   });
 
 /** Retries one failed (or stuck pending) sync event. */

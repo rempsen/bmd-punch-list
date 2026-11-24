@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { reconcileWithWorkOrder, AP_LABEL, applyInboundEvent, crewLabel, crewStatusGroups, applyVisitEvent, arrivepingBadge, arrivepingPill, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, updatedAt, visitRange, visitTimes, visitsCsv } from "./logic";
+import { isOwnEcho, reconcileWithWorkOrder, AP_LABEL, applyInboundEvent, crewLabel, crewStatusGroups, applyVisitEvent, arrivepingBadge, arrivepingPill, inboundEventKey, parseArrivePingEvent, scheduleRange, secretMatches, updatedAt, visitRange, visitTimes, visitsCsv } from "./logic";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100", arriveping_job_id: "AP-77", status: "scheduled" as const, arriveping_status: null, arriveping_assigned_to: null, arriveping_last_event_at: null };
 
@@ -406,5 +406,45 @@ describe("checking a visit with no end time", () => {
   test("a work order ArrivePing no longer has cancels the visit", () => {
     const v = { status: "scheduled" as const, crew: null, starts_at: "2026-11-30T14:00:00.000Z", ends_at: null, arriveping_job_id: "wo1", arriveping_status: "scheduled", arriveping_assigned_to: null, arriveping_last_event_at: null };
     expect(reconcileWithWorkOrder(v, { status: "cancelled" }, "2026-11-23T21:00:00.000Z").patch).toMatchObject({ status: "cancelled" });
+  });
+});
+
+describe("ArrivePing webhook: workorder.status_changed", () => {
+  const data = { id: "wo_7", external_source: "bmd_projects", status: "en_route" };
+  test("a known status in `to` reads like the specific event", () => {
+    expect(parseArrivePingEvent({ type: "workorder.status_changed", data, changes: { status: { from: "assigned", to: "en_route" } }, occurred_at: "2026-12-02T10:00:00Z" })).toEqual({ kind: "status", status: "en_route", jobId: "wo_7", visitId: null, at: "2026-12-02T10:00:00Z" });
+    expect(parseArrivePingEvent({ type: "workorder.status_changed", data: { ...data, status: "on_site" } })).toMatchObject({ kind: "status", status: "arrived" });
+    expect(parseArrivePingEvent({ type: "workorder.status_changed", data: { id: "wo_7" }, to: "completed" })).toMatchObject({ kind: "status", status: "completed" });
+  });
+  test("a status BMD has no word for is only noted, with where it came from", () => {
+    expect(parseArrivePingEvent({ type: "workorder.status_changed", data: { ...data, status: "paused" }, changes: { status: { from: "on_site", to: "paused" } } })).toEqual({ kind: "note", status: "paused", from: "on_site", jobId: "wo_7", visitId: null, at: null });
+    expect(parseArrivePingEvent({ type: "workorder.status_changed", data: { ...data, status: "" } })).toBeNull();
+  });
+  test("a note is logged once, never changes the visit's status, and is not repeated", () => {
+    const now = "2026-12-02T12:00:00.000Z";
+    const ev = { kind: "note" as const, status: "paused", from: "on_site", jobId: "AP-77", visitId: null, at: null };
+    expect(applyInboundEvent({ ...visit, status: "arrived" }, ev, now)).toEqual({ ok: true, patch: { arriveping_status: "paused", arriveping_last_event_at: now }, event: { status: "note", note: "Paused in ArrivePing (was on site)", at: now } });
+    expect(applyInboundEvent({ ...visit, status: "arrived", arriveping_status: "paused" }, ev, now)).toEqual({ ok: false, reason: "no change" });
+    expect(applyInboundEvent({ ...visit, status: "completed" }, ev, now)).toEqual({ ok: false, reason: "no change" });
+  });
+  test("a status_changed that repeats a specific event changes nothing the second time", () => {
+    const now = "2026-12-02T12:00:00.000Z";
+    const ev = parseArrivePingEvent({ type: "workorder.status_changed", data: { ...data, status: "completed" } })!;
+    expect(applyInboundEvent({ ...visit, status: "completed", arriveping_status: "completed" }, ev, now)).toEqual({ ok: false, reason: "no change" });
+  });
+  test("the crew's own pill shows a noted status", () => {
+    expect(arrivepingBadge({ arriveping_job_id: "AP-77", arriveping_status: "paused", arriveping_assigned_to: null })).toBe("Paused");
+  });
+});
+
+describe("echoes of BMD's own writes", () => {
+  test("an event made by BMD's own API key is an echo; anything else is not", () => {
+    expect(isOwnEcho({ actor: { type: "api", api_key_name: "BMD Projects" } }, "BMD Projects")).toBe(true);
+    expect(isOwnEcho({ actor: { type: "api", api_key_name: "bmd projects " } }, "BMD Projects")).toBe(true);
+    expect(isOwnEcho({ actor: { type: "api", api_key_name: "Other app" } }, "BMD Projects")).toBe(false);
+    expect(isOwnEcho({ actor: { type: "user", name: "Dan", api_key_name: "BMD Projects" } }, "BMD Projects")).toBe(false);
+    expect(isOwnEcho({ actor: { type: "system" } }, "BMD Projects")).toBe(false);
+    expect(isOwnEcho({ actor: { type: "api", api_key_name: "BMD Projects" } }, null)).toBe(false);
+    expect(isOwnEcho(null, "BMD Projects")).toBe(false);
   });
 });

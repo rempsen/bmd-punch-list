@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ArrivePingPill, OpenInArrivePing, StatusPill } from "@/components/visits/visit-bits";
-import { cancelVisitPush, pushVisit } from "@/lib/arriveping/arriveping.functions";
+import { cancelVisitPush, pushVisit, rescheduleVisitPush } from "@/lib/arriveping/arriveping.functions";
 import { MAX_WORK_ORDER_MS } from "@/lib/arriveping/core";
 import { useAuth } from "@/lib/auth";
 import { db, errText } from "@/lib/platform/db";
@@ -94,7 +94,23 @@ function formFor(
 export function useVisitArrivePing() {
   const pushFn = useServerFn(pushVisit);
   const cancelFn = useServerFn(cancelVisitPush);
+  const rescheduleFn = useServerFn(rescheduleVisitPush);
   const refresh = useRefreshSchedule();
+  /** After an existing visit is saved: logs the move and, for a visit in ArrivePing, puts the new schedule on its work order. */
+  const reschedule = async (v: { id: string; starts_at: string; ends_at: string | null; arriveping_job_id: string | null }) => {
+    try {
+      const r = await rescheduleFn({ data: { visitId: v.id, previousStartsAt: v.starts_at, previousEndsAt: v.ends_at } });
+      if (r.push?.outcome === "sent") toast.success("Visit saved. ArrivePing updated.");
+      else if (r.push?.outcome === "failed")
+        toast.warning(`Visit saved. ArrivePing wasn't updated — ${SEE_SETTINGS}`, { description: r.push.error });
+      else toast.success("Visit saved.");
+    } catch (e) {
+      if (v.arriveping_job_id) toast.warning(`Visit saved. ArrivePing wasn't updated — ${SEE_SETTINGS}`, { description: errText(e) });
+      else toast.success("Visit saved.");
+    } finally {
+      refresh();
+    }
+  };
   const send = async (visitId: string, quiet = false) => {
     try {
       const r = await pushFn({ data: { visitId } });
@@ -155,7 +171,7 @@ export function useVisitArrivePing() {
     refresh();
     return true;
   };
-  return { send, cancel };
+  return { send, cancel, reschedule };
 }
 
 export type DrawerTarget =
@@ -274,6 +290,16 @@ function DrawerBody({
         const { project_id: _p, ...patch } = row;
         const u = await db.from("install_visits").update(patch).eq("id", visit.id);
         if (u.error) throw new Error(u.error.message);
+        const sameTime = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
+        const moved = !sameTime(patch.starts_at, visit.starts_at) || !sameTime(patch.ends_at, visit.ends_at);
+        const retyped = (patch.site_contact ?? null) !== (visit.site_contact ?? null) || (patch.notes ?? null) !== (visit.notes ?? null);
+        refresh();
+        onClose();
+        // The schedule, contact and notes travel to ArrivePing; the saved visit stands whatever ArrivePing says.
+        if (moved || (retyped && visit.arriveping_job_id)) {
+          await ap.reschedule(visit);
+          return;
+        }
         toast.success(
           row.assigned_user_id || row.assigned_name
             ? assignmentState(
@@ -284,8 +310,6 @@ function DrawerBody({
               : "Visit saved. Technician pending in ArrivePing."
             : "Visit saved.",
         );
-        refresh();
-        onClose();
         return;
       }
       const { data, error } = await db.from("install_visits").insert(row).select("id").single();

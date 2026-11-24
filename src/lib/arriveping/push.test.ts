@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 import type { ApResult } from "./client.server";
 import { AP_PATHS } from "./core";
-import { ensureArrivePingClient, planRetry, pushVisitCancel, pushVisitCreate } from "./push";
+import { ensureArrivePingClient, planRetry, pushVisitCancel, pushVisitCreate, pushVisitReschedule } from "./push";
 
 const visit = {
   id: "v1",
@@ -363,5 +363,34 @@ describe("planRetry", () => {
     expect(planRetry({ ...row, entity_type: "project" })).toEqual(notYet);
     expect(planRetry({ ...row, entity_id: null })).toEqual(notYet);
     expect(planRetry({ ...row, event_type: "cancel", entity_id: null })).toEqual(notYet);
+  });
+});
+
+describe("pushVisitReschedule", () => {
+  const linked = { ...visit, arriveping_job_id: "wo_7", ends_at: "2026-12-01T22:00:00Z", site_contact: "Gail" };
+  test("the new schedule is PATCHed onto the work order under the key it was given", async () => {
+    const fetchJson = replying({ ok: true, status: 200, json: { id: "wo_7" } });
+    const out = await pushVisitReschedule({ fetchJson, visit: linked, key: "bmd-visit-v1-reschedule-5" });
+    expect(out).toEqual({ outcome: "sent", jobId: "wo_7", key: "bmd-visit-v1-reschedule-5" });
+    const [path, init] = fetchJson.mock.calls[0]!;
+    expect(path).toBe(`${AP_PATHS.workorders}/wo_7`);
+    expect(init.method).toBe("PATCH");
+    expect(init.idempotencyKey).toBe("bmd-visit-v1-reschedule-5");
+    expect(init.body).toEqual({ start_at: linked.starts_at, end_at: linked.ends_at, site_contact: { name: "Gail" } });
+  });
+  test("a visit that was never sent has nothing to reschedule", async () => {
+    const fetchJson = replying({ ok: true, status: 200, json: {} });
+    expect(await pushVisitReschedule({ fetchJson, visit, key: "k" })).toEqual({ outcome: "skipped", reason: "not linked" });
+    expect(fetchJson).not.toHaveBeenCalled();
+  });
+  test("a refusal is failed, with ArrivePing's reason", async () => {
+    const fetchJson = replying({ ok: false, status: 422, code: "http", error: "ArrivePing refused (422): end_at: must be after start_at" });
+    expect(await pushVisitReschedule({ fetchJson, visit: linked, key: "k" })).toEqual({ outcome: "failed", error: "ArrivePing refused (422): end_at: must be after start_at", key: "k" });
+  });
+});
+
+describe("planRetry: reschedule", () => {
+  test("a failed reschedule is sent again with the visit's current times under its own key", () => {
+    expect(planRetry({ direction: "out", entity_type: "visit", event_type: "reschedule", entity_id: "v1", idempotency_key: "bmd-visit-v1-reschedule-5", external_id: "wo_7", status: "failed" })).toEqual({ action: "reschedule", visitId: "v1", key: "bmd-visit-v1-reschedule-5" });
   });
 });

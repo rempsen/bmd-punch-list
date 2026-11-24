@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { VisitDrawer, type DrawerTarget } from "@/components/scheduling/VisitDrawer";
-import { cancelVisitPush, pushVisit } from "@/lib/arriveping/arriveping.functions";
+import { cancelVisitPush, fetchVisitPhotos, pushVisit } from "@/lib/arriveping/arriveping.functions";
+import { useSignedUrls } from "@/lib/photos";
 import { db, errText } from "@/lib/platform/db";
-import { useProjectVisits } from "@/lib/visits/data";
+import { useProjectVisitPhotos, useProjectVisits, type VisitPhoto } from "@/lib/visits/data";
 import { ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
 import {
   applyVisitEvent,
@@ -39,7 +40,14 @@ export function VisitsPanel({
   const qc = useQueryClient();
   const pushFn = useServerFn(pushVisit);
   const cancelFn = useServerFn(cancelVisitPush);
+  const photosFn = useServerFn(fetchVisitPhotos);
   const { data: visits = [], isLoading, isError, error: loadError } = useProjectVisits(projectId);
+  const { data: photos = [] } = useProjectVisitPhotos(projectId);
+  const photosByVisit = useMemo(() => {
+    const m = new Map<string, VisitPhoto[]>();
+    for (const p of photos) m.set(p.visit_id, [...(m.get(p.visit_id) ?? []), p]);
+    return m;
+  }, [photos]);
   useArrivePingCheck(
     projectId,
     visits.some((v) => v.arriveping_job_id),
@@ -49,6 +57,22 @@ export function VisitsPanel({
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["visits", projectId] });
     void qc.invalidateQueries({ queryKey: ["visit-events", projectId] });
+    void qc.invalidateQueries({ queryKey: ["visit-photos", projectId] });
+  };
+  const getPhotos = async (v: Visit) => {
+    setBusy(true);
+    try {
+      const r = await photosFn({ data: { visitId: v.id } });
+      if (r.error) toast.warning(`Couldn't get photos from ArrivePing — ${SEE_SETTINGS}`, { description: r.error });
+      else if (r.imported) toast.success(`${r.imported} photo${r.imported === 1 ? "" : "s"} copied from ArrivePing.`);
+      else if (r.failed) toast.warning(`${r.failed} photo${r.failed === 1 ? "" : "s"} couldn't be fetched. Try again in a minute.`);
+      else toast.info(r.found ? "All of ArrivePing's photos are already here." : "No photos on the work order yet.");
+    } catch (e) {
+      toast.warning(`Couldn't get photos from ArrivePing — ${SEE_SETTINGS}`, { description: errText(e) });
+    } finally {
+      refresh();
+      setBusy(false);
+    }
   };
   const must = (r: { error: { message: string } | null }) => {
     if (r.error) throw new Error(r.error.message);
@@ -203,7 +227,14 @@ export function VisitsPanel({
                     {ap && <ArrivePingPill label={ap} />}
                     {v.arriveping_job_id && <OpenInArrivePing jobId={v.arriveping_job_id} />}
                   </div>
+                  <VisitPhotos photos={photosByVisit.get(v.id) ?? []} />
                 </div>
+                {canEdit && v.status === "completed" && v.arriveping_job_id && (
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => void getPhotos(v)}>
+                    Get photos from ArrivePing
+                    {forVisit}
+                  </Button>
+                )}
                 {canEdit &&
                   (v.status === "scheduled" ||
                     v.status === "en_route" ||
@@ -267,5 +298,27 @@ export function VisitsPanel({
         }}
       />
     </section>
+  );
+}
+
+/** The crew's photos from ArrivePing, as a strip of thumbnails that open full size in a new tab. */
+function VisitPhotos({ photos }: { photos: VisitPhoto[] }) {
+  const paths = useMemo(() => photos.map((p) => p.storage_path), [photos]);
+  const { data: urls } = useSignedUrls(paths);
+  if (!photos.length) return null;
+  return (
+    <ul className="flex flex-wrap gap-1.5 pt-1" aria-label={`${photos.length} photo${photos.length === 1 ? "" : "s"} from ArrivePing`}>
+      {photos.map((p) => {
+        const src = urls?.[p.storage_path];
+        const title = [p.caption, p.taken_by, p.taken_at ? new Date(p.taken_at).toLocaleString() : null].filter(Boolean).join(" · ") || "Photo from ArrivePing";
+        return (
+          <li key={p.id}>
+            <a href={src} target="_blank" rel="noreferrer" title={title} className="block h-14 w-14 overflow-hidden rounded bg-muted" aria-disabled={!src}>
+              {src && <img src={src} alt={title} loading="lazy" className="h-full w-full object-cover" />}
+            </a>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
