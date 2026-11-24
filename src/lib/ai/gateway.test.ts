@@ -97,3 +97,32 @@ describe("reading gateway replies", () => {
     expect(gatewayError("")).toBe("no reason given");
   });
 });
+
+describe("sending a picture with the question", () => {
+  const png = { mediaType: "image/png" as const, base64: "iVBORw0KGgo=" };
+  const withImage = { ...ask, images: [png] };
+  const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+  test("the chat forms carry the picture as a data URL beside the text", async () => {
+    const f = fake(() => chatOk);
+    await askGateway(f.fetchFn, ["a/claude-fable-5.1"], withImage);
+    const msgs = f.calls[0]!.body["messages"] as { role: string; content: unknown }[];
+    expect(msgs[1]!.content).toEqual([{ type: "text", text: "P" }, { type: "image_url", image_url: { url: dataUrl } }]);
+  });
+  test("the responses form carries it as an input image", async () => {
+    const f = fake((c) => (c.url.endsWith("/responses") ? { status: 200, json: { output_text: "ok" } } : { status: 400 }));
+    await askGateway(f.fetchFn, ["a/claude-fable-5.1"], withImage, { preferForm: "responses" });
+    expect(f.calls[0]!.body["input"]).toEqual([{ role: "user", content: [{ type: "input_text", text: "P" }, { type: "input_image", image_url: dataUrl }] }]);
+  });
+  test("the Anthropic message form carries it as a base64 image block", async () => {
+    const f = fake((c) => (c.url.endsWith("/messages") ? { status: 200, json: { content: [{ type: "text", text: "ok" }] } } : { status: 400 }));
+    await askGateway(f.fetchFn, ["a/claude-fable-5.1"], withImage, { preferForm: "messages" });
+    const msgs = f.calls[0]!.body["messages"] as { role: string; content: unknown }[];
+    expect(msgs[0]!.content).toEqual([{ type: "text", text: "P" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } }]);
+  });
+  test("without a picture the text is still sent as a plain string", async () => {
+    const f = fake(() => chatOk);
+    await askGateway(f.fetchFn, ["a/claude-fable-5.1"], ask);
+    const msgs = f.calls[0]!.body["messages"] as { role: string; content: unknown }[];
+    expect(msgs[1]!.content).toBe("P");
+  });
+});
