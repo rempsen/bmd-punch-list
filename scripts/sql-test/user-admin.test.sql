@@ -157,4 +157,13 @@ SELECT public.admin_set_status(:mgr, 'deactivated');
 DO $$ BEGIN ASSERT NOT public.user_has_capability('00000000-0000-0000-0000-0000000000a1', 'manage_integrations'), 'deactivated may not'; END $$;
 SELECT public.admin_set_status(:mgr, 'active');
 
+-- Supabase rejects DELETE/UPDATE with no WHERE (safeupdate), so no function may contain one.
+DO $$ BEGIN
+  ASSERT NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace
+                      AND prosrc ~* '(delete\s+from|update)\s+[a-z_."]+(\s+set\s[^;]*?)?\s*;' AND prosrc !~* 'where'),
+    'a function has DELETE/UPDATE with no WHERE';
+  ASSERT NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosrc ~* 'delete\s+from\s+[a-z_."]+\s*;'),
+    'a function has DELETE with no WHERE';
+END $$;
+
 SELECT 'user-admin SQL tests passed' AS result;
