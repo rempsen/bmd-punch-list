@@ -80,8 +80,11 @@ export function eventsFromVisits(rows: readonly Row[], o: { origin: string; time
     const summary = `${job}${scope ? ` — ${scope}` : ""}${run ? ` · ${run}` : ""}${tentative ? " (Tentative)" : ""}`;
 
     const crew = text(row, "assigned_name", "crew", "arriveping_assigned_to");
-    const confirmation = text(row, "crew_confirmation", "confirmation_status", "crew_confirmation_status", "confirmation");
-    const place = text(row, "report_to", "report_to_place", "report_place", "report_to_location");
+    // The schedule stores confirmation as not_sent / waiting / confirmed / declined, and report-to as site / shop / other (+ its own text).
+    const confirmationRaw = text(row, "crew_confirmation", "confirmation_status", "crew_confirmation_status", "confirmation");
+    const confirmation = confirmationRaw === "not_sent" ? null : confirmationRaw === "declined" ? "can't make it" : confirmationRaw;
+    const placeRaw = text(row, "report_to", "report_to_place", "report_place", "report_to_location");
+    const place = placeRaw === "site" ? "Site" : placeRaw === "shop" ? "Shop" : placeRaw === "other" ? (text(row, "report_to_other") ?? "See notes") : placeRaw;
     const at = reportTime(text(row, "report_at", "report_to_time", "report_time", "report_to_at"), tz);
     const url = `${o.origin.replace(/\/+$/, "")}/projects/${projectId ?? ""}`;
     const lines = [

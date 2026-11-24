@@ -183,3 +183,20 @@ describe("buildICalendar", () => {
     expect(ics([{ ...base, project: { ...base.project, address: null } }])).not.toContain("LOCATION");
   });
 });
+
+describe("the schedule's own field values", () => {
+  const base = { id: "11111111-1111-4111-8111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", project_id: "22222222-2222-4222-8222-222222222222", project: { name: "Test job", project_number: "26-002" }, assigned_name: "Apollo" };
+  const describeOf = (extra: object) => eventsFromVisits([{ ...base, ...extra }], { origin: "https://x.test" })[0]!;
+  it("names the report-to place, the run day and a tentative visit", () => {
+    const e = describeOf({ run_day: 2, run_total: 3, tentative: true, report_to: "shop", report_time: "07:00:00", confirmation: "confirmed" });
+    expect(e.summary).toBe("26-002 Test job · Day 2 of 3 (Tentative)");
+    expect(e.description).toContain("Report to: Shop at 7:00");
+    expect(e.description).toContain("Crew: Apollo (confirmed)");
+  });
+  it("uses the typed place for Other, and says nothing about a confirmation that was never asked for", () => {
+    const e = describeOf({ report_to: "other", report_to_other: "North gate", confirmation: "not_sent" });
+    expect(e.description).toContain("Report to: North gate");
+    expect(e.description).toContain("Crew: Apollo\n");
+    expect(describeOf({ confirmation: "declined" }).description).toContain("(can't make it)");
+  });
+});

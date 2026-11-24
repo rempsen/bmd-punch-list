@@ -140,10 +140,6 @@ function NewProjectPage() {
       const id = plain
         ? await createPipelineProject(base)
         : await createJob({ ...base, bid_due_date: internal ? "" : base.bid_due_date, estimator_id: internal ? "" : base.estimator_id, kind, stage, standard_tasks: tasks, contacts: people });
-      const id = await createPipelineProject({
-        ...f,
-        scopes: scopes.map((s) => ({ scope: s, other_text: s === "other" ? other.trim() || null : null })),
-      });
       await applyContractType(id, contractType);
       await refreshPermissions();
       refreshPipeline();

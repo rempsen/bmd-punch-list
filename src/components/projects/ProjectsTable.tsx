@@ -54,7 +54,6 @@ export function ProjectsTable({
   const navigate = useNavigate();
   const [own, setOwn] = useState<TableSort>({ key: "project_number", dir: "desc" });
   const sort = sortProp ?? own;
-  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "project_number", dir: "desc" });
   const openBook = useOpenBookValue();
   const sorted = sortProjects(rows, sort.key, sort.dir);
   const toggle = (key: SortKey) => {

@@ -561,6 +561,55 @@
       "when": 1795546068863,
       "tag": "0081_scope_hit_ai_suggestions",
       "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "7",
+      "when": 1795546128863,
+      "tag": "0082_job_list_and_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1795546188863,
+      "tag": "0083_schedule_runs_and_confirmation",
+      "breakpoints": true
+    },
+    {
+      "idx": 82,
+      "version": "7",
+      "when": 1795546248863,
+      "tag": "0084_daily_logs_and_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1795546308863,
+      "tag": "0085_time_clock",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1795546368863,
+      "tag": "0086_calendar_feeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1795546428863,
+      "tag": "0087_open_book_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795546488863,
+      "tag": "0088_approved_hours_for_open_book",
+      "breakpoints": true
     }
   ]
 }
