@@ -25,7 +25,8 @@ import {
   useProject,
 } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
-import { AllUsersPanel, UsersPanel } from "@/components/settings/UsersPanel";
+import { UsersPanel } from "@/components/settings/UsersPanel";
+import { UsersAdmin } from "@/components/settings/users/UsersAdmin";
 import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
@@ -74,6 +75,8 @@ function SettingsPage() {
   const { can, canAny, isSuperAdmin, refreshPermissions } = useAuth();
   const canSettings = can("manage_settings");
   const canUsers = can("manage_users");
+  // The company Users screen: super admins, and anyone who manages users on any job.
+  const canManageAnyUsers = isSuperAdmin || canAny("manage_users");
   const canMicrosoft = canAny("send_quotes") || canAny("manage_integrations");
   const canQuotes = canAny("send_quotes");
   const canSync = canAny("manage_integrations") || canAny("manage_catalogue");
@@ -84,7 +87,7 @@ function SettingsPage() {
     [canMicrosoft, "integrations", "Integrations"],
     [canSync, "sync", "Sync"],
     [canMicrosoft, "ai", "AI"],
-    [isSuperAdmin, "allusers", "All users"],
+    [canManageAnyUsers, "allusers", "Users"],
     [isSuperAdmin, "roles", "Roles"],
     [canSettings, "projects", "All jobs"],
     [canSettings, "jobs", "Jobs admin"],
@@ -422,9 +425,9 @@ function SettingsPage() {
               <UsersPanel />
             </TabsContent>
           )}
-          {isSuperAdmin && (
+          {canManageAnyUsers && (
             <TabsContent value="allusers">
-              <AllUsersPanel />
+              <UsersAdmin />
             </TabsContent>
           )}
           {isSuperAdmin && (

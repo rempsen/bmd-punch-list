@@ -123,3 +123,38 @@ Sign in with your existing account: ${href}
 — BMD Materials`;
   return { subject: `You've been added to ${p.jobName}`, html, text };
 }
+
+/** Invite from the company Users screen: access may span several jobs or all of them, so it is described in one line. */
+export function accessInviteEmail(p: {
+  email: string;
+  token: string;
+  inviterName: string;
+  inviteeName: string | null;
+  /** e.g. "Client on Hyatt Centric and Test Take Off". */
+  accessLine: string;
+  requestUrl?: string | null;
+}) {
+  const APP_URL = appOrigin(p.requestUrl);
+  const href = `${APP_URL}/auth?invite=${encodeURIComponent(p.token)}&email=${encodeURIComponent(p.email)}`;
+  const hi = p.inviteeName ? `Hi ${p.inviteeName},` : "Hi,";
+  const html = layout(
+    APP_URL,
+    "You're invited to BMD Projects",
+    `<p>${esc(hi)}</p>
+<p><strong>${esc(p.inviterName)}</strong> has invited you to BMD Projects, BMD Materials' job and project workspace.</p>
+<p>Your access: <strong>${esc(p.accessLine)}</strong></p>
+<p>Create your account with this email address (${esc(p.email)}) to get started. This invitation expires in 14 days.</p>`,
+    { href, label: "Create your account" },
+  );
+  const text = `${hi}
+
+${p.inviterName} has invited you to BMD Projects, BMD Materials' job and project workspace.
+Your access: ${p.accessLine}
+
+Create your account with ${p.email} here:
+${href}
+
+This invitation expires in 14 days.
+— BMD Materials`;
+  return { subject: "You're invited to BMD Projects", html, text };
+}

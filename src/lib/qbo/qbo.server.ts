@@ -49,13 +49,10 @@ export async function removeQboConnection() {
 
 /** Who may connect or disconnect QuickBooks: someone with the manage-integrations capability. Checked with the service client for the callback, which has no session. */
 export async function mayManageIntegrations(userId: string): Promise<boolean> {
-  const [{ data: roles }, { data: perms }, { data: mem }] = await Promise.all([
-    admin.from("user_roles").select("role").eq("user_id", userId),
-    admin.from("role_permissions").select("role").eq("capability", "manage_integrations").eq("allowed", true),
-    admin.from("project_members").select("role").eq("user_id", userId),
-  ]);
-  const ok = new Set(((perms ?? []) as { role: string }[]).map((p) => p.role));
-  return [...((roles ?? []) as { role: string }[]), ...((mem ?? []) as { role: string }[])].some((r) => r.role === "super_admin" || r.role === "bmd_admin" || ok.has(r.role));
+  // Same rule as the app's own checks: company level and job roles, and never for a deactivated person.
+  const { data, error } = await admin.rpc("user_has_capability", { _user: userId, _capability: "manage_integrations" });
+  if (error) throw new Error(error.message);
+  return data === true;
 }
 
 /** Replaces the staged copy of one kind of QuickBooks record. Staging is a copy for review: nothing in the catalogue changes. */
