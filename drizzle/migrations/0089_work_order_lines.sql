@@ -24,16 +24,17 @@ GRANT ALL ON public.install_visit_lines TO service_role;
 --> statement-breakpoint
 ALTER TABLE public.install_visit_lines ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
--- Policy names shared with migration 0090 (subcontract orders), which creates the same table: whichever runs second finds it.
+-- Policy names shared with migration 0090 (subcontract orders), which creates the same table: whichever runs second finds it
+-- and leaves the job-scoped policies (has_capability(cap, project) — a capability on this job, not on any job).
 DROP POLICY IF EXISTS "visit lines read" ON public.install_visit_lines;
 --> statement-breakpoint
 CREATE POLICY "visit lines read" ON public.install_visit_lines FOR SELECT TO authenticated
-  USING (public.can_project_documents(project_id, false) OR public.has_capability('view_pipeline'));
+  USING (public.can_project_documents(project_id, false) OR public.has_capability('view_pipeline', project_id));
 --> statement-breakpoint
 DROP POLICY IF EXISTS "visit lines write" ON public.install_visit_lines;
 --> statement-breakpoint
 CREATE POLICY "visit lines write" ON public.install_visit_lines FOR ALL TO authenticated
-  USING (public.has_capability('manage_projects')) WITH CHECK (public.has_capability('manage_projects'));
+  USING (public.has_capability('manage_projects', project_id)) WITH CHECK (public.has_capability('manage_projects', project_id));
 --> statement-breakpoint
 
 -- When the crew accepted the work order in ArrivePing, and who.
@@ -56,7 +57,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT l.id, l.finish_id, f.tag, l.section, l.kind, l.description, l.driver_qty, l.driver_uom, l.cost_code, l.sort_order, v.status
     FROM v JOIN public.estimate_lines l ON l.version_id = v.id
     LEFT JOIN public.project_finishes f ON f.id = l.finish_id
-   WHERE public.has_capability('manage_projects') OR public.has_capability('view_pipeline')
+   WHERE public.has_capability('manage_projects', _project) OR public.has_capability('view_pipeline', _project)
    ORDER BY l.sort_order, l.created_at;
 $$;
 --> statement-breakpoint
