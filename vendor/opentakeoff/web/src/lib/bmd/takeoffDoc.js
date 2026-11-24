@@ -101,6 +101,20 @@ export function addShape(doc, m) {
   return withArea({ ...doc, shapes: [...(doc.shapes || []), shape] }, area);
 }
 
+/**
+ * Gives a measurement a new outline and measures it again; everything else about it (finish, area name, when and
+ * how it was made) stays. `origin` adds facts about how the outline came to be. An unknown id changes nothing.
+ */
+export function reshapeShape(doc, id, pointsPx, dims, origin = {}) {
+  const old = (doc.shapes || []).find((s) => s.id === id);
+  if (!old) return doc;
+  const cond = (doc.conditions || []).find((c) => c.id === old.condition_id);
+  const { verts_norm_holes: _holes, ...kept } = old;   // holes belonged to the old outline
+  const shape = { ...kept, verts_norm: pointsPx.map(([x, y]) => [x / dims.w, y / dims.h]), origin: { ...(old.origin || {}), ...origin } };
+  shape.computed = computeShapeMetrics(shape, dims, scaleFor(doc, old.sheet_id)?.upp ?? 0, cond);
+  return { ...doc, shapes: doc.shapes.map((s) => (s.id === id ? shape : s)) };
+}
+
 export function removeShape(doc, id) {
   return { ...doc, shapes: (doc.shapes || []).filter((s) => s.id !== id && s.cuts_shape_id !== id) };
 }

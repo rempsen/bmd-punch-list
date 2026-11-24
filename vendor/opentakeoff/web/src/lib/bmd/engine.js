@@ -1,18 +1,17 @@
 // BMD change (new file): OpenTakeoff's measuring engine behind a small, plain interface for the simple BMD takeoff
-// screen. Nothing here measures anything itself: reading the scale, finding a room's walls, tracing and snapping
-// are all OpenTakeoff's own functions (lib/oneclick.ts, lib/detectRooms.ts, lib/sheets.ts, lib/geometry.js), called
-// in the same order its own tools call them, so the numbers are the same numbers.
+// screen. Reading the scale, filling a room, tracing and snapping are OpenTakeoff's own functions (lib/oneclick.ts,
+// lib/detectRooms.ts, lib/sheets.ts, lib/geometry.js). What BMD adds, in ./roomParts.js, is deciding which linework
+// is building and which is markup or text before a room is filled, and finding cabinets and fixtures afterwards.
 //
 // Positions are in "image pixels": PDF points × RENDER_SCALE, origin at the top left, y downwards. That is the
 // space OpenTakeoff measures in, and a scale ("upp") is real feet per image pixel.
-import { extractVectorGeometry, buildMask, traceRegion, snapVertices, ringArea, MASK_MAX_DIM } from "../oneclick.ts";
-import { floodAtSeed } from "../detectRooms.ts";
-import { buildSnapGrid, nearestSnap, closedMetrics } from "../geometry.js";
+import { extractVectorGeometry } from "../oneclick.ts";
+import { buildSnapGrid, nearestSnap } from "../geometry.js";
+import { createRoomFinder, textBoxes } from "./roomParts.js";
 import { detectScale, extractSheetNumber, STANDARD_SCALES } from "../sheets.ts";
 import { RENDER_SCALE, SNAP_CELL, SNAP_TOL } from "../takeoffConstants.ts";
 
 export { RENDER_SCALE, STANDARD_SCALES };
-const round2 = (n) => Math.round(n * 100) / 100;
 
 /**
  * @param {{page: any, OPS: Record<string, number>}} deps a pdf.js page and pdf.js's operator table
@@ -23,7 +22,7 @@ export function createSheetEngine({ page, OPS }) {
   const dims = { w: viewport.width, h: viewport.height };
   let textP = null;
   let geoP = null;
-  const masks = new Map();   // scale → mask; a mask bakes the scale in
+  let finderP = null;
 
   const text = () => (textP ??= page.getTextContent());
   const geometry = () =>
@@ -61,32 +60,21 @@ export function createSheetEngine({ page, OPS }) {
       return (await geometry()).geo.segs.length > 0;
     },
     /**
-     * Measures the enclosed space around a point, to its walls.
-     * @returns {Promise<{ok: true, pointsPx: number[][], areaSf: number, perimeterLf: number, confidence: number|null} | {ok: false, reason: string}>}
+     * Measures the space around a point: a room to its walls, with tags, notes, arrows and dashed lines inside it
+     * ignored; or, when the point is inside a cabinet or fixture, that fixture's footprint.
+     * `fixtures` are the cabinet and fixture areas along the room's edge that were left out, and `withFixtures`
+     * is the same room measured with them included. `note` says in plain words what was ignored, or is null.
+     * @returns {Promise<{ok: false, reason: string} | {ok: true, kind: "room"|"fixture", pointsPx: number[][], areaSf: number, perimeterLf: number, confidence: number|null, note: string|null, ignored: object|null, fixtures: {pointsPx: number[][], areaSf: number}[], withFixtures: {pointsPx: number[][], areaSf: number, perimeterLf: number}|null}>}
      */
     async roomAt(x, y, upp) {
       if (!(upp > 0)) return { ok: false, reason: "Set the scale for this sheet first." };
-      const { geo, grid } = await geometry();
-      if (!geo.segs.length) return { ok: false, reason: "This sheet is a scan with no drawn linework, so a room cannot be found by clicking. Draw around it instead." };
-      let mask = masks.get(upp);
-      if (!mask) {
-        const pxPerFt = 1 / upp;
-        mask = buildMask(geo.segs, dims.w, dims.h, MASK_MAX_DIM, geo.meta, pxPerFt, pxPerFt, { pageW: pt.width, pageH: pt.height, renderScale: RENDER_SCALE, baseScale: RENDER_SCALE }, null);
-        masks.clear();
-        masks.set(upp, mask);
-      }
-      const flood = floodAtSeed(mask, x, y);
-      if (flood.status === "leak") return { ok: false, reason: "That space isn't enclosed on the drawing: the fill escaped through a gap or an opening. Draw around it instead." };
-      if (flood.status !== "ok") return { ok: false, reason: "That landed on dense linework such as hatching or text. Click an open spot inside the room, or draw around it." };
-      const ring = snapVertices(traceRegion(flood), (px, py, d) => nearestSnap(grid, px, py, d), SNAP_TOL);
-      if (ring.length < 3) return { ok: false, reason: "That space could not be traced. Draw around it instead." };
-      return {
-        ok: true,
-        pointsPx: ring.map(([px, py]) => [px, py]),
-        areaSf: round2(ringArea(ring) * upp * upp),
-        perimeterLf: round2(closedMetrics(ring).perim * upp),
-        confidence: typeof flood.confidence === "number" ? flood.confidence : null,
-      };
+      const finder = await (finderP ??= (async () => {
+        const { geo, grid } = await geometry();
+        let texts = [];
+        try { texts = textBoxes(await text(), viewport.transform); } catch { /* a sheet with unreadable text is sorted on its linework alone */ }
+        return createRoomFinder({ geo, texts, dims, pagePt: { w: pt.width, h: pt.height }, renderScale: RENDER_SCALE, nearest: (px, py, d) => nearestSnap(grid, px, py, d) });
+      })());
+      return finder.roomAt(x, y, upp);
     },
   };
 }

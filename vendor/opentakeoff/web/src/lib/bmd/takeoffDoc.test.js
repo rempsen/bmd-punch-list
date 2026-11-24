@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { emptyAnnotations } from "../store.js";
-import { addCondition, addShape, finishTotals, removeShape, renameCondition, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "./takeoffDoc.js";
+import { addCondition, addShape, finishTotals, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "./takeoffDoc.js";
 
 const dims = { w: 2000, h: 1000 };
 const key = sheetKey("Plans.pdf", 4);
@@ -18,6 +18,19 @@ describe("the takeoff document, in OpenTakeoff's own format", () => {
     expect(c.hatch).toBeTruthy();
     expect(addCondition(doc, "LVT-1").conditions).toHaveLength(1);
     expect(addCondition(doc, "CPT-1").conditions[1].color).not.toBe(c.color);
+  });
+  test("a measurement can be given a new outline (a room with its cabinets included) and is measured again, keeping what it is", () => {
+    let doc = setScale(addCondition(emptyAnnotations(), "LVT-1"), key, 0.05, "detected", dims);
+    doc = addShape(doc, { sheetId: key, conditionId: doc.conditions[0].id, role: "floor_area", pointsPx: square, dims, method: "one_click_v1", area: "Level 2" });
+    const before = doc.shapes[0];
+    const next = reshapeShape(doc, before.id, [[100, 100], [400, 100], [400, 300], [100, 300]], dims, { fixtures_included: true });
+    const s = next.shapes[0];
+    expect(next.shapes).toHaveLength(1);
+    expect(s).toMatchObject({ id: before.id, condition_id: before.condition_id, label: "Level 2", computed: { area_sf: 150, perimeter_lf: 50 } });
+    expect(s.verts_norm[1]).toEqual([0.2, 0.1]);
+    expect(s.origin).toMatchObject({ method: "one_click_v1", reviewed: true, fixtures_included: true });
+    expect(doc.shapes[0].computed.area_sf).toBe(100);   // the document it came from is untouched, so undo is one step
+    expect(reshapeShape(doc, "shp-missing", square, dims)).toBe(doc);
   });
   test("an area is stored as the full workspace stores it and measured at the sheet's scale", () => {
     let doc = setScale(addCondition(emptyAnnotations(), "LVT-1"), key, 0.05, "detected", dims);

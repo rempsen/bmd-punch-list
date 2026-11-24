@@ -88,7 +88,7 @@ export interface TextMark { x: number; y: number; w: number; h: number }
  *  keeps hand-built geometry (rastermask, tests) and stitched composites
  *  working unchanged. */
 export interface InkContext { subpaths?: SubPath[] | null; texts?: TextMark[] | null; dimTexts?: DimTextMark[] | null }
-export interface VectorGeometry { points: Point[]; segs: number[]; meta: Uint8Array; imageArea: number; lum?: Uint8Array; layerOf?: Int32Array; layerIds?: string[]; subpaths?: SubPath[]; }
+export interface VectorGeometry { points: Point[]; segs: number[]; meta: Uint8Array; imageArea: number; lum?: Uint8Array; layerOf?: Int32Array; layerIds?: string[]; subpaths?: SubPath[]; dashed?: Uint8Array; }  // BMD change: `dashed` — 1 where the PDF strokes the segment with a dash pattern
 export interface MaskObj { mask: Uint8Array; mw: number; mh: number; ws: number; softCount: number; mppf?: number; }  // mppf: mask px per foot (0/absent = scale unknown)
 export interface RegionResult { region: Uint8Array; mw: number; mh: number; ws: number; count?: number; }
 export type FloodResult =
@@ -476,8 +476,19 @@ export function extractVectorGeometry(opList: OpList, transform: number[], OPS: 
     }
     return 0;
   };
+  // BMD change: the dash pattern in force, kept beside the graphics state, so a stroke the PDF itself draws dashed
+  // (hidden and overhead lines) can be told from a solid one. Read by lib/bmd/roomParts.js; nothing upstream uses it.
+  let dash = false;
+  const dashStack: boolean[] = [];
+  const dashedArr: number[] = [];
+  const isDash = (d: unknown): boolean => Array.isArray(d) && Array.isArray(d[0]) && d[0].some((v: number) => v > 0);
   for (let i = 0; i < fns.length; i++) {
     const fn = fns[i], args = A[i];
+    // BMD change: follow the dash pattern through save/restore, forms, setDash and graphics-state dictionaries
+    if (fn === OPS.save || fn === OPS.paintFormXObjectBegin) dashStack.push(dash);
+    else if (fn === OPS.restore || fn === OPS.paintFormXObjectEnd) { if (dashStack.length) dash = dashStack.pop() as boolean; }
+    else if (fn === OPS.setDash) dash = isDash(args);
+    else if (fn === OPS.setGState) { for (const pr of args[0] || []) if (pr && pr[0] === "D") dash = isDash(pr[1]); }
     if (fn === OPS.save) stack.push([m.slice(), lw, lum, fillLum]);
     else if (fn === OPS.restore) { const p = stack.pop(); if (p) { m = p[0]; lw = p[1]; lum = p[2]; fillLum = p[3]; } }
     else if (fn === OPS.transform) m = mul(m, args);
@@ -607,12 +618,14 @@ export function extractVectorGeometry(opList: OpList, transform: number[], OPS: 
           cur = q[0]; start = q[0];
         }
       }
+      // BMD change: one flag per segment this path produced; a path that is not stroked has no dashes
+      while (dashedArr.length < metaArr.length) dashedArr.push(dash && !(flags & (SEG_CLIP | SEG_FILLONLY)) ? 1 : 0);
     }
   }
   sealSub();
   const meta = Uint8Array.from(metaArr);
   markPolylineArcs(segs, meta);
-  return { points, segs, meta, imageArea, lum: Uint8Array.from(lumArr), layerOf: Int32Array.from(layerOfArr), layerIds, subpaths };
+  return { points, segs, meta, imageArea, lum: Uint8Array.from(lumArr), layerOf: Int32Array.from(layerOfArr), layerIds, subpaths, dashed: Uint8Array.from(dashedArr) };  // BMD change: + dashed
 }
 
 // ── 1b. polyline arc detection ─────────────────────────────────────────────

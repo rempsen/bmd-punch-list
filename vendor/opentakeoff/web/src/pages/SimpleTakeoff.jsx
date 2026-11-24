@@ -11,7 +11,7 @@ import { store } from "../lib/store.js";
 import { PALETTE } from "../lib/takeoffConstants.ts";
 import { createSheetEngine, RENDER_SCALE, STANDARD_SCALES } from "../lib/bmd/engine.js";
 import { labelsToSave, mergeSheets, pickDrawings } from "../lib/bmd/drawings.js";
-import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
+import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
 import { parseFeet } from "../lib/bmd/feet.js";
 
@@ -50,6 +50,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const [renaming, setRenaming] = useState(null);    // null | {id, tag}
   const [adding, setAdding] = useState(null);        // null | "Adding A-101.pdf…"
   const [dropping, setDropping] = useState(false);   // a file is being dragged over the screen
+  const [offer, setOffer] = useState(null);          // null | {shapeId, pointsPx, areaSf, count}: cabinet and fixture areas a room click left out
   const picker = useRef(null);
   const sheetList = useRef(null);
   const [loaded, setLoaded] = useState(false);
@@ -69,6 +70,9 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const areas = doc?.shape_labels || [];
   const condById = useMemo(() => new Map((doc?.conditions ?? []).map((c) => [c.id, c])), [doc]);
   const say = (text, tone = "info") => setNote({ text, tone, at: Date.now() });
+  // The offer to include left-out areas belongs to one measurement: it goes when that measurement does (undo,
+  // remove) or when the sheet changes.
+  useEffect(() => { if (offer && !shapes.some((x) => x.id === offer.shapeId)) setOffer(null); }, [offer, shapes]);
 
   // ── saving: every change goes to BMD Projects through the store, which sends one save at a time ──
   const commit = useCallback((next, { undoable = true } = {}) => {
@@ -326,6 +330,15 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     return p ?? [ix, iy];
   };
 
+  // One step: the room's outline is replaced by the same room with its cabinet and fixture areas, and Undo puts
+  // the first outline back.
+  const includeLeftOut = () => {
+    if (!offer || !doc) return;
+    commit(reshapeShape(doc, offer.shapeId, offer.pointsPx, dims, { fixtures_included: true }));
+    say(`Included. That room now measures ${fmt(offer.areaSf)} SF.`, "good");
+    setOffer(null);
+  };
+
   const onClick = async (e) => {
     if (!engine || !doc || drag.current?.moved) return;
     const [sx, sy] = pointer(e);
@@ -353,8 +366,12 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       try {
         const r = await engine.roomAt(ix, iy, scale.upp);
         if (!r.ok) return say(r.reason, "warn");
-        commit(addShape(doc, { sheetId: current, conditionId: activeId, role: "floor_area", pointsPx: r.pointsPx, dims, method: "one_click_v1", seedPx: [ix, iy], confidence: r.confidence ?? undefined, area }));
-        say(`${active.finish_tag}: ${fmt(r.areaSf)} SF measured to the walls. Check the outline, and undo if it is not the room.`, "good");
+        const next = addShape(doc, { sheetId: current, conditionId: activeId, role: "floor_area", pointsPx: r.pointsPx, dims, method: "one_click_v1", seedPx: [ix, iy], confidence: r.confidence ?? undefined, area });
+        commit(next);
+        // Cabinets, counters and other enclosed areas along the room's edge are left out; one press puts them in.
+        setOffer(r.withFixtures ? { shapeId: next.shapes[next.shapes.length - 1].id, pointsPx: r.withFixtures.pointsPx, areaSf: r.withFixtures.areaSf, count: r.fixtures.length } : null);
+        if (r.kind === "fixture") say(`${active.finish_tag}: ${fmt(r.areaSf)} SF. ${r.note}`, "info");
+        else say(`${active.finish_tag}: ${fmt(r.areaSf)} SF measured to the walls.${r.note ? ` ${r.note}` : ""} Check the outline, and undo if it is not the room.`, r.confidence != null && r.confidence < 0.7 ? "warn" : "good");
       } catch (err) {
         say(`That room could not be measured: ${String(err?.message || err)}`, "bad");
       } finally {
@@ -394,7 +411,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     let touch = null;
     const at = (t) => { const box = el.getBoundingClientRect(); return [t.clientX - box.left, t.clientY - box.top]; };
     const onTouchStart = (e) => {
-      if (e.target.closest(".st-zoom, .st-selected, .st-note, .st-ask")) return;
+      if (e.target.closest(".st-zoom, .st-selected, .st-note, .st-ask, .st-offer")) return;
       const [a, b] = [e.touches[0], e.touches[1]].map((t) => t && at(t));
       touch = { a, b, view: viewRef.current, moved: false };
     };
@@ -570,6 +587,13 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           )}
           {busy && busy !== "empty" && <div className="st-busy" role="status">{busy}</div>}
           {note && <div className={`st-note st-note-${note.tone}`} role="status" onClick={(e) => { e.stopPropagation(); setNote(null); }}>{note.text}<span aria-hidden="true">×</span></div>}
+          {offer && !readOnly && (
+            <div className="st-offer" role="status" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+              <span>{offer.count === 1 ? "1 area under a cabinet or fixture was left out" : `${offer.count} areas under cabinets or fixtures were left out`}</span>
+              <button type="button" className="st-btn st-btn-primary" onClick={includeLeftOut}>{offer.count === 1 ? "Include it" : "Include them"}</button>
+              <button type="button" className="st-btn st-offer-close" onClick={() => setOffer(null)} aria-label="Leave them out">×</button>
+            </div>
+          )}
           {selectedShape && (
             <div className="st-selected" onClick={(e) => e.stopPropagation()}>
               <strong>{condById.get(selectedShape.condition_id)?.finish_tag ?? "Measurement"}</strong>
