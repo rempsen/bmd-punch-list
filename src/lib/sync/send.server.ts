@@ -84,12 +84,16 @@ export async function previewSends(ids?: string[]): Promise<Preview> {
 /** Sends the planned changes. Each one is logged whether it succeeded or failed; BMD's records are never changed here. */
 export async function runSends(ids?: string[], by?: string): Promise<{ sent: number; failed: number; held: number; skipped?: string }> {
   // One run at a time: the 5-minute schedule and a manual "Send now" must never send the same change twice.
-  const { data: locked } = await admin.rpc("sync_send_lock");
-  if (locked !== true) return { sent: 0, failed: 0, held: 0, skipped: "Another send is running. Try again in a minute." };
+  // The lock is a token so only the run that took it can release it; a run that outlives its 30-minute lease
+  // cannot clear a newer run's lock. PostgREST calls never throw; they return { data, error }.
+  const { data: token, error } = await admin.rpc("sync_send_lock");
+  if (error) throw new Error(error.message);
+  if (typeof token !== "string") return { sent: 0, failed: 0, held: 0, skipped: "Another send is running. Try again in a few minutes." };
   try {
     return await runSendsLocked(ids, by);
   } finally {
-    await admin.rpc("sync_send_unlock").catch(() => {});
+    const { error: unlockError } = await admin.rpc("sync_send_unlock", { _token: token });
+    if (unlockError) console.error(`[sync] could not release the send lock: ${unlockError.message}`);
   }
 }
 
