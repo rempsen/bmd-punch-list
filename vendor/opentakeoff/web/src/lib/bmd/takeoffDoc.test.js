@@ -150,3 +150,39 @@ describe("changing the finish of something already measured", () => {
     expect(setShapeFinish(doc, room.id, cpt.id, dims)).toBe(doc);
   });
 });
+
+describe("changing the finish: walls drawn in the full workspace, and linked cut-outs", () => {
+  const walls = () => {
+    let doc = setScale(addCondition(addCondition(emptyAnnotations(), "WC-1"), "WC-2"), key, 0.05, "detected", dims);
+    doc = updateCondition(updateCondition(doc, doc.conditions[0].id, { height_ft: 4 }), doc.conditions[1].id, { height_ft: 8 });
+    return doc;
+  };
+  // The full workspace stores the height a wall was drawn at on the wall itself.
+  const wallShape = (doc, extra = {}) => ({ id: "shp-wall", sheet_id: key, condition_id: doc.conditions[0].id, measure_role: "surface_area", verts_norm: [[0.05, 0.1], [0.15, 0.1]], height_ft: 4, origin: { method: "manual", reviewed: true }, computed: { perimeter_lf: 10, area_sf: 40 }, ...extra });
+
+  test("a wall that carries the height it was drawn at takes the new finish's height", () => {
+    const doc = walls();
+    const withWall = { ...doc, shapes: [wallShape(doc)] };
+    const s = setShapeFinish(withWall, "shp-wall", doc.conditions[1].id, dims).shapes[0];
+    expect(s.height_ft).toBe(8);
+    expect(s.computed).toMatchObject({ perimeter_lf: 10, area_sf: 80 });
+  });
+
+  test("a wall whose height someone set by hand keeps it", () => {
+    const doc = walls();
+    const withWall = { ...doc, shapes: [wallShape(doc, { height_ft: 3, height_override: true, computed: { perimeter_lf: 10, area_sf: 30 } })] };
+    const s = setShapeFinish(withWall, "shp-wall", doc.conditions[1].id, dims).shapes[0];
+    expect(s).toMatchObject({ height_ft: 3, height_override: true, computed: { area_sf: 30 } });
+  });
+
+  test("choosing a linked cut-out moves the room it belongs to, with all its cut-outs", () => {
+    let doc = setScale(addCondition(addCondition(emptyAnnotations(), "CPT-1"), "LVT-1"), key, 0.05, "detected", dims);
+    const [cpt, lvt] = doc.conditions;
+    doc = addShape(doc, { sheetId: key, conditionId: cpt.id, role: "floor_area", pointsPx: square, dims });
+    const room = doc.shapes[0];
+    const cut = (id) => ({ id, sheet_id: key, condition_id: cpt.id, measure_role: "deduct", cuts_shape_id: room.id, verts_norm: [[0.06, 0.12], [0.08, 0.12], [0.08, 0.16]], origin: { method: "manual", reviewed: true } });
+    doc = { ...doc, shapes: [...doc.shapes, cut("shp-cut-a"), cut("shp-cut-b")] };
+    const next = setShapeFinish(doc, "shp-cut-a", lvt.id, dims);
+    expect(next.shapes.map((s) => s.condition_id)).toEqual([lvt.id, lvt.id, lvt.id]);
+  });
+});
