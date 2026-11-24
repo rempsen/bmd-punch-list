@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
+import { ConfirmationPill, VisitTags } from "@/components/scheduling/schedule-bits";
 import { StatusPill } from "@/components/visits/visit-bits";
+import { reportLine } from "@/lib/scheduling/assignments";
 import { useTechnicianVisits } from "@/lib/scheduling/data";
 import { scheduleRange } from "@/lib/visits/logic";
 
@@ -26,8 +28,11 @@ export function TechnicianVisits({ techId, linkJobs = true }: { techId: string; 
                 <span className="font-medium">{job}</span>
               )}
               {v.scope && <span className="ml-2 text-muted-foreground">{v.scope}</span>}
+              <VisitTags v={v} className="ml-2 align-middle" />
+              <span className="block text-xs text-muted-foreground">{reportLine(v)}</span>
             </span>
             <span className="tabular-nums text-muted-foreground">{scheduleRange(v.starts_at, v.ends_at)}</span>
+            {v.status === "scheduled" && !v.tentative && <ConfirmationPill v={v} />}
             <StatusPill label={STATUS[v.arriveping_status || v.status] ?? STATUS[v.status] ?? v.status} />
           </li>
         );

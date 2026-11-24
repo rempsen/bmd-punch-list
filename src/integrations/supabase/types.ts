@@ -1054,6 +1054,10 @@ export type Database = {
       }
       document_scope_hits: {
         Row: {
+          ai_at: string | null
+          ai_model: string | null
+          ai_suggestion: string | null
+          ai_verdict: string | null
           count: number
           created_at: string
           document_id: string
@@ -1066,6 +1070,10 @@ export type Database = {
           snippet: string
         }
         Insert: {
+          ai_at?: string | null
+          ai_model?: string | null
+          ai_suggestion?: string | null
+          ai_verdict?: string | null
           count?: number
           created_at?: string
           document_id: string
@@ -1078,6 +1086,10 @@ export type Database = {
           snippet?: string
         }
         Update: {
+          ai_at?: string | null
+          ai_model?: string | null
+          ai_suggestion?: string | null
+          ai_verdict?: string | null
           count?: number
           created_at?: string
           document_id?: string
@@ -2070,6 +2082,39 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      labour_crews: {
+        Row: {
+          created_at: string
+          labour_rate_id: string
+          supplier_id: string
+        }
+        Insert: {
+          created_at?: string
+          labour_rate_id: string
+          supplier_id: string
+        }
+        Update: {
+          created_at?: string
+          labour_rate_id?: string
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "labour_crews_labour_rate_id_fkey"
+            columns: ["labour_rate_id"]
+            isOneToOne: false
+            referencedRelation: "labour_rates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "labour_crews_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -4225,6 +4270,7 @@ export type Database = {
           all_jobs: boolean
           deactivated_at: string | null
           deactivated_by: string | null
+          goes_to_site: boolean
           level: Database["public"]["Enums"]["app_role"]
           status: string
           updated_at: string
@@ -4235,6 +4281,7 @@ export type Database = {
           all_jobs?: boolean
           deactivated_at?: string | null
           deactivated_by?: string | null
+          goes_to_site?: boolean
           level?: Database["public"]["Enums"]["app_role"]
           status?: string
           updated_at?: string
@@ -4245,6 +4292,7 @@ export type Database = {
           all_jobs?: boolean
           deactivated_at?: string | null
           deactivated_by?: string | null
+          goes_to_site?: boolean
           level?: Database["public"]["Enums"]["app_role"]
           status?: string
           updated_at?: string
@@ -4776,6 +4824,13 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
         }[]
       }
+      project_suggested_crews: {
+        Args: { _project: string }
+        Returns: {
+          supplier_id: string
+          work: string
+        }[]
+      }
       quote_issue_block: { Args: { _id: string }; Returns: string }
       remove_member: {
         Args: { _project: string; _user_id: string }
@@ -4856,6 +4911,10 @@ export type Database = {
       seed_material_orders: {
         Args: { _project: string; _version: string }
         Returns: number
+      }
+      set_goes_to_site: {
+        Args: { _on: boolean; _user: string }
+        Returns: undefined
       }
       set_member_role: {
         Args: {

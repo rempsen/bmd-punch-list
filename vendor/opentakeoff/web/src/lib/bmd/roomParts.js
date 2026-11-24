@@ -683,6 +683,25 @@ export function createRoomFinder({ geo, texts = [], dims, pagePt, renderScale, n
     /** The sorting of this sheet's linework at a scale (for tests and for looking at what was decided). */
     parts: (upp) => prepare(upp).parts,
     /**
+     * What is drawn at a point on a room's outline: "wall" (building linework), "swing" (only a door's swing arc)
+     * or "open" (nothing: an opening the fill closed off). Used to leave door openings out of wall base.
+     * `reachFt` is how far either side of the point to look; a traced outline sits a little off the wall's face.
+     */
+    edgeAt(x, y, upp, reachFt = 0.4) {
+      if (!(upp > 0) || !geo.segs.length) return "wall";
+      const { mask } = prepare(upp);
+      const { mw, mh, ws } = mask, mppf = mask.mppf || 0;
+      const r = Math.max(2, Math.min(8, Math.round(reachFt * mppf)));
+      const cx = Math.round(x * ws), cy = Math.round(y * ws);
+      let swing = false;
+      for (let yy = Math.max(0, cy - r); yy <= Math.min(mh - 1, cy + r); yy++) for (let xx = Math.max(0, cx - r); xx <= Math.min(mw - 1, cx + r); xx++) {
+        const m = mask.mask[yy * mw + xx];
+        if (!(m & 3)) continue;
+        if ((m & MASK_CURVE_BIT) && !(m & MASK_NODOOR_BIT)) swing = true; else return "wall";
+      }
+      return swing ? "swing" : "open";
+    },
+    /**
      * Measures the space around a point.
      * @returns {{ok: false, reason: string} | {ok: true, kind: "room"|"fixture", pointsPx: number[][], areaSf: number, perimeterLf: number, confidence: number|null, note: string|null, ignored: object|null, fixtures: {pointsPx: number[][], areaSf: number}[], withFixtures: {pointsPx: number[][], areaSf: number, perimeterLf: number}|null}}
      */

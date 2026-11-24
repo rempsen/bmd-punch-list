@@ -158,6 +158,11 @@ export function createBmdStore({ projectId, api, cache, onState = () => {} }) {
       if (!api.canSave || !rows?.length || !api.saveSheetLabels) return;
       await api.saveSheetLabels(rows);
     },
+    /** The automatic takeoff's optional AI helper (see bmdApi.js). Throws when it is not available. */
+    async decideFinishes(payload) {
+      if (!api.decideFinishes) throw new Error("it is not part of this build");
+      return api.decideFinishes(payload);
+    },
     async removePdf() {
       throw new Error("Remove drawings in Documents. The takeoff workspace never deletes a project's documents.");
     },

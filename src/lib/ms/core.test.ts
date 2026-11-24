@@ -73,6 +73,12 @@ describe("authorizeUrl", () => {
     expect(u.searchParams.get("state")).toBe("st");
     expect(u.searchParams.get("redirect_uri")).toBe("https://app.example/api/ms/callback");
     expect(u.searchParams.get("response_type")).toBe("code");
+    expect(u.searchParams.get("login_hint")).toBeNull();
+  });
+  test("asks for other scopes and hints the account only when told to (the calendar opt-in)", () => {
+    const u = new URL(authorizeUrl({ ...env, redirectUri: "https://app.example/api/ms/callback", state: "st", scopes: ["offline_access", "User.Read", "Calendars.ReadWrite"], loginHint: "fred@bmd.test" }));
+    expect(u.searchParams.get("scope")).toBe("offline_access User.Read Calendars.ReadWrite");
+    expect(u.searchParams.get("login_hint")).toBe("fred@bmd.test");
   });
 });
 
@@ -86,6 +92,15 @@ describe("getAccessToken", () => {
     expect(String(calls[0]!.init.body)).toContain("refresh_token=old-rt");
     expect(await decryptToken(rows["u1"]!.refresh_token_enc, KEY)).toBe("new-rt");
     expect(errors["u1"]).toBeNull();
+  });
+  test("asks for the usual scopes unless given others", async () => {
+    const { store } = fakeStore({ u1: { refresh_token_enc: await encryptToken("rt", KEY), account_email: "dan@x" } });
+    const { f, calls } = fakeFetch(() => json({ access_token: "at", refresh_token: "rt2" }));
+    const g = createGraph({ fetch: f, env, store, keyMaterial: KEY });
+    await g.getAccessToken("u1");
+    await g.getAccessToken("u1", ["offline_access", "Calendars.ReadWrite"]);
+    expect(new URLSearchParams(String(calls[0]!.init.body)).get("scope")).toBe(SCOPES.join(" "));
+    expect(new URLSearchParams(String(calls[1]!.init.body)).get("scope")).toBe("offline_access Calendars.ReadWrite");
   });
   test("with no connection it asks the user to connect", async () => {
     const { store } = fakeStore();

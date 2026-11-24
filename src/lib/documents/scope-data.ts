@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import type { ScopeKeyword } from "./scope-keywords";
 
-export type ScopeHitRow = { id: string; document_id: string; project_id: string; keyword_id: string; page: number | null; snippet: string; count: number; reviewed_at: string | null; reviewed_by: string | null };
+export type ScopeHitRow = { id: string; document_id: string; project_id: string; keyword_id: string; page: number | null; snippet: string; count: number; reviewed_at: string | null; reviewed_by: string | null; ai_verdict: string | null; ai_suggestion: string | null; ai_at: string | null };
 
 export function useScopeKeywords() {
   return useQuery({
@@ -20,7 +20,7 @@ export function useProjectScopeHits(projectId: string | null, enabled = true) {
     queryKey: ["scope-hits", projectId],
     enabled: !!projectId && enabled,
     queryFn: async () => {
-      const { data, error } = await db.from("document_scope_hits").select("id,document_id,project_id,keyword_id,page,snippet,count,reviewed_at,reviewed_by").eq("project_id", projectId!).order("page");
+      const { data, error } = await db.from("document_scope_hits").select("id,document_id,project_id,keyword_id,page,snippet,count,reviewed_at,reviewed_by,ai_verdict,ai_suggestion,ai_at").eq("project_id", projectId!).order("page");
       if (error) throw error;
       return (data ?? []) as ScopeHitRow[];
     },

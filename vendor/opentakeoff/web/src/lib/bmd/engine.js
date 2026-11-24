@@ -8,6 +8,7 @@
 import { extractVectorGeometry } from "../oneclick.ts";
 import { buildSnapGrid, nearestSnap } from "../geometry.js";
 import { createRoomFinder, textBoxes } from "./roomParts.js";
+import { baseRuns } from "./baseFromRoom.js";
 import { detectScale, extractSheetNumber, STANDARD_SCALES } from "../sheets.ts";
 import { RENDER_SCALE, SNAP_CELL, SNAP_TOL } from "../takeoffConstants.ts";
 
@@ -34,6 +35,8 @@ export function createSheetEngine({ page, OPS }) {
   return {
     dims,
     viewport,
+    /** The page's text (pdf.js text content), read once. */
+    textContent: () => text(),
     /** The scale written on the sheet ({label, upp}), or null when none can be read with confidence. */
     async detectedScale() {
       try {
@@ -66,15 +69,26 @@ export function createSheetEngine({ page, OPS }) {
      * is the same room measured with them included. `note` says in plain words what was ignored, or is null.
      * @returns {Promise<{ok: false, reason: string} | {ok: true, kind: "room"|"fixture", pointsPx: number[][], areaSf: number, perimeterLf: number, confidence: number|null, note: string|null, ignored: object|null, fixtures: {pointsPx: number[][], areaSf: number}[], withFixtures: {pointsPx: number[][], areaSf: number, perimeterLf: number}|null}>}
      */
+    /**
+     * A room's outline as wall base: the stretches that run along drawn walls, with door openings left out.
+     * See ./baseFromRoom.js for what comes back. When the sheet has no linework to tell openings by, the whole
+     * outline is returned and `deducted` is false.
+     */
+    async baseAlong(pointsPx, upp) {
+      const finder = await roomFinder();
+      return baseRuns(pointsPx, upp, (await this.hasLinework()) ? (x, y) => finder.edgeAt(x, y, upp) : null);
+    },
     async roomAt(x, y, upp) {
       if (!(upp > 0)) return { ok: false, reason: "Set the scale for this sheet first." };
-      const finder = await (finderP ??= (async () => {
+      return (await roomFinder()).roomAt(x, y, upp);
+    },
+  };
+  function roomFinder() {
+    return (finderP ??= (async () => {
         const { geo, grid } = await geometry();
         let texts = [];
         try { texts = textBoxes(await text(), viewport.transform); } catch { /* a sheet with unreadable text is sorted on its linework alone */ }
         return createRoomFinder({ geo, texts, dims, pagePt: { w: pt.width, h: pt.height }, renderScale: RENDER_SCALE, nearest: (px, py, d) => nearestSnap(grid, px, py, d) });
-      })());
-      return finder.roomAt(x, y, upp);
-    },
-  };
+    })());
+  }
 }

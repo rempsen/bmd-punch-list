@@ -23,6 +23,13 @@ describe("takeoffQuantities", () => {
     const q = takeoffQuantities({ conditions: [cond("cnd-1", "CPT-1")], shapes: [area("a", "cnd-1", 100), area("b", "cnd-1", 999, { origin: { actor: "agent", reviewed: false } })] });
     expect(q.rows[0].floor_sf).toBe(100);
   });
+  test("the automatic takeoff's proposals are left out until accepted, floor and base alike", () => {
+    const auto = (reviewed) => ({ method: "auto_v1", actor: "auto", reviewed, confidence: 0.9, auto: { kind: "floor", room: "101" } });
+    const doc = (reviewed) => ({ conditions: [cond("cnd-1", "CPT-1"), cond("cnd-2", "RB-1")], shapes: [area("a", "cnd-1", 100), area("b", "cnd-1", 250, { origin: auto(reviewed), label: "101 OFFICE" }), { id: "l", condition_id: "cnd-2", measure_role: "linear", computed: { perimeter_lf: 64 }, origin: auto(reviewed) }, area("u", null, 80, { origin: auto(reviewed) })] });
+    expect(takeoffQuantities(doc(false)).rows).toEqual([{ key: "cnd-1", section: "", floor_sf: 100, wall_sf: 0, border_sf: 0, lf: 0, ea: 0 }]);
+    const after = takeoffQuantities(doc(true)).rows;
+    expect(after.map((r) => [r.key, r.section, r.floor_sf, r.lf])).toEqual([["cnd-1", "", 100, 0], ["cnd-1", "101 OFFICE", 250, 0], ["cnd-2", "", 0, 64]]);   // a shape with no finish never reaches the estimate
+  });
   test("lines, counts and the multiplier", () => {
     const q = takeoffQuantities({ conditions: [cond("cnd-1", "RB-1", { multiplier: 3 })], shapes: [{ id: "l", condition_id: "cnd-1", measure_role: "linear", computed: { perimeter_lf: 20 } }, { id: "c", condition_id: "cnd-1", measure_role: "count", computed: { count: 1 } }] });
     expect(q.rows[0]).toMatchObject({ lf: 60, ea: 3 });

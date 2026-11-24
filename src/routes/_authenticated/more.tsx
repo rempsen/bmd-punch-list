@@ -4,12 +4,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Plus } from "lucide-react";
 import { PageHeader, useNavItems } from "@/components/AppShell";
 import { ChangePassword } from "@/components/ChangePassword";
+import { YourCalendarCard } from "@/components/calendar/YourCalendarCard";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useProject } from "@/lib/data";
 
 export const Route = createFileRoute("/_authenticated/more")({
+  // `calendar` and `message` are set when Microsoft sends the person back after "Connect my Outlook calendar".
+  validateSearch: (s: Record<string, unknown>): { calendar?: string | undefined; message?: string | undefined } => ({
+    ...(typeof s["calendar"] === "string" ? { calendar: s["calendar"] } : {}),
+    ...(typeof s["message"] === "string" ? { message: s["message"] } : {}),
+  }),
   component: MorePage,
 });
 
@@ -19,6 +25,7 @@ function MorePage() {
   const { data: project } = useProject();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const search = Route.useSearch();
 
   const signOut = async () => {
     await queryClient.cancelQueries();
@@ -63,6 +70,7 @@ function MorePage() {
             <LogOut className="mr-2 h-4 w-4" /> Sign out
           </Button>
         </div>
+        <YourCalendarCard result={search.calendar} message={search.message} />
         <ChangePassword email={user?.email} />
       </div>
     </div>

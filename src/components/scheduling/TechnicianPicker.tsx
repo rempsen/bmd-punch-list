@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * Who a visit is assigned to: BMD staff, or any active Labour or Both vendor from Catalogue → Suppliers & subcontractors.
  * A crew that is not listed is added to the catalogue as Labour and picked in the same step.
  */
-export function TechnicianPicker({ value, onChange, techs, disabled, canAdd }: { value: string; onChange: (id: string) => void; techs: Technician[]; disabled?: boolean; canAdd: boolean }) {
+export function TechnicianPicker({ value, onChange, techs, disabled, canAdd, suggested = [] }: { value: string; onChange: (id: string) => void; techs: Technician[]; disabled?: boolean; canAdd: boolean; /** Crews linked to the labour on this job's estimate, offered first. */ suggested?: (Technician & { work: string })[] }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [adding, setAdding] = useState(false);
@@ -44,8 +44,8 @@ export function TechnicianPicker({ value, onChange, techs, disabled, canAdd }: {
       setAdding(false);
     }
   };
-  const row = (t: Technician) => (
-    <li key={t.id} role="option" aria-selected={t.id === value}>
+  const row = (t: Technician, keyPrefix = "") => (
+    <li key={keyPrefix + t.id} role="option" aria-selected={t.id === value}>
       <button type="button" className="flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted" onClick={() => pick(t.id)}>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{t.name}</span>
@@ -65,7 +65,7 @@ export function TechnicianPicker({ value, onChange, techs, disabled, canAdd }: {
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label="Technician"
+        aria-label="Crew"
         onClick={() => setOpen((o) => !o)}
         className="flex h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 text-left text-sm disabled:opacity-60"
       >
@@ -77,8 +77,8 @@ export function TechnicianPicker({ value, onChange, techs, disabled, canAdd }: {
       </button>
       {open && (
         <div className="mt-1 rounded-md border border-border bg-background p-2 shadow-sm">
-          <Input autoFocus aria-label="Find a technician" placeholder="Search staff and subcontractors…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} />
-          <ul role="listbox" aria-label="Technicians" className="mt-1 max-h-64 overflow-y-auto">
+          <Input autoFocus aria-label="Find a crew" placeholder="Search staff and subcontractors…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setOpen(false)} />
+          <ul role="listbox" aria-label="Crews" className="mt-1 max-h-64 overflow-y-auto">
             {!typed && (
               <li role="option" aria-selected={!value}>
                 <button type="button" className="flex min-h-11 w-full items-center rounded-md px-2 text-left text-sm hover:bg-muted" onClick={() => pick("")}>
@@ -87,10 +87,12 @@ export function TechnicianPicker({ value, onChange, techs, disabled, canAdd }: {
                 </button>
               </li>
             )}
+            {!typed && suggested.length > 0 && heading("Suggested for this job")}
+            {!typed && suggested.map((t) => row({ ...t, id: t.id, detail: `Does ${t.work}` }, "s-"))}
             {staff.length > 0 && heading("Staff")}
-            {staff.map(row)}
+            {staff.map((t) => row(t))}
             {subs.length > 0 && heading("Subcontractors")}
-            {subs.map(row)}
+            {subs.map((t) => row(t))}
             {canAdd && seen.length > 0 && heading("Seen in ArrivePing, not in the catalogue yet")}
             {canAdd &&
               seen.map((t) => (

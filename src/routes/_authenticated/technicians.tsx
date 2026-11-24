@@ -29,6 +29,7 @@ type Tab = "subcontractors" | "staff";
 function Technicians() {
   const { canAny } = useAuth();
   const canAdd = canAny("manage_projects") || canAny("manage_catalogue");
+  const canSchedule = canAny("manage_projects");
   const techs = useTechnicians();
   const month = useMonthVisits();
   const qc = useQueryClient();
@@ -82,6 +83,11 @@ function Technicians() {
         </button>
         {open && (
           <div className="space-y-2 border-t border-border bg-muted/30 px-4 py-3">
+            {canSchedule && (
+              <Link to="/scheduling" search={{ view: "technicians", new: t.id }} className="inline-flex h-10 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90">
+                <Plus className="mr-2 h-4 w-4" aria-hidden /> Schedule a visit for {t.name}
+              </Link>
+            )}
             <TechnicianVisits techId={t.id} />
           </div>
         )}
@@ -93,7 +99,7 @@ function Technicians() {
     <div>
       <PageHeader
         title="Crews and Subcontractors"
-        subtitle="Everyone a visit can be assigned to: BMD staff, and the Labour vendors under Suppliers & subcontractors"
+        subtitle="Every crew a visit can be assigned to: BMD staff who go to site, and the Labour vendors under Suppliers & subcontractors"
         actions={
           canAdd && (
             <Button className="h-11" onClick={() => setAdding((a) => !a)}>
@@ -124,14 +130,14 @@ function Technicians() {
           </form>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <div role="tablist" aria-label="Kind of technician" className="inline-flex rounded-md border border-border bg-card p-1">
+          <div role="tablist" aria-label="Kind of crew" className="inline-flex rounded-md border border-border bg-card p-1">
             {(["subcontractors", "staff"] as Tab[]).map((k) => (
               <button key={k} role="tab" aria-selected={tab === k} onClick={() => { setTab(k); setOpenId(null); }} className={cn("min-h-9 rounded px-3 text-sm font-medium", tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>
                 {k === "staff" ? `Staff (${staff.length})` : `Subcontractors (${subs.length})`}
               </button>
             ))}
           </div>
-          <Input aria-label="Search technicians" className="h-11 max-w-xs" placeholder="Search name, contact or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input aria-label="Search crews" className="h-11 max-w-xs" placeholder="Search name, contact or phone…" value={q} onChange={(e) => setQ(e.target.value)} />
           {canAny("view_pricing") && (
             <Link to="/catalogue" className="ml-auto text-sm font-medium text-primary underline-offset-4 hover:underline">
               Edit contact details in the catalogue
@@ -147,7 +153,7 @@ function Technicians() {
             {q.trim()
               ? "Nobody matches that search."
               : tab === "staff"
-                ? "No BMD staff are set up as field technicians yet. Give a person the BMD field access level (Company settings → Users) and they appear here."
+                ? "No BMD staff go to site yet. Open a person under Company settings → Users and tick Goes to site, and they appear here."
                 : "No subcontractors yet. Add one here, or mark a vendor as Labour under Catalogue → Suppliers & subcontractors."}
           </p>
         ) : (

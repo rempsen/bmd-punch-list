@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Check, Copy, Plus, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
+import { ContractTypeField, applyContractType } from "@/components/billing/ContractType";
 import { ContactFields, DetailsFields, Field, ScopePicker } from "@/components/job/fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ function NewJobPage() {
   const [step, setStep] = useState(siteFor ? 3 : 1);
   const [draftId, setDraftId] = useState<string | null>(draftParam ?? null);
   const [busy, setBusy] = useState(false);
+  const [contractType, setContractType] = useState<"fixed" | "open_book">("fixed");
 
   useEffect(() => {
     if (!draftParam) return;
@@ -159,6 +161,7 @@ function NewJobPage() {
       toast.error(error.message);
       return;
     }
+    if (!siteFor) await applyContractType(id as string, contractType);
     if (draftId) await supabase.from("job_drafts").delete().eq("id", draftId);
     await refreshPermissions();
     setProjectId(id as string);
@@ -207,6 +210,9 @@ function NewJobPage() {
         {step === 1 && (
           <Section title="Job details">
             <DetailsFields value={d} onChange={set} />
+            <div className="mt-4">
+              <ContractTypeField value={contractType} onChange={setContractType} />
+            </div>
           </Section>
         )}
 

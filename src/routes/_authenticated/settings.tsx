@@ -31,13 +31,16 @@ import { RolesPanel } from "@/components/settings/RolesPanel";
 import { ProjectsPanel } from "@/components/settings/ProjectsPanel";
 import { JobDetailsPanel } from "@/components/job/JobDetailsPanel";
 import { JobsAdminPanel } from "@/components/settings/JobsAdminPanel";
+import { StandardToolsPanel } from "@/components/dailylog/StandardToolsPanel";
 import { AiModelPanel } from "@/components/settings/AiModelPanel";
 import { canonicalTab, settingsHeading } from "@/lib/settings-tabs";
 import { ScopeKeywordsPanel } from "@/components/settings/ScopeKeywordsPanel";
+import { JobTemplatesPanel } from "@/components/settings/JobTemplatesPanel";
 import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
 import { KnowledgePanel } from "@/components/settings/KnowledgePanel";
 import { SyncPanel } from "@/components/settings/SyncPanel";
 import { IntegrationsPanel } from "@/components/settings/IntegrationsPanel";
+import { SchedulingSettingsPanel } from "@/components/settings/SchedulingSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   validateSearch: (s: Record<string, unknown>): { tab?: string | undefined; ms?: string | undefined; qbo?: string | undefined; message?: string | undefined } => ({
@@ -95,8 +98,10 @@ function SettingsPage() {
     [canAny("manage_settings") || isSuperAdmin, "scope", "Scope keywords"],
     [canManageAnyUsers, "allusers", "Users"],
     [isSuperAdmin, "roles", "Roles"],
+    [canAny("manage_settings") || isSuperAdmin, "scheduling", "Scheduling"],
     [canSettings, "projects", "All jobs"],
     [canSettings, "jobs", "Jobs admin"],
+    [canAny("manage_projects"), "templates", "Job templates"],
   ] as const).filter(([ok]) => ok).map(([, value, label]) => [value, label] as const);
   const jobTabs = ([
     [canSettings, "project", "Job details"],
@@ -295,9 +300,22 @@ function SettingsPage() {
             </TabsContent>
           )}
 
+          {(canAny("manage_settings") || isSuperAdmin) && (
+            <TabsContent value="scheduling">
+              <SchedulingSettingsPanel />
+            </TabsContent>
+          )}
+
           {canSettings && (
             <TabsContent value="jobs">
               <JobsAdminPanel />
+              <StandardToolsPanel />
+            </TabsContent>
+          )}
+
+          {canAny("manage_projects") && (
+            <TabsContent value="templates">
+              <JobTemplatesPanel />
             </TabsContent>
           )}
 

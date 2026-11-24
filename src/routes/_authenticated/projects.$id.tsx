@@ -5,10 +5,14 @@ import { toast } from "sonner";
 import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { BillingTab } from "@/components/billing/BillingTab";
+import { ContractTag, ContractTypeFact } from "@/components/billing/ContractType";
 import { QuotesTab } from "@/components/quotes/QuotesTab";
 import { CrewStatusPanel } from "@/components/visits/CrewStatusPanel";
 import { VisitsPanel } from "@/components/visits/VisitsPanel";
 import { InstallationPanel } from "@/components/installation/InstallTiles";
+import { DailyLogPanel } from "@/components/dailylog/DailyLogPanel";
+import { RequestsListsPanel } from "@/components/dailylog/RequestsListsPanel";
+import { SiteCounts } from "@/components/dailylog/SiteCounts";
 import { useProjectDocuments } from "@/lib/documents/data";
 import { buildTimeline } from "@/lib/projects/timeline";
 import { useQuotes } from "@/lib/quotes/data";
@@ -17,6 +21,7 @@ import { useQuery } from "@tanstack/react-query";
 // The plan viewer brings pdf.js with it, so it is fetched only when the Takeoff tab is opened.
 import { TakeoffWorkspace } from "@/components/takeoff/TakeoffWorkspace";
 import { DocumentsTab } from "@/components/projects/DocumentsTab";
+import { SiteContactsPanel, StandardTasksPanel } from "@/components/projects/JobExtras";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { StageBadge } from "@/components/projects/StageBadge";
 import { SearchSelect } from "@/components/SearchSelect";
@@ -41,6 +46,7 @@ import {
 } from "@/lib/projects/data";
 import { JOB_ROLES, JOB_TYPES, LOST_REASONS, daysInStage, isOverdue, stageLabel } from "@/lib/projects/stages";
 import { cn } from "@/lib/utils";
+import { ClockedInLine } from "@/components/time/ClockedInLine";
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -49,6 +55,8 @@ const TABS = [
   { key: "estimate", label: "Estimate" },
   { key: "quotes", label: "Quotes" },
   { key: "site", label: "Site" },
+  { key: "log", label: "Daily log" },
+  { key: "requests", label: "Requests & lists" },
   { key: "billing", label: "Billing" },
   { key: "activity", label: "Activity" },
 ] as const;
@@ -98,10 +106,11 @@ function ProjectPage() {
               <span className="mr-2 font-mono text-sm font-normal text-muted-foreground">{project.project_number}</span>
               {project.name}
             </h1>
-            <p className="text-sm text-muted-foreground">{[project.client_name, project.address].filter(Boolean).join(" · ") || "No client"}</p>
+            <p className="text-sm text-muted-foreground">{[project.kind === "internal" ? "Internal job" : project.client_name, project.address].filter(Boolean).join(" · ") || "No client"}</p>
           </div>
           <div className="flex items-center gap-2">
             <StageBadge stage={project.stage} className="px-3 py-1 text-sm" />
+            <ContractTag projectId={project.id} />
             {canEdit && (
               <Button variant="outline" onClick={() => setMoving(true)}>
                 <ArrowRightLeft className="mr-2 h-4 w-4" /> Move
@@ -131,6 +140,7 @@ function ProjectPage() {
       {tab === "takeoff" && <TakeoffWorkspace projectId={project.id} />}
       <div className={cn("mx-auto p-4 md:p-6", tab === "takeoff" && "hidden", tab === "estimate" ? "max-w-7xl" : "max-w-5xl")}>
         {tab === "overview" && <Overview project={project} canEdit={canEdit} onChanged={refresh} />}
+        {tab === "overview" && <SiteCounts projectId={project.id} />}
         {tab === "overview" && (project.stage === "won" || project.stage === "in_progress") && <InstallationPanel projectId={project.id} />}
         {tab === "overview" && <VisitsPanel projectId={project.id} canEdit={canEdit} project={{ name: project.name, number: project.project_number, address: project.address, client: project.client_name }} />}
         {tab === "documents" && <DocumentsTab projectId={project.id} />}
@@ -138,6 +148,8 @@ function ProjectPage() {
         {tab === "quotes" && <QuotesTab projectId={project.id} />}
         {tab === "billing" && <BillingTab projectId={project.id} />}
         {tab === "site" && <SiteTab project={project} canEdit={canEdit} />}
+        {tab === "log" && <DailyLogPanel projectId={project.id} />}
+        {tab === "requests" && <RequestsListsPanel projectId={project.id} />}
         {tab === "activity" && <Activity projectId={project.id} />}
       </div>
 
@@ -225,6 +237,7 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
+        <ClockedInLine projectId={project.id} />
         <Panel
           title="Details"
           actions={
@@ -278,7 +291,7 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
               <Fact label="Site address" value={project.address ?? "—"} />
               <Fact label="Bid due" value={shortDate(project.bid_due_date)} tone={overdue ? "bad" : undefined} note={overdue ? "Overdue" : undefined} />
               <Fact label="Job type" value={project.job_type ?? "—"} />
-              <Fact label="Estimated value" value={money(project.estimated_value_cents)} />
+              <ContractTypeFact projectId={project.id} estimatedValue={money(project.estimated_value_cents)} />
               <Fact label="In this stage" value={`${daysInStage(project.stage_entered_at)} days, since ${shortDate(project.stage_entered_at)}`} />
               {project.stage === "lost" && (
                 <Fact
@@ -295,6 +308,7 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
             </dl>
           )}
         </Panel>
+        <SiteContactsPanel projectId={project.id} canEdit={canEdit} />
       </div>
       <div className="space-y-4">
       <Panel title="BMD team">
@@ -324,6 +338,7 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
         </div>
       </Panel>
       <OneDrivePlacement project={project} canEdit={canEdit} onChanged={onChanged} />
+      <StandardTasksPanel project={project} canEdit={canEdit} onChanged={onChanged} />
       </div>
     </div>
   );

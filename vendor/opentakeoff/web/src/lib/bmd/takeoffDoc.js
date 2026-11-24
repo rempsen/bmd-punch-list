@@ -124,7 +124,8 @@ export function removeShape(doc, id) {
  * @returns {{id: string, tag: string, colour: string, hatch: string, areaSf: number, areaSy: number, wallSf: number, lengthLf: number, count: number, shapes: number}[]}
  */
 export function finishTotals(doc, sheetId = null) {
-  const shapes = sheetId ? sheetShapes(doc, sheetId) : doc.shapes || [];
+  // proposals waiting for review (the automatic takeoff's, or an import's) are not measured quantities yet
+  const shapes = (sheetId ? sheetShapes(doc, sheetId) : doc.shapes || []).filter((s) => s.origin?.reviewed !== false);
   return conditionTotals(doc.conditions || [], shapes).map((r) => ({
     id: r.id, tag: r.finish_tag, colour: r.color, hatch: r.hatch,
     areaSf: round2(r.floor_sf), areaSy: round2(r.floor_sf / 9), wallSf: round2(r.wall_sf), lengthLf: round2(r.lf), count: r.ea, shapes: r.shape_count,

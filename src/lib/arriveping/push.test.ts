@@ -394,3 +394,30 @@ describe("planRetry: reschedule", () => {
     expect(planRetry({ direction: "out", entity_type: "visit", event_type: "reschedule", entity_id: "v1", idempotency_key: "bmd-visit-v1-reschedule-5", external_id: "wo_7", status: "failed" })).toEqual({ action: "reschedule", visitId: "v1", key: "bmd-visit-v1-reschedule-5" });
   });
 });
+
+describe("tentative visits are never sent", () => {
+  const tentative = { ...visit, tentative: true };
+  test("the one rule every send checks", async () => {
+    const { visitSendBlock } = await import("./core");
+    expect(visitSendBlock({ tentative: true })).toBe("tentative");
+    expect(visitSendBlock({ tentative: false })).toBeNull();
+    expect(visitSendBlock({})).toBeNull();
+  });
+  test("no work order is created, and ArrivePing is not called", async () => {
+    const fetchJson = replying({ ok: true, status: 201, json: { id: "wo_1" } });
+    const out = await pushVisitCreate({ fetchJson, visit: tentative, project, clientId: "cl_1" });
+    expect(out).toEqual({ outcome: "skipped", reason: "tentative" });
+    expect(fetchJson).not.toHaveBeenCalled();
+  });
+  test("a schedule change is not sent either, even for a visit that is somehow linked", async () => {
+    const fetchJson = replying({ ok: true, status: 200, json: {} });
+    const out = await pushVisitReschedule({ fetchJson, visit: { ...tentative, arriveping_job_id: "wo_9" }, key: "k" });
+    expect(out).toEqual({ outcome: "skipped", reason: "tentative" });
+    expect(fetchJson).not.toHaveBeenCalled();
+  });
+  test("clearing the tick sends as usual", async () => {
+    const fetchJson = replying({ ok: true, status: 201, json: { id: "wo_1" } });
+    const out = await pushVisitCreate({ fetchJson, visit: { ...tentative, tentative: false }, project, clientId: "cl_1" });
+    expect(out.outcome).toBe("sent");
+  });
+});

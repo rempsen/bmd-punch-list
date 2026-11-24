@@ -197,6 +197,37 @@ export function visitsThisMonth<V extends Assignable & { starts_at: string; stat
   return out;
 }
 
+/** The crews with a row on the week grid: those with a visit that week, or everyone when asked. */
+export function rowsToShow(techs: Technician[], booked: Set<string>, showAll: boolean): Technician[] {
+  return showAll ? techs : techs.filter((t) => booked.has(t.id));
+}
+
+/** Other visits the same crew already has on a site day this visit touches. Cancelled visits and the visit being edited are left out. A warning, never a block. */
+export function clashesFor<V extends Assignable & { id: string; starts_at: string; ends_at: string | null; status: string }>(
+  visits: V[],
+  techId: string,
+  techs: Technician[],
+  when: { starts_at: string; ends_at: string | null },
+  editingId: string | null,
+  tz = SCHEDULE_TZ,
+): V[] {
+  if (!techId) return [];
+  const days = new Set(visitDays(when, tz));
+  return visits.filter((v) => v.id !== editingId && v.status !== "cancelled" && technicianOf(v, techs) === techId && visitDays(v, tz).some((d) => days.has(d)));
+}
+
+/** The crews linked to the labour on a job's estimate, in list order, each with the work they are linked for. */
+export function suggestedCrews(techs: Technician[], links: { supplier_id: string; work: string }[]): (Technician & { work: string })[] {
+  const work = new Map(links.map((l) => [SUP + l.supplier_id, l.work]));
+  return techs.filter((t) => work.has(t.id)).map((t) => ({ ...t, work: work.get(t.id)! }));
+}
+
+/** What to add and remove so the saved links match the ticked ones. */
+export function linkChanges(before: string[], after: string[]): { add: string[]; remove: string[] } {
+  const b = new Set(before), a = new Set(after);
+  return { add: [...a].filter((x) => !b.has(x)), remove: [...b].filter((x) => !a.has(x)) };
+}
+
 // ── Areas ──────────────────────────────────────────────────────────────────────────────────────────────────
 export type Area = { floor_id: string; room_id: string };
 export type Room = { id: string; floor_id: string };

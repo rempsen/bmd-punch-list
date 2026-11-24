@@ -12,6 +12,7 @@ import { shapeLine } from "@/lib/estimating/data";
 import { versionSummary } from "@/lib/estimating/worksheet";
 import { db } from "@/lib/platform/db";
 import { holderOf, money, shortDate, staffName, useBmdStaff, usePipelineProjects } from "@/lib/projects/data";
+import { clientJobs } from "@/lib/projects/joblist";
 import { toCsv } from "@/lib/projects/pipeline";
 import { STAGES, stageLabel } from "@/lib/projects/stages";
 import { QUOTE_STATUSES, latestQuote, listSummary, quoteTotal, type ListQuote } from "@/lib/quotes/list";
@@ -86,7 +87,7 @@ function EstimatesList() {
     }
     const qs = new Map<string, ListQuote[]>();
     for (const q of quotes.data ?? []) qs.set(q.project_id, [...(qs.get(q.project_id) ?? []), q]);
-    return (projects.data ?? [])
+    return clientJobs(projects.data ?? [])
       .filter((p) => est.has(p.id) || qs.has(p.id))
       .map((p) => {
         const list = qs.get(p.id) ?? [];

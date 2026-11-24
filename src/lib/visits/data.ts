@@ -9,9 +9,8 @@ export function useProjectVisits(projectId: string) {
     queryFn: async () => {
       const { data, error } = await db
         .from("install_visits")
-        .select(
-          "id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status",
-        )
+        // "*" so the run, tentative, report-to and confirmation columns are read once they exist, and nothing breaks before.
+        .select("*")
         .eq("project_id", projectId)
         .order("starts_at");
       if (error) throw error;

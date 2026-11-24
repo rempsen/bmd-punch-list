@@ -21,7 +21,8 @@ export type MailMessage = {
   attachments?: { name: string; contentType: string; bytes: Uint8Array }[];
 };
 export type SendResult = { ok: true } | { ok: false; reason: "reconnect" | "error"; message: string };
-export type StatePayload = { userId: string; kind: "mail" | "library" | "quickbooks"; nonce: string; exp: number };
+/** `scopes` is set only for kind "calendar": the permissions that sign-in asked for (the person's existing ones plus their calendar). */
+export type StatePayload = { userId: string; kind: "mail" | "library" | "quickbooks" | "calendar"; nonce: string; exp: number; scopes?: string[] };
 
 export class ReconnectError extends Error {}
 
@@ -83,15 +84,16 @@ export async function decryptToken(value: string, keyMaterial: string): Promise<
   return dec.decode(plain);
 }
 
-export function authorizeUrl(o: { tenant: string; clientId: string; redirectUri: string; state: string }): string {
+export function authorizeUrl(o: { tenant: string; clientId: string; redirectUri: string; state: string; scopes?: readonly string[]; loginHint?: string }): string {
   const q = new URLSearchParams({
     client_id: o.clientId,
     response_type: "code",
     redirect_uri: o.redirectUri,
     response_mode: "query",
-    scope: SCOPES.join(" "),
+    scope: (o.scopes ?? SCOPES).join(" "),
     state: o.state,
     prompt: "select_account",
+    ...(o.loginHint ? { login_hint: o.loginHint } : {}),
   });
   return `https://login.microsoftonline.com/${encodeURIComponent(o.tenant)}/oauth2/v2.0/authorize?${q}`;
 }
@@ -112,15 +114,16 @@ export function createGraph(deps: { fetch: typeof fetch; env: MsEnv; store: MsSt
   };
 
   /** First connection: trade the authorization code for tokens. Returns the access token and the encrypted refresh token. */
-  async function exchangeCode(code: string, redirectUri: string): Promise<{ accessToken: string; refreshTokenEnc: string }> {
-    const { body } = await token({ grant_type: "authorization_code", code, redirect_uri: redirectUri });
+  async function exchangeCode(code: string, redirectUri: string, scopes?: readonly string[]): Promise<{ accessToken: string; refreshTokenEnc: string }> {
+    const { body } = await token({ grant_type: "authorization_code", code, redirect_uri: redirectUri, ...(scopes ? { scope: scopes.join(" ") } : {}) });
     if (!body.access_token || !body.refresh_token) {
       throw new Error(body.error_description?.split("\n")[0] ?? body.error ?? "Microsoft did not return a token");
     }
     return { accessToken: body.access_token, refreshTokenEnc: await encryptToken(body.refresh_token, keyMaterial) };
   }
 
-  async function getAccessToken(userId: string): Promise<string> {
+  /** `scopes` asks for a token with exactly those permissions; leave it out for the usual mail and files ones. */
+  async function getAccessToken(userId: string, scopes?: readonly string[]): Promise<string> {
     const row = await store.get(userId);
     if (!row) throw new ReconnectError("Outlook is not connected for this account.");
     let refresh: string;
@@ -130,7 +133,7 @@ export function createGraph(deps: { fetch: typeof fetch; env: MsEnv; store: MsSt
       await store.setError(userId, "Stored token could not be read");
       throw new ReconnectError("Stored token could not be read");
     }
-    const { status, body } = await token({ grant_type: "refresh_token", refresh_token: refresh });
+    const { status, body } = await token({ grant_type: "refresh_token", refresh_token: refresh, ...(scopes ? { scope: scopes.join(" ") } : {}) });
     if (!body.access_token) {
       const reason = `${body.error ?? `HTTP ${status}`}: ${body.error_description?.split("\n")[0] ?? "token refresh failed"}`;
       await store.setError(userId, reason);

@@ -3,22 +3,29 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { BillList, type Bill } from "@/components/billing/BillList";
+import { OpenBookBilling } from "@/components/billing/OpenBookBilling";
 import { useAuth } from "@/lib/auth";
 import { billTotals, billingPosition, checkNewBill, releaseTotals, type BillKind } from "@/lib/billing/calc";
-import { renderBillPdf, type BillForPdf } from "@/lib/billing/pdf";
+import { useContractType } from "@/lib/billing/data";
+import { renderBillPdf } from "@/lib/billing/pdf";
 import { useTaxSettings } from "@/lib/catalogue/data";
 import { dollars } from "@/lib/estimating/data";
 import { db, errText } from "@/lib/platform/db";
 import { useQuotes } from "@/lib/quotes/data";
 import { contractValue } from "@/lib/quotes/logic";
 
-type Bill = BillForPdf & { id: string; status: "draft" | "issued" | "void"; created_at: string };
-// status travels with the bill so a draft or void invoice is marked as such on the PDF.
-const STATUS = { draft: "Draft", issued: "Issued", void: "Void" } as const;
 const toCents = (s: string) => Math.round(Number(s.replace(/[$,\s]/g, "")) * 100);
 
-/** Bills against the contract: materials and progress with holdback kept back, then the holdback on its own invoice. */
+/** A job is billed against its contract (fixed price) or from its hours and supplier invoices (open book). */
 export function BillingTab({ projectId }: { projectId: string }) {
+  const { data: contractType } = useContractType(projectId);
+  if (!contractType) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  return contractType === "open_book" ? <OpenBookBilling projectId={projectId} /> : <FixedPriceBilling projectId={projectId} />;
+}
+
+/** Bills against the contract: materials and progress with holdback kept back, then the holdback on its own invoice. */
+function FixedPriceBilling({ projectId }: { projectId: string }) {
   const { canAny } = useAuth();
   const canSee = canAny("view_pricing");
   const canBill = canAny("send_quotes");
@@ -197,42 +204,13 @@ export function BillingTab({ projectId }: { projectId: string }) {
       {bills.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">{pos.contractCents > 0 ? "Nothing has been billed yet." : "Billing starts once a quote has been accepted."}</p>
       ) : (
-        <ul className="divide-y divide-border rounded-lg border border-border bg-card">
-          {[...bills].reverse().map((b) => (
-            <li key={b.id} className={`flex flex-wrap items-center gap-x-4 gap-y-2 p-3 ${b.status === "void" ? "opacity-60" : ""}`}>
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
-                  {b.number} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{b.kind === "holdback_release" ? "Holdback release · " : ""}{STATUS[b.status]}</span>
-                </p>
-                <p className="truncate text-xs text-muted-foreground">{b.lines.map((l) => l.description).join(", ")}{b.period_note ? ` · ${b.period_note}` : ""}</p>
-              </div>
-              <p className="text-right text-sm tabular-nums">
-                {dollars(b.total_cents)}
-                <span className="block text-xs text-muted-foreground">{b.kind === "progress" ? `${dollars(b.gross_cents)} less ${dollars(b.holdback_cents)} held, plus GST` : "with GST"}</span>
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => pdf(b)}>
-                  Invoice PDF
-                </Button>
-                {canBill && b.status === "draft" && (
-                  <>
-                    <Button size="sm" disabled={busy} onClick={() => void run(() => db.rpc("set_progress_bill_status", { _id: b.id, _to: "issued" }), `${b.number} issued.`)}>
-                      Issue
-                    </Button>
-                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => db.rpc("set_progress_bill_status", { _id: b.id, _to: "deleted" }), "Draft deleted.")}>
-                      Delete
-                    </Button>
-                  </>
-                )}
-                {canBill && b.status === "issued" && (
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => window.confirm(`Void ${b.number}? It stays on record and its amount can be billed again.`) && void run(() => db.rpc("set_progress_bill_status", { _id: b.id, _to: "void" }), `${b.number} voided.`)}>
-                    Void
-                  </Button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <BillList
+          bills={bills}
+          canBill={canBill}
+          busy={busy}
+          onPdf={pdf}
+          onStatus={(b, to) => void run(() => db.rpc("set_progress_bill_status", { _id: b.id, _to: to }), to === "issued" ? `${b.number} issued.` : to === "void" ? `${b.number} voided.` : "Draft deleted.")}
+        />
       )}
       <p className="text-xs text-muted-foreground">Bills are entered in QuickBooks by hand for now: the invoice PDF carries every figure needed.</p>
     </div>

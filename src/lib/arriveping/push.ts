@@ -9,6 +9,7 @@ import {
   existingFromConflict,
   idempotencyKey,
   reschedulePayload,
+  visitSendBlock,
   workOrderPayload,
   type ClientForPush,
   type ProjectForPush,
@@ -28,7 +29,7 @@ export type EnsureClientOutcome =
 export type PushCreateOutcome =
   | { outcome: "sent"; jobId: string; key: string }
   | { outcome: "failed"; error: string; key: string }
-  | { outcome: "skipped"; reason: "already linked" };
+  | { outcome: "skipped"; reason: "already linked" | "tentative" };
 export type PushCancelOutcome =
   | { outcome: "sent"; jobId: string; key: string }
   | { outcome: "failed"; error: string; key: string }
@@ -85,6 +86,7 @@ export async function pushVisitCreate(deps: {
   existingKey?: string | null;
 }): Promise<PushCreateOutcome> {
   const { fetchJson, visit, project } = deps;
+  if (visitSendBlock(visit)) return { outcome: "skipped", reason: "tentative" };
   if (visit.arriveping_job_id) return { outcome: "skipped", reason: "already linked" };
   const key = deps.existingKey ?? idempotencyKey("create", visit.id);
   const res = await call(fetchJson, AP_PATHS.workorders, workOrderPayload(visit, project, deps.clientId), key);
@@ -121,7 +123,7 @@ export async function pushVisitCancel(deps: {
 export type PushRescheduleOutcome =
   | { outcome: "sent"; jobId: string; key: string }
   | { outcome: "failed"; error: string; key: string }
-  | { outcome: "skipped"; reason: "not linked" };
+  | { outcome: "skipped"; reason: "not linked" | "tentative" };
 
 /** Puts a visit's current schedule (and site contact and crew notes) onto its ArrivePing work order. A visit that was never sent is skipped. Never throws. */
 export async function pushVisitReschedule(deps: {
@@ -130,6 +132,7 @@ export async function pushVisitReschedule(deps: {
   key: string;
 }): Promise<PushRescheduleOutcome> {
   const { fetchJson, visit, key } = deps;
+  if (visitSendBlock(visit)) return { outcome: "skipped", reason: "tentative" };
   const jobId = visit.arriveping_job_id;
   if (!jobId) return { outcome: "skipped", reason: "not linked" };
   const res = await call(fetchJson, `${AP_PATHS.workorders}/${encodeURIComponent(jobId)}`, reschedulePayload(visit), key, "PATCH");

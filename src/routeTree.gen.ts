@@ -21,6 +21,7 @@ import { Route as AuthenticatedClientPortalRouteImport } from './routes/_authent
 import { Route as AuthenticatedClientsRouteImport } from './routes/_authenticated/clients'
 import { Route as AuthenticatedCompanyWorkRouteImport } from './routes/_authenticated/company-work'
 import { Route as AuthenticatedCompanycamRouteImport } from './routes/_authenticated/companycam'
+import { Route as AuthenticatedDailyLogRouteImport } from './routes/_authenticated/daily-log'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedDecisionsRouteImport } from './routes/_authenticated/decisions'
 import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authenticated/documents'
@@ -43,7 +44,10 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSignoffRouteImport } from './routes/_authenticated/signoff'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTechniciansRouteImport } from './routes/_authenticated/technicians'
+import { Route as AuthenticatedTimeRouteImport } from './routes/_authenticated/time'
+import { Route as AuthenticatedTimesheetsRouteImport } from './routes/_authenticated/timesheets'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
+import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
 import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
@@ -53,7 +57,9 @@ import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSignTokenRouteImport } from './routes/_authenticated/sign.$token'
 import { Route as ApiMsCallbackRouteImport } from './routes/api/ms/callback'
 import { Route as ApiQboCallbackRouteImport } from './routes/api/qbo/callback'
+import { Route as ApiTakeoffDecideFinishesRouteImport } from './routes/api/takeoff/decide-finishes'
 import { Route as ApiPublicArrivepingWebhookRouteImport } from './routes/api/public/arriveping/webhook'
+import { Route as ApiPublicCalendarFileRouteImport } from './routes/api/public/calendar/$file'
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 import { Route as ApiPublicOnedriveMirrorRouteImport } from './routes/api/public/onedrive/mirror'
@@ -119,6 +125,11 @@ const AuthenticatedCompanyWorkRoute =
 const AuthenticatedCompanycamRoute = AuthenticatedCompanycamRouteImport.update({
   id: '/companycam',
   path: '/companycam',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDailyLogRoute = AuthenticatedDailyLogRouteImport.update({
+  id: '/daily-log',
+  path: '/daily-log',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -234,12 +245,27 @@ const AuthenticatedTechniciansRoute =
     path: '/technicians',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTimeRoute = AuthenticatedTimeRouteImport.update({
+  id: '/time',
+  path: '/time',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTimesheetsRoute = AuthenticatedTimesheetsRouteImport.update({
+  id: '/timesheets',
+  path: '/timesheets',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTradePortalRoute =
   AuthenticatedTradePortalRouteImport.update({
     id: '/trade-portal',
     path: '/trade-portal',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ConfirmTokenRoute = ConfirmTokenRouteImport.update({
+  id: '/confirm/$token',
+  path: '/confirm/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QTokenRoute = QTokenRouteImport.update({
   id: '/q/$token',
   path: '/q/$token',
@@ -287,12 +313,23 @@ const ApiQboCallbackRoute = ApiQboCallbackRouteImport.update({
   path: '/api/qbo/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTakeoffDecideFinishesRoute =
+  ApiTakeoffDecideFinishesRouteImport.update({
+    id: '/api/takeoff/decide-finishes',
+    path: '/api/takeoff/decide-finishes',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicArrivepingWebhookRoute =
   ApiPublicArrivepingWebhookRouteImport.update({
     id: '/api/public/arriveping/webhook',
     path: '/api/public/arriveping/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicCalendarFileRoute = ApiPublicCalendarFileRouteImport.update({
+  id: '/api/public/calendar/$file',
+  path: '/api/public/calendar/$file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCompanycamWebhookRoute =
   ApiPublicCompanycamWebhookRouteImport.update({
     id: '/api/public/companycam/webhook',
@@ -327,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/companycam': typeof AuthenticatedCompanycamRoute
+  '/daily-log': typeof AuthenticatedDailyLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/documents': typeof AuthenticatedDocumentsRoute
@@ -349,7 +387,10 @@ export interface FileRoutesByFullPath {
   '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/technicians': typeof AuthenticatedTechniciansRoute
+  '/time': typeof AuthenticatedTimeRoute
+  '/timesheets': typeof AuthenticatedTimesheetsRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -358,8 +399,10 @@ export interface FileRoutesByFullPath {
   '/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
+  '/api/takeoff/decide-finishes': typeof ApiTakeoffDecideFinishesRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
+  '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -377,6 +420,7 @@ export interface FileRoutesByTo {
   '/clients': typeof AuthenticatedClientsRoute
   '/company-work': typeof AuthenticatedCompanyWorkRoute
   '/companycam': typeof AuthenticatedCompanycamRoute
+  '/daily-log': typeof AuthenticatedDailyLogRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/decisions': typeof AuthenticatedDecisionsRoute
   '/documents': typeof AuthenticatedDocumentsRoute
@@ -399,7 +443,10 @@ export interface FileRoutesByTo {
   '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/technicians': typeof AuthenticatedTechniciansRoute
+  '/time': typeof AuthenticatedTimeRoute
+  '/timesheets': typeof AuthenticatedTimesheetsRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -408,8 +455,10 @@ export interface FileRoutesByTo {
   '/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
+  '/api/takeoff/decide-finishes': typeof ApiTakeoffDecideFinishesRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
+  '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -429,6 +478,7 @@ export interface FileRoutesById {
   '/_authenticated/clients': typeof AuthenticatedClientsRoute
   '/_authenticated/company-work': typeof AuthenticatedCompanyWorkRoute
   '/_authenticated/companycam': typeof AuthenticatedCompanycamRoute
+  '/_authenticated/daily-log': typeof AuthenticatedDailyLogRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/decisions': typeof AuthenticatedDecisionsRoute
   '/_authenticated/documents': typeof AuthenticatedDocumentsRoute
@@ -451,7 +501,10 @@ export interface FileRoutesById {
   '/_authenticated/signoff': typeof AuthenticatedSignoffRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/technicians': typeof AuthenticatedTechniciansRoute
+  '/_authenticated/time': typeof AuthenticatedTimeRoute
+  '/_authenticated/timesheets': typeof AuthenticatedTimesheetsRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
@@ -460,8 +513,10 @@ export interface FileRoutesById {
   '/_authenticated/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
+  '/api/takeoff/decide-finishes': typeof ApiTakeoffDecideFinishesRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
+  '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -481,6 +536,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/company-work'
     | '/companycam'
+    | '/daily-log'
     | '/dashboard'
     | '/decisions'
     | '/documents'
@@ -503,7 +559,10 @@ export interface FileRouteTypes {
     | '/signoff'
     | '/summary'
     | '/technicians'
+    | '/time'
+    | '/timesheets'
     | '/trade-portal'
+    | '/confirm/$token'
     | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -512,8 +571,10 @@ export interface FileRouteTypes {
     | '/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
+    | '/api/takeoff/decide-finishes'
     | '/projects/'
     | '/api/public/arriveping/webhook'
+    | '/api/public/calendar/$file'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -531,6 +592,7 @@ export interface FileRouteTypes {
     | '/clients'
     | '/company-work'
     | '/companycam'
+    | '/daily-log'
     | '/dashboard'
     | '/decisions'
     | '/documents'
@@ -553,7 +615,10 @@ export interface FileRouteTypes {
     | '/signoff'
     | '/summary'
     | '/technicians'
+    | '/time'
+    | '/timesheets'
     | '/trade-portal'
+    | '/confirm/$token'
     | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -562,8 +627,10 @@ export interface FileRouteTypes {
     | '/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
+    | '/api/takeoff/decide-finishes'
     | '/projects'
     | '/api/public/arriveping/webhook'
+    | '/api/public/calendar/$file'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -582,6 +649,7 @@ export interface FileRouteTypes {
     | '/_authenticated/clients'
     | '/_authenticated/company-work'
     | '/_authenticated/companycam'
+    | '/_authenticated/daily-log'
     | '/_authenticated/dashboard'
     | '/_authenticated/decisions'
     | '/_authenticated/documents'
@@ -604,7 +672,10 @@ export interface FileRouteTypes {
     | '/_authenticated/signoff'
     | '/_authenticated/summary'
     | '/_authenticated/technicians'
+    | '/_authenticated/time'
+    | '/_authenticated/timesheets'
     | '/_authenticated/trade-portal'
+    | '/confirm/$token'
     | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
@@ -613,8 +684,10 @@ export interface FileRouteTypes {
     | '/_authenticated/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
+    | '/api/takeoff/decide-finishes'
     | '/_authenticated/projects/'
     | '/api/public/arriveping/webhook'
+    | '/api/public/calendar/$file'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -627,11 +700,14 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ConfirmTokenRoute: typeof ConfirmTokenRoute
   QTokenRoute: typeof QTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiMsCallbackRoute: typeof ApiMsCallbackRoute
   ApiQboCallbackRoute: typeof ApiQboCallbackRoute
+  ApiTakeoffDecideFinishesRoute: typeof ApiTakeoffDecideFinishesRoute
   ApiPublicArrivepingWebhookRoute: typeof ApiPublicArrivepingWebhookRoute
+  ApiPublicCalendarFileRoute: typeof ApiPublicCalendarFileRoute
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
   ApiPublicOnedriveMirrorRoute: typeof ApiPublicOnedriveMirrorRoute
@@ -722,6 +798,13 @@ declare module '@tanstack/react-router' {
       path: '/companycam'
       fullPath: '/companycam'
       preLoaderRoute: typeof AuthenticatedCompanycamRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/daily-log': {
+      id: '/_authenticated/daily-log'
+      path: '/daily-log'
+      fullPath: '/daily-log'
+      preLoaderRoute: typeof AuthenticatedDailyLogRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -878,12 +961,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTechniciansRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/time': {
+      id: '/_authenticated/time'
+      path: '/time'
+      fullPath: '/time'
+      preLoaderRoute: typeof AuthenticatedTimeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/timesheets': {
+      id: '/_authenticated/timesheets'
+      path: '/timesheets'
+      fullPath: '/timesheets'
+      preLoaderRoute: typeof AuthenticatedTimesheetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trade-portal': {
       id: '/_authenticated/trade-portal'
       path: '/trade-portal'
       fullPath: '/trade-portal'
       preLoaderRoute: typeof AuthenticatedTradePortalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/confirm/$token': {
+      id: '/confirm/$token'
+      path: '/confirm/$token'
+      fullPath: '/confirm/$token'
+      preLoaderRoute: typeof ConfirmTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/q/$token': {
       id: '/q/$token'
@@ -948,11 +1052,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiQboCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/takeoff/decide-finishes': {
+      id: '/api/takeoff/decide-finishes'
+      path: '/api/takeoff/decide-finishes'
+      fullPath: '/api/takeoff/decide-finishes'
+      preLoaderRoute: typeof ApiTakeoffDecideFinishesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/arriveping/webhook': {
       id: '/api/public/arriveping/webhook'
       path: '/api/public/arriveping/webhook'
       fullPath: '/api/public/arriveping/webhook'
       preLoaderRoute: typeof ApiPublicArrivepingWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/calendar/$file': {
+      id: '/api/public/calendar/$file'
+      path: '/api/public/calendar/$file'
+      fullPath: '/api/public/calendar/$file'
+      preLoaderRoute: typeof ApiPublicCalendarFileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/companycam/webhook': {
@@ -994,6 +1112,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientsRoute: typeof AuthenticatedClientsRoute
   AuthenticatedCompanyWorkRoute: typeof AuthenticatedCompanyWorkRoute
   AuthenticatedCompanycamRoute: typeof AuthenticatedCompanycamRoute
+  AuthenticatedDailyLogRoute: typeof AuthenticatedDailyLogRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDecisionsRoute: typeof AuthenticatedDecisionsRoute
   AuthenticatedDocumentsRoute: typeof AuthenticatedDocumentsRoute
@@ -1016,6 +1135,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSignoffRoute: typeof AuthenticatedSignoffRoute
   AuthenticatedSummaryRoute: typeof AuthenticatedSummaryRoute
   AuthenticatedTechniciansRoute: typeof AuthenticatedTechniciansRoute
+  AuthenticatedTimeRoute: typeof AuthenticatedTimeRoute
+  AuthenticatedTimesheetsRoute: typeof AuthenticatedTimesheetsRoute
   AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
@@ -1032,6 +1153,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientsRoute: AuthenticatedClientsRoute,
   AuthenticatedCompanyWorkRoute: AuthenticatedCompanyWorkRoute,
   AuthenticatedCompanycamRoute: AuthenticatedCompanycamRoute,
+  AuthenticatedDailyLogRoute: AuthenticatedDailyLogRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDecisionsRoute: AuthenticatedDecisionsRoute,
   AuthenticatedDocumentsRoute: AuthenticatedDocumentsRoute,
@@ -1054,6 +1176,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSignoffRoute: AuthenticatedSignoffRoute,
   AuthenticatedSummaryRoute: AuthenticatedSummaryRoute,
   AuthenticatedTechniciansRoute: AuthenticatedTechniciansRoute,
+  AuthenticatedTimeRoute: AuthenticatedTimeRoute,
+  AuthenticatedTimesheetsRoute: AuthenticatedTimesheetsRoute,
   AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
@@ -1072,11 +1196,14 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ConfirmTokenRoute: ConfirmTokenRoute,
   QTokenRoute: QTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiMsCallbackRoute: ApiMsCallbackRoute,
   ApiQboCallbackRoute: ApiQboCallbackRoute,
+  ApiTakeoffDecideFinishesRoute: ApiTakeoffDecideFinishesRoute,
   ApiPublicArrivepingWebhookRoute: ApiPublicArrivepingWebhookRoute,
+  ApiPublicCalendarFileRoute: ApiPublicCalendarFileRoute,
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
   ApiPublicOnedriveMirrorRoute: ApiPublicOnedriveMirrorRoute,

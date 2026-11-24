@@ -10,9 +10,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { useContacts, useProject, useScopes } from "@/lib/data";
 import { emptyContact, joinAddress, type Contact } from "@/lib/job-wizard";
+import { CONTACT_KINDS } from "@/lib/projects/contacts";
 
 type EditContact = Contact & { id?: string; is_primary: boolean };
-const KIND_LABEL: Record<Contact["kind"], string> = { client: "Client", gc: "General contractor", site: "Site", other: "Other" };
+
 
 export function JobDetailsPanel() {
   const { refreshPermissions } = useAuth();
@@ -170,13 +171,13 @@ export function JobDetailsPanel() {
             <div key={c.id ?? `new-${i}`} className="rounded-md border border-border p-3">
               <div className="mb-3 flex flex-wrap items-center gap-2">
                 <Select value={c.kind} onValueChange={(v) => setC(i, { kind: v as Contact["kind"] })}>
-                  <SelectTrigger className="h-10 w-48">
+                  <SelectTrigger className="h-10 w-64">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(KIND_LABEL) as Contact["kind"][]).map((k) => (
-                      <SelectItem key={k} value={k}>
-                        {KIND_LABEL[k]}
+                    {CONTACT_KINDS.map((k) => (
+                      <SelectItem key={k.value} value={k.value}>
+                        {k.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

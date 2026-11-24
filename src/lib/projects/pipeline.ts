@@ -37,7 +37,7 @@ export function columnSummary(rows: PipelineProject[]): Record<ProjectStage, Col
   return out;
 }
 
-const WIN_STAGES: ProjectStage[] = ["won", "in_progress", "closed"];
+const WIN_STAGES: ProjectStage[] = ["won", "in_progress", "warranty", "closed"];
 
 /** Wins against losses among projects decided in the last `days` days. */
 export function winRate(rows: PipelineProject[], days: number, now: Date = new Date()): { won: number; lost: number; pct: number | null } {
@@ -48,7 +48,7 @@ export function winRate(rows: PipelineProject[], days: number, now: Date = new D
   return { won, lost, pct: won + lost === 0 ? null : Math.round((won / (won + lost)) * 100) };
 }
 
-export type SortKey = "project_number" | "name" | "client_name" | "stage" | "bid_due_date" | "estimated_value_cents";
+export type SortKey = "project_number" | "name" | "client_name" | "stage" | "bid_due_date" | "estimated_value_cents" | "created_at";
 
 export function sortProjects(rows: PipelineProject[], key: SortKey, dir: "asc" | "desc"): PipelineProject[] {
   const order = (s: ProjectStage) => STAGES.findIndex((x) => x.value === s);

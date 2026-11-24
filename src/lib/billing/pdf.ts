@@ -1,11 +1,20 @@
 import { jsPDF } from "jspdf";
 import { BMD, money } from "@/lib/quotes/logic";
 import type { BillKind } from "./calc";
+import type { OpenBookSnapshot } from "./openBook";
 
-export type BillForPdf = { number: string; kind: BillKind; period_note: string | null; lines: { description: string; amountCents: number }[]; gross_cents: number; holdback_pct: number; holdback_cents: number; net_cents: number; gst_cents: number; total_cents: number; issued_at: string | null; status?: "draft" | "issued" | "void" };
+export type BillForPdf = { number: string; kind: BillKind; period_note: string | null; lines: { description: string; amountCents: number }[]; gross_cents: number; holdback_pct: number; holdback_cents: number; net_cents: number; gst_cents: number; total_cents: number; issued_at: string | null; status?: "draft" | "issued" | "void"; /** Set on a bill for an open-book job: its labour lines and supplier invoices. */ open_book?: OpenBookSnapshot | null };
 type Head = { project: { name: string; number: string | null; address: string | null }; client: { name: string; address: string | null }; gstPct: number; position: { contractCents: number; billedCents: number } };
 
-/** The invoice for one progress bill or holdback release. */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "2026-11-02" as "Nov 2, 2026"; a range within one year as "Nov 2 to Nov 6, 2026". */
+export function billDate(from: string, to?: string | null): string {
+  const part = (d: string, year: boolean) => `${MONTHS[Number(d.slice(5, 7)) - 1] ?? ""} ${Number(d.slice(8, 10))}${year ? `, ${d.slice(0, 4)}` : ""}`;
+  return to && to !== from ? `${part(from, from.slice(0, 4) !== to.slice(0, 4))} to ${part(to, true)}` : part(from, true);
+}
+const pct = (n: number) => `${Number(n.toFixed(2))}%`;
+
+/** The invoice for one progress bill or holdback release. An open-book bill lists its labour and supplier invoices, with a backup page. */
 export function renderBillPdf(bill: BillForPdf, head: Head, opts: { compress?: boolean; logoDataUrl?: string | null } = {}): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "letter", compress: opts.compress ?? true });
   const M = 48;
@@ -28,12 +37,23 @@ export function renderBillPdf(bill: BillForPdf, head: Head, opts: { compress?: b
     y += 12;
   };
 
-  if (bill.status === "draft" || bill.status === "void") {
+  const watermark = () => {
+    if (bill.status !== "draft" && bill.status !== "void") return;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(54);
     doc.setTextColor(225);
     doc.text(bill.status === "draft" ? "DRAFT - NOT ISSUED" : "VOID", 306, 420, { align: "center", angle: 30 });
-  }
+  };
+  const newPage = () => {
+    doc.addPage();
+    y = M;
+    watermark();
+  };
+  /** Starts a new page when the next block would run off the bottom. */
+  const room = (h: number) => {
+    if (y + h > 744) newPage();
+  };
+  watermark();
   if (opts.logoDataUrl) {
     try {
       doc.addImage(opts.logoDataUrl, "PNG", M, y - 6, 110, 40);
@@ -66,7 +86,40 @@ export function renderBillPdf(bill: BillForPdf, head: Head, opts: { compress?: b
     y += 14;
   }
   rule();
-  for (const l of bill.lines) row(l.description, `$${money(l.amountCents)}`);
+  const ob = bill.kind === "progress" ? (bill.open_book ?? null) : null;
+  if (ob) {
+    const detail = (s: string) => {
+      text(s, M + 10, { size: 8, colour: 100 });
+      y += 13;
+    };
+    if (ob.labour.length > 0) {
+      row("Labour", "", { bold: true });
+      for (const l of ob.labour) {
+        room(34);
+        row(doc.splitTextToSize(l.description, 400)[0] as string, `$${money(l.amountCents)}`);
+        y -= 3;
+        detail(`${billDate(l.dateFrom, l.dateTo)} · ${l.hours} h × $${money(l.rateCents)} an hour`);
+      }
+      y += 3;
+      room(20);
+      row("Labour total", `$${money(ob.labourCents)}`, { bold: true });
+      y += 6;
+    }
+    if (ob.materials.length > 0) {
+      room(60);
+      row("Materials", "", { bold: true });
+      for (const m of ob.materials) {
+        room(34);
+        row(`${m.supplier} · invoice ${m.invoiceNumber} · ${billDate(m.invoiceDate)}`, `$${money(m.totalCents)}`);
+        y -= 3;
+        detail(`Supplier invoice $${money(m.invoiceCents)} + ${pct(m.markupPct)} markup $${money(m.markupCents)}`);
+      }
+      y += 3;
+      room(20);
+      row("Materials total, with markup", `$${money(ob.materialsCents + ob.markupCents)}`, { bold: true });
+    }
+    room(150);
+  } else for (const l of bill.lines) row(l.description, `$${money(l.amountCents)}`);
   y += 4;
   rule();
   if (bill.kind === "progress") {
@@ -78,12 +131,51 @@ export function renderBillPdf(bill: BillForPdf, head: Head, opts: { compress?: b
   row("Amount due", `$${money(bill.total_cents)}`, { bold: true, size: 13 });
   y += 10;
   rule();
-  text("Contract to date", M, { size: 9, colour: 70 });
-  text(`$${money(head.position.contractCents)}`, W - M, { size: 9, colour: 70, right: true });
+  if (ob) text("Open-book job: labour at the agreed rates, materials at supplier invoice plus markup.", M, { size: 9, colour: 70 });
+  else {
+    text("Contract to date", M, { size: 9, colour: 70 });
+    text(`$${money(head.position.contractCents)}`, W - M, { size: 9, colour: 70, right: true });
+  }
   y += 13;
   text("Billed to date, including this bill (before holdback and GST)", M, { size: 9, colour: 70 });
   text(`$${money(head.position.billedCents)}`, W - M, { size: 9, colour: 70, right: true });
   y += 24;
   text("Overdue accounts are charged interest at 2% per month.", M, { size: 9, colour: 70 });
+  if (ob && ob.materials.length > 0) {
+    // Backup: the supplier invoices behind the materials on this bill. Open book means the client sees these amounts.
+    newPage();
+    text("Backup", M, { size: 16, bold: true });
+    text(bill.number, W - M, { bold: true, right: true });
+    y += 16;
+    text(`Supplier invoices billed on this invoice · ${head.project.number ? `${head.project.number} · ` : ""}${head.project.name}`, M, { size: 9, colour: 90 });
+    y += 16;
+    rule();
+    const cols = [M, 190, 290, 400, 440, 500, W - M]; // three left edges, then four right edges
+    const cells = (c: string[], o: { bold?: boolean; size?: number; colour?: number } = {}) => {
+      text(doc.splitTextToSize(c[0]!, 136)[0] as string, cols[0]!, o);
+      text(doc.splitTextToSize(c[1]!, 94)[0] as string, cols[1]!, o);
+      text(c[2]!, cols[2]!, o);
+      for (let i = 3; i < 7; i++) text(c[i]!, cols[i]!, { ...o, right: true });
+      y += 15;
+    };
+    cells(["Supplier", "Invoice", "Date", "Amount", "Markup", "Markup $", "Total"], { size: 8, colour: 110 });
+    for (const m of ob.materials) {
+      room(18);
+      cells([m.supplier, m.invoiceNumber, billDate(m.invoiceDate), `$${money(m.invoiceCents)}`, pct(m.markupPct), `$${money(m.markupCents)}`, `$${money(m.totalCents)}`], { size: 9 });
+    }
+    rule();
+    cells(["Total", "", "", `$${money(ob.materialsCents)}`, "", `$${money(ob.markupCents)}`, `$${money(ob.materialsCents + ob.markupCents)}`], { size: 9, bold: true });
+    y += 14;
+    room(40);
+    text("Copies of supplier invoices", M, { bold: true });
+    y += 15;
+    const copies = ob.materials.filter((m) => m.attachmentName);
+    if (copies.length === 0) text("No copies of supplier invoices are filed with this bill.", M, { size: 9, colour: 70 });
+    for (const m of copies) {
+      room(16);
+      text(`${m.supplier} ${m.invoiceNumber}: ${m.attachmentName}`, M, { size: 9, colour: 40 });
+      y += 13;
+    }
+  }
   return doc;
 }

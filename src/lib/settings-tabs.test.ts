@@ -21,6 +21,10 @@ describe("settings are split into company-wide and this-job", () => {
     expect(canonicalTab("structure")).toBe("structure");
     expect(canonicalTab(undefined)).toBeUndefined();
   });
+  test("job templates are a company setting", () => {
+    expect(COMPANY_TABS).toContain("templates");
+    expect(settingsGroup("templates")).toBe("company");
+  });
   test("every tab belongs to exactly one group", () => {
     expect(COMPANY_TABS.filter((t) => JOB_TABS.includes(t))).toEqual([]);
     expect(settingsGroup("nonsense")).toBe("company");
@@ -36,6 +40,7 @@ import { needsJob } from "./settings-tabs";
 describe("which screens need a job chosen first", () => {
   test("company-wide screens, including company settings, open with no job chosen", () => {
     for (const p of ["/jobs", "/new-job", "/projects/abc", "/clients", "/pipeline", "/catalogue"]) expect(needsJob(p, undefined)).toBe(false);
+    expect(needsJob("/daily-log", undefined)).toBe(false); // crews pick the job on the page itself
     expect(needsJob("/settings", "quotes")).toBe(false);
     expect(needsJob("/settings", "integrations")).toBe(false);
     expect(needsJob("/settings", "microsoft")).toBe(false);
@@ -44,6 +49,12 @@ describe("which screens need a job chosen first", () => {
   test("the account page, where you sign out and change your password, opens with no job chosen", () => {
     expect(needsJob("/more", undefined)).toBe(false);
     expect(needsJob("/technicians", undefined)).toBe(false);
+    for (const p of ["/time", "/timesheets"]) expect(needsJob(p, undefined)).toBe(false);
+  });
+  test("company scheduling settings and the crew's confirmation page open with no job chosen", () => {
+    expect(settingsGroup("scheduling")).toBe("company");
+    expect(needsJob("/settings", "scheduling")).toBe(false);
+    expect(needsJob("/confirm/abc", undefined)).toBe(false);
   });
   test("job screens and job settings still ask for a job", () => {
     for (const p of ["/dashboard", "/board", "/floors", "/documents"]) expect(needsJob(p, undefined)).toBe(true);

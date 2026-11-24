@@ -2,12 +2,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ArrowRightLeft, Download, KanbanSquare, List, Plus } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
+import { OpenBookValue, useOpenBookValue } from "@/components/billing/ContractType";
 import { MoveStageDialog } from "@/components/projects/MoveStageDialog";
 import { ProjectsTable } from "@/components/projects/ProjectsTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { useClients } from "@/lib/clients/data";
+import { stageValueText } from "@/lib/billing/openBook";
 import { errText } from "@/lib/platform/db";
 import {
   holderOf,
@@ -22,6 +24,7 @@ import {
   type Staff,
 } from "@/lib/projects/data";
 import { NO_FILTERS, applyFilters, columnSummary, toCsv, winRate, type DueWindow, type Filters } from "@/lib/projects/pipeline";
+import { clientJobs } from "@/lib/projects/joblist";
 import { JOB_TYPES, STAGES, daysInStage, isOverdue, stageLabel, type ProjectStage } from "@/lib/projects/stages";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +39,9 @@ function PipelinePage() {
   const { canAny, user } = useAuth();
   const canSee = canAny("view_pipeline");
   const canEdit = canAny("manage_projects");
-  const { data: projects = [], isLoading, error } = usePipelineProjects();
+  const { data: allProjects, isLoading, error } = usePipelineProjects();
+  // Internal jobs are BMD's own time: they are not on the board, in the list or in any total here.
+  const projects = useMemo(() => clientJobs(allProjects ?? []), [allProjects]);
   const { data: staff = [] } = useBmdStaff();
   const { data: clients = [] } = useClients();
   const refresh = useRefreshPipeline();
@@ -220,6 +225,7 @@ function Board({
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<ProjectStage | null>(null);
+  const openBook = useOpenBookValue();
 
   return (
     <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
@@ -254,7 +260,7 @@ function Board({
                 <span className="text-xs tabular-nums text-muted-foreground">{t.count}</span>
               </div>
               <p className="text-xs tabular-nums text-muted-foreground">
-                {t.count === 0 ? " " : t.unvalued === t.count ? "No values yet" : `${money(t.valueCents)}${t.unvalued ? ` · ${t.unvalued} unpriced` : ""}`}
+                {stageValueText(t, cards.filter((p) => openBook(p.id)).map((p) => p.estimated_value_cents), money)}
               </p>
             </header>
             <ul className="flex min-h-24 flex-1 flex-col gap-2 p-2">
@@ -287,6 +293,7 @@ function Card({
   onMove: () => void;
 }) {
   const overdue = isOverdue(p.bid_due_date, p.stage);
+  const openBook = useOpenBookValue()(p.id);
   const people = p.members.filter((m) => m.job_roles.length > 0);
   return (
     <li
@@ -308,7 +315,7 @@ function Card({
         <span className={cn(overdue ? "font-semibold text-destructive" : "text-muted-foreground")}>
           {p.bid_due_date ? `${overdue ? "Overdue " : "Due "}${shortDate(p.bid_due_date)}` : "No due date"}
         </span>
-        {p.estimated_value_cents != null && <span className="font-medium tabular-nums">{money(p.estimated_value_cents)}</span>}
+        {openBook ? <OpenBookValue billedCents={openBook.billedCents} /> : p.estimated_value_cents != null && <span className="font-medium tabular-nums">{money(p.estimated_value_cents)}</span>}
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="text-[11px] text-muted-foreground">

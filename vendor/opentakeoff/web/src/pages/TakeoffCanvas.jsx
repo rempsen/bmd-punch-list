@@ -9742,7 +9742,9 @@ export default function TakeoffCanvas() {
                     {panels.length > 1 && <text x={0} y={-26} fontSize={64} fontWeight={700} fill={darkMode ? "#9a917f" : "#6b6256"}>{label}</text>}
                     {pShapes.map((s) => {
                       const cond = condById[s.condition_id];
-                      const col = cond?.color || "#888";
+                      // BMD change: six-digit grey. Two alpha digits are appended below (col + "14"), and "#888" + "14" is not a colour, so a
+                      // proposal with no finish yet (the automatic takeoff makes these) was filled solid black.
+                      const col = cond?.color || "#888888";
                       const sel = s.id === selectedId;
                       const pts = dn(s.verts_norm);
                       // Screen-constant strokes: zoom is a CSS transform on the
