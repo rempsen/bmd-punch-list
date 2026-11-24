@@ -72,7 +72,7 @@ function Block({
     >
       <ConfirmationMark v={v} />
       <span className="truncate font-medium">{jobLabel(v)}</span>
-      {run && <span className="shrink-0 rounded bg-foreground/10 px-1 text-[9px] font-semibold">{run}</span>}
+      {run && <span className="shrink-0 rounded bg-foreground/10 px-1 text-[9px] font-semibold">{compact ? `${v.run_day}/${v.run_total}` : run}</span>}
       {tentative && <span className="shrink-0 text-[10px] font-semibold">Tentative</span>}
       {who && !compact && <span className="truncate text-muted-foreground">· {who}</span>}
       {v.arriveping_job_id && (
@@ -161,7 +161,7 @@ function WeekRow({
           <div
             key={d}
             title={holidayName(d, cal) ?? undefined}
-            className={`group flex min-h-24 flex-col border-r border-border last:border-r-0 ${closed(d) ? "bg-muted/60" : ""} ${
+            className={`group flex min-h-24 flex-col border-r border-border last:border-r-0 ${closed(d) ? "bg-muted" : ""} ${
               off ? "opacity-50" : ""
             }`}
           >
@@ -252,7 +252,7 @@ export function CalendarView({
             {days.map((d) => (
               <div
                 key={d}
-                className={`border-r border-border px-2 py-1.5 last:border-r-0 ${d === todayDay ? "text-foreground" : ""} ${closed(d) ? "bg-muted/60" : ""}`}
+                className={`border-r border-border px-2 py-1.5 last:border-r-0 ${d === todayDay ? "text-foreground" : ""} ${closed(d) ? "bg-muted" : ""}`}
               >
                 <span className={d === todayDay ? "rounded bg-primary px-1.5 py-0.5 text-primary-foreground" : ""}>{shortDay(d)}</span>
               </div>
@@ -302,7 +302,7 @@ export function CalendarView({
           const list = visitsOn(visits, d);
           if (!list.length && d !== todayDay) return null;
           return (
-            <div key={d} className={`group rounded-md border border-border bg-card p-2 ${closed(d) ? "bg-muted/60" : ""}`}>
+            <div key={d} className={`group rounded-md border border-border bg-card p-2 ${closed(d) ? "bg-muted" : ""}`}>
               <div className={`mb-1 text-xs font-medium ${d === todayDay ? "text-primary" : "text-muted-foreground"}`}>{longDay(d)}</div>
               <div className="space-y-1">
                 {list.map((v) => (

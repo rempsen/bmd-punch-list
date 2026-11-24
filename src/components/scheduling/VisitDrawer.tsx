@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { db, errText } from "@/lib/platform/db";
 import { usePipelineProjects } from "@/lib/projects/data";
 import {
+  useAssignmentLink,
   useJobAreas,
   useRefreshSchedule,
   useRunVisits,
@@ -281,6 +282,7 @@ function DrawerBody({
   const cal = useWorkCalendar();
   const inRun = !!(visit?.run_id && runLabel(visit));
   const runVisits = useRunVisits(inRun ? visit!.run_id : null);
+  const sentTo = useAssignmentLink(visit?.assignment_link_id, canEdit);
   const areas = useJobAreas(f.project || null);
   const savedTasks = useVisitTasks(visit ? [visit.id] : []);
   const [draftTasks, setDraftTasks] = useState<DraftTask[]>([]);
@@ -762,7 +764,7 @@ function DrawerBody({
           <p className="text-xs font-medium">ArrivePing</p>
           <div className="flex flex-wrap items-center gap-2">
             <StatusPill label={VISIT_LABEL[visit.status]} />
-            {pill ? <ArrivePingPill label={pill} /> : <ArrivePingPill label="Not sent" />}
+            {pill ? <ArrivePingPill label={pill} /> : <ArrivePingPill label={visit.tentative ? "Tentative — not sent" : "Not sent"} />}
             {state === "pending" && (
               <ArrivePingPill label={`Pending in ArrivePing: ${techName ?? "crew"}`} />
             )}
@@ -776,6 +778,12 @@ function DrawerBody({
             <ConfirmationPill v={visit} />
             {confirmationOf(visit).state === "declined" && visit.decline_reason && <span className="text-muted-foreground">“{visit.decline_reason}”</span>}
           </p>
+          {sentTo.data?.sent_at && (
+            <p className="text-xs text-muted-foreground">
+              Assignment emailed to {sentTo.data.email} on {scheduleRange(sentTo.data.sent_at, null)} by {sentTo.data.sent_by_name || "staff"}
+              {sentTo.data.cc.length ? `, copied to ${sentTo.data.cc.join(", ")}` : ""}.
+            </p>
+          )}
           {canEdit && visit.status !== "cancelled" && visit.status !== "completed" && (
             <div className="flex flex-wrap gap-2">
               {!visit.arriveping_job_id && visit.status === "scheduled" && !visit.tentative && (

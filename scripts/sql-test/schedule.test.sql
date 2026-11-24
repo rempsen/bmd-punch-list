@@ -62,7 +62,7 @@ BEGIN
   IF n <> 2 THEN RAISE EXCEPTION 'two visits are marked sent (the tentative one is not), got %', n; END IF;
   IF (SELECT count(*) FROM public.install_visits WHERE confirmation = 'waiting' AND assignment_link_id = link) <> 2 THEN RAISE EXCEPTION 'sent visits read Waiting'; END IF;
   IF (SELECT confirmation FROM public.install_visits WHERE id = v3) <> 'not_sent' THEN RAISE EXCEPTION 'a tentative visit is never marked sent'; END IF;
-  IF (SELECT note FROM public.install_visit_events WHERE visit_id = v1 AND status = 'assignment_sent') <> 'Assignment emailed to Alex Staff (alex@example.test) by Dan, copied to ops@example.test' THEN RAISE EXCEPTION 'the send is on the visit''s activity'; END IF;
+  IF (SELECT note FROM public.install_visit_events WHERE visit_id = v1 AND status = 'assignment_sent') <> 'Assignment emailed to Alex Staff by Dan (1 copied)' THEN RAISE EXCEPTION 'the send is on the visit''s activity'; END IF;
   IF public.activate_assignment_link(link) <> 0 THEN RAISE EXCEPTION 'activating twice does nothing'; END IF;
   -- An unknown link.
   IF public.respond_to_assignment(repeat('b', 64), 'confirmed') <> 'not_found' THEN RAISE EXCEPTION 'unknown link'; END IF;

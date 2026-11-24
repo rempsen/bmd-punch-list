@@ -188,7 +188,7 @@ ALTER TABLE public.install_visit_events ADD CONSTRAINT install_visit_events_sour
 --> statement-breakpoint
 
 -- After the email has left: the visits point at the link, read "Waiting" (a visit already confirmed stays confirmed),
--- and each gets an Activity entry saying who sent it, to whom, and who was copied. Server only.
+-- and each gets an Activity entry saying who sent it and to whom. Server only.
 CREATE OR REPLACE FUNCTION public.activate_assignment_link(_link uuid) RETURNS int
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE l public.crew_assignment_links; n int;
@@ -209,8 +209,9 @@ BEGIN
   ), logged AS (
     INSERT INTO public.install_visit_events (visit_id, project_id, status, note, source)
     SELECT d.id, d.project_id, 'assignment_sent',
-           'Assignment emailed to ' || l.crew_name || ' (' || l.email || ') by ' || coalesce(nullif(l.sent_by_name, ''), 'staff')
-             || CASE WHEN cardinality(l.cc) > 0 THEN ', copied to ' || array_to_string(l.cc, ', ') ELSE '' END,
+           -- Names only: the job's Activity can be read by people outside the office. The addresses stay on the link row.
+           'Assignment emailed to ' || l.crew_name || ' by ' || coalesce(nullif(l.sent_by_name, ''), 'staff')
+             || CASE WHEN cardinality(l.cc) > 0 THEN ' (' || cardinality(l.cc) || ' copied)' ELSE '' END,
            'staff'
       FROM done d
     RETURNING 1

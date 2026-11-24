@@ -492,7 +492,7 @@ function WorkOrders({
         <tbody>
           {visits.map((v) => {
             const tech = techLabel(v, techs);
-            const pending = assignmentState(v, tech === "Unassigned" ? null : tech) === "pending";
+            const pending = !v.tentative && assignmentState(v, tech === "Unassigned" ? null : tech) === "pending";
             const live = v.status !== "cancelled" && v.status !== "completed";
             return (
               <tr

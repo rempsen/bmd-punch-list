@@ -31,6 +31,7 @@ export type SchedVisit = Visit & {
   confirmation_at?: string | null;
   decline_reason?: string | null;
   assignment_sent_at?: string | null;
+  assignment_link_id?: string | null;
 };
 /** Adds a crew to Catalogue → Suppliers & subcontractors as Labour (or reuses the vendor of that name) and returns its technician id. */
 export async function addSubcontractor(name: string): Promise<string> {
@@ -348,6 +349,22 @@ export function useRunVisits(runId: string | null | undefined) {
       const { data, error } = await db.from("install_visits").select(COLS).eq("run_id" as never, runId!).order("starts_at");
       if (error) throw error;
       return (data ?? []) as unknown as SchedVisit[];
+    },
+  });
+}
+
+export type AssignmentLink = { id: string; email: string; cc: string[]; sent_at: string | null; sent_by_name: string; response: string | null; responded_at: string | null };
+/** Where a visit's assignment email went and when. Only the office can read this. */
+export function useAssignmentLink(id: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: ["sched-visit", "assignment-link", id],
+    enabled: !!id && enabled,
+    queryFn: async (): Promise<AssignmentLink | null> => {
+      // crew_assignment_links is newer than the generated types.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (db as unknown as { from: (t: string) => any }).from("crew_assignment_links").select("id,email,cc,sent_at,sent_by_name,response,responded_at").eq("id", id!).maybeSingle();
+      if (error) return null;
+      return (data ?? null) as AssignmentLink | null;
     },
   });
 }
