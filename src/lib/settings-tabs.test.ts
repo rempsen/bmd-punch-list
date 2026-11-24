@@ -43,6 +43,7 @@ describe("which screens need a job chosen first", () => {
   });
   test("the account page, where you sign out and change your password, opens with no job chosen", () => {
     expect(needsJob("/more", undefined)).toBe(false);
+    expect(needsJob("/technicians", undefined)).toBe(false);
   });
   test("job screens and job settings still ask for a job", () => {
     for (const p of ["/dashboard", "/board", "/floors", "/documents"]) expect(needsJob(p, undefined)).toBe(true);

@@ -176,6 +176,27 @@ export function assignmentFor(value: string, techs: Technician[]): { assigned_us
   return { assigned_user_id: null, assigned_name: null, technician_supplier_id: null };
 }
 
+/** The month holding a site day: its first day, and the first day of the next month. */
+export function monthOf(day: string): { from: string; to: string } {
+  const [y, m] = day.split("-").map(Number) as [number, number];
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { from: `${y}-${pad(m)}-01`, to: m === 12 ? `${y + 1}-01-01` : `${y}-${pad(m + 1)}-01` };
+}
+
+/** How many visits each technician has in the month holding `today`. Cancelled visits and unassigned ones are not counted. */
+export function visitsThisMonth<V extends Assignable & { starts_at: string; status: string }>(visits: V[], techs: Technician[], today: string, tz = SCHEDULE_TZ): Map<string, number> {
+  const { from, to } = monthOf(today);
+  const out = new Map<string, number>();
+  for (const v of visits) {
+    if (v.status === "cancelled") continue;
+    const d = siteDay(v.starts_at, tz);
+    if (d < from || d >= to) continue;
+    const row = technicianOf(v, techs);
+    if (row !== UNASSIGNED) out.set(row, (out.get(row) ?? 0) + 1);
+  }
+  return out;
+}
+
 // ── Areas ──────────────────────────────────────────────────────────────────────────────────────────────────
 export type Area = { floor_id: string; room_id: string };
 export type Room = { id: string; floor_id: string };

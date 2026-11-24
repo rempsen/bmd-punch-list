@@ -42,6 +42,7 @@ import { Route as AuthenticatedSchedulingRouteImport } from './routes/_authentic
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSignoffRouteImport } from './routes/_authenticated/signoff'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
+import { Route as AuthenticatedTechniciansRouteImport } from './routes/_authenticated/technicians'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -227,6 +228,12 @@ const AuthenticatedSummaryRoute = AuthenticatedSummaryRouteImport.update({
   path: '/summary',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTechniciansRoute =
+  AuthenticatedTechniciansRouteImport.update({
+    id: '/technicians',
+    path: '/technicians',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedTradePortalRoute =
   AuthenticatedTradePortalRouteImport.update({
     id: '/trade-portal',
@@ -341,6 +348,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AuthenticatedSettingsRoute
   '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
+  '/technicians': typeof AuthenticatedTechniciansRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -390,6 +398,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsRoute
   '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
+  '/technicians': typeof AuthenticatedTechniciansRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -441,6 +450,7 @@ export interface FileRoutesById {
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/signoff': typeof AuthenticatedSignoffRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
+  '/_authenticated/technicians': typeof AuthenticatedTechniciansRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -492,6 +502,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signoff'
     | '/summary'
+    | '/technicians'
     | '/trade-portal'
     | '/q/$token'
     | '/.lovable/oauth/consent'
@@ -541,6 +552,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/signoff'
     | '/summary'
+    | '/technicians'
     | '/trade-portal'
     | '/q/$token'
     | '/.lovable/oauth/consent'
@@ -591,6 +603,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings'
     | '/_authenticated/signoff'
     | '/_authenticated/summary'
+    | '/_authenticated/technicians'
     | '/_authenticated/trade-portal'
     | '/q/$token'
     | '/.lovable/oauth/consent'
@@ -858,6 +871,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSummaryRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/technicians': {
+      id: '/_authenticated/technicians'
+      path: '/technicians'
+      fullPath: '/technicians'
+      preLoaderRoute: typeof AuthenticatedTechniciansRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trade-portal': {
       id: '/_authenticated/trade-portal'
       path: '/trade-portal'
@@ -995,6 +1015,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSignoffRoute: typeof AuthenticatedSignoffRoute
   AuthenticatedSummaryRoute: typeof AuthenticatedSummaryRoute
+  AuthenticatedTechniciansRoute: typeof AuthenticatedTechniciansRoute
   AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
@@ -1032,6 +1053,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSignoffRoute: AuthenticatedSignoffRoute,
   AuthenticatedSummaryRoute: AuthenticatedSummaryRoute,
+  AuthenticatedTechniciansRoute: AuthenticatedTechniciansRoute,
   AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,

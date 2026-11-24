@@ -16,6 +16,8 @@ import {
   visitDays,
   weekDays,
   assignmentFor,
+  monthOf,
+  visitsThisMonth,
   searchTechnicians,
 } from "./logic";
 
@@ -175,5 +177,28 @@ describe("subcontractors from the catalogue are technicians", () => {
   });
   it("a subcontractor confirmed by ArrivePing under the same name shows as confirmed", () => {
     expect(assignmentState({ assigned_name: "Brodi Installs", technician_supplier_id: "s1", arriveping_assigned_to: "brodi installs" }, null)).toBe("confirmed");
+  });
+});
+
+describe("the Technicians page", () => {
+  const techs = mergeTechnicians([{ id: "u1", full_name: "Dan R", email: null }], [], [{ id: "s1", name: "Brodi Installs", contact_name: null, phone: null, supplies: "labour" }]);
+  const v = (id: string, starts_at: string, who: object, status = "scheduled") => ({ id, starts_at, ends_at: null, status, ...who });
+  const visits = [
+    v("a", "2026-11-03T15:00:00Z", { technician_supplier_id: "s1", assigned_name: "Brodi Installs" }),
+    v("b", "2026-11-20T15:00:00Z", { technician_supplier_id: "s1", assigned_name: "Brodi Installs" }),
+    v("c", "2026-11-21T15:00:00Z", { technician_supplier_id: "s1", assigned_name: "Brodi Installs" }, "cancelled"),
+    v("d", "2026-12-02T15:00:00Z", { technician_supplier_id: "s1", assigned_name: "Brodi Installs" }),
+    v("e", "2026-11-10T15:00:00Z", { assigned_user_id: "u1" }),
+    v("f", "2026-11-11T15:00:00Z", {}),
+  ];
+  it("counts each technician's visits in the month, leaving out cancelled ones and other months", () => {
+    const n = visitsThisMonth(visits, techs, "2026-11-24");
+    expect(n.get("sup:s1")).toBe(2);
+    expect(n.get("u1")).toBe(1);
+    expect(n.get("unassigned")).toBeUndefined();
+  });
+  it("a month runs from its first day to the first day of the next, across a year end", () => {
+    expect(monthOf("2026-11-24")).toEqual({ from: "2026-11-01", to: "2026-12-01" });
+    expect(monthOf("2026-12-31")).toEqual({ from: "2026-12-01", to: "2027-01-01" });
   });
 });
