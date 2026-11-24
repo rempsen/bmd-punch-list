@@ -349,12 +349,12 @@ export function offeredEventTypes(json: unknown): string[] | null {
   return null;
 }
 
-/** The events to subscribe to: the ones BMD wants that ArrivePing offers. With no usable list, everything BMD wants except
- *  `workorder.status_changed`, which the live API has refused (422) — the specific status events carry the same news. */
+/** The events to subscribe to: the ones BMD wants that ArrivePing offers. With no usable list (`null`), everything BMD wants
+ *  except `workorder.status_changed`, which the live API has refused (422). A readable list that offers none of BMD's
+ *  events is a real answer, not a gap: the result is empty and the caller reports it instead of guessing. */
 export function subscriptionEvents(offered: string[] | null): string[] {
   const wanted = [...AP_WEBHOOK_EVENTS] as string[];
   if (!offered) return wanted.filter((e) => e !== "workorder.status_changed");
   const have = new Set(offered);
-  const picked = wanted.filter((e) => have.has(e));
-  return picked.length ? picked : wanted.filter((e) => e !== "workorder.status_changed");
+  return wanted.filter((e) => have.has(e));
 }

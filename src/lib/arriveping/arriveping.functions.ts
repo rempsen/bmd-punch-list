@@ -911,7 +911,13 @@ export const connectArrivePingSync = createServerFn({ method: "POST" })
         };
       // Subscribe only to event types this ArrivePing offers; a name it does not know makes it refuse the whole subscription (422).
       const types = await apFetch(EVENT_TYPES_PATH, { method: "GET" });
-      const events = subscriptionEvents(types.ok ? offeredEventTypes(types.json) : null);
+      const offered = types.ok ? offeredEventTypes(types.json) : null;
+      const events = subscriptionEvents(offered);
+      if (events.length === 0)
+        return {
+          ok: false,
+          error: `ArrivePing offers none of the work-order events BMD listens for (it lists: ${(offered ?? []).join(", ") || "nothing"}). Check the API key's account and the event types in ArrivePing.`,
+        };
       const created = await apFetch(WEBHOOKS_PATH, {
         method: "POST",
         body: { url, events, description: "BMD Projects — install visits" },

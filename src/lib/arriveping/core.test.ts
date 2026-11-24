@@ -304,7 +304,7 @@ describe("subscription events", () => {
     const fallback = subscriptionEvents(null);
     expect(fallback).not.toContain("workorder.status_changed");
     expect(fallback).toContain("workorder.completed");
-    expect(subscriptionEvents(["other.thing"])).toEqual(fallback);
+    expect(subscriptionEvents(["other.thing"])).toEqual([]);
     expect(subscriptionEvents([...AP_WEBHOOK_EVENTS])).toContain("workorder.status_changed");
   });
 });
