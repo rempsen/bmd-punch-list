@@ -498,6 +498,13 @@
       "when": 1795543174216,
       "tag": "0071_visit_photo_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795543442896,
+      "tag": "0072_document_text_priced_sections",
+      "breakpoints": true
     }
   ]
 }
