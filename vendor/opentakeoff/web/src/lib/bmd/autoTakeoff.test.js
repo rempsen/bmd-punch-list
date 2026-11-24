@@ -29,8 +29,8 @@ const SPANS = [
   ...tagText("PATIO", "000", 700, 700), t("LVT-1", 900, 300, 40),
   t("12", 300, 40, 40, 36), t("2160", 500, 380, 28, 16),   // a grid bubble and a dimension: not rooms
 ];
-function engineFor({ scale = null, linework = true } = {}) {
-  const finder = createRoomFinder({ geo: drawing(), texts: [], dims: DIMS, pagePt: { w: DIMS.w / 2, h: DIMS.h / 2 }, renderScale: 2 });
+function engineFor({ scale = null, linework = true, geo = drawing() } = {}) {
+  const finder = createRoomFinder({ geo, texts: [], dims: DIMS, pagePt: { w: DIMS.w / 2, h: DIMS.h / 2 }, renderScale: 2 });
   return {
     dims: DIMS,
     detectedScale: async () => scale,
@@ -346,5 +346,115 @@ describe("runSummary", () => {
     expect(lines.join("\n")).toContain("1 tagged room could not be measured (000 PATIO)");
     expect(lines.join("\n")).toContain("door openings could not be told on 1 room");
     expect(LIMITS).toContain("strongest on drawings exported from CAD");
+  });
+});
+
+// A second hand-drawn sheet: suite 201 (20 ft × 16 ft 8 in, 333.3 SF) with a bathroom beside it (10 ft wide,
+// 166.7 SF) that carries only its name, reached through a 3 ft opening; and a corridor below (333.3 SF) reached
+// from the suite through another 3 ft opening. The schedule prints 500 SF for the suite: the room and its bathroom.
+function suiteDrawing() {
+  const segs = [], meta = [], lum = [], dashed = [], subpaths = [], points = [];
+  const line = (x1, y1, x2, y2, flags = 16) => {
+    subpaths.push({ i0: meta.length, i1: meta.length + 1, x0: Math.min(x1, x2), y0: Math.min(y1, y2), x1: Math.max(x1, x2), y1: Math.max(y1, y2), closed: false, flags, fillLum: 0 });
+    segs.push(x1, y1, x2, y2); meta.push(flags); lum.push(0); dashed.push(0); points.push([x1, y1], [x2, y2]);
+  };
+  // a door: its leaf from the hinge, and the swing (curved linework) round to the far jamb
+  const door = (hx, hy, ax, ay, bx, by) => {
+    line(hx, hy, ax, ay);
+    const a0 = Math.atan2(ay - hy, ax - hx), a1 = Math.atan2(by - hy, bx - hx), r = Math.hypot(ax - hx, ay - hy);
+    let p = [ax, ay];
+    for (let k = 1; k <= 8; k++) { const a = a0 + ((a1 - a0) * k) / 8, q = [hx + r * Math.cos(a), hy + r * Math.sin(a)]; line(p[0], p[1], q[0], q[1], 17); p = q; }
+  };
+  door(460, 200, 406, 200, 460, 254); door(200, 400, 200, 346, 254, 400);
+  line(100, 100, 640, 100); line(100, 100, 100, 600); line(640, 100, 640, 600); line(100, 600, 640, 600);
+  line(460, 100, 460, 200); line(460, 254, 460, 400);   // suite | bath, opening from 200 to 254
+  line(100, 400, 200, 400); line(254, 400, 640, 400);   // suite over corridor, opening from 200 to 254
+  return { segs, meta: Uint8Array.from(meta), lum: Uint8Array.from(lum), dashed: Uint8Array.from(dashed), subpaths, points };
+}
+const SUITE_SPANS = [...tagText("SUITE", "201", 280, 250), t("BATH", 534, 250), ...tagText("CORRIDOR", "200", 400, 500), t("EXISTING", 520, 330), t("CLOSET", 900, 700)];
+const SUITE_SCHEDULE = { reader: "BMD", rows: [{ number: "201", name: "SUITE", floor: "LVT-1", base: "RB-1", areaSf: 500 }, { number: "200", name: "CORRIDOR", floor: "CPT-1", base: "RB-1", areaSf: 333 }] };
+const suiteRun = (over = {}) => runSheet({ doc: blank(), sheet: SHEET, engine: engineFor({ geo: suiteDrawing() }), spans: SUITE_SPANS, schedule: SUITE_SCHEDULE, runId: "run-2", now: () => "2026-11-24T12:00:00.000Z", ...over });
+const kindOf = (doc, kind) => doc.shapes.filter((s) => s.origin?.auto?.kind === kind);
+
+describe("spaces inside a suite that carry only a name", () => {
+  test("the bathroom is measured and proposed under the suite's number, with no finish chosen for it", async () => {
+    const { doc, report } = await suiteRun();
+    expect(report.inside).toMatchObject({ rooms: 1 });
+    const suite = floorOf(doc, "201"), bath = doc.shapes.find((s) => s.label === "201 BATH");
+    expect(bath).toMatchObject({ measure_role: "floor_area", condition_id: null });
+    expect(Math.abs(bath.computed.area_sf - 173.6)).toBeLessThan(4);
+    expect(bath.origin).toMatchObject({ method: METHOD, reviewed: false });
+    expect(bath.origin.auto).toMatchObject({ kind: "inside", room: "201", name: "BATH", of: suite.id, from: "none" });
+    expect(bath.origin.auto.why).toContain("inside 201 SUITE");
+    expect(bath.origin.auto.why).toContain("LVT-1");
+    expect(bath.origin.confidence).toBeLessThanOrEqual(0.5);
+    expect(report.unassigned.map((u) => u.shapeId)).toContain(bath.id);
+    expect(doc.shapes.some((s) => s.label?.includes("EXISTING") || s.label?.includes("CLOSET"))).toBe(false);   // a note, and a name in no enclosed space
+  });
+  test("the suite's area is then compared with the schedule together with what was found inside it", async () => {
+    const { doc } = await suiteRun();
+    const notes = floorOf(doc, "201").origin.auto.notes.join(" ");
+    expect(notes).toContain("with the 1 space found inside it");
+    expect(notes).toContain("the schedule prints 500.0 SF");
+    expect(notes).not.toContain("probably has more spaces inside it");
+    const alone = await suiteRun({ spans: SUITE_SPANS.filter((s) => s.str !== "BATH") });
+    expect(floorOf(doc, "201").origin.confidence).toBeGreaterThan(floorOf(alone.doc, "201").origin.confidence);
+  });
+  test("a finish lettered in the space is used", async () => {
+    const { doc } = await suiteRun({ doc: blank({ conditions: [...blank().conditions, cond("c4", "CT-1")] }), spans: [...SUITE_SPANS, t("CT-1", 530, 300, 32)] });
+    const bath = doc.shapes.find((s) => s.label === "201 BATH");
+    expect(bath.condition_id).toBe("c4");
+    expect(bath.origin.auto).toMatchObject({ from: "tag" });
+  });
+  test("removing the suite's proposal removes the spaces found inside it", async () => {
+    const { doc } = await suiteRun();
+    expect(removeProposals(doc, [floorOf(doc, "201").id]).shapes.some((s) => s.label === "201 BATH")).toBe(false);
+  });
+  test("a space already measured is left alone", async () => {
+    const first = await suiteRun();
+    const again = await suiteRun({ doc: first.doc });
+    expect(again.report.inside.rooms).toBe(0);
+    expect(again.doc.shapes.length).toBe(first.doc.shapes.length);
+  });
+});
+
+describe("transitions where two floor finishes meet", () => {
+  test("a strip is proposed across the opening between the suite (LVT-1) and the corridor (CPT-1)", async () => {
+    const { doc, report } = await suiteRun();
+    const tr = kindOf(doc, "transition");
+    expect(tr.length).toBe(1);
+    expect(tr[0]).toMatchObject({ measure_role: "linear", condition_id: null, label: "200/201" });
+    expect(Math.abs(tr[0].computed.perimeter_lf - 3)).toBeLessThan(0.8);
+    expect(tr[0].origin.auto).toMatchObject({ kind: "transition", room: "200/201", name: "CPT-1 to LVT-1", from: "none" });
+    expect(tr[0].origin.auto.why).toContain("different floor finishes meet");
+    expect(tr[0].origin.auto.between.sort()).toEqual([floorOf(doc, "200").id, floorOf(doc, "201").id].sort());
+    expect(report.transitions).toMatchObject({ count: 1 });
+    expect(tr[0].verts_norm.length).toBe(2);
+    for (const [, y] of tr[0].verts_norm) expect(Math.abs(y * DIMS.h - 400)).toBeLessThan(3);   // on the wall line between them
+  });
+  test("none where one side's finish is not known (the bathroom), or both sides are the same finish", async () => {
+    const same = await suiteRun({ schedule: { reader: "BMD", rows: SUITE_SCHEDULE.rows.map((r) => ({ ...r, floor: "LVT-1" })) } });
+    expect(kindOf(same.doc, "transition")).toEqual([]);
+    expect(same.report.transitions.count).toBe(0);
+  });
+  test("when the job has exactly one transition finish it is chosen, and says why", async () => {
+    const { doc } = await suiteRun({ doc: blank({ conditions: [...blank().conditions, cond("c5", "TR-1")] }) });
+    const tr = kindOf(doc, "transition")[0];
+    expect(tr.condition_id).toBe("c5");
+    expect(tr.origin.auto).toMatchObject({ from: "job" });
+    expect(tr.origin.auto.why).toContain("TR-1 is the only transition on this job");
+  });
+  test("it is one item in the review list, in LF, and goes when either room's proposal is removed", async () => {
+    const { doc } = await suiteRun();
+    const items = reviewList(doc, []).flatMap((s) => s.groups.flatMap((g) => g.items));
+    expect(items.find((i) => i.kind === "transition")).toMatchObject({ unit: "LF", room: "200/201", name: "CPT-1 to LVT-1" });
+    expect(items.find((i) => i.kind === "inside")).toMatchObject({ unit: "SF", room: "201", name: "BATH" });
+    expect(kindOf(removeProposals(doc, [floorOf(doc, "200").id]), "transition")).toEqual([]);
+  });
+  test("the run's summary says what was found inside rooms and where finishes meet", async () => {
+    const { report } = await suiteRun();
+    const lines = runSummary([report]).join(" ");
+    expect(lines).toContain("1 space inside a tagged room was found by its name");
+    expect(lines).toContain("1 opening where two floor finishes meet");
   });
 });

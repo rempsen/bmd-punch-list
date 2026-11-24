@@ -3,6 +3,8 @@
 // lib/bmd/autoTakeoff.js (the run) and lib/bmd/autoReview.js (accepting and correcting).
 import React, { useState } from "react";
 import { FROM_LABEL } from "../lib/bmd/autoReview.js";
+
+const KIND_LABEL = { base: "Base", inside: "Inside the room", transition: "Transition", count: "Count" };
 import { LIMITS, LIMITS_SHORT } from "../lib/bmd/autoTakeoff.js";
 
 const fmt = (n) => (Number(n) || 0).toLocaleString("en-CA", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -99,8 +101,8 @@ export function AutoReview({ list, conditions, summary, readOnly, selected, onJu
                     return (
                       <li key={it.id} className={on ? "st-on" : ""}>
                         <button type="button" className="st-review-item" onClick={() => { setOpen(open === it.id ? null : it.id); onJump(it); }} aria-expanded={on}>
-                          <span className="st-review-room"><strong>{it.room}{it.name ? ` ${it.name}` : ""}</strong>{it.kind === "base" ? <em>Base</em> : null}</span>
-                          <span className="st-review-qty">{fmt(it.qty)} {it.unit}</span>
+                          <span className="st-review-room"><strong>{it.room}{it.name ? ` ${it.name}` : ""}</strong>{KIND_LABEL[it.kind] ? <em>{KIND_LABEL[it.kind]}</em> : null}</span>
+                          <span className="st-review-qty">{it.unit === "EA" ? it.qty : fmt(it.qty)} {it.unit}</span>
                           <span className={`st-review-conf ${low ? "st-low" : it.confidence > 0.8 ? "st-high" : ""}`}>{pct(it.confidence)}</span>
                         </button>
                         {on && (

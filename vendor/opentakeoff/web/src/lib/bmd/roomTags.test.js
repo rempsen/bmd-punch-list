@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { findRoomTags, finishTagsInRoom, ringHoldsTag, roomKey, seedPoints } from "./roomTags.js";
+import { findRoomNames, findRoomTags, finishTagsInRoom, ringHoldsTag, roomKey, seedPoints } from "./roomTags.js";
 
 // text as OpenTakeoff's page spans: top-left x, y and a width and height in image pixels
 const t = (str, x, y, h = 13, w = str.length * h * 0.6, rot) => ({ str, x, y, w, h, ...(rot ? { rot } : {}) });
@@ -83,5 +83,17 @@ describe("finishTagsInRoom", () => {
   test("nothing is found when no known tag is inside", () => {
     expect(finishTagsInRoom([t("OFFICE", 100, 100)], ring, ["CPT-1"])).toEqual([]);
     expect(finishTagsInRoom([t("CPT-1", 100, 100)], ring, [])).toEqual([]);
+  });
+});
+
+describe("findRoomNames (spaces with a name and no number)", () => {
+  const sp = (str, x, y, w = str.length * 8, h = 13) => ({ str, x, y, w, h });
+  test("bedrooms, bathrooms and closets are found; notes, tag names and lower-case text are not", () => {
+    const spans = [sp("BEDROOM 2", 100, 100), sp("W/C", 300, 100), sp("CL.", 400, 100), sp("MASTER BEDROOM", 500, 100), sp("EXISTING", 100, 200), sp("Bath", 200, 200), sp("SEE DETAIL 4", 300, 200), sp("KITCHEN", 600, 300), sp("KITCHEN", 601, 301)];
+    const tags = [{ number: "101", nameBox: { x0: 590, y0: 295, x1: 670, y1: 320 }, box: { x0: 610, y0: 325, x1: 640, y1: 340 } }];
+    expect(findRoomNames(spans, { tags }).map((n) => n.name)).toEqual(["BEDROOM 2", "W/C", "CL.", "MASTER BEDROOM"]);
+  });
+  test("names in the border are left out", () => {
+    expect(findRoomNames([sp("STORAGE", 5, 5)], { bounds: { x0: 50, y0: 50, x1: 900, y1: 900 } })).toEqual([]);
   });
 });

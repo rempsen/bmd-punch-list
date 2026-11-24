@@ -10,7 +10,8 @@
 // in totals and do not reach the estimate (./quantities.js) until a person accepts them (./autoReview.js).
 import { computeShapeMetrics } from "../shapeMetrics.js";
 import { scaleFor, setScale } from "./takeoffDoc.js";
-import { findRoomTags, finishTagsInRoom, pointInRing, ringHoldsTag, roomKey, seedPoints } from "./roomTags.js";
+import { findRoomNames, findRoomTags, finishTagsInRoom, pointInRing, ringHoldsTag, roomKey, seedPoints } from "./roomTags.js";
+import { distToRing, sharedLength } from "./baseFromRoom.js";
 import { matchFinish, scheduleRowFor } from "./roomSchedule.js";
 
 export const METHOD = "auto_v1";
@@ -18,6 +19,9 @@ export const METHOD = "auto_v1";
 export const LIMITS = "Automatic takeoff is strongest on drawings exported from CAD, where it measures to the real linework. On scanned or photographed sheets it cannot find rooms by their walls, and much more will need correcting. It does not use models trained on BMD's trade. Check every outline before you accept it.";
 
 export const LIMITS_SHORT = "Strongest on drawings exported from CAD; scanned sheets need much more correcting. Check every outline before you accept it.";
+
+const WALL_FT = 1.5;   // two outlines this close are either side of one wall
+const TRANSITION_TAG = /^(TR|TS|TRANS|TRANSITION|T-?STRIP|T-?MOLD|REDUCER|RD)[ -]?\d*[A-Z]?$/i;
 
 const uid = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`}`;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -111,7 +115,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
   const dims = engine.dims;
   const report = {
     sheet: sheet.key, label: sheet.label, skipped: null, stopped: false, scale: null, tags: 0, measured: 0, already: 0, otherSheet: 0, sameOutline: 0,
-    notMeasured: [], assigned: { schedule: 0, tag: 0, ai: 0, none: 0 }, newFinishes: [], base: { rooms: 0, lf: 0, notDeducted: 0 }, sf: 0, scheduleReader: schedule.reader, scaleDoubt: null, unassigned: [], ms: 0,
+    notMeasured: [], assigned: { schedule: 0, tag: 0, ai: 0, none: 0 }, newFinishes: [], base: { rooms: 0, lf: 0, notDeducted: 0 }, inside: { rooms: 0, sf: 0 }, transitions: { count: 0, lf: 0 }, sf: 0, scheduleReader: schedule.reader, scaleDoubt: null, unassigned: [], ms: 0,
   };
   const done = (d) => { report.ms = Date.now() - started; return { doc: d, report }; };
   const say = (found, at, text) => onProgress({ sheet: sheet.label, found, done: at, text });
@@ -211,14 +215,13 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
 
     // the schedule's printed area is a second opinion on the outline; it is weighed once the whole sheet is in (step 5)
     const printed = row?.areaSf > 0 && r.areaSf > 0 ? { measured: r.areaSf, printed: row.areaSf, ratio: r.areaSf / row.areaSf } : null;
-    if (printed && printed.ratio > 0.4 && printed.ratio < 1.6) ratios.push(printed.ratio);
     if (r.note) notes.push(r.note);
     if (r.fixtures?.length) notes.push(`${r.fixtures.length === 1 ? "1 area under a cabinet or fixture was" : `${r.fixtures.length} areas under cabinets or fixtures were`} left out (${fmt(round2((r.withFixtures?.areaSf ?? r.areaSf) - r.areaSf))} SF).`);
 
     const auto = { run: runId, kind: "floor", room: tag.number, name: tag.name, from, why: whyFinish, notes, ...(floorFinish && !floorFinish.cond ? { finish_tag: floorFinish.tag } : {}), ...(row?.areaSf ? { schedule_sf: row.areaSf } : {}) };
     const floor = proposal(doc, { sheetId: sheet.key, role: "floor_area", pointsPx: r.pointsPx, dims, upp, cond: floorFinish?.cond ?? null, label: name, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: clamp(conf), seed_norm: [seed[0] / dims.w, seed[1] / dims.h], proposed_ts: ts, auto } });
     shapes.push(floor);
-    const mine = { tag, name, ring: r.pointsPx, floor, row, printed, conf, base: [], baseFactor: 1 };
+    const mine = { tag, name, ring: r.pointsPx, floor, row, printed, conf, base: [], baseFactor: 1, inside: 0, insideSf: 0, gaps: null };
     made.push(mine);
     takenRooms.set(tag.number, sheet.label);
     report.measured++;
@@ -229,6 +232,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
     if (row?.base) {
       const baseFinish = finishFor(row.base, doc.conditions || []);
       const b = await engine.baseAlong(r.pointsPx, upp);
+      mine.gaps = b.deducted ? b.gaps ?? [] : [];
       if (b.runs.length) {
         const bnotes = [b.deducted ? (b.openings ? `${b.openings} door opening${b.openings === 1 ? "" : "s"} (${fmt(b.openingsLf)} LF) left out of ${fmt(b.perimeterLf)} LF around the room.` : `No door openings could be told on this room's outline, so this is all ${fmt(b.perimeterLf)} LF around it.`) : "Openings not deducted: this is the full perimeter."];
         const bwhy = `Room finish schedule, row ${row.number}: base ${row.base}.${baseFinish.how === "like" ? ` ${baseFinish.tag} is the only ${row.base} finish on this job.` : baseFinish.how === "new" ? ` ${row.base} is not a finish on this job yet; it is added when you accept.` : ""}`;
@@ -246,6 +250,58 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
     }
     if (made.length % 8 === 0) onDoc(withShapes(doc, shapes));   // ratings are settled at the end of the sheet
     await pause();
+  }
+
+  // 4b. spaces inside a tagged room that carry only a name (the bedrooms, bathroom and closets of a suite).
+  //     "Click a room" stops at the suite's inner walls, so its tag measures only the room the tag sits in. Each
+  //     lettered name in a space nobody has measured is clicked too, and belongs to the tagged room it shares the
+  //     most wall with. Its finish is never assumed from the suite's row.
+  const wallPx = WALL_FT / upp, stepPx = 0.5 / upp;
+  const centre = (bx) => [(bx.x0 + bx.x1) / 2, (bx.y0 + bx.y1) / 2];
+  const tagged = made.slice();
+  if (!report.stopped && tagged.length) {
+    const names = findRoomNames(spans, { tags, bounds: { x0: dims.w * inset, y0: dims.h * inset, x1: dims.w * (1 - inset), y1: dims.h * (1 - inset) } }).slice(0, Math.max(40, tags.length * 4));
+    for (const nm of names) {
+      if (shouldStop()) { report.stopped = true; break; }
+      const [cx, cy] = centre(nm.box);
+      if (here.some((r) => pointInRing(r, cx, cy)) || made.some((m) => pointInRing(m.ring, cx, cy))) continue;
+      const r = await engine.roomAt(cx, cy, upp);
+      if (!r.ok || r.kind !== "room" || !pointInRing(r.pointsPx, cx, cy)) { await pause(); continue; }
+      if (tags.some((tg) => ringHoldsTag(r.pointsPx, tg))) continue;   // a tagged room that could not be measured from its tag: not a space inside another
+      let parent = null, most = 0;
+      for (const m of tagged) {
+        const len = sharedLength(r.pointsPx, m.ring, wallPx, stepPx);
+        if (len > most) { most = len; parent = m; }
+      }
+      if (!parent || most * upp < 2) continue;
+      if (parent.printed && parent.printed.measured + parent.insideSf + r.areaSf > parent.printed.printed * 1.35) continue;   // more than the suite is printed to hold
+      const inRoom = finishTagsInRoom(spans, r.pointsPx, knownTags);
+      const fin = inRoom.length === 1 ? finishFor(inRoom[0], doc.conditions || []) : null;
+      const suite = `${parent.tag.number}${parent.tag.name ? ` ${parent.tag.name}` : ""}`;
+      const label = `${parent.tag.number} ${nm.name}`;
+      const why = `A space inside ${suite}, found by its name on the drawing. ${fin ? `${inRoom[0]} is lettered inside it.` : inRoom.length > 1 ? `${inRoom.join(" and ")} are both lettered in it, so its finish was not chosen.` : `${parent.row?.floor ? `The schedule gives ${suite} floor ${parent.row.floor}; a bathroom or closet often differs` : "No finish is lettered in it"}, so choose its finish.`}`;
+      const from = fin ? "tag" : "none";
+      const conf = Math.min(r.confidence ?? 0.7, fin ? 0.6 : 0.5);
+      const notes = ["Base is not proposed for this space.", ...(r.note ? [r.note] : [])];
+      const auto = { run: runId, kind: "inside", room: parent.tag.number, name: nm.name, of: parent.floor.id, from, why, notes, ...(fin && !fin.cond ? { finish_tag: fin.tag } : {}) };
+      const floor = proposal(doc, { sheetId: sheet.key, role: "floor_area", pointsPx: r.pointsPx, dims, upp, cond: fin?.cond ?? null, label, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: clamp(conf), seed_norm: [cx / dims.w, cy / dims.h], proposed_ts: ts, auto } });
+      shapes.push(floor);
+      made.push({ tag: { number: parent.tag.number, name: nm.name }, name: label, ring: r.pointsPx, floor, row: null, printed: null, conf, base: [], baseFactor: 1, inside: 0, insideSf: 0, gaps: null, sub: true });
+      parent.inside++;
+      parent.insideSf = round2(parent.insideSf + r.areaSf);
+      report.inside.rooms++;
+      report.inside.sf = round2(report.inside.sf + r.areaSf);
+      report.sf = round2(report.sf + r.areaSf);
+      report.assigned[from]++;
+      if (fin?.how === "new" && !report.newFinishes.includes(fin.tag)) report.newFinishes.push(fin.tag);
+      if (from === "none") report.unassigned.push({ shapeId: floor.id, room: parent.tag.number, name: nm.name, texts: textsIn(spans, r.pointsPx), row: parent.row ?? null });
+      await pause();
+    }
+  }
+  for (const m of made) {
+    if (!m.printed) continue;
+    if (m.insideSf) { m.printed.measured = round2(m.printed.measured + m.insideSf); m.printed.ratio = m.printed.measured / m.printed.printed; }
+    if (m.printed.ratio > 0.4 && m.printed.ratio < 1.6) ratios.push(m.printed.ratio);
   }
 
   // 5. do the measured rooms agree with the areas the schedule prints?
@@ -266,7 +322,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
     const notes = [];
     if (m.printed) {
       const rel = m.printed.ratio / typical;
-      const both = `${fmt(m.printed.measured)} SF measured; the schedule prints ${fmt(m.printed.printed)} SF.`;
+      const both = `${fmt(m.printed.measured)} SF measured${m.inside ? ` with the ${m.inside === 1 ? "1 space" : `${m.inside} spaces`} found inside it` : ""}; the schedule prints ${fmt(m.printed.printed)} SF.`;
       if (rel >= 0.85 && rel <= 1.15) { if (!report.scaleDoubt) conf = Math.min(0.97, conf + 0.1); notes.push(both); }
       else if (rel < 0.6) { conf *= 0.7; notes.push(`${both} This room probably has more spaces inside it (bedrooms, a bathroom, closets) that were not measured. Click them to add them.`); }
       else if (rel < 0.85) { conf *= 0.9; notes.push(both); }
@@ -278,6 +334,43 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
     o.confidence = clamp(conf);
     o.auto.notes = [...notes, ...o.auto.notes];
     for (const b of m.base) b.origin.confidence = clamp(o.confidence * m.baseFactor);
+  }
+
+  // 6. transitions: a door opening between two measured rooms whose floor finishes differ. Only where both finishes
+  //    are known, and only at openings the drawing shows; the strip's own finish is the person's to choose unless
+  //    the job has exactly one transition.
+  if (!report.stopped) {
+    const finishOf = (m) => (m.floor.condition_id ? (doc.conditions || []).find((c) => c.id === m.floor.condition_id)?.finish_tag : m.floor.origin.auto.finish_tag) ?? null;
+    const same = (a, b) => String(a).toUpperCase().replace(/[^A-Z0-9]/g, "") === String(b).toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const gapsOf = async (m) => (m.gaps ??= await engine.baseAlong(m.ring, upp).then((b) => (b.deducted ? b.gaps ?? [] : [])));
+    const strips = (doc.conditions || []).filter((c) => TRANSITION_TAG.test(String(c.finish_tag ?? "")));
+    const strip = strips.length === 1 ? strips[0] : null;
+    const taken = [];   // midpoints already given a strip
+    for (let i = 0; i < made.length; i++) {
+      for (let j = i + 1; j < made.length; j++) {
+        const A = made[i], B = made[j];
+        const fa = finishOf(A), fb = finishOf(B);
+        if (!fa || !fb || same(fa, fb)) continue;
+        if (!sharedLength(A.ring, B.ring, wallPx, stepPx)) continue;
+        const near = (gaps, other) => gaps.filter((g) => distToRing(other.ring, (g[0][0] + g[1][0]) / 2, (g[0][1] + g[1][1]) / 2) <= wallPx);
+        let found = near(await gapsOf(A), B);
+        if (!found.length) found = near(await gapsOf(B), A);
+        for (const g of found) {
+          const mid = [(g[0][0] + g[1][0]) / 2, (g[0][1] + g[1][1]) / 2];
+          if (taken.some((t) => Math.hypot(t[0] - mid[0], t[1] - mid[1]) <= wallPx)) continue;
+          taken.push(mid);
+          const [lo, hi] = [A, B].sort((p, q) => p.tag.number.localeCompare(q.tag.number, undefined, { numeric: true }) || p.name.localeCompare(q.name));
+          const room = lo.tag.number === hi.tag.number ? lo.tag.number : `${lo.tag.number}/${hi.tag.number}`;
+          const tagsText = [finishOf(lo), finishOf(hi)].sort((p, q) => p.localeCompare(q, undefined, { numeric: true }));
+          const why = `A door opening between ${lo.name} (${finishOf(lo)}) and ${hi.name} (${finishOf(hi)}): different floor finishes meet here.${strip ? ` ${strip.finish_tag} is the only transition on this job.` : " Choose the transition it takes."}`;
+          const t = proposal(doc, { sheetId: sheet.key, role: "linear", pointsPx: g, dims, upp, cond: strip, label: room, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: clamp(Math.min(A.floor.origin.confidence, B.floor.origin.confidence) * 0.8), proposed_ts: ts, auto: { run: runId, kind: "transition", room, name: `${tagsText[0]} to ${tagsText[1]}`, between: [A.floor.id, B.floor.id], from: strip ? "job" : "none", why, notes: ["Check the opening on the drawing: a strip is needed only where the two finishes really meet."] } } });
+          shapes.push(t);
+          report.transitions.count++;
+          report.transitions.lf = round2(report.transitions.lf + (t.computed?.perimeter_lf || 0));
+        }
+      }
+      await pause();
+    }
   }
   return done(withShapes(doc, shapes));
 }
@@ -337,6 +430,8 @@ export function runSummary(reports) {
     if (r.already) lines.push(`${r.label}: ${r.already} room${r.already === 1 ? " was" : "s were"} already measured and left alone.`);
     if (r.otherSheet) lines.push(`${r.label}: ${r.otherSheet} room${r.otherSheet === 1 ? "" : "s"} already measured on another sheet in this run, not measured again.`);
     if (r.sameOutline) lines.push(`${r.label}: ${r.sameOutline} tag${r.sameOutline === 1 ? "" : "s"} sat in an outline another tag had already measured; those rooms share one proposal.`);
+    if (r.inside?.rooms) lines.push(`${r.label}: ${r.inside.rooms === 1 ? "1 space inside a tagged room was" : `${r.inside.rooms} spaces inside tagged rooms were`} found by ${r.inside.rooms === 1 ? "its name" : "their names"} (bedrooms, bathrooms, closets) and proposed under the room's number. Their finishes are not assumed.`);
+    if (r.transitions?.count) lines.push(`${r.label}: ${r.transitions.count === 1 ? "1 opening where two floor finishes meet was" : `${r.transitions.count} openings where two floor finishes meet were`} proposed as transitions (${fmt(r.transitions.lf)} LF).`);
     if (r.assigned.none) lines.push(`${r.label}: ${r.assigned.none} room${r.assigned.none === 1 ? " has" : "s have"} no finish chosen. Choose one before accepting.`);
     if (r.base.notDeducted) lines.push(`${r.label}: door openings could not be told on ${r.base.notDeducted} room${r.base.notDeducted === 1 ? "" : "s"}; their base is the full perimeter.`);
   }

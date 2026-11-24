@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { baseRuns, ringLength } from "./baseFromRoom.js";
+import { baseRuns, distToRing, ringLength, sharedLength } from "./baseFromRoom.js";
 
 // A 20 ft × 10 ft room drawn at 10 pixels to the foot, corner at (100, 100).
 const UPP = 0.1;
@@ -67,5 +67,51 @@ describe("baseRuns", () => {
     expect(baseRuns([[0, 0], [1, 1]], UPP, walls()).lengthLf).toBe(0);
     expect(baseRuns(room, 0, walls()).runs).toEqual([]);
     expect(ringLength(room)).toBe(600);
+  });
+});
+
+describe("where the openings are", () => {
+  test("each opening comes back as the straight line across it, end to end", () => {
+    const b = baseRuns(room, UPP, walls({ top: [[150, 180]], right: [[120, 160]] }));
+    expect(b.gaps.length).toBe(2);
+    const [a, c] = [...b.gaps].sort((p, q) => p[0][0] - q[0][0]);
+    expect(a.length).toBe(2);
+    expect(Math.abs(a[0][1] - 100) + Math.abs(a[1][1] - 100)).toBeLessThan(1);
+    expect(Math.abs(Math.abs(a[1][0] - a[0][0]) - 30)).toBeLessThan(6);
+    expect(Math.abs(c[0][0] - 300) + Math.abs(c[1][0] - 300)).toBeLessThan(1);
+  });
+  test("no openings, or openings that cannot be told: none", () => {
+    expect(baseRuns(room, UPP, walls()).gaps).toEqual([]);
+    expect(baseRuns(room, UPP, null).gaps).toEqual([]);
+  });
+  test("how much of one outline runs along another, and how far a point is from an outline", () => {
+    const next = [[300, 100], [400, 100], [400, 200], [300, 200]];   // shares the 10 ft right-hand wall
+    expect(sharedLength(room, next, 2, 2.5) * UPP).toBeGreaterThan(9);
+    expect(sharedLength(room, next, 2, 2.5) * UPP).toBeLessThan(11.5);
+    expect(sharedLength(room, [[500, 100], [600, 100], [600, 200], [500, 200]], 2, 2.5)).toBe(0);
+    expect(distToRing(room, 200, 90)).toBeCloseTo(10, 5);
+    expect(distToRing(room, 300, 150)).toBeCloseTo(0, 5);
+  });
+});
+
+describe("a door drawn with its leaf and swing", () => {
+  // the same room, with a 3 ft door in the top wall: hinged at (150, 100), the leaf standing 3 ft into the room,
+  // the swing curving back to the far jamb at (180, 100). "Click a room" traces the leaf and the swing.
+  const arc = Array.from({ length: 7 }, (_, i) => { const a = Math.PI / 2 - ((i + 1) * Math.PI) / 16; return [150 + 30 * Math.cos(a), 100 + 30 * Math.sin(a)]; });
+  const ring = [[100, 100], [150, 100], [150, 130], ...arc, [180, 100], [300, 100], [300, 200], [100, 200]];
+  const edge = (x, y) => {
+    const onWall = Math.abs(y - 100) < 4 || Math.abs(y - 200) < 4 || Math.abs(x - 100) < 4 || Math.abs(x - 300) < 4;
+    const onLeaf = Math.abs(x - 150) < 4 && y >= 100 && y <= 134;
+    if (onWall || onLeaf) return "wall";
+    return Math.abs(Math.hypot(x - 150, y - 100) - 30) < 3 ? "swing" : "open";
+  };
+  test("the opening is the straight line from the hinge to the far jamb, and the leaf is not base", () => {
+    const b = baseRuns(ring, UPP, edge);
+    expect(b.openings).toBe(1);
+    expect(b.gaps).toEqual([[[150, 100], [180, 100]]]);
+    expect(b.openingsLf).toBeCloseTo(3, 1);
+    expect(b.lengthLf).toBeCloseTo(57, 0);                       // 60 ft of wall less the 3 ft opening
+    expect(b.runs.flat().some(([x, y]) => Math.abs(x - 150) < 1 && Math.abs(y - 130) < 1)).toBe(false);   // not out along the leaf
+    expect(b.runs.reduce((n, l) => n + lineLf(l), 0)).toBeCloseTo(57, 0);
   });
 });

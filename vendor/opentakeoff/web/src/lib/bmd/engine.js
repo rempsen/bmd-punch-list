@@ -9,6 +9,7 @@ import { extractVectorGeometry } from "../oneclick.ts";
 import { buildSnapGrid, nearestSnap } from "../geometry.js";
 import { createRoomFinder, textBoxes } from "./roomParts.js";
 import { baseRuns } from "./baseFromRoom.js";
+import { sweepSymbols } from "../symbolsweep";
 import { detectScale, extractSheetNumber, STANDARD_SCALES } from "../sheets.ts";
 import { RENDER_SCALE, SNAP_CELL, SNAP_TOL } from "../takeoffConstants.ts";
 
@@ -74,6 +75,14 @@ export function createSheetEngine({ page, OPS }) {
      * See ./baseFromRoom.js for what comes back. When the sheet has no linework to tell openings by, the whole
      * outline is returned and `deducted` is false.
      */
+    /**
+     * Every other place on this sheet where the symbol inside a box is drawn (OpenTakeoff's Symbol Sweep: matched
+     * on the linework alone, turned or mirrored placements included). See lib/symbolsweep.ts for what comes back.
+     */
+    async symbolsLike(cornerA, cornerB) {
+      const { geo } = await geometry();
+      return sweepSymbols(geo.segs, [cornerA, cornerB], geo.lum ? { lum: geo.lum } : {});
+    },
     async baseAlong(pointsPx, upp) {
       const finder = await roomFinder();
       return baseRuns(pointsPx, upp, (await this.hasLinework()) ? (x, y) => finder.edgeAt(x, y, upp) : null);

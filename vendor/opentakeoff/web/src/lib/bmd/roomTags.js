@@ -110,6 +110,33 @@ export function findRoomTags(spans, opts = {}) {
   });
 }
 
+// The names a space inside a suite or a larger room is lettered with when it has no number of its own.
+const INSIDE_NAME = /^(?:(?:MASTER|PRIMARY|MAIN|GUEST|SECOND|2ND) )?(?:BED(?:ROOM)?|BDRM|BR|BATH(?:ROOM)?|ENSUITE|EN-SUITE|W\/?C|W\.C\.|WASHROOM|POWDER(?: ROOM)?|CLOSET|CLO?\.?|W\.?I\.?C\.?|WALK[- ]IN(?: CLOSET)?|KITCHEN(?:ETTE)?|LIVING(?: ROOM)?|DINING(?: ROOM)?|LIVING ?\/ ?DINING|ENTRY|FOYER|VESTIBULE|HALL(?:WAY)?|STORAGE|STOR\.?|LAUNDRY|LINEN|PANTRY|DEN|STUDY|UTILITY|MECH\.?)(?: ?#? ?\d)?$/;
+
+/**
+ * Room names lettered on their own, with no number: the bedrooms, bathrooms and closets inside a suite.
+ * @param {object[]} spans
+ * @param {{bounds?: object, tags?: object[]}} [opts] `tags`: the sheet's room tags, whose own names are left out
+ * @returns {{name: string, box: {x0: number, y0: number, x1: number, y1: number}}[]}
+ */
+export function findRoomNames(spans, opts = {}) {
+  const b = opts.bounds;
+  const used = (opts.tags ?? []).map((t) => t.nameBox).filter(Boolean);
+  const out = [];
+  for (const sp of spans ?? []) {
+    if (!sp || typeof sp.str !== "string" || !upright(sp)) continue;
+    const raw = sp.str.trim().replace(/\s+/g, " ");
+    if (/[a-z]/.test(raw) || !INSIDE_NAME.test(raw)) continue;
+    const box = boxOf(sp);
+    const cx = (box.x0 + box.x1) / 2, cy = (box.y0 + box.y1) / 2;
+    if (b && (cx < b.x0 || cx > b.x1 || cy < b.y0 || cy > b.y1)) continue;
+    if (used.some((u) => cx >= u.x0 && cx <= u.x1 && cy >= u.y0 && cy <= u.y1)) continue;
+    if (out.some((o) => Math.abs(o.box.x0 - box.x0) < 4 && Math.abs(o.box.y0 - box.y0) < 4)) continue;   // text drawn twice
+    out.push({ name: raw, box });
+  }
+  return out;
+}
+
 /** Where to try clicking for a tag's room, best first: on the number, then just clear of the tag each way. */
 export function seedPoints(tag) {
   const { x0, y0, x1, y1 } = tag.box;

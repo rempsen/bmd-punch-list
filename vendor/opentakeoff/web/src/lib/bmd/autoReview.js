@@ -12,12 +12,14 @@ export const proposalsIn = (doc) => (doc?.shapes || []).filter(isProposal);
 /** How many things there are to review among some shapes: each room's floor is one, and each room's base is one. */
 export function reviewCount(shapes) {
   const seen = new Set();
-  for (const s of shapes || []) if (isProposal(s)) seen.add(s.origin.auto?.kind === "base" && s.origin.auto.of ? `base:${s.origin.auto.of}` : s.id);
+  for (const s of shapes || []) if (isProposal(s)) seen.add(itemId(s));
   return seen.size;
 }
 
 /** Where a proposal's finish came from, in the words shown on screen. */
-export const FROM_LABEL = { schedule: "Schedule row", tag: "Tag in the room", ai: "AI suggestion", person: "You chose", none: "No finish chosen" };
+export const FROM_LABEL = { schedule: "Schedule row", tag: "Tag in the room", ai: "AI suggestion", person: "You chose", job: "Only one on the job", symbol: "Matches your example", none: "No finish chosen" };
+const KINDS = new Set(["base", "inside", "transition", "count"]);
+const itemId = (s) => { const a = s.origin.auto || {}; return a.kind === "base" && a.of ? `base:${a.of}` : a.kind === "count" && a.sweep ? `count:${a.sweep}` : s.id; };
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -33,19 +35,21 @@ export function reviewList(doc, sheets = []) {
   const items = new Map();   // item id → item
   for (const s of proposalsIn(doc)) {
     const a = s.origin.auto || {};
-    const id = a.kind === "base" && a.of ? `base:${a.of}` : s.id;
+    const id = itemId(s);
+    const kind = KINDS.has(a.kind) ? a.kind : "floor";
+    const unit = kind === "count" ? "EA" : s.measure_role === "linear" ? "LF" : "SF";
     let it = items.get(id);
     if (!it) {
       const cond = s.condition_id ? conds.get(s.condition_id) : null;
       it = {
-        id, ids: [], kind: a.kind === "base" ? "base" : "floor", sheetKey: s.sheet_id, room: a.room || "", name: a.name || "",
-        qty: 0, unit: a.kind === "base" ? "LF" : "SF", finish: cond?.finish_tag ?? a.finish_tag ?? null, conditionId: cond?.id ?? null, isNew: !cond && !!a.finish_tag,
+        id, ids: [], kind, sheetKey: s.sheet_id, room: a.room || "", name: a.name || "",
+        qty: 0, unit, finish: cond?.finish_tag ?? a.finish_tag ?? null, conditionId: cond?.id ?? null, isNew: !cond && !!a.finish_tag,
         from: a.from || "none", why: a.why || "", notes: a.notes || [], also: a.also || [], confidence: s.origin.confidence ?? 0, verts: [],
       };
       items.set(id, it);
     }
     it.ids.push(s.id);
-    it.qty = round2(it.qty + (it.kind === "base" ? s.computed?.perimeter_lf : s.computed?.area_sf || 0));
+    it.qty = round2(it.qty + ((it.unit === "EA" ? s.computed?.count || 1 : it.unit === "LF" ? s.computed?.perimeter_lf : s.computed?.area_sf) || 0));
     it.verts.push(...(s.verts_norm || []));
   }
   const order = new Map(sheets.map((s, i) => [s.key, i]));
@@ -113,10 +117,10 @@ export function setProposalFinish(doc, shapeIds, conditionId) {
   };
 }
 
-/** Removes proposals. Removing a room's floor proposal removes the base proposed from it too. */
+/** Removes proposals. Removing a room's floor proposal removes its base, the spaces found inside it and its transitions too. */
 export function removeProposals(doc, shapeIds) {
   const want = new Set(shapeIds);
-  return { ...doc, shapes: (doc.shapes || []).filter((s) => !(isProposal(s) && (want.has(s.id) || (s.origin.auto?.of && want.has(s.origin.auto.of))))) };
+  return { ...doc, shapes: (doc.shapes || []).filter((s) => !(isProposal(s) && (want.has(s.id) || (s.origin.auto?.of && want.has(s.origin.auto.of)) || (s.origin.auto?.between || []).some((id) => want.has(id))))) };
 }
 
 /** The proposals rated above a confidence (0 to 1) that have a finish. */

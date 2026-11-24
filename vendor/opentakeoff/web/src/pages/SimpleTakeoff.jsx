@@ -19,6 +19,7 @@ import { AutoReview, AutoRunPanel } from "../components/BmdAutoTakeoff.jsx";
 import { scanSheets, scheduleLine } from "../lib/bmd/autoScan.js";
 import { applyDecisions, runSheet, runSummary } from "../lib/bmd/autoTakeoff.js";
 import { acceptProposals, idsAbove, idsOnSheet, isProposal, removeProposals, reviewCount, reviewList, setProposalFinish } from "../lib/bmd/autoReview.js";
+import { symbolProposals } from "../lib/bmd/symbolCount.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -28,6 +29,7 @@ const TOOLS = [
   { id: "area", label: "Draw area", hint: "Click each corner. Double-click or press Enter to finish." },
   { id: "line", label: "Line", hint: "Click along the run (base, transitions). Double-click or press Enter to finish." },
   { id: "count", label: "Count", hint: "Click each item to count it." },
+  { id: "alike", label: "Count alike", hint: "Click two opposite corners of a box around one symbol (a drain, a threshold mark). Every symbol drawn the same way on this sheet is proposed as a count for you to check." },
   { id: "cut", label: "Cut out", hint: "Draw around an area to take out, such as a column or a void." },
 ];
 const fmt = (n, d = 1) => (Number(n) || 0).toLocaleString("en-CA", { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -485,6 +487,26 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       try { commit(addShape(doc, { sheetId: current, conditionId: activeId, role: "count", pointsPx: [[ix, iy]], dims, area })); } catch (err) { say(String(err?.message || err), "warn"); }
       return;
     }
+    if (tool === "alike") {
+      if (ix < 0 || iy < 0 || ix > dims.w || iy > dims.h) return;
+      if (!draft.length) return setDraft([[ix, iy]]);
+      const first = draft[0];
+      setDraft([]);
+      setBusy("Looking for symbols like that one…");
+      try {
+        if (!(await engine.hasLinework())) return say("This sheet is a scan with no drawn linework, so symbols cannot be matched on it. Count them by clicking each one.", "warn");
+        const r = symbolProposals(doc, { sheetId: current, conditionId: activeId, result: await engine.symbolsLike(first, [ix, iy]), dims });
+        if (!r.found && !r.close) return say("Nothing else on this sheet is drawn like the symbol in that box. Box the whole symbol and only the symbol, or count them by clicking.", "warn");
+        commit(r.doc);
+        setReviewing(true);
+        say(`${active.finish_tag}: ${r.found} symbol${r.found === 1 ? "" : "s"} proposed${r.close ? `, and ${r.close} close to it to look at` : ""}. They are not counted until you accept them.${r.partial ? " This sheet was too busy to search completely, so there may be more." : ""}`, r.partial ? "warn" : "good");
+      } catch (err) {
+        say(String(err?.message || err), "warn");
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
     if (needScale()) return;
     if (tool === "room") {
       if (ix < 0 || iy < 0 || ix > dims.w || iy > dims.h) return;
@@ -619,7 +641,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const shown = sheets.filter((s) => !filter.trim() || `${s.label ?? ""} page ${s.page} ${s.file}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const selectedShape = selected ? shapes.find((s) => s.id === selected) : null;
   const pts = (s) => (s.verts_norm || []).map(([nx, ny]) => [nx * dims.w, ny * dims.h]);
-  const liveDraft = draft.length && hover ? [...draft, hover] : draft;
+  const boxed = tool === "alike" && draft.length === 1 && hover ? [draft[0], [hover[0], draft[0][1]], hover, [draft[0][0], hover[1]]] : null;
+  const liveDraft = boxed ?? (draft.length && hover ? [...draft, hover] : draft);
   const stroke = 2 / view.k;
   const advancedUrl = `?project=${encodeURIComponent(projectId)}&view=advanced`;
   const saveText = readOnly ? "Read-only" : saveState?.kind === "saving" ? "Saving…" : saveState?.kind === "failed" ? "Not saved" : saveState?.kind === "conflict" ? "Not saved" : "Saved";
