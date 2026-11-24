@@ -22,6 +22,7 @@ import {
   Images,
   Sparkles,
   ChevronRight,
+  Workflow,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import { useEffect, useState, type ReactNode } from "react";
@@ -31,7 +32,7 @@ import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { cn } from "@/lib/utils";
 
-type NavItem = { to: string; label: string; short?: string; icon: typeof Camera; group?: "company"; /** For the two Settings entries: which tab to open. */ search?: { tab: string } };
+type NavItem = { to: string; label: string; short?: string; icon: typeof Camera; group?: "company"; /** Where a job item sits in the desktop sidebar. */ section?: "top" | "open-items" | "bottom"; /** For the two Settings entries: which tab to open. */ search?: { tab: string } };
 /** The two Settings entries share one page, so each is lit only when its own kind of settings is open. */
 const isActive = (item: NavItem, pathname: string, tab: string | undefined) => pathname.startsWith(item.to) && (!item.search || settingsGroup(tab) === settingsGroup(item.search.tab));
 
@@ -52,24 +53,27 @@ export function useNavItems() {
   if (can("decide_client_items") && !can("capture_items"))
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck });
   if (role === "client") items.push({ to: "/client-portal", label: "Client portal", short: "Portal", icon: Briefcase });
-  if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3 });
+  if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Dashboard", icon: BarChart3, section: "top" });
   if (can("capture_items") || can("edit_any_item"))
-    items.push({ to: "/board", label: "Board", icon: KanbanSquare });
-  items.push({ to: "/floors", label: "Floors", icon: Grid3x3 });
-  items.push({ to: "/list", label: "List", icon: ClipboardList });
-  if (can("view_dashboard")) items.push({ to: "/summary", label: "Summary", icon: Sparkles });
-  if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera });
+    items.push({ to: "/board", label: "Board", icon: KanbanSquare, section: "open-items" });
+  items.push({ to: "/floors", label: "Floors", icon: Grid3x3, section: "open-items" });
+  items.push({ to: "/list", label: "List", icon: ClipboardList, section: "open-items" });
+  if (can("view_dashboard")) items.push({ to: "/summary", label: "Summary", icon: Sparkles, section: "open-items" });
+  if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera, section: "open-items" });
   if (can("export_pdf") || can("export_excel"))
-    items.push({ to: "/exports", label: "Exports", icon: FileDown });
-  if (can("view_documents")) items.push({ to: "/documents", label: "Documents", short: "Docs", icon: FolderOpen });
-  if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images });
-  if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail });
-  if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2 });
+    items.push({ to: "/exports", label: "Exports", icon: FileDown, section: "open-items" });
+  if (can("view_documents")) {
+    items.push({ to: "/documents", label: "Documents", short: "Docs", icon: FolderOpen, section: "bottom" });
+    items.push({ to: "/job-flow", label: "Job Flow", short: "Flow", icon: Workflow, section: "bottom" });
+  }
+  if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail, section: "bottom" });
+  if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Company items", short: "Ours", icon: Building2, section: "bottom" });
+  if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images, section: "bottom" });
   // Settings come in two kinds. Company settings sit with the company-wide areas; job settings sit with the current job.
   const companyTab = canAny("send_quotes") ? "quotes" : canAny("manage_integrations") ? "integrations" : isSuperAdmin ? "allusers" : can("manage_settings") ? "projects" : null;
   if (companyTab) items.push({ to: "/settings", search: { tab: companyTab }, label: "Company settings", short: "Company", icon: Settings, group: "company" });
   if (can("manage_settings") || can("manage_users"))
-    items.push({ to: "/settings", search: { tab: can("manage_settings") ? "project" : "users" }, label: "Job settings", short: "Job", icon: Settings });
+    items.push({ to: "/settings", search: { tab: can("manage_settings") ? "project" : "users" }, label: "Job settings", short: "Job", icon: Settings, section: "bottom" });
   return items;
 }
 
@@ -77,6 +81,27 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = useNavItems();
   const company = nav.filter((i) => i.group === "company");
   const jobNav = nav.filter((i) => i.group !== "company");
+  // Role portals (My work, Decisions…) have no section and stay at the very top.
+  const topNav = jobNav.filter((i) => !i.section || i.section === "top");
+  const openItemsNav = jobNav.filter((i) => i.section === "open-items");
+  const bottomNav = jobNav.filter((i) => i.section === "bottom");
+  const jobLink = (item: NavItem) => (
+    <Link
+      key={item.label}
+      to={item.to}
+      {...(item.search ? { search: item.search } : {})}
+      className={cn(
+        item.to === "/settings" && "mt-auto",
+        "flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-medium transition-colors",
+        isActive(item, pathname, tabNow)
+          ? "border-blush bg-sidebar-accent text-sidebar-accent-foreground"
+          : "border-transparent opacity-80 hover:bg-sidebar-accent/60",
+      )}
+    >
+      <item.icon className="h-4 w-4" />
+      {item.label}
+    </Link>
+  );
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tabNow = useRouterState({ select: (s) => (s.location.search as { tab?: string }).tab });
@@ -99,7 +124,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   };
   // Company-wide screens, company settings included, open without a job chosen.
-  const activeJobItem = jobNav.find((i) => isActive(i, pathname, tabNow));
+  const activeJobItem = openItemsNav.find((i) => isActive(i, pathname, tabNow));
   if (!loading && jobsLoaded && !currentJob && needsJob(pathname, tabNow)) return <Navigate to="/jobs" replace />;
 
 
@@ -132,35 +157,27 @@ export function AppShell({ children }: { children: ReactNode }) {
             )}
             <JobBadge />
           </div>
-          <button
-            type="button"
-            onClick={toggleJobMenu}
-            aria-expanded={jobMenu}
-            aria-controls="job-menu"
-            className="mb-1 flex items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide opacity-80 hover:bg-sidebar-accent/60"
-          >
-            <ChevronRight className={cn("h-4 w-4 transition-transform", jobMenu && "rotate-90")} aria-hidden />
-            <span className="min-w-0 flex-1">Job menu</span>
-            {!jobMenu && activeJobItem && <span className="truncate text-[11px] font-medium normal-case tracking-normal opacity-80">{activeJobItem.label}</span>}
-          </button>
-          <nav id="job-menu" aria-label="Current job" className="flex flex-1 flex-col gap-1 overflow-y-auto">
-            {jobMenu && jobNav.map((item) => (
-              <Link
-                key={item.label}
-                to={item.to}
-                {...(item.search ? { search: item.search } : {})}
-                className={cn(
-                  item.to === "/settings" && "mt-auto",
-                  "flex items-center gap-3 rounded-md border-l-2 px-3 py-2.5 text-sm font-medium transition-colors",
-                  isActive(item, pathname, tabNow)
-                    ? "border-blush bg-sidebar-accent text-sidebar-accent-foreground"
-                    : "border-transparent opacity-80 hover:bg-sidebar-accent/60",
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            ))}
+          <nav aria-label="Current job" className="flex flex-1 flex-col gap-1 overflow-y-auto">
+            {topNav.map(jobLink)}
+            {openItemsNav.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={toggleJobMenu}
+                  aria-expanded={jobMenu}
+                  aria-controls="job-menu"
+                  className="mt-1 flex items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide opacity-80 hover:bg-sidebar-accent/60"
+                >
+                  <ChevronRight className={cn("h-4 w-4 transition-transform", jobMenu && "rotate-90")} aria-hidden />
+                  <span className="min-w-0 flex-1">Job Site Open Items</span>
+                  {!jobMenu && activeJobItem && <span className="truncate text-[11px] font-medium normal-case tracking-normal opacity-80">{activeJobItem.label}</span>}
+                </button>
+                <div id="job-menu" className="flex flex-col gap-1">
+                  {jobMenu && openItemsNav.map(jobLink)}
+                </div>
+              </>
+            )}
+            {bottomNav.map(jobLink)}
             {canCreateJobs && (
               <Link
                 to="/new-job"

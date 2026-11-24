@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { isPriceListFile, jobMenuOpen } from "./nav";
 
-describe("the job menu in the sidebar", () => {
+describe("the Job Site Open Items section in the sidebar", () => {
   test("starts hidden", () => {
     expect(jobMenuOpen(null)).toBe(false);
     expect(jobMenuOpen("nonsense")).toBe(false);
