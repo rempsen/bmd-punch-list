@@ -1,6 +1,7 @@
 /** Where the sidebar remembers, in this browser, whether each accordion is open. */
 export const NAV_GROUP_KEYS = {
   resources: "bmd:nav:resources",
+  materials: "bmd:nav:materials",
   deficiencies: "bmd:nav:deficiencies",
   records: "bmd:nav:records",
 } as const;

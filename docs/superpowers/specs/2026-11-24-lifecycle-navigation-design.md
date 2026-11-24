@@ -4,7 +4,8 @@
 Reorganize the sidebar from a feature list into the job lifecycle so the whole job is always in view: win the work → get ready → install → close out. Company-wide items sit above the current-job badge; everything below it is about one job.
 
 ## Target structure (from Dan's mockup)
-WORKSPACE · ALL JOBS: Overview, Pipeline, Estimates & Quotes, Projects, Materials & Deliveries, Schedule & Crews, Installation Progress, Resources ▾ (Catalogue, Clients, Suppliers)
+WORKSPACE · ALL JOBS: Overview, Pipeline, Estimates & Quotes, Projects, Resources ▾ (Catalogue, Clients, Suppliers)
+MATERIALS & INSTALL: Materials ▾ (Ordering, Receiving, To site), Scheduling ▾ (Technicians, Work orders, Tasks), Installation Progress
 CURRENT JOB: job badge, Switch job, Job settings
 POST-INSTALLATION: Closeout Overview, Deficiencies ▾ (Board, Floors, List, Summary, Add a deficiency, Exports), Remedial Work, Billing & Holdback, Inspections & Sign-off
 Job Records ▾: Documents, Job photos, Email intake, Activity
@@ -16,7 +17,9 @@ Bottom: Settings (company), user
 - Installation Progress: status per area × scope, entered by hand AND pre-filled from ArrivePing — a visit records which areas it covers; when ArrivePing reports the work order complete those areas become Complete.
 - Materials & Deliveries: when a project moves to Won, every material line on the accepted estimate becomes an order line at "On order"; a matching purchase order is created and sent in QuickBooks (first QuickBooks write). Statuses: On order → Received (warehouse, Thomas) → On site. An area whose material is not On site shows "Awaiting material" in Installation Progress.
 - Billing sits between Remedial Work and Inspections & Sign-off. Sign-off is what releases the holdback invoice.
-- Schedule & Crews is a read-only cross-job view of ArrivePing visits and crews; scheduling itself stays in ArrivePing.
+- Schedule & Crews is a read-only cross-job view of ArrivePing visits and crews; scheduling itself stays in ArrivePing. (Superseded by the next line.)
+- Scheduling in BMD creates install visits/work orders and assigns technicians through ArrivePing; ArrivePing remains the system that runs the day.
+- Materials (release 4): order lines are seeded by a database trigger when a project enters Won (accepted quote's version, else the base estimate), and appended by a trigger when a change order is accepted (`change_order_seed_materials`). Only required material components are seeded. QuickBooks POs are created and emailed from the Ordering tab, one supplier at a time, not automatically on Won.
 - Takeoff, Estimate, Quotes, Billing remain tabs inside a project; the sidebar links into them for the current job.
 
 ## Release order

@@ -27,6 +27,10 @@ import {
   Boxes,
   Home,
   FileText,
+  Package,
+  PackageCheck,
+  ShoppingCart,
+  Truck,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import { useEffect, useState, type ReactNode } from "react";
@@ -36,7 +40,7 @@ import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { cn } from "@/lib/utils";
 
-type NavGroup = "company" | "resources" | "job" | "deficiencies" | "post" | "records" | "bottom";
+type NavGroup = "company" | "resources" | "materials" | "job" | "deficiencies" | "post" | "records" | "bottom";
 type NavItem = {
   to: string;
   label: string;
@@ -45,13 +49,14 @@ type NavItem = {
   /** Where the item sits in the desktop sidebar. */
   group?: NavGroup;
   /** Settings tab, or a project tab for Billing / Activity. */
-  search?: { tab: string };
+  search?: { tab: string } | { stage: string };
   params?: { id: string };
 };
 /** Settings entries share one page, and so do project tabs, so each is lit only when its own tab is open. */
-const isActive = (item: NavItem, pathname: string, tab: string | undefined) => {
+const isActive = (item: NavItem, pathname: string, tab: string | undefined, stage?: string) => {
+  if (item.search && "stage" in item.search) return pathname.startsWith(item.to) && (stage ?? "on_order") === item.search.stage;
   if (item.params) return pathname === `/projects/${item.params.id}` && tab === item.search?.tab;
-  return pathname.startsWith(item.to) && (!item.search || settingsGroup(tab) === settingsGroup(item.search.tab));
+  return pathname.startsWith(item.to) && (!item.search || ("tab" in item.search && settingsGroup(tab) === settingsGroup(item.search.tab)));
 };
 
 export function useNavItems() {
@@ -65,6 +70,9 @@ export function useNavItems() {
     items.push({ to: "/projects", label: "Projects", icon: FolderKanban, group: "company" });
     if (canAny("view_pricing")) items.push({ to: "/catalogue", label: "Catalogue", icon: BookOpen, group: "resources" });
     items.push({ to: "/clients", label: "Clients", icon: Building2, group: "resources" });
+    items.push({ to: "/materials", label: "Ordering", icon: ShoppingCart, group: "materials", search: { stage: "on_order" } });
+    items.push({ to: "/materials", label: "Receiving", icon: PackageCheck, group: "materials", search: { stage: "received" } });
+    items.push({ to: "/materials", label: "To site", icon: Truck, group: "materials", search: { stage: "on_site" } });
   }
   // Current job: role-specific entries, then job settings.
   const isTrade = role === "trade";
@@ -170,22 +178,24 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tabNow = useRouterState({ select: (s) => (s.location.search as { tab?: string }).tab });
+  const stageNow = useRouterState({ select: (s) => (s.location.search as { stage?: string }).stage });
   const of = (g: NavGroup) => nav.filter((i) => i.group === g);
   const company = of("company");
   const resources = of("resources");
+  const materials = of("materials");
   const jobItems = of("job");
   const post = of("post");
   const deficiencies = of("deficiencies");
   const records = of("records");
   const bottom = of("bottom");
-  const activeIn = (list: NavItem[]) => list.find((i) => isActive(i, pathname, tabNow));
+  const activeIn = (list: NavItem[]) => list.find((i) => isActive(i, pathname, tabNow, stageNow));
   const navLink = (item: NavItem, indent = false) => (
     <Link
       key={item.label}
       to={item.to}
       {...(item.search ? { search: item.search } : {})}
       {...(item.params ? { params: item.params } : {})}
-      className={linkCls(isActive(item, pathname, tabNow), indent)}
+      className={linkCls(isActive(item, pathname, tabNow, stageNow), indent)}
     >
       <item.icon className="h-4 w-4" />
       {item.label}
@@ -209,6 +219,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <SectionLabel>Workspace · All jobs</SectionLabel>
                 {company.map((i) => navLink(i))}
                 <SidebarGroup id="nav-resources" label="Resources" icon={Boxes} storageKey={NAV_GROUP_KEYS.resources} items={resources} renderItem={navLink} activeItem={activeIn(resources)} />
+              </>
+            )}
+            {materials.length > 0 && (
+              <>
+                <SectionLabel>Materials &amp; Install</SectionLabel>
+                <SidebarGroup id="nav-materials" label="Materials" icon={Package} storageKey={NAV_GROUP_KEYS.materials} items={materials} renderItem={navLink} activeItem={activeIn(materials)} />
               </>
             )}
             <SectionLabel>Current job</SectionLabel>
