@@ -2040,6 +2040,7 @@ export type Database = {
           job_roles: Database["public"]["Enums"]["job_role"][]
           project_id: string
           role: Database["public"]["Enums"]["app_role"]
+          role_source: string
           user_id: string
         }
         Insert: {
@@ -2049,6 +2050,7 @@ export type Database = {
           job_roles?: Database["public"]["Enums"]["job_role"][]
           project_id: string
           role: Database["public"]["Enums"]["app_role"]
+          role_source: string
           user_id: string
         }
         Update: {
@@ -2058,6 +2060,7 @@ export type Database = {
           job_roles?: Database["public"]["Enums"]["job_role"][]
           project_id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          role_source?: string
           user_id?: string
         }
         Relationships: [
@@ -2765,6 +2768,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
+          supplies: string
         }
         Insert: {
           account_number?: string | null
@@ -2776,6 +2780,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
+          supplies?: string
         }
         Update: {
           account_number?: string | null
@@ -2787,6 +2792,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
+          supplies?: string
         }
         Relationships: []
       }
@@ -3314,9 +3320,81 @@ export type Database = {
         }
         Relationships: []
       }
+      user_access: {
+        Row: {
+          all_jobs: boolean
+          deactivated_at: string | null
+          deactivated_by: string | null
+          level: Database["public"]["Enums"]["app_role"]
+          status: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          all_jobs?: boolean
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          level?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          all_jobs?: boolean
+          deactivated_at?: string | null
+          deactivated_by?: string | null
+          level?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_admin_log: {
+        Row: {
+          action: string
+          actor: string | null
+          at: string
+          detail: Json
+          email: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          at?: string
+          detail?: Json
+          email?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          at?: string
+          detail?: Json
+          email?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_invites: {
         Row: {
           accepted_at: string | null
+          all_jobs: boolean
           company: string | null
           created_at: string
           email: string
@@ -3325,7 +3403,9 @@ export type Database = {
           id: string
           invite_token: string
           invited_by: string | null
+          jobs: Json
           last_error: string | null
+          level: Database["public"]["Enums"]["app_role"] | null
           project_id: string | null
           role: Database["public"]["Enums"]["app_role"]
           sent_at: string | null
@@ -3333,6 +3413,7 @@ export type Database = {
         }
         Insert: {
           accepted_at?: string | null
+          all_jobs?: boolean
           company?: string | null
           created_at?: string
           email: string
@@ -3341,7 +3422,9 @@ export type Database = {
           id?: string
           invite_token?: string
           invited_by?: string | null
+          jobs?: Json
           last_error?: string | null
+          level?: Database["public"]["Enums"]["app_role"] | null
           project_id?: string | null
           role: Database["public"]["Enums"]["app_role"]
           sent_at?: string | null
@@ -3349,6 +3432,7 @@ export type Database = {
         }
         Update: {
           accepted_at?: string | null
+          all_jobs?: boolean
           company?: string | null
           created_at?: string
           email?: string
@@ -3357,7 +3441,9 @@ export type Database = {
           id?: string
           invite_token?: string
           invited_by?: string | null
+          jobs?: Json
           last_error?: string | null
+          level?: Database["public"]["Enums"]["app_role"] | null
           project_id?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           sent_at?: string | null
@@ -3416,6 +3502,7 @@ export type Database = {
         }
         Returns: string
       }
+      active_super_count: { Args: never; Returns: number }
       add_member_by_email: {
         Args: {
           _email: string
@@ -3423,6 +3510,87 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
         }
         Returns: string
+      }
+      admin_assert: {
+        Args: {
+          _new_level: Database["public"]["Enums"]["app_role"]
+          _target: string
+        }
+        Returns: undefined
+      }
+      admin_cancel_invite: { Args: { _invite: string }; Returns: undefined }
+      admin_delete_user_data: { Args: { _user: string }; Returns: string }
+      admin_invite: {
+        Args: {
+          _all_jobs: boolean
+          _company: string
+          _email: string
+          _full_name: string
+          _jobs: Json
+          _level: Database["public"]["Enums"]["app_role"]
+        }
+        Returns: string
+      }
+      admin_list_users: {
+        Args: never
+        Returns: {
+          all_jobs: boolean
+          company: string
+          created_at: string
+          email: string
+          full_name: string
+          has_records: boolean
+          id: string
+          invite_error: string
+          invite_id: string
+          invite_sent_at: string
+          invite_token: string
+          is_super: boolean
+          job_count: number
+          jobs: Json
+          kind: string
+          last_sign_in_at: string
+          level: Database["public"]["Enums"]["app_role"]
+          status: string
+        }[]
+      }
+      admin_log: {
+        Args: { _action: string; _detail: Json; _email: string; _user: string }
+        Returns: undefined
+      }
+      admin_save_user: {
+        Args: {
+          _all_jobs: boolean
+          _company: string
+          _full_name: string
+          _jobs: Json
+          _level: Database["public"]["Enums"]["app_role"]
+          _user: string
+        }
+        Returns: undefined
+      }
+      admin_set_status: {
+        Args: { _status: string; _user: string }
+        Returns: undefined
+      }
+      admin_user_jobs: {
+        Args: { _user: string }
+        Returns: {
+          archived_at: string
+          name: string
+          project_id: string
+          role: Database["public"]["Enums"]["app_role"]
+          source: string
+        }[]
+      }
+      admin_user_log: {
+        Args: { _user: string }
+        Returns: {
+          action: string
+          actor_name: string
+          at: string
+          detail: Json
+        }[]
       }
       bmd_staff: {
         Args: never
@@ -3494,6 +3662,14 @@ export type Database = {
       delete_estimate_version: { Args: { _id: string }; Returns: undefined }
       delete_quote: { Args: { _id: string }; Returns: undefined }
       document_path_project: { Args: { _name: string }; Returns: string }
+      effective_role: {
+        Args: { _project: string; _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      effective_role_raw: {
+        Args: { _project: string; _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       expire_old_invites: { Args: never; Returns: undefined }
       floor_project: { Args: { _floor: string }; Returns: string }
       has_capability:
@@ -3506,12 +3682,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_active: { Args: { _user_id: string }; Returns: boolean }
       is_my_assignment: {
         Args: { _assigned_to: string; _trade: string }
         Returns: boolean
       }
       is_project_member: { Args: { _project: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_super_role: { Args: { _user_id: string }; Returns: boolean }
       issue_quote: {
         Args: {
           _document_id: string
@@ -3522,9 +3700,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      job_people: {
+        Args: { _project: string }
+        Returns: {
+          access: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }[]
+      }
       list_users: {
         Args: { _project: string }
         Returns: {
+          access: string
           company: string
           email: string
           full_name: string
@@ -3589,6 +3776,10 @@ export type Database = {
       retry_mirror: { Args: { _id: string }; Returns: undefined }
       revise_quote: { Args: { _id: string }; Returns: string }
       revoke_quote_link: { Args: { _quote: string }; Returns: undefined }
+      role_rank: {
+        Args: { _r: Database["public"]["Enums"]["app_role"] }
+        Returns: number
+      }
       save_estimate_line: { Args: { _p: Json }; Returns: Json }
       save_estimate_lines: { Args: { _items: Json }; Returns: Json }
       save_project_takeoff:
@@ -3655,6 +3846,11 @@ export type Database = {
         Returns: Json
       }
       sync_mark_reviewed: { Args: { _id: string }; Returns: undefined }
+      user_has_capability: {
+        Args: { _capability: string; _user: string }
+        Returns: boolean
+      }
+      user_has_records: { Args: { _user: string }; Returns: boolean }
     }
     Enums: {
       app_role:
