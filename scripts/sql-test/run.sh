@@ -9,8 +9,8 @@ as_pg psql -X -q -c "DO \$\$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION 
 as_pg createdb "$DB"
 trap 'as_pg dropdb "$DB"' EXIT
 MIGDIR=$(cd ../../drizzle/migrations && pwd)
-# 0053 and every later migration, in order.
-MIG=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 >= 53) print }' | tr "\n" " ")
+# The user-access migrations (0053 on) in order. Others need tables the stub doesn't have.
+MIG=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 >= 53 && $NF ~ /(user|staff|admin)/) print }' | tr '\n' ' ')
 # The migration uses drizzle's statement-breakpoint comments, which psql ignores.
 cat stub.sql seed.sql $MIG user-admin.test.sql > /tmp/$DB.sql
 chmod 644 /tmp/$DB.sql
