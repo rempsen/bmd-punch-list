@@ -130,7 +130,7 @@ export function createQbo(deps: { fetch: typeof fetch; env: QboEnv; store: QboSt
     return out;
   }
 
-  return { exchangeCode, getAccessToken, queryAll, companyName, post };
+  return { exchangeCode, getAccessToken, queryAll, companyName, post, get };
 }
 
 // ── What a QuickBooks record is to BMD ──────────────────────────────────────────────────────────────────────────
