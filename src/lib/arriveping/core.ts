@@ -309,7 +309,7 @@ export async function verifyArrivePingSignature(secret: string, rawBody: string,
   return diff === 0;
 }
 
-/** The integration events BMD subscribes to: who is on a job, when it is, and where the crew is. */
+/** The integration events BMD wants: who is on a job, when it is, and where the crew is. `subscriptionEvents` trims this to what ArrivePing offers. */
 export const AP_WEBHOOK_EVENTS = [
   "workorder.assigned",
   "workorder.unassigned",
@@ -330,4 +330,31 @@ export function webhookSetupError(status: number, error: string): string {
   if (status === 404) return "ArrivePing does not offer integration webhooks on this account yet.";
   if (status === 409) return "ArrivePing already has 10 webhooks for BMD Materials. Delete one in ArrivePing first.";
   return error;
+}
+
+/** Event names ArrivePing's GET /api/v1/events/types lists, from whichever shape it answers in (bare strings, `{name}`/`{type}`/`{event}` rows, or an object keyed by name). Unknown shape → null. */
+export function offeredEventTypes(json: unknown): string[] | null {
+  const root = json && typeof json === "object" && !Array.isArray(json) ? (json as Record<string, unknown>) : null;
+  const list = Array.isArray(json) ? json : root && Array.isArray(root["data"]) ? root["data"] : root && Array.isArray(root["types"]) ? root["types"] : root && Array.isArray(root["events"]) ? root["events"] : null;
+  if (list) {
+    const names = list
+      .map((row) => (typeof row === "string" ? row : row && typeof row === "object" ? (row as Record<string, unknown>)["name"] ?? (row as Record<string, unknown>)["type"] ?? (row as Record<string, unknown>)["event"] ?? (row as Record<string, unknown>)["id"] : null))
+      .filter((n): n is string => typeof n === "string" && n.length > 0);
+    return names.length ? names : null;
+  }
+  if (root) {
+    const keys = Object.keys(root).filter((k) => k.includes("."));
+    return keys.length ? keys : null;
+  }
+  return null;
+}
+
+/** The events to subscribe to: the ones BMD wants that ArrivePing offers. With no usable list, everything BMD wants except
+ *  `workorder.status_changed`, which the live API has refused (422) — the specific status events carry the same news. */
+export function subscriptionEvents(offered: string[] | null): string[] {
+  const wanted = [...AP_WEBHOOK_EVENTS] as string[];
+  if (!offered) return wanted.filter((e) => e !== "workorder.status_changed");
+  const have = new Set(offered);
+  const picked = wanted.filter((e) => have.has(e));
+  return picked.length ? picked : wanted.filter((e) => e !== "workorder.status_changed");
 }

@@ -806,6 +806,7 @@ export const retryAllFailed = createServerFn({ method: "POST" })
 // ---------------------------------------------------------------------------
 
 const WEBHOOKS_PATH = "/api/v1/webhooks";
+const EVENT_TYPES_PATH = "/api/v1/events/types";
 
 export type LiveSyncState = {
   canManage: boolean;
@@ -900,7 +901,7 @@ export const connectArrivePingSync = createServerFn({ method: "POST" })
       await requireAny(context.supabase as never, "manage_integrations");
       const { getRequest } = await import("@tanstack/react-start/server");
       const { apFetch } = await import("./client.server");
-      const { AP_WEBHOOK_EVENTS, webhookSetupError } = await import("./core");
+      const { offeredEventTypes, subscriptionEvents, webhookSetupError } = await import("./core");
       const { readLink, saveLink, sealSecret, reconcileVisits } = await import("./inbound.server");
       const url = webhookUrlFor(getRequest().url);
       if (!url.startsWith("https://"))
@@ -908,9 +909,12 @@ export const connectArrivePingSync = createServerFn({ method: "POST" })
           ok: false,
           error: "Connect from BMD's published https:// address, so ArrivePing can reach it.",
         };
+      // Subscribe only to event types this ArrivePing offers; a name it does not know makes it refuse the whole subscription (422).
+      const types = await apFetch(EVENT_TYPES_PATH, { method: "GET" });
+      const events = subscriptionEvents(types.ok ? offeredEventTypes(types.json) : null);
       const created = await apFetch(WEBHOOKS_PATH, {
         method: "POST",
-        body: { url, events: [...AP_WEBHOOK_EVENTS], description: "BMD Projects — install visits" },
+        body: { url, events, description: "BMD Projects — install visits" },
         idempotencyKey: `bmd-webhook-connect-${Date.now()}`,
       });
       if (!created.ok)
@@ -935,7 +939,7 @@ export const connectArrivePingSync = createServerFn({ method: "POST" })
           subscription_id: id,
           webhook_url: url,
           secret_enc: await sealSecret(secret),
-          events: AP_WEBHOOK_EVENTS.join(","),
+          events: events.join(","),
           connected_at: new Date().toISOString(),
           connected_by: user.user?.id ?? null,
         });

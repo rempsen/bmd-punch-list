@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { verifyArrivePingSignature, webhookSetupError, AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable, reschedulePayload, parseWorkOrderPhotos, photoStoragePath } from "./core";
+import { verifyArrivePingSignature, webhookSetupError, AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable, reschedulePayload, parseWorkOrderPhotos, photoStoragePath, offeredEventTypes, subscriptionEvents, AP_WEBHOOK_EVENTS } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -288,5 +288,23 @@ describe("rescheduling a work order", () => {
     expect(photoStoragePath("v1", { id: "https://x/a b.jpg", contentType: null, url: "https://x/a b.jpg" })).toBe("v1/ap-https-x-a-b-jpg.jpg");
     expect(photoStoragePath("v1", { id: "p", contentType: "image/heic", url: "https://x/p" })).toBe("v1/ap-p.heic");
     expect(photoStoragePath("v1", { id: "p", contentType: "application/octet-stream", url: "https://x/p" })).toBe("v1/ap-p.jpg");
+  });
+});
+
+describe("subscription events", () => {
+  test("reads the event-type list in its common shapes", () => {
+    expect(offeredEventTypes(["workorder.assigned", "workorder.completed"])).toEqual(["workorder.assigned", "workorder.completed"]);
+    expect(offeredEventTypes({ data: [{ name: "workorder.assigned" }, { type: "workorder.enroute" }] })).toEqual(["workorder.assigned", "workorder.enroute"]);
+    expect(offeredEventTypes({ "workorder.assigned": { description: "x" } })).toEqual(["workorder.assigned"]);
+    expect(offeredEventTypes({ ok: true })).toBeNull();
+    expect(offeredEventTypes("nope")).toBeNull();
+  });
+  test("subscribes only to what ArrivePing offers, and drops status_changed when the list is unknown", () => {
+    expect(subscriptionEvents(["workorder.assigned", "workorder.completed", "invoice.paid"])).toEqual(["workorder.assigned", "workorder.completed"]);
+    const fallback = subscriptionEvents(null);
+    expect(fallback).not.toContain("workorder.status_changed");
+    expect(fallback).toContain("workorder.completed");
+    expect(subscriptionEvents(["other.thing"])).toEqual(fallback);
+    expect(subscriptionEvents([...AP_WEBHOOK_EVENTS])).toContain("workorder.status_changed");
   });
 });
