@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { decryptToken, encryptToken } from "@/lib/ms/core";
-import { classifyItem, createQbo, qboAuthorizeUrl, stageItem, stageVendor, vendorEvidence, type QboStore } from "./connect";
+import { classifyItem, createQbo, qboAuthorizeUrl, stageCustomer, stageItem, stageVendor, vendorEvidence, type QboStore } from "./connect";
 
 const KEY = "test-key";
 const env = { clientId: "cid", clientSecret: "secret" };
@@ -131,5 +131,21 @@ describe("telling material suppliers from everyone else", () => {
   test("a vendor with no purchases is staged with zero, and without evidence nothing is claimed", () => {
     expect(stageVendor({ Id: "7", DisplayName: "Shell" }, new Map()).data["purchases"]).toEqual({ material_lines: 0, labour_lines: 0, other_lines: 0, last_purchase: null });
     expect(stageVendor({ Id: "7", DisplayName: "Shell" }).data["purchases"]).toBeUndefined();
+  });
+});
+
+describe("staging QuickBooks customers", () => {
+  const all = [
+    { Id: "1", DisplayName: "Kothari Group", Active: true, PrimaryEmailAddr: { Address: "ap@kothari.test" }, BillAddr: { Line1: "1 Main St", City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R3C 0A1" }, GivenName: "Sam", FamilyName: "K" },
+    { Id: "2", DisplayName: "Hyatt Centric", Job: true, ParentRef: { value: "1" }, FullyQualifiedName: "Kothari Group:Hyatt Centric" },
+    { Id: "3", DisplayName: "Floor 4", ParentRef: { value: "2" } },
+  ];
+  test("a top-level customer becomes a client with its contact details and one-line billing address", () => {
+    const s = stageCustomer(all[0]!, all);
+    expect(s).toMatchObject({ external_id: "1", kind: "client", name: "Kothari Group", data: { email: "ap@kothari.test", billing_address: "1 Main St, Winnipeg MB, R3C 0A1", contact_name: "Sam K", active: true } });
+  });
+  test("sub-customers at any depth are jobs under the top-level client, never clients", () => {
+    expect(stageCustomer(all[1]!, all)).toMatchObject({ kind: "client_job", data: { parent_id: "1", parent_name: "Kothari Group" } });
+    expect(stageCustomer(all[2]!, all)).toMatchObject({ kind: "client_job", data: { parent_id: "1" } });
   });
 });

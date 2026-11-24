@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { parseQboCustomers, planClientImport } from "./import";
+import { parseQboCustomers, planClientImport, planQboClientImport } from "./import";
 
 const rows = (names: string[]) => names.map((n) => ({ Customer: n }));
 
@@ -45,5 +45,31 @@ describe("planClientImport", () => {
     const plan = planClientImport(parsed, existing);
     expect(plan.inserts.length).toBe(0);
     expect("deletes" in plan).toBe(false);
+  });
+});
+
+describe("planQboClientImport (from the QuickBooks connection)", () => {
+  const staged = [
+    { external_id: "11", name: "Kothari Group", data: { email: "ap@kothari.test", active: true } },
+    { external_id: "12", name: "Towers Realty", data: { active: true } },
+    { external_id: "13", name: "Old Co", data: { active: false } },
+    { external_id: "14", name: "Marrbeck Construction", data: { active: true, phone: "204-555-0101", contact_name: "Pat Lee" } },
+    { external_id: "15", name: "marrbeck construction", data: { active: true } },
+  ];
+  const existing = [
+    { id: "a", name: "Kothari Group", qbo_customer_id: "11" },
+    { id: "b", name: "towers realty", qbo_customer_id: null },
+  ];
+  const plan = planQboClientImport(staged, existing);
+  it("leaves a client already linked to that QuickBooks customer alone", () => {
+    expect(plan.unchanged).toBe(1);
+  });
+  it("links a same-named BMD client by id without touching its fields", () => {
+    expect(plan.links).toEqual([{ id: "b", name: "towers realty", qboId: "12" }]);
+  });
+  it("creates the rest with their QuickBooks id, once per name, and skips inactive unknowns", () => {
+    expect(plan.inserts.map((c) => [c.name, c.qboId])).toEqual([["Marrbeck Construction", "14"]]);
+    expect(plan.inserts[0]).toMatchObject({ phone: "204-555-0101", contactName: "Pat Lee" });
+    expect(plan.skippedInactive).toBe(1);
   });
 });

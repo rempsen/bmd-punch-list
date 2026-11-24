@@ -66,3 +66,49 @@ export async function restage(entity: string, rows: { external_id: string; kind:
   }
   await table().update({ last_pull_at: now }).eq("id", 1);
 }
+
+// ── Clients from QuickBooks customers ───────────────────────────────────────────────────────────────────────────
+/** The staged top-level customers, read with the service role (staging has no browser write access). */
+export async function stagedClients(): Promise<{ external_id: string; name: string; data: Record<string, unknown> }[]> {
+  const { data, error } = await admin.from("sync_staging").select("external_id,name,data").eq("system", "quickbooks").eq("entity", "Customer").eq("kind", "client").limit(10000);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+/** Creates the planned clients and attaches QuickBooks ids to the planned links. BMD's existing values are never changed. */
+export async function applyClientPlan(plan: import("@/lib/clients/import").QboClientPlan, userId: string): Promise<{ created: number; linked: number }> {
+  const log: Record<string, unknown>[] = [];
+  const links: Record<string, unknown>[] = [];
+  let created = 0;
+  for (let i = 0; i < plan.inserts.length; i += 200) {
+    const batch = plan.inserts.slice(i, i + 200);
+    const { data: rows, error } = await admin.from("clients").insert(batch.map((c) => ({ name: c.name, email: c.email, phone: c.phone, billing_address: c.billingAddress, qbo_customer_id: c.qboId }))).select("id,name,qbo_customer_id");
+    if (error) throw new Error(error.message);
+    const byName = new Map((rows ?? []).map((r: { id: string; name: string }) => [r.name, r.id]));
+    const contacts = batch.filter((c) => c.contactName && byName.has(c.name)).map((c) => ({ client_id: byName.get(c.name)!, name: c.contactName, email: c.email, phone_office: c.phone, is_primary: true }));
+    if (contacts.length) {
+      const { error: cErr } = await admin.from("client_contacts").insert(contacts);
+      if (cErr) throw new Error(cErr.message);
+    }
+    for (const r of rows ?? []) {
+      created++;
+      links.push({ kind: "client", bmd_id: r.id, system: "quickbooks", external_id: r.qbo_customer_id, external_name: r.name, synced_at: new Date().toISOString() });
+      log.push({ direction: "in", system: "quickbooks", kind: "client", bmd_id: r.id, external_id: r.qbo_customer_id, label: r.name, outcome: "applied", detail: { by: userId, how: "created from QuickBooks customer" } });
+    }
+  }
+  for (const l of plan.links) {
+    const { error } = await admin.from("clients").update({ qbo_customer_id: l.qboId }).eq("id", l.id).is("qbo_customer_id", null);
+    if (error) throw new Error(error.message);
+    links.push({ kind: "client", bmd_id: l.id, system: "quickbooks", external_id: l.qboId, external_name: l.name, synced_at: new Date().toISOString() });
+    log.push({ direction: "in", system: "quickbooks", kind: "client", bmd_id: l.id, external_id: l.qboId, label: l.name, outcome: "bmd_kept", detail: { by: userId, how: "same name: linked, BMD's details kept" } });
+  }
+  if (links.length) {
+    const { error } = await admin.from("sync_links").upsert(links, { onConflict: "kind,bmd_id,system" });
+    if (error) throw new Error(error.message);
+  }
+  if (log.length) {
+    const { error } = await admin.from("sync_log").insert(log);
+    if (error) throw new Error(error.message);
+  }
+  return { created, linked: plan.links.length };
+}
