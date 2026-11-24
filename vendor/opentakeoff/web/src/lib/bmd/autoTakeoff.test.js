@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createRoomFinder } from "./roomParts.js";
 import { baseRuns } from "./baseFromRoom.js";
 import { LIMITS, METHOD, applyDecisions, pickScheduleRows, runSheet, runSummary, sheetChoice } from "./autoTakeoff.js";
-import { acceptProposals, idsAbove, idsOnSheet, isProposal, proposalsIn, removeProposals, reviewList, setProposalFinish } from "./autoReview.js";
+import { acceptProposals, idsAbove, idsOnSheet, isProposal, proposalsIn, removeProposals, reviewCount, reviewList, setProposalFinish } from "./autoReview.js";
 import { takeoffQuantities } from "./quantities.js";
 import { finishTotals } from "./takeoffDoc.js";
 
@@ -175,10 +175,17 @@ describe("runSheet", () => {
     for (let i = 0; i < 6; i++) { spans.push(...tagText("OFFICE", `20${i}`, 150 + i * 200, 300)); rows.push({ number: `20${i}`, name: "OFFICE", floor: "CPT-1", base: "", areaSf: 144 }); }
     const box = (x) => { const c = Math.round((x - 150) / 200) * 200 + 150; return [[c - 80, 200], [c + 80, 200], [c + 80, 400], [c - 80, 400]]; };
     const engine = { dims: DIMS, detectedScale: async () => null, hasLinework: async () => true, baseAlong: async () => ({ runs: [] }), roomAt: async (x) => ({ ok: true, kind: "room", pointsPx: box(x), areaSf: 100, perimeterLf: 40, confidence: 0.8, note: null, fixtures: [], withFixtures: null }) };
-    const { report } = await run({ engine, spans, schedule: { rows, reader: "BMD" } });
+    rows[5].areaSf = 600;   // one room far below even the sheet's typical difference
+    const { doc, report } = await run({ engine, spans, schedule: { rows, reader: "BMD" } });
     expect(report.measured).toBe(6);
-    expect(report.scaleDoubt).toMatchObject({ ratio: 0.69, rooms: 6 });
-    expect(report.scaleDoubt.text).toContain("about 69% of the areas printed in the room finish schedule");
+    // every room on a doubted sheet is held at 70% or less and says why; the room that is far off still stands out
+    for (const s of doc.shapes) expect(s.origin.confidence).toBeLessThanOrEqual(0.7);
+    expect(floorOf(doc, "200").origin.auto.notes.join(" ")).toContain("Areas on this sheet run about 69% of the schedule's: check the scale.");
+    expect(floorOf(doc, "200").origin.auto.notes.join(" ")).not.toContain("more spaces inside");
+    expect(floorOf(doc, "205").origin.auto.notes.join(" ")).toContain("more spaces inside");
+    expect(floorOf(doc, "205").origin.confidence).toBeLessThan(floorOf(doc, "200").origin.confidence);
+    expect(report.scaleDoubt).toMatchObject({ ratio: 0.69, rooms: 5 });
+    expect(report.scaleDoubt.text).toContain("about 69% of the areas printed in the room finish schedule (5 rooms compared)");
     expect(runSummary([report])[0]).toBe(report.scaleDoubt.text);
   });
 });
@@ -250,6 +257,8 @@ describe("reviewList", () => {
     const list = reviewList(doc, [{ key: "other#1", label: "A-000", page: 1 }, { key: SHEET.key, label: "A-100", page: 4 }]);
     expect(list.length).toBe(1);
     expect(list[0]).toMatchObject({ sheetKey: SHEET.key, sheetLabel: "A-100", count: 5 });
+    expect(reviewCount(doc.shapes)).toBe(5);   // three floors and two rooms' base, however many lines the base is drawn as
+    expect(reviewCount(acceptProposals(doc, [floorOf(doc, "101").id]).doc.shapes)).toBe(4);
     expect(list[0].groups.map((g) => [g.finish, g.isNew, g.items.length])).toEqual([["CPT-1", false, 1], ["LVT-1", false, 1], ["PORC", true, 1], ["RB-1", false, 2]]);
     const base = list[0].groups[3].items;
     expect(base[0].confidence).toBeLessThanOrEqual(base[1].confidence);

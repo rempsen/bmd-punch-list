@@ -93,6 +93,23 @@ export function createBmdApi(supabase, projectId, { canSave }) {
       const { error } = await supabase.from("takeoff_sheet_labels").upsert(rows.map((r) => ({ project_id: projectId, sheet_key: r.sheet_key, label: r.label, updated_at: new Date().toISOString() })), { onConflict: "project_id,sheet_key" });
       fail(error, "The sheet numbers could not be saved");
     },
+    /**
+     * The automatic takeoff's optional AI helper: which finish do these rooms get? Text only (room names, the words
+     * lettered in each room, schedule rows, the job's finish tags). Asked of BMD Projects' own server, which holds
+     * the AI key and chooses the model; the person's BMD session goes with it. Throws when it is not available, and
+     * the run carries on without it.
+     * @returns {Promise<{id: string, tag: string, reason: string}[]>}
+     */
+    async decideFinishes(payload) {
+      if (!canSave) throw new Error("this takeoff is read-only for you");
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) throw new Error("you are not signed in");
+      const res = await fetch("/api/takeoff/decide-finishes", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error || `the server answered ${res.status}`);
+      return Array.isArray(body?.answers) ? body.answers : [];
+    },
     async loadTakeoff() {
       const { data, error } = await supabase.from("project_takeoffs").select("doc,version").eq("project_id", projectId).maybeSingle();
       fail(error, "The takeoff could not be loaded");

@@ -14,6 +14,11 @@ import { labelsToSave, mergeSheets, pickDrawings } from "../lib/bmd/drawings.js"
 import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
 import { parseFeet } from "../lib/bmd/feet.js";
+import { pageSpans, graphSpans } from "../lib/pageSpans.ts";
+import { AutoReview, AutoRunPanel } from "../components/BmdAutoTakeoff.jsx";
+import { scanSheets, scheduleLine } from "../lib/bmd/autoScan.js";
+import { applyDecisions, runSheet, runSummary } from "../lib/bmd/autoTakeoff.js";
+import { acceptProposals, idsAbove, idsOnSheet, isProposal, removeProposals, reviewCount, reviewList, setProposalFinish } from "../lib/bmd/autoReview.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -51,6 +56,13 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const [adding, setAdding] = useState(null);        // null | "Adding A-101.pdf…"
   const [dropping, setDropping] = useState(false);   // a file is being dragged over the screen
   const [offer, setOffer] = useState(null);          // null | {shapeId, pointsPx, areaSf, count}: cabinet and fixture areas a room click left out
+  const [auto, setAuto] = useState(null);            // the automatic takeoff's panel: null | {phase, rows, reading, schedule, progress, results, stopping}
+  const [askAi, setAskAi] = useState(true);
+  const [reviewing, setReviewing] = useState(false); // the right-hand side shows the proposals to review
+  const [summary, setSummary] = useState([]);        // what the last run skipped and why, in plain lines
+  const [focus, setFocus] = useState(null);          // a proposal to show on the drawing: {sheetKey, ids}
+  const autoRun = useRef({ stop: false, spans: new Map(), schedule: { rows: [], reader: null } });
+  const docRef = useRef(null);
   const picker = useRef(null);
   const sheetList = useRef(null);
   const [loaded, setLoaded] = useState(false);
@@ -62,6 +74,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const viewRef = useRef(view);
   viewRef.current = view;
 
+  docRef.current = doc;
   const dims = engine?.dims ?? null;
   const scale = doc && current ? scaleFor(doc, current) : null;
   const sheet = sheets.find((s) => s.key === current) ?? null;
@@ -290,6 +303,119 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     }
     return () => { clearTimeout(timer); task?.cancel?.(); };
   }, [engine, view]);
+
+  // ── automatic takeoff: choose sheets, run, review. The run itself is lib/bmd/autoTakeoff.js ──
+  const sheetLabel = (key) => { const s = sheets.find((x) => x.key === key); return s ? s.label || `Page ${s.page}` : key; };
+  const openAuto = async () => {
+    if (readOnly || auto) return;
+    if (loadingSheets) return void say("The project's drawings are still opening. Try again in a moment.", "warn");
+    const run = (autoRun.current = { stop: false, spans: new Map(), schedule: { rows: [], reader: null } });
+    setAuto({ phase: "reading", rows: [], reading: "Reading the sheets…", results: [], progress: null });
+    try {
+      const graph = await import("../lib/sheetgraph.ts");   // OpenTakeoff's sheet reader, loaded when first needed
+      const scan = await scanSheets({
+        sheets, graph, shouldStop: () => run.stop,
+        spansOf: async (s) => {
+          const page = await (await openPdf(s.file)).getPage(s.page);
+          const text = graphSpans(pageSpans((await page.getTextContent()).items, page.getViewport({ scale: RENDER_SCALE }).transform, RENDER_SCALE));
+          if (s.key !== current) page.cleanup();   // a set can be a hundred sheets: nothing is kept but the text
+          return text;
+        },
+        labelOf: async (s) => createSheetEngine({ page: await (await openPdf(s.file)).getPage(s.page), OPS: pdfjsLib.OPS }).sheetNumber(),
+        onProgress: (text) => setAuto((a) => a && { ...a, reading: text }),
+      });
+      if (run.stop) return;
+      run.spans = scan.spans;
+      run.schedule = scan.schedule;
+      setAuto((a) => a && { ...a, phase: "pick", rows: scan.rows, schedule: scheduleLine(scan.schedule) });
+    } catch (e) {
+      setAuto(null);
+      say(`The sheets could not be read: ${String(e?.message || e)}`, "bad");
+    }
+  };
+  const closeAuto = () => { autoRun.current.stop = true; setAuto(null); };
+  const startAuto = async () => {
+    const run = autoRun.current;
+    const picked = (auto?.rows || []).filter((r) => r.ticked);
+    if (!picked.length || !docRef.current) return;
+    run.stop = false;
+    setAuto((a) => a && { ...a, phase: "running", results: [], progress: "Starting…", stopping: false });
+    // The run owns the takeoff while it works (this panel covers the screen). Its first save is one undo step, so
+    // Undo after a run takes the whole run back.
+    let d = docRef.current, first = true;
+    const push = (next) => { if (next === d) return; d = next; commit(next, { undoable: first }); first = false; };
+    const taken = new Map();
+    for (const s of d.shapes || []) if (s.origin?.auto?.kind === "floor" && s.origin.auto.room) taken.set(s.origin.auto.room, sheetLabel(s.sheet_id));
+    const reports = [];
+    const runId = `run-${Date.now().toString(36)}`;
+    const started = Date.now();
+    for (const row of picked) {
+      if (run.stop) break;
+      const label = row.label || `Page ${row.page}`;
+      let report;
+      try {
+        // the sheet that is open is measured with the engine the screen already holds, not a second copy of it
+        const eng = row.key === current && engine ? engine : createSheetEngine({ page: await (await openPdf(row.file)).getPage(row.page), OPS: pdfjsLib.OPS });
+        const out = await runSheet({
+          doc: d, sheet: { key: row.key, label }, engine: eng, spans: run.spans.get(row.key) || [], schedule: run.schedule, takenRooms: taken, runId,
+          onProgress: (p) => setAuto((a) => a && { ...a, progress: p.text }), shouldStop: () => run.stop, pause: () => new Promise((r) => setTimeout(r, 0)), onDoc: push,
+        });
+        push(out.doc);
+        report = out.report;
+      } catch (e) {
+        report = { label, skipped: `${label} could not be read: ${String(e?.message || e)}`, notMeasured: [], assigned: { none: 0 }, base: {}, unassigned: [] };
+      }
+      reports.push(report);
+      const text = report.skipped ?? `${label}: ${report.measured} of ${report.tags} rooms measured, ${fmt(report.sf)} SF proposed${report.base.lf ? `, ${fmt(report.base.lf)} LF of base` : ""}${report.already ? `; ${report.already} already measured, left alone` : ""}${report.stopped ? " (stopped)" : ""}.`;
+      setAuto((a) => a && { ...a, progress: null, results: [...a.results, { key: row.key, skipped: !!report.skipped, text }] });
+    }
+    // The optional AI helper: only for rooms the drawings give no finish for, and only if it answers.
+    const lines = runSummary(reports);
+    const open = reports.flatMap((r) => r.unassigned || []);
+    if (askAi && open.length && !run.stop) {
+      setAuto((a) => a && { ...a, progress: `Asking the AI helper about ${open.length} room${open.length === 1 ? "" : "s"} with no finish…` });
+      try {
+        if (!store.decideFinishes) throw new Error("it is not part of this build");
+        const answers = await store.decideFinishes({ rooms: open.map((u) => ({ id: u.shapeId, number: u.room, name: u.name, texts: u.texts })), finishes: (d.conditions || []).map((c) => c.finish_tag), schedule: run.schedule.rows.slice(0, 300).map((r) => ({ number: r.number, name: r.name, floor: r.floor, base: r.base })) });
+        const out = applyDecisions(d, (answers || []).map((a) => ({ shapeId: a.id, tag: a.tag, reason: a.reason })), run.schedule.rows.flatMap((r) => [r.floor, r.base]).filter(Boolean));
+        push(out.doc);
+        lines.push(`The AI helper suggested a finish for ${out.applied} of ${open.length} room${open.length === 1 ? "" : "s"} with none. Its suggestions are marked "AI suggestion" and rated 60% or lower.`);
+      } catch (e) {
+        lines.push(`The AI helper was not available (${String(e?.message || e).slice(0, 120)}), so ${open.length} room${open.length === 1 ? " was" : "s were"} left for you to assign.`);
+      }
+    }
+    if (run.stop) lines.unshift("The run was stopped. What it had proposed is kept.");
+    setSummary(lines);
+    const secs = Math.round((Date.now() - started) / 1000);
+    setAuto((a) => a && { ...a, phase: "done", progress: null, stopping: false, results: [...a.results, { key: "time", text: `Took ${secs < 90 ? `${secs} seconds` : `${Math.round(secs / 60)} minutes`}.` }] });
+  };
+  const proposalCount = useMemo(() => (doc ? reviewCount(doc.shapes) : 0), [doc]);
+  const review = useMemo(() => (reviewing && doc ? reviewList(doc, sheets) : []), [reviewing, doc, sheets]);
+  const acceptIds = (ids) => {
+    if (!doc || !ids.length) return;
+    const out = acceptProposals(doc, ids);
+    if (out.accepted) commit(out.doc);
+    const left = out.needFinish ? ` ${out.needFinish} ${out.needFinish === 1 ? "has" : "have"} no finish chosen and ${out.needFinish === 1 ? "was" : "were"} left. Choose a finish first.` : "";
+    say(out.accepted ? `Accepted ${out.accepted} measurement${out.accepted === 1 ? "" : "s"}. ${out.accepted === 1 ? "It now counts" : "They now count"} in the totals and the estimate. Undo takes that back.${left}` : `Nothing was accepted.${left}`, out.accepted ? "good" : "warn");
+    if (selected && ids.includes(selected)) setSelected(null);
+  };
+  const removeIds = (ids) => { if (!doc) return; commit(removeProposals(doc, ids)); if (selected && ids.includes(selected)) setSelected(null); };
+  const chooseFinish = (ids, conditionId) => { try { commit(setProposalFinish(doc, ids, conditionId)); } catch (e) { say(String(e?.message || e), "warn"); } };
+  // Show a proposal on the drawing: open its sheet, then centre on it once the sheet is open.
+  const jumpTo = (item) => { setFocus({ sheetKey: item.sheetKey, ids: item.ids }); if (item.sheetKey !== current) setCurrent(item.sheetKey); };
+  useEffect(() => {
+    if (!focus || !engine || !doc || current !== focus.sheetKey) return;
+    const mine = (doc.shapes || []).filter((x) => focus.ids.includes(x.id));
+    const box = wrap.current?.getBoundingClientRect();
+    setFocus(null);
+    if (!mine.length || !box) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const sh of mine) for (const [nx, ny] of sh.verts_norm || []) { x0 = Math.min(x0, nx * engine.dims.w); x1 = Math.max(x1, nx * engine.dims.w); y0 = Math.min(y0, ny * engine.dims.h); y1 = Math.max(y1, ny * engine.dims.h); }
+    const k = Math.max(0.05, Math.min(1.6, box.width / ((x1 - x0 || 1) * 1.8), box.height / ((y1 - y0 || 1) * 1.8)));
+    setView({ k, x: box.width / 2 - ((x0 + x1) / 2) * k, y: box.height / 2 - ((y0 + y1) / 2) * k });
+    setTool("select");
+    setSelected(mine[0].id);
+  }, [focus, engine, current]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── measuring ──
   const active = activeId ? condById.get(activeId) : null;
@@ -549,12 +675,13 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           <input className="st-input" placeholder="Find a sheet…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Find a sheet" />
           <ul ref={sheetList}>
             {shown.map((s) => {
-              const n = doc ? sheetShapes(doc, s.key).length : 0;
+              const all = doc ? sheetShapes(doc, s.key) : [];
+              const waiting = reviewCount(all), n = all.filter((x) => !isProposal(x)).length;
               return (
                 <li key={s.key}>
                   <button type="button" data-on={s.key === current ? "" : undefined} className={s.key === current ? "st-on" : ""} onClick={() => setCurrent(s.key)} title={s.file}>
                     <strong>{s.label || `Page ${s.page}`}</strong>
-                    <span>{s.label ? `Page ${s.page}` : ""}{n ? ` · ${n} measured` : ""}</span>
+                    <span>{s.label ? `Page ${s.page}` : ""}{n ? ` · ${n} measured` : ""}{waiting ? ` · ${waiting} to review` : ""}</span>
                   </button>
                 </li>
               );
@@ -573,6 +700,12 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
                   const colour = c?.color ?? "#64748b";
                   const p = pts(s);
                   const on = s.id === selected;
+                  // A proposal waiting for review is drawn dashed and lighter; it is not a measurement yet.
+                  if (s.origin?.reviewed === false && s.measure_role !== "count") {
+                    const dash = `${7 / view.k} ${5 / view.k}`;
+                    if (s.measure_role === "linear" || s.measure_role === "surface_area") return <path key={s.id} className="st-proposal" d={pathOf(p, false)} fill="none" stroke={colour} strokeOpacity={on ? 1 : 0.7} strokeWidth={(on ? 4.5 : 2.5) / view.k} strokeDasharray={dash} strokeLinecap="round" strokeLinejoin="round" />;
+                    return <path key={s.id} className="st-proposal" d={pathOf(p, true)} fill={colour} fillOpacity={on ? 0.3 : 0.1} stroke={colour} strokeOpacity={on ? 1 : 0.85} strokeWidth={(on ? 3.5 : 2) / view.k} strokeDasharray={dash} strokeLinejoin="round" />;
+                  }
                   if (s.measure_role === "count") return <circle key={s.id} cx={p[0]?.[0]} cy={p[0]?.[1]} r={7 / view.k} fill={colour} stroke="#fff" strokeWidth={(on ? 3 : 1.5) / view.k} />;
                   if (s.measure_role === "linear" || s.measure_role === "surface_area") return <path key={s.id} d={pathOf(p, false)} fill="none" stroke={colour} strokeWidth={(on ? 5 : 3.5) / view.k} strokeLinecap="round" strokeLinejoin="round" />;
                   if (s.measure_role === "deduct") return <path key={s.id} d={pathOf(p, true)} fill="#ffffff" fillOpacity="0.85" stroke={colour} strokeWidth={stroke} strokeDasharray={`${6 / view.k} ${4 / view.k}`} />;
@@ -596,14 +729,16 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           )}
           {selectedShape && (
             <div className="st-selected" onClick={(e) => e.stopPropagation()}>
-              <strong>{condById.get(selectedShape.condition_id)?.finish_tag ?? "Measurement"}</strong>
+              <strong>{condById.get(selectedShape.condition_id)?.finish_tag ?? selectedShape.origin?.auto?.finish_tag ?? (isProposal(selectedShape) ? "No finish chosen" : "Measurement")}</strong>
+              {isProposal(selectedShape) && <span className="st-proposed">Proposed · {Math.round((selectedShape.origin.confidence ?? 0) * 100)}%</span>}
               <span>{selectedShape.measure_role === "count" ? "1 counted" : selectedShape.measure_role === "linear" ? `${fmt(selectedShape.computed?.perimeter_lf)} LF` : `${fmt(selectedShape.computed?.area_sf)} SF${selectedShape.measure_role === "deduct" ? " taken out" : ` · ${fmt(selectedShape.computed?.perimeter_lf)} LF around`}`}</span>
               {!readOnly && (
                 <input key={selectedShape.id} className="st-input st-area-input" list="st-areas" placeholder="Area, e.g. Level 2" defaultValue={selectedShape.label || ""} aria-label="Area this measurement belongs to"
                   onBlur={(e) => { if ((e.target.value.trim() || "") !== (selectedShape.label || "")) commit(setShapeArea(doc, selectedShape.id, e.target.value)); }}
                   onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} />
               )}
-              {!readOnly && <button type="button" className="st-btn st-btn-danger" onClick={() => { commit(removeShape(doc, selectedShape.id)); setSelected(null); }}>Remove</button>}
+              {!readOnly && isProposal(selectedShape) && <button type="button" className="st-btn st-btn-primary" onClick={() => acceptIds([selectedShape.id])}>Accept</button>}
+              {!readOnly && <button type="button" className="st-btn st-btn-danger" onClick={() => { commit(isProposal(selectedShape) ? removeProposals(doc, [selectedShape.id]) : removeShape(doc, selectedShape.id)); setSelected(null); }}>Remove</button>}
             </div>
           )}
           {calibrate?.ask && (
@@ -622,9 +757,22 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           <p className="st-hint">{calibrate ? (calibrate.ask ? "Type the length between the two points." : "Click the two ends of a length you know.") : TOOLS.find((t) => t.id === tool)?.hint} {draft.length > 0 ? "Esc cancels, Backspace removes the last corner." : "Scroll to zoom."}</p>
         </main>
 
-        <aside className="st-finishes" aria-label="Measuring">
+        {reviewing && (
+          <aside className="st-finishes st-finishes-review" aria-label="Review proposals">
+            <AutoReview list={review} conditions={doc?.conditions ?? []} summary={summary} readOnly={readOnly} selected={selected} above={doc ? idsAbove(doc, 0.8).length : 0}
+              onJump={jumpTo} onAccept={(it) => acceptIds(it.ids)} onRemove={(it) => removeIds(it.ids)} onFinish={(it, id) => chooseFinish(it.ids, id)}
+              onAcceptAbove={() => acceptIds(idsAbove(doc, 0.8))} onAcceptSheet={(key) => acceptIds(idsOnSheet(doc, key))} onClose={() => setReviewing(false)} />
+          </aside>
+        )}
+        <aside className="st-finishes" aria-label="Measuring" hidden={reviewing}>
           <h2>Measuring</h2>
           <p className="st-sub">Pick a finish, then a tool. Quantities are as measured and go to the Estimate tab, where waste is added.</p>
+          {(!readOnly || proposalCount > 0) && (
+            <div className="st-auto-entry">
+              {!readOnly && <button type="button" className="st-btn st-btn-primary st-big" onClick={openAuto} disabled={!!auto || loadingSheets} title="Finds the room tags on the sheets you choose, measures each room and looks up its finish. Everything it makes is a proposal for you to accept.">Run automatic takeoff</button>}
+              {proposalCount > 0 && <button type="button" className="st-btn st-big st-auto-review" onClick={() => setReviewing(true)}>Review {proposalCount} proposal{proposalCount === 1 ? "" : "s"}</button>}
+            </div>
+          )}
           <div className="st-row">
             <div className="st-seg" role="group" aria-label="Totals shown">
               <button type="button" className={scope === "all" ? "st-on" : ""} aria-pressed={scope === "all"} onClick={() => setScope("all")}>All sheets</button>
@@ -675,6 +823,11 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           <p className="st-credit">Measuring engine: OpenTakeoff (Apache-2.0)</p>
         </aside>
       </div>
+      {auto && (
+        <AutoRunPanel phase={auto.phase} rows={auto.rows} reading={auto.reading} schedule={auto.schedule} progress={auto.progress} results={auto.results} stopping={auto.stopping} proposed={proposalCount}
+          askAi={askAi} onAskAi={setAskAi} onToggle={(key) => setAuto((a) => a && { ...a, rows: a.rows.map((r) => (r.key === key ? { ...r, ticked: !r.ticked } : r)) })}
+          onStart={startAuto} onStop={() => { autoRun.current.stop = true; setAuto((a) => a && { ...a, stopping: true }); }} onClose={closeAuto} onReview={() => { setAuto(null); setReviewing(true); }} />
+      )}
     </div>
   );
 }

@@ -57,6 +57,7 @@ import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSignTokenRouteImport } from './routes/_authenticated/sign.$token'
 import { Route as ApiMsCallbackRouteImport } from './routes/api/ms/callback'
 import { Route as ApiQboCallbackRouteImport } from './routes/api/qbo/callback'
+import { Route as ApiTakeoffDecideFinishesRouteImport } from './routes/api/takeoff/decide-finishes'
 import { Route as ApiPublicArrivepingWebhookRouteImport } from './routes/api/public/arriveping/webhook'
 import { Route as ApiPublicCalendarFileRouteImport } from './routes/api/public/calendar/$file'
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
@@ -312,6 +313,12 @@ const ApiQboCallbackRoute = ApiQboCallbackRouteImport.update({
   path: '/api/qbo/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTakeoffDecideFinishesRoute =
+  ApiTakeoffDecideFinishesRouteImport.update({
+    id: '/api/takeoff/decide-finishes',
+    path: '/api/takeoff/decide-finishes',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicArrivepingWebhookRoute =
   ApiPublicArrivepingWebhookRouteImport.update({
     id: '/api/public/arriveping/webhook',
@@ -392,6 +399,7 @@ export interface FileRoutesByFullPath {
   '/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
+  '/api/takeoff/decide-finishes': typeof ApiTakeoffDecideFinishesRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
@@ -447,6 +455,7 @@ export interface FileRoutesByTo {
   '/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
+  '/api/takeoff/decide-finishes': typeof ApiTakeoffDecideFinishesRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
@@ -504,6 +513,7 @@ export interface FileRoutesById {
   '/_authenticated/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
+  '/api/takeoff/decide-finishes': typeof ApiTakeoffDecideFinishesRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
   '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
@@ -561,6 +571,7 @@ export interface FileRouteTypes {
     | '/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
+    | '/api/takeoff/decide-finishes'
     | '/projects/'
     | '/api/public/arriveping/webhook'
     | '/api/public/calendar/$file'
@@ -616,6 +627,7 @@ export interface FileRouteTypes {
     | '/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
+    | '/api/takeoff/decide-finishes'
     | '/projects'
     | '/api/public/arriveping/webhook'
     | '/api/public/calendar/$file'
@@ -672,6 +684,7 @@ export interface FileRouteTypes {
     | '/_authenticated/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
+    | '/api/takeoff/decide-finishes'
     | '/_authenticated/projects/'
     | '/api/public/arriveping/webhook'
     | '/api/public/calendar/$file'
@@ -692,6 +705,7 @@ export interface RootRouteChildren {
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiMsCallbackRoute: typeof ApiMsCallbackRoute
   ApiQboCallbackRoute: typeof ApiQboCallbackRoute
+  ApiTakeoffDecideFinishesRoute: typeof ApiTakeoffDecideFinishesRoute
   ApiPublicArrivepingWebhookRoute: typeof ApiPublicArrivepingWebhookRoute
   ApiPublicCalendarFileRoute: typeof ApiPublicCalendarFileRoute
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
@@ -1038,6 +1052,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiQboCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/takeoff/decide-finishes': {
+      id: '/api/takeoff/decide-finishes'
+      path: '/api/takeoff/decide-finishes'
+      fullPath: '/api/takeoff/decide-finishes'
+      preLoaderRoute: typeof ApiTakeoffDecideFinishesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/arriveping/webhook': {
       id: '/api/public/arriveping/webhook'
       path: '/api/public/arriveping/webhook'
@@ -1180,6 +1201,7 @@ const rootRouteChildren: RootRouteChildren = {
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiMsCallbackRoute: ApiMsCallbackRoute,
   ApiQboCallbackRoute: ApiQboCallbackRoute,
+  ApiTakeoffDecideFinishesRoute: ApiTakeoffDecideFinishesRoute,
   ApiPublicArrivepingWebhookRoute: ApiPublicArrivepingWebhookRoute,
   ApiPublicCalendarFileRoute: ApiPublicCalendarFileRoute,
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,

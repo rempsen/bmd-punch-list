@@ -9,6 +9,13 @@ import { METHOD } from "./autoTakeoff.js";
 export const isProposal = (s) => s?.origin?.method === METHOD && s.origin.reviewed === false;
 export const proposalsIn = (doc) => (doc?.shapes || []).filter(isProposal);
 
+/** How many things there are to review among some shapes: each room's floor is one, and each room's base is one. */
+export function reviewCount(shapes) {
+  const seen = new Set();
+  for (const s of shapes || []) if (isProposal(s)) seen.add(s.origin.auto?.kind === "base" && s.origin.auto.of ? `base:${s.origin.auto.of}` : s.id);
+  return seen.size;
+}
+
 /** Where a proposal's finish came from, in the words shown on screen. */
 export const FROM_LABEL = { schedule: "Schedule row", tag: "Tag in the room", ai: "AI suggestion", person: "You chose", none: "No finish chosen" };
 

@@ -17,6 +17,8 @@ export const METHOD = "auto_v1";
 /** The honest limits, shown wherever proposals are reviewed. */
 export const LIMITS = "Automatic takeoff is strongest on drawings exported from CAD, where it measures to the real linework. On scanned or photographed sheets it cannot find rooms by their walls, and much more will need correcting. It does not use models trained on BMD's trade. Check every outline before you accept it.";
 
+export const LIMITS_SHORT = "Strongest on drawings exported from CAD; scanned sheets need much more correcting. Check every outline before you accept it.";
+
 const uid = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`}`;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const clamp = (n) => round2(Math.max(0.05, Math.min(0.97, n)));
@@ -165,7 +167,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
       const o = twin.floor.origin;
       o.auto.also = [...(o.auto.also || []), name];
       o.auto.notes = [...o.auto.notes.filter((n) => !n.startsWith("The tags ")), `The tags ${[twin.name, ...o.auto.also].join(" and ")} are inside this one outline: no wall was found between them.`];
-      if (!twin.shared) { twin.shared = true; o.confidence = clamp(o.confidence * 0.8); }
+      twin.shared = true;
       continue;
     }
     let got = null, why = "";
@@ -207,23 +209,17 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
     report.assigned[from]++;
     if (floorFinish?.how === "new" && !report.newFinishes.includes(floorFinish.tag)) report.newFinishes.push(floorFinish.tag);
 
-    // the schedule's printed area is a second opinion on the outline
-    if (row?.areaSf > 0 && r.areaSf > 0) {
-      const ratio = r.areaSf / row.areaSf;
-      if (ratio > 0.4 && ratio < 1.6) ratios.push(ratio);
-      const both = `${fmt(r.areaSf)} SF measured; the schedule prints ${fmt(row.areaSf)} SF.`;
-      if (ratio >= 0.85 && ratio <= 1.15) { conf = Math.min(0.97, conf + 0.1); notes.push(both); }
-      else if (ratio < 0.6) { conf *= 0.7; notes.push(`${both} This room probably has more spaces inside it (bedrooms, a bathroom, closets) that were not measured. Click them to add them.`); }
-      else if (ratio < 0.85) { conf *= 0.9; notes.push(both); }
-      else { conf *= 0.75; notes.push(`${both} The outline may take in more than this room.`); }
-    }
+    // the schedule's printed area is a second opinion on the outline; it is weighed once the whole sheet is in (step 5)
+    const printed = row?.areaSf > 0 && r.areaSf > 0 ? { measured: r.areaSf, printed: row.areaSf, ratio: r.areaSf / row.areaSf } : null;
+    if (printed && printed.ratio > 0.4 && printed.ratio < 1.6) ratios.push(printed.ratio);
     if (r.note) notes.push(r.note);
     if (r.fixtures?.length) notes.push(`${r.fixtures.length === 1 ? "1 area under a cabinet or fixture was" : `${r.fixtures.length} areas under cabinets or fixtures were`} left out (${fmt(round2((r.withFixtures?.areaSf ?? r.areaSf) - r.areaSf))} SF).`);
 
     const auto = { run: runId, kind: "floor", room: tag.number, name: tag.name, from, why: whyFinish, notes, ...(floorFinish && !floorFinish.cond ? { finish_tag: floorFinish.tag } : {}), ...(row?.areaSf ? { schedule_sf: row.areaSf } : {}) };
     const floor = proposal(doc, { sheetId: sheet.key, role: "floor_area", pointsPx: r.pointsPx, dims, upp, cond: floorFinish?.cond ?? null, label: name, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: clamp(conf), seed_norm: [seed[0] / dims.w, seed[1] / dims.h], proposed_ts: ts, auto } });
     shapes.push(floor);
-    made.push({ tag, name, ring: r.pointsPx, floor, row });
+    const mine = { tag, name, ring: r.pointsPx, floor, row, printed, conf, base: [], baseFactor: 1 };
+    made.push(mine);
     takenRooms.set(tag.number, sheet.label);
     report.measured++;
     report.sf = round2(report.sf + r.areaSf);
@@ -236,27 +232,52 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
       if (b.runs.length) {
         const bnotes = [b.deducted ? (b.openings ? `${b.openings} door opening${b.openings === 1 ? "" : "s"} (${fmt(b.openingsLf)} LF) left out of ${fmt(b.perimeterLf)} LF around the room.` : `No door openings could be told on this room's outline, so this is all ${fmt(b.perimeterLf)} LF around it.`) : "Openings not deducted: this is the full perimeter."];
         const bwhy = `Room finish schedule, row ${row.number}: base ${row.base}.${baseFinish.how === "like" ? ` ${baseFinish.tag} is the only ${row.base} finish on this job.` : baseFinish.how === "new" ? ` ${row.base} is not a finish on this job yet; it is added when you accept.` : ""}`;
-        const bconf = clamp((floor.origin.confidence) * (b.deducted && b.openings ? 0.95 : 0.8));
+        const bconf = floor.origin.confidence;   // set with the room's own rating in step 5
+        mine.baseFactor = b.deducted && b.openings ? 0.95 : 0.8;
         for (const line of b.runs) {
-          shapes.push(proposal(doc, { sheetId: sheet.key, role: "linear", pointsPx: line, dims, upp, cond: baseFinish.cond, label: name, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: bconf, proposed_ts: ts, auto: { run: runId, kind: "base", of: floor.id, room: tag.number, name: tag.name, from: "schedule", why: bwhy, notes: bnotes, openings: b.openings, openings_deducted: b.deducted && b.openings > 0, ...(baseFinish.cond ? {} : { finish_tag: baseFinish.tag }) } } }));
+          mine.base.push(proposal(doc, { sheetId: sheet.key, role: "linear", pointsPx: line, dims, upp, cond: baseFinish.cond, label: name, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: bconf, proposed_ts: ts, auto: { run: runId, kind: "base", of: floor.id, room: tag.number, name: tag.name, from: "schedule", why: bwhy, notes: bnotes, openings: b.openings, openings_deducted: b.deducted && b.openings > 0, ...(baseFinish.cond ? {} : { finish_tag: baseFinish.tag }) } } }));
         }
+        shapes.push(...mine.base);
         report.base.rooms++;
         report.base.lf = round2(report.base.lf + b.lengthLf);
         if (!(b.deducted && b.openings > 0)) report.base.notDeducted++;
         if (baseFinish.how === "new" && !report.newFinishes.includes(baseFinish.tag)) report.newFinishes.push(baseFinish.tag);
       }
     }
-    if (made.length % 8 === 0) onDoc(withShapes(doc, shapes));
+    if (made.length % 8 === 0) onDoc(withShapes(doc, shapes));   // ratings are settled at the end of the sheet
     await pause();
   }
 
   // 5. do the measured rooms agree with the areas the schedule prints?
+  //    Schedules often measure a little differently (to wall centres), and a sheet's scale can be set wrong. So the
+  //    sheet's typical difference is found first. When it is large the whole sheet is doubted and says so; each room
+  //    is then judged against the sheet's typical difference, so a room with more spaces inside it still stands out.
+  let typical = 1;
   if (ratios.length >= 5) {
     ratios.sort((a, b) => a - b);
     const med = ratios[ratios.length >> 1];
     if (med < 0.85 || med > 1.15) {
+      typical = med;
       report.scaleDoubt = { ratio: round2(med), rooms: ratios.length, text: `Rooms on ${sheet.label} measure about ${Math.round(med * 100)}% of the areas printed in the room finish schedule (${ratios.length} rooms compared). The schedule may measure differently, or this sheet's scale may be wrong. Check a known length on this sheet before you accept anything.` };
     }
+  }
+  for (const m of made) {
+    let conf = m.conf;
+    const notes = [];
+    if (m.printed) {
+      const rel = m.printed.ratio / typical;
+      const both = `${fmt(m.printed.measured)} SF measured; the schedule prints ${fmt(m.printed.printed)} SF.`;
+      if (rel >= 0.85 && rel <= 1.15) { if (!report.scaleDoubt) conf = Math.min(0.97, conf + 0.1); notes.push(both); }
+      else if (rel < 0.6) { conf *= 0.7; notes.push(`${both} This room probably has more spaces inside it (bedrooms, a bathroom, closets) that were not measured. Click them to add them.`); }
+      else if (rel < 0.85) { conf *= 0.9; notes.push(both); }
+      else { conf *= 0.75; notes.push(`${both} The outline may take in more than this room.`); }
+    }
+    if (report.scaleDoubt) { conf = Math.min(conf, 0.7); notes.push(`Areas on this sheet run about ${Math.round(typical * 100)}% of the schedule's: check the scale.`); }
+    if (m.shared) conf *= 0.8;
+    const o = m.floor.origin;
+    o.confidence = clamp(conf);
+    o.auto.notes = [...notes, ...o.auto.notes];
+    for (const b of m.base) b.origin.confidence = clamp(o.confidence * m.baseFactor);
   }
   return done(withShapes(doc, shapes));
 }
