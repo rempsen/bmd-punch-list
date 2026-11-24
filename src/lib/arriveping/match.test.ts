@@ -47,7 +47,7 @@ describe("matching an ArrivePing work order to a BMD job", () => {
 describe("reading work orders as ArrivePing sends them", () => {
   test("reads the fields from a bare or wrapped record", () => {
     const r = readWorkOrder({ data: { id: 7, title: "Hall", reference: "26-002", customer: { id: "ap_c1", name: "Gail" }, schedule: { start_at: "2026-12-01T14:00:00Z", end_at: "2026-12-01T22:00:00Z" }, status: "Scheduled", assigned_techs: [{ name: "Brodie" }, { name: "Dale" }], site_contact: { name: "Pat", phone: "204" }, notes_for_crew: "Side door" } });
-    expect(r).toEqual({ id: "7", title: "Hall", reference: "26-002", externalSource: null, externalRef: null, customerId: "ap_c1", customerName: "Gail", startAt: "2026-12-01T14:00:00Z", endAt: "2026-12-01T22:00:00Z", status: "scheduled", assignedTo: "Brodie, Dale", siteContact: "Pat 204", notes: "Side door" });
+    expect(r).toEqual({ id: "7", title: "Hall", reference: "26-002", externalSource: null, externalRef: null, customerId: "ap_c1", customerName: "Gail", startAt: "2026-12-01T14:00:00Z", endAt: "2026-12-01T22:00:00Z", status: "scheduled", assignedTo: "Brodie, Dale", siteContact: "Pat 204", notes: "Side door", siteAddress: null });
     expect(readWorkOrder({ ok: true })).toBeNull();
   });
   test("reads a list page in its common shapes", () => {
@@ -72,4 +72,12 @@ describe("a job made from a work order", () => {
     expect(jobDraftFor(wo(), "12 Elm").street).toBe("12 Elm");
     expect(jobDraftFor(wo(), null).name).toBe("ArrivePing work order wo_1");
   });
+});
+
+test("readWorkOrder hands back a payload already in BMD's shape unchanged", () => {
+  const wo = readWorkOrder({ id: "wo_1", title: "T", reference: null, start_at: "2026-12-01T14:00:00Z", end_at: "2026-12-02T22:00:00Z", assigned_techs: [{ name: "Brodie" }], site_contact: { name: "Gail" }, site_address: { line1: "1 Main" } })!;
+  expect(wo.startAt).toBe("2026-12-01T14:00:00Z");
+  expect(wo.siteAddress).toEqual({ line1: "1 Main" });
+  const again = readWorkOrder(JSON.parse(JSON.stringify(wo)))!;
+  expect(again).toEqual(wo);
 });

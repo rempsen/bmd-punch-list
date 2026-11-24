@@ -21,6 +21,8 @@ export type ApWorkOrder = {
   assignedTo: string | null;
   siteContact: string | null;
   notes: string | null;
+  /** The site address as ArrivePing sent it (object or string), kept for making a job from the work order. */
+  siteAddress: Record<string, unknown> | string | null;
 };
 
 export type OpenProject = { id: string; number: string | null; name: string; client_id: string | null };
@@ -51,6 +53,8 @@ const personName = (v: unknown): string | null => {
 export function readWorkOrder(json: unknown): ApWorkOrder | null {
   let o = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
   if (!o) return null;
+  // Already in BMD's shape (an inbox payload written by importWorkOrder): hand it back as it is.
+  if (typeof o["id"] === "string" && "startAt" in o && "externalSource" in o) return o as unknown as ApWorkOrder;
   for (const key of ["data", "work_order", "workorder"]) {
     const inner = o[key];
     if (inner && typeof inner === "object" && !Array.isArray(inner) && (inner as Record<string, unknown>)["id"] != null) {
@@ -84,6 +88,10 @@ export function readWorkOrder(json: unknown): ApWorkOrder | null {
     assignedTo: techs ? (techs.length ? techs.join(", ") : null) : (personName(o["assigned_to"]) ?? personName(o["assigned_tech"])),
     siteContact,
     notes: str(o["notes_for_crew"]) ?? str(o["notes"]),
+    siteAddress: (() => {
+      const a = o["site_address"] ?? o["address"] ?? null;
+      return a && typeof a === "object" ? (a as Record<string, unknown>) : typeof a === "string" ? a : null;
+    })(),
   };
 }
 

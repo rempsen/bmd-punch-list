@@ -150,6 +150,7 @@ export async function pullWorkOrders(opts: { since?: string | null; maxPages?: n
   const startedAt = new Date().toISOString();
   const out: PullResult = { ran: true, read: 0, visits: 0, held: 0, skipped: 0 };
   let cursor: string | null = null;
+  let exhausted = false;
   for (let page = 0; page < (opts.maxPages ?? 10); page++) {
     const params = new URLSearchParams();
     if (since) params.set("updated_since", since);
@@ -166,9 +167,15 @@ export async function pullWorkOrders(opts: { since?: string | null; maxPages?: n
       else if (r.kind === "error") out.error ??= r.error;
       else out.skipped++;
     }
-    if (!next || next === cursor || !items.length) break;
+    if (!next || next === cursor || !items.length) {
+      exhausted = true;
+      break;
+    }
     cursor = next;
   }
-  if (!out.error) await db.from("arriveping_link").upsert({ id: 1, last_pull_at: startedAt });
+  // The marker moves only once every page was read; a pull cut short by the page cap starts again from the same point
+  // next time (imports are idempotent), so no work order on the unread pages is skipped.
+  if (!out.error && exhausted) await db.from("arriveping_link").upsert({ id: 1, last_pull_at: startedAt });
+  else if (!out.error) out.error = "More work orders than one pull reads; run Pull from ArrivePing again to continue.";
   return out;
 }

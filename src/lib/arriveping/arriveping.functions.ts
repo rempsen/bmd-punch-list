@@ -1060,9 +1060,9 @@ const inboxIdInput = (d: { inboxId: string; projectId?: string }) => {
   return { inboxId: d.inboxId.trim(), projectId: d.projectId?.trim() };
 };
 
-async function inboxRow(inboxId: string): Promise<{ id: string; arriveping_job_id: string; status: string; payload: unknown; customer_id: string | null; customer_name: string | null }> {
+async function inboxRow(inboxId: string): Promise<{ id: string; arriveping_job_id: string; status: string; payload: unknown; customer_id: string | null; customer_name: string | null; project_id: string | null }> {
   const db = await admin();
-  const { data, error } = await db.from("arriveping_inbox").select("id,arriveping_job_id,status,payload,customer_id,customer_name").eq("id", inboxId).maybeSingle();
+  const { data, error } = await db.from("arriveping_inbox").select("id,arriveping_job_id,status,payload,customer_id,customer_name,project_id").eq("id", inboxId).maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("That work order is no longer waiting");
   return data;
@@ -1138,17 +1138,21 @@ export const createJobFromInbox = createServerFn({ method: "POST" })
         await db.from("sync_links").insert({ kind: "client", bmd_id: clientId, system: "arriveping", external_id: row.customer_id, external_name: name, synced_at: new Date().toISOString() });
     }
 
-    const payload = row.payload as Record<string, unknown>;
-    const draft = jobDraftFor(wo, (payload["site_address"] ?? payload["address"] ?? null) as Record<string, unknown> | string | null);
+    const draft = jobDraftFor(wo, wo.siteAddress);
     const sb = context.supabase as never as { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }> };
     const address = [draft.street, draft.city, draft.province, draft.postal_code].filter(Boolean).join(", ");
-    const created = await sb.rpc("create_pipeline_project", {
-      _p: { ...draft, address, client_id: clientId, bid_due_date: "", job_type: "", estimator_id: "", project_lead_id: "", scopes: [] },
-    });
-    if (created.error) return { ok: false, error: `Could not create the job: ${created.error.message}` };
-    const projectId = created.data as string;
-    const moved = await sb.rpc("move_project_stage", { _project: projectId, _to_stage: "won", _reason: null, _note: `Created from ArrivePing work order ${row.arriveping_job_id}` });
-    if (moved.error) console.error(`ArrivePing inbox: job ${projectId} created but not marked won: ${moved.error.message}`);
+    // A job made by an earlier attempt that failed before the visit was written is reused, never duplicated.
+    let projectId = (row.project_id as string | null) ?? null;
+    if (!projectId) {
+      const created = await sb.rpc("create_pipeline_project", {
+        _p: { ...draft, address, client_id: clientId, bid_due_date: "", job_type: "", estimator_id: "", project_lead_id: "", scopes: [] },
+      });
+      if (created.error) return { ok: false, error: `Could not create the job: ${created.error.message}` };
+      projectId = created.data as string;
+      await db.from("arriveping_inbox").update({ project_id: projectId, updated_at: new Date().toISOString() }).eq("id", row.id);
+      const moved = await sb.rpc("move_project_stage", { _project: projectId, _to_stage: "won", _reason: null, _note: `Created from ArrivePing work order ${row.arriveping_job_id}` });
+      if (moved.error) console.error(`ArrivePing inbox: job ${projectId} created but not marked won: ${moved.error.message}`);
+    }
 
     const r = await createVisitFromWorkOrder({ ...wo, id: row.arriveping_job_id }, projectId, "manual", await currentUserId(context.supabase));
     if (r.kind !== "visit" && r.kind !== "exists") return { ok: false, error: `Job created, but ${r.kind === "error" ? r.error : r.reason}` };
