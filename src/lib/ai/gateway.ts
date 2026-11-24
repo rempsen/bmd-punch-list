@@ -4,18 +4,28 @@
  * attempt, so a failure says why instead of only giving a number.
  */
 export const GATEWAY = "https://ai.gateway.lovable.dev/v1";
-export type Ask = { system: string; prompt: string; maxTokens?: number };
+export type ImageMediaType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+/** A picture sent with a question, as base64 without the data-URL prefix. */
+export type AskImage = { mediaType: ImageMediaType; base64: string };
+export type Ask = { system: string; prompt: string; maxTokens?: number; images?: AskImage[] };
 export type Attempt = { model: string; form: string; status: number; detail: string };
 export type GatewayResult = { ok: true; text: string; model: string; form: string; attempts: Attempt[] } | { ok: false; message: string; attempts: Attempt[] };
 type Res = { ok: boolean; status: number; text: () => Promise<string> };
 export type FetchFn = (url: string, init: { method: string; body: string }) => Promise<Res>;
 
+const dataUrl = (i: AskImage) => `data:${i.mediaType};base64,${i.base64}`;
+const imgs = (a: Ask) => a.images ?? [];
+/** The user turn in the OpenAI chat shape: a plain string, or text plus pictures when there are any. */
+const chatUser = (text: string, a: Ask): unknown => (imgs(a).length ? [{ type: "text", text }, ...imgs(a).map((i) => ({ type: "image_url", image_url: { url: dataUrl(i) } }))] : text);
+const responsesInput = (a: Ask): unknown => (imgs(a).length ? [{ role: "user", content: [{ type: "input_text", text: a.prompt }, ...imgs(a).map((i) => ({ type: "input_image", image_url: dataUrl(i) }))] }] : a.prompt);
+const messagesUser = (a: Ask): unknown => (imgs(a).length ? [{ type: "text", text: a.prompt }, ...imgs(a).map((i) => ({ type: "image", source: { type: "base64", media_type: i.mediaType, data: i.base64 } }))] : a.prompt);
+
 const FORMS: { name: string; path: string; body: (model: string, a: Ask) => Record<string, unknown> }[] = [
-  { name: "chat", path: "/chat/completions", body: (model, a) => ({ model, max_tokens: a.maxTokens ?? 8000, messages: [{ role: "system", content: a.system }, { role: "user", content: a.prompt }] }) },
-  { name: "chat (newer token limit)", path: "/chat/completions", body: (model, a) => ({ model, max_completion_tokens: a.maxTokens ?? 8000, messages: [{ role: "system", content: a.system }, { role: "user", content: a.prompt }] }) },
-  { name: "responses", path: "/responses", body: (model, a) => ({ model, instructions: a.system, input: a.prompt, max_output_tokens: Math.max(16, a.maxTokens ?? 8000) }) },
-  { name: "messages", path: "/messages", body: (model, a) => ({ model, max_tokens: a.maxTokens ?? 8000, system: a.system, messages: [{ role: "user", content: a.prompt }] }) },
-  { name: "chat (no token limit)", path: "/chat/completions", body: (model, a) => ({ model, messages: [{ role: "user", content: `${a.system}\n\n${a.prompt}` }] }) },
+  { name: "chat", path: "/chat/completions", body: (model, a) => ({ model, max_tokens: a.maxTokens ?? 8000, messages: [{ role: "system", content: a.system }, { role: "user", content: chatUser(a.prompt, a) }] }) },
+  { name: "chat (newer token limit)", path: "/chat/completions", body: (model, a) => ({ model, max_completion_tokens: a.maxTokens ?? 8000, messages: [{ role: "system", content: a.system }, { role: "user", content: chatUser(a.prompt, a) }] }) },
+  { name: "responses", path: "/responses", body: (model, a) => ({ model, instructions: a.system, input: responsesInput(a), max_output_tokens: Math.max(16, a.maxTokens ?? 8000) }) },
+  { name: "messages", path: "/messages", body: (model, a) => ({ model, max_tokens: a.maxTokens ?? 8000, system: a.system, messages: [{ role: "user", content: messagesUser(a) }] }) },
+  { name: "chat (no token limit)", path: "/chat/completions", body: (model, a) => ({ model, messages: [{ role: "user", content: chatUser(`${a.system}\n\n${a.prompt}`, a) }] }) },
 ];
 
 const partsText = (parts: unknown): string => (Array.isArray(parts) ? parts.map((p) => (p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string" ? (p as { text: string }).text : "")).join("") : "");

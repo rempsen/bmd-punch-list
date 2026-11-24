@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Button } from "@/components/ui/button";
-import { aiModelStatus } from "@/lib/ai/scope.functions";
+import { aiImageStatus, aiModelStatus } from "@/lib/ai/scope.functions";
 import { MINIMUM_LABEL } from "@/lib/ai/model";
 
 /** Shows which AI model the reading and matching features use, and proves it answers. */
@@ -9,6 +9,9 @@ export function AiModelPanel() {
   const check = useServerFn(aiModelStatus);
   const [state, setState] = useState<Awaited<ReturnType<typeof check>> | null>(null);
   const [busy, setBusy] = useState(false);
+  const checkImage = useServerFn(aiImageStatus);
+  const [img, setImg] = useState<Awaited<ReturnType<typeof checkImage>> | null>(null);
+  const [imgBusy, setImgBusy] = useState(false);
   return (
     <section className="rounded-lg border border-border bg-card p-4">
       <h2 className="font-semibold">AI model</h2>
@@ -40,6 +43,36 @@ export function AiModelPanel() {
           <summary className="cursor-pointer">What was tried</summary>
           <ul className="mt-1 list-disc pl-5">
             {state.tried.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+      <h3 className="mt-6 font-medium">Pictures</h3>
+      <p className="mt-1 text-sm text-muted-foreground">Automatic takeoff needs the model to look at drawings. This sends a small blue square and asks its colour.</p>
+      <Button
+        className="mt-3"
+        variant="outline"
+        disabled={imgBusy}
+        onClick={() => {
+          setImgBusy(true);
+          void checkImage()
+            .then(setImg, (e) => setImg({ ok: false, message: e instanceof Error ? e.message : String(e), tried: [] }))
+            .finally(() => setImgBusy(false));
+        }}
+      >
+        {imgBusy ? "Checking…" : "Check with an image"}
+      </Button>
+      {img && (
+        <p role="status" className={`mt-3 text-sm ${img.ok ? "text-emerald-800" : "text-amber-800"}`}>
+          {img.ok ? `${img.model} saw the picture and answered "${img.reply}".` : img.message}
+        </p>
+      )}
+      {img && !img.ok && img.tried.length > 0 && (
+        <details className="mt-2 text-xs text-muted-foreground" open>
+          <summary className="cursor-pointer">What was tried</summary>
+          <ul className="mt-1 list-disc pl-5">
+            {img.tried.map((t, i) => (
               <li key={i}>{t}</li>
             ))}
           </ul>

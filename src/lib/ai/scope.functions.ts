@@ -54,3 +54,23 @@ export const aiModelStatus = createServerFn({ method: "POST" })
       return { ok: false as const, message: e instanceof Error ? e.message : String(e), tried: attempts.map((a) => `${a.model} (${a.form}): ${a.status} ${a.detail}`).slice(0, 12) };
     }
   });
+
+/** Proves the AI connection accepts a picture, by sending a small blue square and asking its colour. For the Settings screen. */
+export const aiImageStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: ok } = await (context.supabase as any).rpc("has_capability", { _capability: "manage_integrations" });
+    if (ok !== true) throw new Error("Not allowed");
+    const { askStrongModel } = await import("./model.server");
+    const { IMAGE_CHECK, sawThePicture } = await import("./test-image");
+    try {
+      const reply = await askStrongModel(IMAGE_CHECK);
+      const answer = reply.text.trim().slice(0, 60);
+      if (!sawThePicture(answer)) return { ok: false as const, message: `${reply.model} accepted the picture but did not name its colour; it said "${answer}". Pictures may not be reaching the model.`, tried: [] as string[] };
+      return { ok: true as const, model: reply.model, reply: answer };
+    } catch (e) {
+      const attempts = e && typeof e === "object" && "attempts" in e && Array.isArray((e as { attempts: unknown }).attempts) ? (e as { attempts: { model: string; form: string; status: number; detail: string }[] }).attempts : [];
+      return { ok: false as const, message: e instanceof Error ? e.message : String(e), tried: attempts.map((a) => `${a.model} (${a.form}): ${a.status} ${a.detail}`).slice(0, 12) };
+    }
+  });
