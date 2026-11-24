@@ -554,6 +554,13 @@
       "when": 1795546067863,
       "tag": "0080_crews",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1795546068863,
+      "tag": "0081_scope_hit_ai_suggestions",
+      "breakpoints": true
     }
   ]
 }
