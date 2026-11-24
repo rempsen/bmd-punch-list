@@ -229,3 +229,61 @@ export function useTechnicianVisits(techId: string | null) {
     },
   });
 }
+
+/** The crews linked to the labour on a job's estimate. Vendor ids and labour names only. */
+export function useSuggestedCrews(projectId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["suggested-crews", projectId],
+    enabled: !!projectId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await db.rpc("project_suggested_crews", { _project: projectId! });
+      if (error) throw error;
+      return (data ?? []) as { supplier_id: string; work: string }[];
+    },
+  });
+}
+
+/** Visits starting within a day either side of a time, for warning when a crew is already booked. */
+export function useVisitsAround(startsAt: string | null) {
+  const day = startsAt ? siteDay(startsAt) : null;
+  return useQuery({
+    queryKey: ["sched-visits", "around", day],
+    enabled: !!day,
+    queryFn: async () => {
+      const at = Date.parse(startsAt!);
+      const { data, error } = await db
+        .from("install_visits")
+        .select(COLS)
+        .gte("starts_at", new Date(at - 36 * 3600_000).toISOString())
+        .lt("starts_at", new Date(at + 36 * 3600_000).toISOString());
+      if (error) throw error;
+      return (data ?? []) as unknown as SchedVisit[];
+    },
+  });
+}
+
+/** Which crews (vendor ids) are linked to each labour item, and the reverse, for the catalogue. */
+export function useLabourCrews(enabled = true) {
+  return useQuery({
+    queryKey: ["catalogue", "labour-crews"],
+    enabled,
+    queryFn: async () => {
+      const { data, error } = await db.from("labour_crews").select("labour_rate_id,supplier_id");
+      if (error) throw error;
+      return (data ?? []) as { labour_rate_id: string; supplier_id: string }[];
+    },
+  });
+}
+
+/** Saves the crews ticked on a labour item: adds the new links and removes the unticked ones. */
+export async function saveLabourCrews(labourRateId: string, changes: { add: string[]; remove: string[] }) {
+  if (changes.remove.length) {
+    const { error } = await db.from("labour_crews").delete().eq("labour_rate_id", labourRateId).in("supplier_id", changes.remove);
+    if (error) throw new Error(error.message);
+  }
+  if (changes.add.length) {
+    const { error } = await db.from("labour_crews").insert(changes.add.map((supplier_id) => ({ labour_rate_id: labourRateId, supplier_id })));
+    if (error) throw new Error(error.message);
+  }
+}

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
@@ -32,6 +32,7 @@ import {
   isIsoDay,
   mondayOf,
   shiftWeek,
+  rowsToShow,
   technicianOf,
   thisMonday,
   UNASSIGNED,
@@ -45,7 +46,7 @@ import { calendarRange, monthOf, shiftMonth, today as calendarToday, type Calend
 
 const VIEWS = ["technicians", "workorders", "tasks", "calendar"] as const;
 type View = (typeof VIEWS)[number];
-type Search = { view?: View | undefined; week?: string | undefined; job?: string | undefined; cal?: CalendarMode | undefined };
+type Search = { view?: View | undefined; week?: string | undefined; job?: string | undefined; cal?: CalendarMode | undefined; new?: string | undefined };
 
 export const Route = createFileRoute("/_authenticated/scheduling")({
   validateSearch: (s: Record<string, unknown>): Search => ({
@@ -53,6 +54,8 @@ export const Route = createFileRoute("/_authenticated/scheduling")({
     week: isIsoDay(s["week"]) ? mondayOf(s["week"]) : undefined,
     job: typeof s["job"] === "string" && s["job"] ? s["job"] : undefined,
     cal: s["cal"] === "month" ? "month" : undefined,
+    // "Schedule a visit" from Crews and Subcontractors: opens the form with that crew picked.
+    new: typeof s["new"] === "string" && s["new"] ? s["new"] : undefined,
   }),
   head: () => ({
     meta: [
@@ -60,7 +63,7 @@ export const Route = createFileRoute("/_authenticated/scheduling")({
       {
         name: "description",
         content:
-          "Install visits by technician, work orders sent to ArrivePing, and visit tasks — this week and next.",
+          "Install visits by crew, work orders sent to ArrivePing, and visit tasks — this week and next.",
       },
       { property: "og:title", content: "Scheduling · BMD Materials" },
       { property: "og:description", content: "Who's where, this week and next." },
@@ -79,7 +82,7 @@ const TONE: Record<ReturnType<typeof chipTone>, string> = {
   cancelled: "border-dashed border-border bg-card text-muted-foreground line-through",
 };
 const VIEW_LABEL: Record<View, string> = {
-  technicians: "Technicians",
+  technicians: "Crews",
   workorders: "Work orders",
   tasks: "Tasks",
   calendar: "Calendar",
@@ -114,6 +117,12 @@ function Scheduling() {
   const set = (patch: Partial<Search>) =>
     void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
   const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    if (!search.new) return;
+    if (canEdit) setDrawer({ create: true, tech: search.new });
+    set({ new: undefined });
+  }, [search.new]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const projects = usePipelineProjects();
   const jobs = useMemo(
@@ -228,6 +237,12 @@ function Scheduling() {
               ))}
             </div>
           )}
+          {view === "technicians" && (
+            <label className="flex min-h-10 cursor-pointer items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+              Show everyone
+            </label>
+          )}
           {upcoming && (
             <span className="text-xs text-muted-foreground">
               Showing every upcoming visit for this job.
@@ -255,6 +270,7 @@ function Scheduling() {
             techs={techs.data ?? []}
             open={setDrawer}
             canEdit={canEdit}
+            showAll={showAll}
           />
         ) : view === "workorders" ? (
           <>
@@ -286,19 +302,23 @@ function TechGrid({
   techs,
   open,
   canEdit,
+  showAll,
 }: {
   visits: SchedVisit[];
   monday: string;
   techs: Technician[];
   open: (t: DrawerTarget) => void;
   canEdit: boolean;
+  showAll: boolean;
 }) {
   const days = weekDays(monday);
   const grid = bucketWeek(visits, monday, techs);
+  // Only crews with a visit this week have a row, unless "Show everyone" is ticked.
+  const shown = rowsToShow(techs, new Set(grid.keys()), showAll);
   // Free-text names (subcontractors) that are on a visit this week but not in the list get their own row.
   const extra = [...grid.keys()].filter((k) => k !== UNASSIGNED && !techs.some((t) => t.id === k));
   const rows: { id: string; name: string; source?: string }[] = [
-    ...techs,
+    ...shown,
     ...extra.map((id) => {
       const v = [...grid.get(id)!.values()][0]![0]!;
       return {
@@ -311,10 +331,15 @@ function TechGrid({
   ];
   return (
     <div className="overflow-x-auto rounded-md border border-border bg-card">
+      {!showAll && shown.length < techs.length && (
+        <p className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+          Showing the {shown.length === 1 ? "1 crew" : `${shown.length} crews`} with a visit this week. Tick Show everyone to see all {techs.length} and who is free.
+        </p>
+      )}
       <table className="w-full min-w-[980px] table-fixed text-sm">
         <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
           <tr>
-            <th className="w-40 p-2">Technician</th>
+            <th className="w-40 p-2">Crew</th>
             {days.map((d) => (
               <th key={d} className="p-2">
                 {dayLabel(d)}
@@ -430,7 +455,7 @@ function WorkOrders({
             <th className="p-2">Date / time</th>
             <th className="p-2">Job</th>
             <th className="p-2">Scope</th>
-            <th className="p-2">Technician</th>
+            <th className="p-2">Crew</th>
             <th className="p-2">Areas</th>
             <th className="p-2">ArrivePing</th>
             <th className="p-2">Tasks</th>

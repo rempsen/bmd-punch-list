@@ -15,8 +15,10 @@ import { usePipelineProjects } from "@/lib/projects/data";
 import {
   useJobAreas,
   useRefreshSchedule,
+  useSuggestedCrews,
   useTechnicians,
   useVisit,
+  useVisitsAround,
   useVisitTasks,
   type SchedVisit,
 } from "@/lib/scheduling/data";
@@ -24,6 +26,8 @@ import {
   areasFromSelection,
   assignmentFor,
   assignmentState,
+  clashesFor,
+  suggestedCrews,
   SUP,
   selectionFromAreas,
   toggleFloor,
@@ -32,6 +36,7 @@ import {
   applyVisitEvent,
   arrivepingPill,
   SCHEDULE_TZ,
+  scheduleRange,
   visitNote,
   visitRange,
   visitTimes,
@@ -268,12 +273,21 @@ function DrawerBody({
       ? f.techName.trim() || null
       : ((techs.data ?? []).find((t) => t.id === f.tech)?.name ?? null);
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((x) => ({ ...x, [k]: v }));
+  // Crews linked to this job's labour are offered first, and a crew already booked that day is pointed out (never blocked).
+  const suggestions = useSuggestedCrews(f.project || null);
+  const suggested = useMemo(() => suggestedCrews(techs.data ?? [], suggestions.data ?? []), [techs.data, suggestions.data]);
+  const when = useMemo(() => {
+    const t = visitTimes({ date: f.date, start: f.start, end: f.end });
+    return "error" in t ? null : { starts_at: t.startsAt.toISOString(), ends_at: t.endsAt?.toISOString() ?? null };
+  }, [f.date, f.start, f.end]);
+  const around = useVisitsAround(f.tech && f.tech !== FREE ? (when?.starts_at ?? null) : null);
+  const clashes = when && f.tech && f.tech !== FREE ? clashesFor(around.data ?? [], f.tech, techs.data ?? [], when, visit?.id ?? null) : [];
 
   const save = async () => {
     setErr(null);
     if (!f.project) return setErr("Choose a job.");
     if (f.tech && f.tech !== FREE && !(techs.data ?? []).some((t) => t.id === f.tech))
-      return setErr("The technician list is still loading, or that technician is no longer active. Pick the technician again.");
+      return setErr("The crew list is still loading, or that crew is no longer active. Pick the crew again.");
     const times = visitTimes({ date: f.date, start: f.start, end: f.end });
     if ("error" in times) return setErr(times.error);
     if (times.endsAt && times.endsAt.getTime() - times.startsAt.getTime() > MAX_WORK_ORDER_MS)
@@ -317,7 +331,7 @@ function DrawerBody({
                 techName,
               ) === "confirmed"
               ? "Visit saved."
-              : "Visit saved. Technician pending in ArrivePing."
+              : "Visit saved. Crew pending in ArrivePing."
             : "Visit saved.",
         );
         return;
@@ -346,7 +360,7 @@ function DrawerBody({
       }
       const sent = await ap.send(id, true);
       const pending =
-        row.assigned_user_id || row.assigned_name ? " Technician pending in ArrivePing." : "";
+        row.assigned_user_id || row.assigned_name ? " Crew pending in ArrivePing." : "";
       if (sent === "sent") toast.success(`Visit scheduled and sent to ArrivePing.${pending}`);
       else if (sent !== "failed") toast.success(`Visit scheduled.${pending}`);
     } catch (e) {
@@ -440,8 +454,15 @@ function DrawerBody({
           One visit per day — ArrivePing takes up to 24 hours per work order.
         </p>
         <div className={label}>
-          Technician
-          <TechnicianPicker value={f.tech === FREE ? "" : f.tech} onChange={(id) => setF((x) => ({ ...x, tech: id, techName: "" }))} techs={techs.data ?? []} disabled={!canEdit || techs.isLoading} canAdd={canEdit} />
+          Crew
+          <TechnicianPicker value={f.tech === FREE ? "" : f.tech} onChange={(id) => setF((x) => ({ ...x, tech: id, techName: "" }))} techs={techs.data ?? []} disabled={!canEdit || techs.isLoading} canAdd={canEdit} suggested={suggested} />
+          {clashes.length > 0 && (
+            <p role="status" className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs font-normal text-amber-900">
+              Already booked that day:{" "}
+              {clashes.map((c) => `${[c.project?.project_number, c.project?.name].filter(Boolean).join(" ") || "another job"}, ${scheduleRange(c.starts_at, c.ends_at)}`).join("; ")}
+              <span className="block">This is only a heads-up; you can still schedule the visit.</span>
+            </p>
+          )}
           {f.tech === FREE && f.techName && (
             <p className="mt-1 text-xs font-normal text-amber-700">
               Typed earlier: {f.techName}. Pick them above, or search the name to add them as a subcontractor.
@@ -582,7 +603,7 @@ function DrawerBody({
             <StatusPill label={VISIT_LABEL[visit.status]} />
             {pill ? <ArrivePingPill label={pill} /> : <ArrivePingPill label="Not sent" />}
             {state === "pending" && (
-              <ArrivePingPill label={`Pending in ArrivePing: ${techName ?? "technician"}`} />
+              <ArrivePingPill label={`Pending in ArrivePing: ${techName ?? "crew"}`} />
             )}
             {visit.arriveping_job_id && <OpenInArrivePing jobId={visit.arriveping_job_id} />}
           </div>

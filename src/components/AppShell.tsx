@@ -142,7 +142,7 @@ export function useNavItems() {
     });
     items.push({
       to: "/scheduling",
-      label: "Technicians",
+      label: "Crews",
       icon: Users,
       group: "scheduling",
       search: { view: "technicians" },

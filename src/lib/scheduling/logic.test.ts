@@ -16,6 +16,10 @@ import {
   visitDays,
   weekDays,
   assignmentFor,
+  clashesFor,
+  linkChanges,
+  rowsToShow,
+  suggestedCrews,
   monthOf,
   visitsThisMonth,
   searchTechnicians,
@@ -200,5 +204,39 @@ describe("the Technicians page", () => {
   it("a month runs from its first day to the first day of the next, across a year end", () => {
     expect(monthOf("2026-11-24")).toEqual({ from: "2026-11-01", to: "2026-12-01" });
     expect(monthOf("2026-12-31")).toEqual({ from: "2026-12-01", to: "2027-01-01" });
+  });
+});
+
+describe("crews: a calmer grid, clashes and suggestions", () => {
+  const techs = mergeTechnicians([{ id: "u1", full_name: "Dan R", email: null }], [], [
+    { id: "s1", name: "Apollo", contact_name: null, phone: null, supplies: "labour" },
+    { id: "s2", name: "Brolee", contact_name: null, phone: null, supplies: "labour" },
+  ]);
+  it("the week grid shows only crews with a visit that week unless everyone is asked for", () => {
+    expect(rowsToShow(techs, new Set(["sup:s2"]), false).map((t) => t.id)).toEqual(["sup:s2"]);
+    expect(rowsToShow(techs, new Set(["sup:s2"]), true).map((t) => t.id)).toEqual(["u1", "sup:s1", "sup:s2"]);
+    expect(rowsToShow(techs, new Set(), false)).toEqual([]);
+  });
+  const v = (id: string, s: string, e: string | null, who: object, status = "scheduled") => ({ id, starts_at: s, ends_at: e, status, ...who });
+  const visits = [
+    v("a", "2026-11-26T14:00:00Z", "2026-11-26T22:00:00Z", { technician_supplier_id: "s1", assigned_name: "Apollo" }),
+    v("b", "2026-11-27T14:00:00Z", "2026-11-27T22:00:00Z", { technician_supplier_id: "s1", assigned_name: "Apollo" }),
+    v("c", "2026-11-26T14:00:00Z", "2026-11-26T22:00:00Z", { technician_supplier_id: "s1", assigned_name: "Apollo" }, "cancelled"),
+    v("d", "2026-11-26T14:00:00Z", "2026-11-26T22:00:00Z", { technician_supplier_id: "s2", assigned_name: "Brolee" }),
+  ];
+  it("a crew already booked that day is reported, but not a cancelled visit, another crew, or the visit being edited", () => {
+    const at = { starts_at: "2026-11-26T15:00:00Z", ends_at: "2026-11-26T20:00:00Z" };
+    expect(clashesFor(visits, "sup:s1", techs, at, null).map((x) => x.id)).toEqual(["a"]);
+    expect(clashesFor(visits, "sup:s1", techs, at, "a")).toEqual([]);
+    expect(clashesFor(visits, "", techs, at, null)).toEqual([]);
+    expect(clashesFor(visits, "u1", techs, at, null)).toEqual([]);
+  });
+  it("crews linked to the job's labour come first, each with the work they are linked for", () => {
+    const out = suggestedCrews(techs, [{ supplier_id: "s2", work: "Install LVT" }, { supplier_id: "gone", work: "x" }]);
+    expect(out).toEqual([{ ...techs[2]!, work: "Install LVT" }]);
+  });
+  it("saving the crews on a labour item adds and removes only what changed", () => {
+    expect(linkChanges(["a", "b"], ["b", "c", "c"])).toEqual({ add: ["c"], remove: ["a"] });
+    expect(linkChanges([], [])).toEqual({ add: [], remove: [] });
   });
 });

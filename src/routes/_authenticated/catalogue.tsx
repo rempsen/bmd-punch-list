@@ -1,4 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { saveLabourCrews, useLabourCrews } from "@/lib/scheduling/data";
+import { linkChanges } from "@/lib/scheduling/logic";
 import { TechnicianVisits } from "@/components/scheduling/TechnicianVisits";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useRef, useState } from "react";
@@ -337,7 +339,7 @@ function CataloguePage() {
       {template && (
         <AssemblyDialog template={template === "new" ? null : template} materials={materials} labour={labour} costCodes={costCodes} canEdit={canEdit} onClose={() => setTemplate(null)} onSaved={saved} />
       )}
-      {rate && <LabourDialog rate={rate === "new" ? null : rate} costCodes={costCodes} canEdit={canEdit} onClose={() => setRate(null)} onSaved={saved} />}
+      {rate && <LabourDialog rate={rate === "new" ? null : rate} suppliers={suppliers} costCodes={costCodes} canEdit={canEdit} onClose={() => setRate(null)} onSaved={saved} />}
       {supplier && <SupplierDialog supplier={supplier === "new" ? null : supplier} canEdit={canEdit} onClose={() => setSupplier(null)} onSaved={saved} />}
       {importing && (
         <ImportDialog
@@ -363,19 +365,27 @@ function ConfirmUnit({ onClick }: { onClick: () => void }) {
   );
 }
 
-function LabourDialog({ rate, costCodes, canEdit, onClose, onSaved }: { rate: LabourRate | null; costCodes: { code: string; name: string; qbo_item_id: string | null }[]; canEdit: boolean; onClose: () => void; onSaved: () => void }) {
+function LabourDialog({ rate, suppliers, costCodes, canEdit, onClose, onSaved }: { rate: LabourRate | null; suppliers: Supplier[]; costCodes: { code: string; name: string; qbo_item_id: string | null }[]; canEdit: boolean; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(rate?.name ?? "");
   const [uom, setUom] = useState<Uom>(rate?.uom ?? "SF");
   const [price, setPrice] = useState(centsToInput(rate?.unit_cost_cents ?? null));
   const [code, setCode] = useState<string | null>(rate?.cost_code ?? null);
   const [active, setActive] = useState(rate?.active ?? true);
   const [busy, setBusy] = useState(false);
+  // The crews (Labour and Both vendors) who do this work. They are offered first when a job using this labour is scheduled.
+  const links = useLabourCrews();
+  const saved = useMemo(() => (links.data ?? []).filter((l) => l.labour_rate_id === rate?.id).map((l) => l.supplier_id), [links.data, rate?.id]);
+  const [crews, setCrews] = useState<string[] | null>(null);
+  const ticked = crews ?? saved;
+  const crewOptions = suppliers.filter((s) => s.supplies !== "materials" && (s.active || ticked.includes(s.id)));
   const save = async () => {
     const cents = price.trim() === "" ? null : parseMoneyCents(price);
     if (price.trim() !== "" && cents == null) return void toast.error("Enter the cost as a dollar amount, or leave it blank if unknown");
     setBusy(true);
     try {
-      await saveLabourRate(rate?.id ?? null, { name: name.trim(), uom, unit_cost_cents: cents, cost_code: code, active, uom_confirmed: true });
+      const id = await saveLabourRate(rate?.id ?? null, { name: name.trim(), uom, unit_cost_cents: cents, cost_code: code, active, uom_confirmed: true });
+      if (crews) await saveLabourCrews(id, linkChanges(saved, crews));
+      void links.refetch();
       toast.success("Labour rate saved");
       onSaved();
     } catch (e) {
@@ -406,6 +416,24 @@ function LabourDialog({ rate, costCodes, canEdit, onClose, onSaved }: { rate: La
           <F label="Cost code">
             <CostCodeSelect value={code} onChange={setCode} codes={costCodes} />
           </F>
+          <div className="grid gap-1.5">
+            <p className="text-sm font-medium">Crews who do this work ({ticked.length})</p>
+            {crewOptions.length === 0 ? (
+              <p className="text-sm font-normal text-muted-foreground">No Labour vendors yet. Add them under Suppliers &amp; subcontractors.</p>
+            ) : (
+              <ul className="max-h-44 space-y-0.5 overflow-y-auto rounded-md border border-border p-2">
+                {crewOptions.map((s) => (
+                  <li key={s.id}>
+                    <label className="flex min-h-9 cursor-pointer items-center gap-2 text-sm font-normal">
+                      <input type="checkbox" className="h-4 w-4" checked={ticked.includes(s.id)} onChange={(e) => setCrews(e.target.checked ? [...ticked, s.id] : ticked.filter((x) => x !== s.id))} />
+                      <span className="truncate">{s.name}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-1 text-xs font-normal text-muted-foreground">These crews are offered first when a visit is scheduled on a job whose estimate uses this labour.</p>
+          </div>
           {rate && (
             <label className="flex min-h-11 items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4" checked={active} onChange={(e) => setActive(e.target.checked)} /> Active
@@ -425,6 +453,20 @@ function LabourDialog({ rate, costCodes, canEdit, onClose, onSaved }: { rate: La
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The labour items this crew is linked to. Set on each labour item, under Labour. */
+function WorkTheyDo({ supplierId }: { supplierId: string }) {
+  const links = useLabourCrews();
+  const { data: labour = [] } = useLabourRates(true);
+  const mine = new Set((links.data ?? []).filter((l) => l.supplier_id === supplierId).map((l) => l.labour_rate_id));
+  const names = labour.filter((r) => mine.has(r.id)).map((r) => r.name);
+  return (
+    <section className="space-y-1">
+      <h3 className="text-sm font-semibold">Work they do</h3>
+      <p className="text-sm text-muted-foreground">{names.length ? names.join(", ") : "Not linked to any labour yet. Open a labour item under Labour and tick this crew."}</p>
+    </section>
   );
 }
 
@@ -492,6 +534,7 @@ function SupplierDialog({ supplier, canEdit, onClose, onSaved }: { supplier: Sup
             <Input className="h-11" value={f.notes} onChange={set("notes")} />
           </F>
         </fieldset>
+        {supplier && supplier.supplies !== "materials" && <WorkTheyDo supplierId={supplier.id} />}
         {supplier && supplier.supplies !== "materials" && (
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">Visits</h3>

@@ -547,6 +547,13 @@
       "when": 1795546007863,
       "tag": "0077_scope_tables_staff_only",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1795546067863,
+      "tag": "0080_crews",
+      "breakpoints": true
     }
   ]
 }

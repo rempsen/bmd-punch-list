@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { GoesToSite } from "./GoesToSite";
 import { useServerFn } from "@tanstack/react-start";
 import { Copy, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -244,6 +245,9 @@ function UserBody({ person, onClose, actor, activeSuperCount }: { person: AdminU
         </Block>
         <Block title="Level">
           <LevelPicker value={level} onChange={change((l: AppRole) => { if (isStaffLevel(l) && !isStaffLevel(level)) setAllJobs(true); setLevel(l); })} actorIsSuper={actor.isSuper} disabled={!canEdit} />
+        </Block>
+        <Block title="Scheduling">
+          <GoesToSite userId={person.id} name={person.full_name || person.email || "This person"} disabled={!canEdit} />
         </Block>
         <Block title="Jobs">
           {isLoading ? <p className="text-sm text-muted-foreground">Loading jobs…</p> : <JobAccessPicker level={level} allJobs={allJobs} onAllJobs={change(setAllJobs)} picks={picks} onPicks={change(setPicks)} jobs={options} actorIsSuper={actor.isSuper} disabled={!canEdit} />}
