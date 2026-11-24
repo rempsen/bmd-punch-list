@@ -113,8 +113,16 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
         .eq("idempotency_key", key)
         .maybeSingle();
       const retryable = seen?.status === "ignored" && RETRY_IGNORED.has(seen.last_error);
-      if ((seen?.status === "acked" || seen?.status === "ignored") && !retryable)
+      if ((seen?.status === "acked" || seen?.status === "ignored") && !retryable) {
+        // A redelivered completion still gets its photos tried again: an earlier download may have failed after the ack.
+        const dup = parseArrivePingEvent(body);
+        if (dup && dup.kind === "status" && dup.status === "completed") {
+          const q = db.from("install_visits").select(VISIT_COLUMNS);
+          const { data: v } = await (dup.visitId ? q.eq("id", dup.visitId) : q.eq("arriveping_job_id", dup.jobId)).maybeSingle();
+          if (v) await copyCompletionPhotos(v as never, data);
+        }
         return done({ ok: true, ignored: "duplicate" });
+      }
     }
     const record = (
       visit: { id: string; project_id: string } | null,
@@ -376,6 +384,23 @@ export async function reconcileVisits(
     }
   }
   const checked = (visits ?? []).length;
+  // Visits completed in the last week with no photos on file: a download that failed earlier is retried here, a few at a time.
+  try {
+    let done = db
+      .from("install_visits")
+      .select("id,project_id,arriveping_job_id,photos:install_visit_photos(id)")
+      .not("arriveping_job_id", "is", null)
+      .eq("status", "completed")
+      .gte("starts_at", weekAgo)
+      .order("starts_at", { ascending: false })
+      .limit(25);
+    if (opts.projectId) done = done.eq("project_id", opts.projectId);
+    const { data: completed } = await done;
+    const bare = ((completed ?? []) as { id: string; project_id: string; arriveping_job_id: string; photos: unknown[] }[]).filter((v) => !v.photos?.length).slice(0, 5);
+    for (const v of bare) await copyCompletionPhotos(v, null);
+  } catch (error) {
+    console.error("ArrivePing check: photo retry failed:", error);
+  }
   await saveLink({ last_check_error: firstError ?? null }).catch(() => {});
   return { ran: true, checked, updated, failed, ...(firstError ? { error: firstError } : {}) };
 }
