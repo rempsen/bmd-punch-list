@@ -9,6 +9,16 @@ import type { CalEvent } from "./ical";
 export const CALENDAR_SCOPE = "Calendars.ReadWrite";
 export const hasCalendarScope = (scopes: string | null | undefined) => (scopes ?? "").split(/\s+/).includes(CALENDAR_SCOPE);
 
+/**
+ * What the "Connect my Outlook calendar" sign-in asks for: everything the person has already allowed (so mail and files
+ * keep working on the new token) plus their calendar. Someone with no connection who does not send email is asked for the calendar only.
+ */
+export function connectScopes(existing: string | null | undefined, maySendMail: boolean, mailScopes: readonly string[]): string[] {
+  const had = (existing ?? "").split(/\s+/).filter(Boolean);
+  const base = had.length ? had : maySendMail ? [...mailScopes] : ["offline_access", "User.Read"];
+  return [...new Set([...base, CALENDAR_SCOPE])];
+}
+
 export type GraphCall = (path: string, init?: { method?: string; body?: string }) => Promise<Response>;
 export type EventLink = { visit_id: string; event_id: string; fingerprint: string };
 export type SyncProblem = { reason: "consent" | "reconnect" | "error"; message: string };

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { CalEvent } from "./ical";
-import { graphEventBody, syncOutlook, type EventLink, type GraphCall } from "./outlook";
+import { connectScopes, graphEventBody, hasCalendarScope, syncOutlook, type EventLink, type GraphCall } from "./outlook";
 
 const ev = (n: number, over: Partial<CalEvent> = {}): CalEvent => ({
   visitId: `00000000-0000-4000-8000-00000000000${n}`,
@@ -221,5 +221,26 @@ describe("syncOutlook", () => {
     await run(g, { links: [], calendarId: null }, [ev(1)]);
     const post = g.calls.find((c) => c.method === "POST" && c.path.endsWith("/events"))!;
     expect((post.body as Record<string, unknown>)["transactionId"]).toBe(`visit-${ev(1).visitId}`);
+  });
+});
+
+describe("connectScopes", () => {
+  const MAIL = ["offline_access", "User.Read", "Mail.Send", "Files.ReadWrite.All"];
+  it("adds the calendar to what the person already allowed, keeping mail and files working", () => {
+    expect(connectScopes("offline_access User.Read Mail.Send Files.ReadWrite.All", false, MAIL)).toEqual([...MAIL, "Calendars.ReadWrite"]);
+  });
+  it("asks only for the calendar when someone who does not send email has no connection", () => {
+    expect(connectScopes(null, false, MAIL)).toEqual(["offline_access", "User.Read", "Calendars.ReadWrite"]);
+  });
+  it("asks for mail too when the person may send quotes, so one sign-in covers both", () => {
+    expect(connectScopes(null, true, MAIL)).toEqual([...MAIL, "Calendars.ReadWrite"]);
+  });
+  it("does not ask twice for the calendar", () => {
+    expect(connectScopes("offline_access User.Read Calendars.ReadWrite", false, MAIL)).toEqual(["offline_access", "User.Read", "Calendars.ReadWrite"]);
+  });
+  it("knows whether the calendar was allowed", () => {
+    expect(hasCalendarScope("offline_access User.Read Calendars.ReadWrite")).toBe(true);
+    expect(hasCalendarScope("offline_access User.Read Mail.Send")).toBe(false);
+    expect(hasCalendarScope(null)).toBe(false);
   });
 });

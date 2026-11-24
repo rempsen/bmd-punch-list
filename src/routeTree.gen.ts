@@ -58,6 +58,7 @@ import { Route as AuthenticatedSignTokenRouteImport } from './routes/_authentica
 import { Route as ApiMsCallbackRouteImport } from './routes/api/ms/callback'
 import { Route as ApiQboCallbackRouteImport } from './routes/api/qbo/callback'
 import { Route as ApiPublicArrivepingWebhookRouteImport } from './routes/api/public/arriveping/webhook'
+import { Route as ApiPublicCalendarFileRouteImport } from './routes/api/public/calendar/$file'
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 import { Route as ApiPublicOnedriveMirrorRouteImport } from './routes/api/public/onedrive/mirror'
@@ -317,6 +318,11 @@ const ApiPublicArrivepingWebhookRoute =
     path: '/api/public/arriveping/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicCalendarFileRoute = ApiPublicCalendarFileRouteImport.update({
+  id: '/api/public/calendar/$file',
+  path: '/api/public/calendar/$file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCompanycamWebhookRoute =
   ApiPublicCompanycamWebhookRouteImport.update({
     id: '/api/public/companycam/webhook',
@@ -388,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
+  '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -442,6 +449,7 @@ export interface FileRoutesByTo {
   '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
+  '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -498,6 +506,7 @@ export interface FileRoutesById {
   '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/api/public/arriveping/webhook': typeof ApiPublicArrivepingWebhookRoute
+  '/api/public/calendar/$file': typeof ApiPublicCalendarFileRoute
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
@@ -554,6 +563,7 @@ export interface FileRouteTypes {
     | '/api/qbo/callback'
     | '/projects/'
     | '/api/public/arriveping/webhook'
+    | '/api/public/calendar/$file'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -608,6 +618,7 @@ export interface FileRouteTypes {
     | '/api/qbo/callback'
     | '/projects'
     | '/api/public/arriveping/webhook'
+    | '/api/public/calendar/$file'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -663,6 +674,7 @@ export interface FileRouteTypes {
     | '/api/qbo/callback'
     | '/_authenticated/projects/'
     | '/api/public/arriveping/webhook'
+    | '/api/public/calendar/$file'
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
@@ -681,6 +693,7 @@ export interface RootRouteChildren {
   ApiMsCallbackRoute: typeof ApiMsCallbackRoute
   ApiQboCallbackRoute: typeof ApiQboCallbackRoute
   ApiPublicArrivepingWebhookRoute: typeof ApiPublicArrivepingWebhookRoute
+  ApiPublicCalendarFileRoute: typeof ApiPublicCalendarFileRoute
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
   ApiPublicOnedriveMirrorRoute: typeof ApiPublicOnedriveMirrorRoute
@@ -1032,6 +1045,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicArrivepingWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/calendar/$file': {
+      id: '/api/public/calendar/$file'
+      path: '/api/public/calendar/$file'
+      fullPath: '/api/public/calendar/$file'
+      preLoaderRoute: typeof ApiPublicCalendarFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/companycam/webhook': {
       id: '/api/public/companycam/webhook'
       path: '/api/public/companycam/webhook'
@@ -1161,6 +1181,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMsCallbackRoute: ApiMsCallbackRoute,
   ApiQboCallbackRoute: ApiQboCallbackRoute,
   ApiPublicArrivepingWebhookRoute: ApiPublicArrivepingWebhookRoute,
+  ApiPublicCalendarFileRoute: ApiPublicCalendarFileRoute,
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
   ApiPublicOnedriveMirrorRoute: ApiPublicOnedriveMirrorRoute,

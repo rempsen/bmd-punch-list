@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CalendarLink } from "./CalendarLink";
 import { GoesToSite } from "./GoesToSite";
 import { PersonRates } from "@/components/time/PersonRates";
 import { useServerFn } from "@tanstack/react-start";
@@ -249,6 +250,9 @@ function UserBody({ person, onClose, actor, activeSuperCount }: { person: AdminU
         </Block>
         <Block title="Scheduling">
           <GoesToSite userId={person.id} name={person.full_name || person.email || "This person"} disabled={!canEdit} />
+          <div className="mt-3 border-t border-border pt-3">
+            <CalendarLink userId={person.id} name={person.full_name || person.email || "This person"} disabled={!canEdit} />
+          </div>
         </Block>
         <PersonRates userId={person.id} name={person.full_name || person.email || "This person"} disabled={!canEdit} />
         <Block title="Jobs">
