@@ -249,7 +249,7 @@ describe("ArrivePing webhook signatures", () => {
 });
 
 describe("rescheduling a work order", () => {
-  test("the PATCH carries the schedule and whatever else was typed, never nulls", () => {
+  test("the PATCH carries the schedule and the contact and notes as they now stand", () => {
     expect(reschedulePayload({ id: "v1", starts_at: "2026-12-03T14:00:00.000Z", ends_at: "2026-12-03T22:00:00.000Z", crew: "Brodie", notes: "  ", site_contact: "Gail" })).toEqual({
       start_at: "2026-12-03T14:00:00.000Z",
       end_at: "2026-12-03T22:00:00.000Z",
@@ -258,7 +258,12 @@ describe("rescheduling a work order", () => {
     });
   });
   test("a visit with no end gets eight hours, like a create", () => {
-    expect(reschedulePayload({ id: "v1", starts_at: "2026-12-03T14:00:00.000Z", ends_at: null, crew: null, notes: null, site_contact: null })).toEqual({ start_at: "2026-12-03T14:00:00.000Z", end_at: "2026-12-03T22:00:00.000Z" });
+    expect(reschedulePayload({ id: "v1", starts_at: "2026-12-03T14:00:00.000Z", ends_at: null, crew: null, notes: null, site_contact: null })).toEqual({ start_at: "2026-12-03T14:00:00.000Z", end_at: "2026-12-03T22:00:00.000Z", site_contact: null, notes_for_crew: "" });
+  });
+  test("a blanked contact or note is sent as a clear, not left out", () => {
+    const p = reschedulePayload({ id: "v1", starts_at: "2026-12-03T14:00:00.000Z", ends_at: null, crew: null, notes: "", site_contact: "" });
+    expect(p).toHaveProperty("site_contact", null);
+    expect(p).toHaveProperty("notes_for_crew", "");
   });
 
   test("photos come out of photos[] or completion_photos[], by id, once each", () => {

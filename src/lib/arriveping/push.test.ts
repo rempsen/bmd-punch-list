@@ -376,7 +376,7 @@ describe("pushVisitReschedule", () => {
     expect(path).toBe(`${AP_PATHS.workorders}/wo_7`);
     expect(init.method).toBe("PATCH");
     expect(init.idempotencyKey).toBe("bmd-visit-v1-reschedule-5");
-    expect(init.body).toEqual({ start_at: linked.starts_at, end_at: linked.ends_at, site_contact: { name: "Gail" } });
+    expect(init.body).toEqual({ start_at: linked.starts_at, end_at: linked.ends_at, site_contact: { name: "Gail" }, notes_for_crew: expect.any(String) });
   });
   test("a visit that was never sent has nothing to reschedule", async () => {
     const fetchJson = replying({ ok: true, status: 200, json: {} });

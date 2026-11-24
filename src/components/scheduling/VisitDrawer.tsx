@@ -299,7 +299,10 @@ function DrawerBody({
         if (u.error) throw new Error(u.error.message);
         const sameTime = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
         const moved = !sameTime(patch.starts_at, visit.starts_at) || !sameTime(patch.ends_at, visit.ends_at);
-        const retyped = (patch.site_contact ?? null) !== (visit.site_contact ?? null) || (patch.notes ?? null) !== (visit.notes ?? null);
+        const retyped =
+          (patch.site_contact ?? null) !== (visit.site_contact ?? null) ||
+          (patch.notes ?? null) !== (visit.notes ?? null) ||
+          (patch.crew ?? null) !== (visit.crew ?? null);
         refresh();
         onClose();
         // The schedule, contact and notes travel to ArrivePing; the saved visit stands whatever ArrivePing says.
