@@ -264,6 +264,28 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     void store.saveAnnotations(next);
   }, [current]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── the stage changing size (window resized, a panel opened, full screen) ──
+  // The picture is drawn for one box size. Without this, a resize stretched the
+  // old bitmap into the new box while the measurements stayed put, and the
+  // sheet looked frozen until the next pan or zoom redrew it. Keep the point at
+  // the centre of the view where it was; the view change redraws at once.
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let last = null;
+    const ro = new ResizeObserver(() => {
+      const box = el.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      if (last) {
+        const dw = box.width - last.w, dh = box.height - last.h;
+        if (dw || dh) setView((v) => ({ ...v, x: v.x + dw / 2, y: v.y + dh / 2 }));
+      }
+      last = { w: box.width, h: box.height };
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // ── draw the visible part of the sheet, sharp at the current zoom ──
   useEffect(() => {
     if (!engine || !canvas.current || !wrap.current) return;
@@ -288,6 +310,9 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       task.promise.then(() => {
         c.width = w;
         c.height = h;
+        // The bitmap's own size in CSS px: a stage that changes size later must not stretch this picture.
+        c.style.width = `${box.width}px`;
+        c.style.height = `${box.height}px`;
         c.style.transform = "";
         c.dataset.k = String(view.k);
         c.dataset.x = String(view.x);
