@@ -15,6 +15,12 @@ ALTER TABLE public.material_orders ADD COLUMN IF NOT EXISTS source_version_id uu
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS material_orders_source_version ON public.material_orders (project_id, source_version_id);
 --> statement-breakpoint
+-- Lines seeded before this change carry their estimate line: stamp the version they came from, so neither the
+-- backfill below nor a later acceptance seeds that version again.
+UPDATE public.material_orders mo SET source_version_id = l.version_id
+  FROM public.estimate_lines l
+ WHERE mo.estimate_line_id = l.id AND mo.source_version_id IS NULL;
+--> statement-breakpoint
 
 -- One row per material component of a version's required lines, sized the same way the estimate sizes it.
 -- Does nothing if that version was already seeded for the job.
