@@ -470,6 +470,13 @@
       "when": 1795539854577,
       "tag": "0065_qbo_send_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795540115274,
+      "tag": "0067_inspections_signoff",
+      "breakpoints": true
     }
   ]
 }

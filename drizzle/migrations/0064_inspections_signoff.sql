@@ -1,4 +1,4 @@
--- Superseded: no journal entry; replaced by 0065_inspections_signoff.sql (idempotent). Kept commented for history.
+-- Superseded: no journal entry; replaced by 0067_inspections_signoff.sql (idempotent). Kept commented for history.
 -- CREATE TABLE public.inspections (
 --   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 --   project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
