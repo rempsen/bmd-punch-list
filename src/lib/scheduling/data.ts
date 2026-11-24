@@ -1,17 +1,25 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import type { Visit } from "@/lib/visits/logic";
-import { mergeTechnicians, shiftWeek, type Area, type Technician } from "./logic";
+import { mergeTechnicians, shiftWeek, SUP, type Area, type Subcontractor, type Technician } from "./logic";
 
 export type SchedVisit = Visit & {
   project_id: string;
   assigned_user_id: string | null;
   assigned_name: string | null;
+  /** The catalogue vendor (Labour or Both) this visit is assigned to, when it is a subcontractor. */
+  technician_supplier_id: string | null;
   areas: Area[];
   scope: string | null;
   project: { id: string; name: string; project_number: string | null } | null;
   tasks: { id: string; done: boolean }[];
 };
+/** Adds a crew to Catalogue → Suppliers & subcontractors as Labour (or reuses the vendor of that name) and returns its technician id. */
+export async function addSubcontractor(name: string): Promise<string> {
+  const { data, error } = await db.rpc("add_subcontractor", { _name: name });
+  if (error) throw new Error(error.message);
+  return `${SUP}${data as string}`;
+}
 export type VisitTask = {
   id: string;
   visit_id: string;
@@ -25,16 +33,17 @@ export type VisitTask = {
 };
 
 const COLS =
-  "id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status,assigned_user_id,assigned_name,areas,scope,project:projects(id,name,project_number),tasks:visit_tasks(id,done)";
+  "id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status,assigned_user_id,assigned_name,technician_supplier_id,areas,scope,project:projects(id,name,project_number),tasks:visit_tasks(id,done)";
 
-/** BMD field staff plus every crew name ArrivePing has reported on a visit. */
+/** BMD field staff, the catalogue's active Labour and Both vendors, and any other crew name ArrivePing has reported on a visit. */
 export function useTechnicians() {
   return useQuery({
     queryKey: ["technicians"],
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<Technician[]> => {
-      const [staff, ap] = await Promise.all([
+      const [staff, subs, ap] = await Promise.all([
         db.rpc("bmd_technicians"),
+        db.rpc("bmd_subcontractors"),
         db
           .from("install_visits")
           .select("arriveping_assigned_to")
@@ -43,12 +52,14 @@ export function useTechnicians() {
           .limit(500),
       ]);
       if (staff.error) throw staff.error;
+      if (subs.error) throw subs.error;
       if (ap.error) throw ap.error;
       return mergeTechnicians(
         (staff.data ?? []) as never,
         ((ap.data ?? []) as { arriveping_assigned_to: string | null }[]).map(
           (r) => r.arriveping_assigned_to,
         ),
+        (subs.data ?? []) as Subcontractor[],
       );
     },
   });

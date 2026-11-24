@@ -15,6 +15,8 @@ import {
   UNASSIGNED,
   visitDays,
   weekDays,
+  assignmentFor,
+  searchTechnicians,
 } from "./logic";
 
 describe("weeks", () => {
@@ -141,4 +143,37 @@ it("colours chips by ArrivePing status", () => {
   expect(chipTone({ status: "arrived" })).toBe("in_progress");
   expect(chipTone({ status: "cancelled", arriveping_status: "assigned" })).toBe("cancelled");
   expect(chipTone({ status: "scheduled", arriveping_status: "completed" })).toBe("complete");
+});
+
+describe("subcontractors from the catalogue are technicians", () => {
+  const staff = [{ id: "u1", full_name: "Dan Rosenblat", email: "dan@x.ca" }];
+  const subs = [
+    { id: "s2", name: "Zed Flooring", contact_name: "Pat Lee", phone: "204-555-0101", supplies: "both" },
+    { id: "s1", name: "Brodi Installs", contact_name: null, phone: null, supplies: "labour" },
+  ];
+  const techs = mergeTechnicians(staff, ["Brodi installs", "Kai"], subs);
+
+  it("staff come first, then subcontractors by name, then ArrivePing names nobody has claimed", () => {
+    expect(techs.map((t) => [t.id, t.source])).toEqual([["u1", "bmd"], ["sup:s1", "supplier"], ["sup:s2", "supplier"], ["ap:kai", "arriveping"]]);
+    expect(techs[2]).toMatchObject({ name: "Zed Flooring", detail: "Pat Lee · 204-555-0101", both: true });
+  });
+  it("a visit linked to a subcontractor sits in that subcontractor's row, whatever name was typed", () => {
+    expect(technicianOf({ technician_supplier_id: "s2", assigned_name: "old name" }, techs)).toBe("sup:s2");
+    expect(technicianOf({ assigned_name: "brodi installs" }, techs)).toBe("sup:s1");
+    expect(technicianOf({ technician_supplier_id: "gone", assigned_name: "Ghost Crew" }, techs)).toBe("ap:ghost crew");
+  });
+  it("search finds by name, contact or phone, names that start with the text first", () => {
+    expect(searchTechnicians(techs, "").length).toBe(4);
+    expect(searchTechnicians(techs, "pat").map((t) => t.id)).toEqual(["sup:s2"]);
+    expect(searchTechnicians(techs, "555").map((t) => t.id)).toEqual(["sup:s2"]);
+    expect(searchTechnicians(techs, "d").map((t) => t.id)).toEqual(["u1", "sup:s1", "sup:s2"]);
+  });
+  it("what is saved on the visit for each kind of pick", () => {
+    expect(assignmentFor("", techs)).toEqual({ assigned_user_id: null, assigned_name: null, technician_supplier_id: null });
+    expect(assignmentFor("u1", techs)).toEqual({ assigned_user_id: "u1", assigned_name: null, technician_supplier_id: null });
+    expect(assignmentFor("sup:s1", techs)).toEqual({ assigned_user_id: null, assigned_name: "Brodi Installs", technician_supplier_id: "s1" });
+  });
+  it("a subcontractor confirmed by ArrivePing under the same name shows as confirmed", () => {
+    expect(assignmentState({ assigned_name: "Brodi Installs", technician_supplier_id: "s1", arriveping_assigned_to: "brodi installs" }, null)).toBe("confirmed");
+  });
 });

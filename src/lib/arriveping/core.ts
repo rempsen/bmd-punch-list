@@ -99,7 +99,8 @@ export function workOrderPayload(visit: VisitForPush, project: ProjectForPush, c
 /** The body ArrivePing's PATCH /api/v1/workorders/{id} takes when BMD re-times a visit: the schedule, and the site contact and crew notes as they now stand. */
 export function reschedulePayload(visit: VisitForPush): Record<string, unknown> {
   const { start_at, end_at, site_contact, notes_for_crew } = workOrderPayload(visit, { id: "", name: "", number: null, address: null, client: null });
-  return { start_at, ...(end_at ? { end_at } : {}), ...(site_contact ? { site_contact } : {}), ...(notes_for_crew ? { notes_for_crew } : {}) };
+  // Contact and notes always travel, so a value the user blanked is cleared in ArrivePing too (an omitted field would keep the old text).
+  return { start_at, ...(end_at ? { end_at } : {}), site_contact: site_contact ?? null, notes_for_crew: notes_for_crew ?? "" };
 }
 
 /** A completion photo as ArrivePing describes it (§9 of the API requirements): a signed, time-limited `url` and whatever else it knows. */
@@ -309,7 +310,7 @@ export async function verifyArrivePingSignature(secret: string, rawBody: string,
   return diff === 0;
 }
 
-/** The integration events BMD subscribes to: who is on a job, when it is, and where the crew is. */
+/** The integration events BMD wants: who is on a job, when it is, and where the crew is. `subscriptionEvents` trims this to what ArrivePing offers. */
 export const AP_WEBHOOK_EVENTS = [
   "workorder.assigned",
   "workorder.unassigned",
@@ -330,4 +331,31 @@ export function webhookSetupError(status: number, error: string): string {
   if (status === 404) return "ArrivePing does not offer integration webhooks on this account yet.";
   if (status === 409) return "ArrivePing already has 10 webhooks for BMD Materials. Delete one in ArrivePing first.";
   return error;
+}
+
+/** Event names ArrivePing's GET /api/v1/events/types lists, from whichever shape it answers in (bare strings, `{name}`/`{type}`/`{event}` rows, or an object keyed by name). Unknown shape → null. */
+export function offeredEventTypes(json: unknown): string[] | null {
+  const root = json && typeof json === "object" && !Array.isArray(json) ? (json as Record<string, unknown>) : null;
+  const list = Array.isArray(json) ? json : root && Array.isArray(root["data"]) ? root["data"] : root && Array.isArray(root["types"]) ? root["types"] : root && Array.isArray(root["events"]) ? root["events"] : null;
+  if (list) {
+    const names = list
+      .map((row) => (typeof row === "string" ? row : row && typeof row === "object" ? (row as Record<string, unknown>)["name"] ?? (row as Record<string, unknown>)["type"] ?? (row as Record<string, unknown>)["event"] ?? (row as Record<string, unknown>)["id"] : null))
+      .filter((n): n is string => typeof n === "string" && n.length > 0);
+    return names.length ? names : null;
+  }
+  if (root) {
+    const keys = Object.keys(root).filter((k) => k.includes("."));
+    return keys.length ? keys : null;
+  }
+  return null;
+}
+
+/** The events to subscribe to: the ones BMD wants that ArrivePing offers. With no usable list (`null`), everything BMD wants
+ *  except `workorder.status_changed`, which the live API has refused (422). A readable list that offers none of BMD's
+ *  events is a real answer, not a gap: the result is empty and the caller reports it instead of guessing. */
+export function subscriptionEvents(offered: string[] | null): string[] {
+  const wanted = [...AP_WEBHOOK_EVENTS] as string[];
+  if (!offered) return wanted.filter((e) => e !== "workorder.status_changed");
+  const have = new Set(offered);
+  return wanted.filter((e) => have.has(e));
 }

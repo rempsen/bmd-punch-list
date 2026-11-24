@@ -488,7 +488,21 @@
     {
       "idx": 69,
       "version": "7",
-      "when": 1795542787329,
+      "when": 1795542496006,
+      "tag": "0070_technicians_from_catalogue",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1795543174216,
+      "tag": "0071_visit_photo_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795543311385,
       "tag": "0068_assistant",
       "breakpoints": true
     }

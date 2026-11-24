@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { TechnicianPicker } from "@/components/scheduling/TechnicianPicker";
 import { ArrivePingPill, OpenInArrivePing, StatusPill } from "@/components/visits/visit-bits";
 import { cancelVisitPush, pushVisit, rescheduleVisitPush } from "@/lib/arriveping/arriveping.functions";
 import { MAX_WORK_ORDER_MS } from "@/lib/arriveping/core";
@@ -21,7 +22,9 @@ import {
 } from "@/lib/scheduling/data";
 import {
   areasFromSelection,
+  assignmentFor,
   assignmentState,
+  SUP,
   selectionFromAreas,
   toggleFloor,
 } from "@/lib/scheduling/logic";
@@ -82,7 +85,8 @@ function formFor(
     date: dayOf(v.starts_at),
     start: timeOf(v.starts_at),
     end: v.ends_at ? timeOf(v.ends_at) : "",
-    tech: v.assigned_user_id ?? (v.assigned_name ? FREE : ""),
+    // A name typed before technicians came from the catalogue is kept (FREE) until someone picks or adds the person.
+    tech: v.assigned_user_id ?? (v.technician_supplier_id ? SUP + v.technician_supplier_id : v.assigned_name ? FREE : ""),
     techName: v.assigned_name ?? "",
     contact: v.site_contact ?? "",
     notes: v.notes ?? "",
@@ -268,6 +272,8 @@ function DrawerBody({
   const save = async () => {
     setErr(null);
     if (!f.project) return setErr("Choose a job.");
+    if (f.tech && f.tech !== FREE && !(techs.data ?? []).some((t) => t.id === f.tech))
+      return setErr("The technician list is still loading, or that technician is no longer active. Pick the technician again.");
     const times = visitTimes({ date: f.date, start: f.start, end: f.end });
     if ("error" in times) return setErr(times.error);
     if (times.endsAt && times.endsAt.getTime() - times.startsAt.getTime() > MAX_WORK_ORDER_MS)
@@ -277,8 +283,9 @@ function DrawerBody({
       scope: f.scope.trim() || null,
       starts_at: times.startsAt.toISOString(),
       ends_at: times.endsAt?.toISOString() ?? null,
-      assigned_user_id: f.tech && f.tech !== FREE ? f.tech : null,
-      assigned_name: f.tech === FREE ? f.techName.trim() || null : null,
+      ...(f.tech === FREE
+        ? { assigned_user_id: null as string | null, assigned_name: f.techName.trim() || null, technician_supplier_id: null as string | null }
+        : assignmentFor(f.tech, techs.data ?? [])),
       crew: techName ?? visit?.crew ?? null,
       site_contact: f.contact.trim() || null,
       notes: f.notes.trim() || null,
@@ -292,7 +299,10 @@ function DrawerBody({
         if (u.error) throw new Error(u.error.message);
         const sameTime = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
         const moved = !sameTime(patch.starts_at, visit.starts_at) || !sameTime(patch.ends_at, visit.ends_at);
-        const retyped = (patch.site_contact ?? null) !== (visit.site_contact ?? null) || (patch.notes ?? null) !== (visit.notes ?? null);
+        const retyped =
+          (patch.site_contact ?? null) !== (visit.site_contact ?? null) ||
+          (patch.notes ?? null) !== (visit.notes ?? null) ||
+          (patch.crew ?? null) !== (visit.crew ?? null);
         refresh();
         onClose();
         // The schedule, contact and notes travel to ArrivePing; the saved visit stands whatever ArrivePing says.
@@ -429,38 +439,15 @@ function DrawerBody({
         <p className="text-xs text-muted-foreground">
           One visit per day — ArrivePing takes up to 24 hours per work order.
         </p>
-        <label className={label}>
+        <div className={label}>
           Technician
-          <select className={field} value={f.tech} onChange={(e) => set("tech", e.target.value)}>
-            <option value="">Unassigned</option>
-            {(techs.data ?? [])
-              .filter((t) => t.source === "bmd")
-              .map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            <option value={FREE}>Someone else (subcontractor)…</option>
-          </select>
-        </label>
-        {f.tech === FREE && (
-          <>
-            <Input
-              aria-label="Technician name"
-              list="ap-crew"
-              value={f.techName}
-              onChange={(e) => set("techName", e.target.value)}
-              placeholder="Name"
-            />
-            <datalist id="ap-crew">
-              {(techs.data ?? [])
-                .filter((t) => t.source === "arriveping")
-                .map((t) => (
-                  <option key={t.id} value={t.name} />
-                ))}
-            </datalist>
-          </>
-        )}
+          <TechnicianPicker value={f.tech === FREE ? "" : f.tech} onChange={(id) => setF((x) => ({ ...x, tech: id, techName: "" }))} techs={techs.data ?? []} disabled={!canEdit || techs.isLoading} canAdd={canEdit} />
+          {f.tech === FREE && f.techName && (
+            <p className="mt-1 text-xs font-normal text-amber-700">
+              Typed earlier: {f.techName}. Pick them above, or search the name to add them as a subcontractor.
+            </p>
+          )}
+        </div>
         <label className={label}>
           Site contact
           <Input
