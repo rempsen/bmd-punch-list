@@ -39,7 +39,7 @@ export const Route = createFileRoute("/_authenticated/companycam")({
 
 const OPTS = [
   ["photos_out", "Send deficiency photos to CompanyCam"],
-  ["tasks_out", "Create CompanyCam tasks for must-fix items"],
+  ["tasks_out", "Create CompanyCam tasks for must-fix items (CompanyCam’s API has no task endpoint yet; leave off)"],
   ["comments_out", "Post status changes and client decisions as comments"],
   ["documents_out", "Allow “Send to CompanyCam” from Exports"],
   ["photos_in", "Bring new CompanyCam photos into the Photo inbox"],

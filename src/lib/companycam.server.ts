@@ -313,7 +313,8 @@ export async function syncProject(admin: Admin, projectId: string) {
   }
 
   // Outbound tasks
-  if (opts.tasks_out !== false) {
+  // Off unless a job turns it on: CompanyCam’s public API has no project-task endpoint (every POST returned 404).
+  if (opts.tasks_out === true) {
     const { data: people } = await admin
       .from("profiles")
       .select("id,companycam_user_id")
