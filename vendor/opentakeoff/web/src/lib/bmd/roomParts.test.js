@@ -259,3 +259,96 @@ describe("text positions", () => {
     expect(b).toEqual({ str: "UP", x0: 380, y0: 576, x1: 400, y1: 600 });
   });
 });
+
+// ── Doors and callouts: BMD's hard rules (Dan, 24 Nov 2026) ────────────────────────────────────────────────────
+// 1. A door's swing (its arc and leaf) is not a wall: the floor under it belongs to the room.
+// 2. A doorway's centre separates two rooms: each room's floor stops halfway through the wall, across the opening.
+// 3. A callout (section bubble with its triangles) is not a wall, text or no text.
+//
+// Room A is 20 ft × 10 ft above a 20 ft × 6 ft corridor. The wall between them is 0.5 ft thick (9 px) and has a
+// 3 ft (54 px) opening at x 600–654, with jambs drawn across the wall at both sides.
+const WT = 9, DOOR = 3 * FT, DX = 600;
+const CORR_Y = RY + RH + WT, CORR_H = 6 * FT;
+function withDoorway(s = sheet()) {
+  const L = RX - WT, R = RX + RW + WT, B = CORR_Y + CORR_H + WT;
+  s.rect(L, RY - WT, R - L, B - (RY - WT), { w: 3 });                    // the building's outer face
+  s.line(RX, RY, RX + RW, RY, { w: 3 }).line(RX, RY, RX, RY + RH, { w: 3 }).line(RX + RW, RY, RX + RW, RY + RH, { w: 3 });   // room A's other faces
+  s.line(RX, CORR_Y, RX, CORR_Y + CORR_H, { w: 3 }).line(RX + RW, CORR_Y, RX + RW, CORR_Y + CORR_H, { w: 3 }).line(RX, CORR_Y + CORR_H, RX + RW, CORR_Y + CORR_H, { w: 3 });
+  // the wall between, both faces, broken by the opening, and its jambs
+  s.line(RX, RY + RH, DX, RY + RH, { w: 3 }).line(DX + DOOR, RY + RH, RX + RW, RY + RH, { w: 3 });
+  s.line(RX, CORR_Y, DX, CORR_Y, { w: 3 }).line(DX + DOOR, CORR_Y, RX + RW, CORR_Y, { w: 3 });
+  s.line(DX, RY + RH, DX, CORR_Y, { w: 3 }).line(DX + DOOR, RY + RH, DX + DOOR, CORR_Y, { w: 3 });
+  return s;
+}
+/** A hinged door: its swing as curve chords from the open leaf to the strike, and the leaf as a line. */
+function door(s, { hinge, open, strike, n = 12, leaf = true }) {
+  const r = Math.hypot(open[0] - hinge[0], open[1] - hinge[1]);
+  let a0 = Math.atan2(open[1] - hinge[1], open[0] - hinge[0]), a1 = Math.atan2(strike[1] - hinge[1], strike[0] - hinge[0]);
+  if (a1 - a0 > Math.PI) a1 -= 2 * Math.PI; else if (a0 - a1 > Math.PI) a1 += 2 * Math.PI;
+  const pts = Array.from({ length: n + 1 }, (_, i) => { const a = a0 + ((a1 - a0) * i) / n; return [hinge[0] + r * Math.cos(a), hinge[1] + r * Math.sin(a)]; });
+  for (let i = 0; i < n; i++) s.line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], { flags: SEG_CURVE });
+  if (leaf) s.line(hinge[0], hinge[1], open[0], open[1], { w: 2 });
+  return s;
+}
+const ROOM_A = 200, CORRIDOR = 20 * 6, HALF_DOORWAY = 3 * 0.25;   // SF; the doorway is 3 ft × 0.5 ft, half to each side
+const IN_A = [RX + 100, RY + 60], IN_CORR = [RX + 100, CORR_Y + 60];
+const within = (got, want, sf = 0.35) => expect(Math.abs(got - want)).toBeLessThan(sf);
+
+describe("doors (hard rule): the swing is not a wall, and the floor stops at the middle of the doorway", () => {
+  const swingIntoA = () => door(withDoorway(), { hinge: [DX, RY + RH], open: [DX, RY + RH - DOOR], strike: [DX + DOOR, RY + RH] });
+
+  test("the floor under a door's swing belongs to the room, out to the middle of the doorway", () => {
+    const r = swingIntoA().finder().roomAt(...IN_A, UPP);
+    expect(r.ok).toBe(true);
+    within(r.areaSf, ROOM_A + HALF_DOORWAY);   // not 200 − 7.07 (the swing taken out), not spilling into the corridor
+    expect(r.note).toMatch(/door/i);
+  });
+
+  test("the room on the other side of the doorway gets the other half, and nothing of the first room", () => {
+    const r = swingIntoA().finder().roomAt(...IN_CORR, UPP);
+    expect(r.ok).toBe(true);
+    within(r.areaSf, CORRIDOR + HALF_DOORWAY);
+  });
+
+  test("a door swinging out of the room stops the room at the doorway's middle too, and the swing goes to the other room", () => {
+    const s = door(withDoorway(), { hinge: [DX + DOOR, CORR_Y], open: [DX + DOOR, CORR_Y + DOOR], strike: [DX, CORR_Y] });
+    within(s.finder().roomAt(...IN_A, UPP).areaSf, ROOM_A + HALF_DOORWAY);
+    within(s.finder().roomAt(...IN_CORR, UPP).areaSf, CORRIDOR + HALF_DOORWAY);
+  });
+
+  test("a door drawn without its leaf line is still a door", () => {
+    const s = door(withDoorway(), { hinge: [DX, RY + RH], open: [DX, RY + RH - DOOR], strike: [DX + DOOR, RY + RH], leaf: false });
+    within(s.finder().roomAt(...IN_A, UPP).areaSf, ROOM_A + HALF_DOORWAY);
+  });
+
+  test("a double door (two leaves meeting in the middle) is closed across its whole width", () => {
+    const half = DOOR / 2, s = withDoorway();
+    door(s, { hinge: [DX, RY + RH], open: [DX, RY + RH - half], strike: [DX + half, RY + RH] });
+    door(s, { hinge: [DX + DOOR, RY + RH], open: [DX + DOOR, RY + RH - half], strike: [DX + half, RY + RH] });
+    within(s.finder().roomAt(...IN_A, UPP).areaSf, ROOM_A + HALF_DOORWAY);
+  });
+
+  test("a curve that is not a door (a round table) still bounds nothing it shouldn't and seals nothing", () => {
+    const s = withDoorway();
+    s.circle(RX + 250, RY + 80, 20);
+    // with no door drawn the opening joins room A and the corridor: measured as one space, minus the table
+    const r = s.finder().roomAt(...IN_A, UPP);
+    expect(r.ok).toBe(true);
+    expect(r.areaSf).toBeGreaterThan(ROOM_A + CORRIDOR - 5);
+  });
+});
+
+describe("callouts (hard rule): a section marker on a wall is part of the room's floor", () => {
+  test("a section bubble with its triangles, drawn over the wall, is not a wall — even with its lettering drawn as lines", () => {
+    const s = room();
+    const cx = RX + 200, cy = RY + RH + 4, r = 0.17 * 144;   // a third of an inch across on paper, centred on the wall
+    s.circle(cx, cy, r).line(cx - r, cy, cx + r, cy);
+    s.poly([[cx - r - 22, cy], [cx - r + 2, cy - 22], [cx - r + 2, cy]], { flags: SEG_FILLONLY, fillLum: 0 });   // the cut-direction triangles
+    s.poly([[cx + r + 22, cy], [cx + r - 2, cy - 22], [cx + r - 2, cy]], { flags: SEG_FILLONLY, fillLum: 0 });
+    s.line(cx - 3, cy - 18, cx + 3, cy - 18).line(cx + 3, cy - 18, cx - 3, cy - 6).line(cx - 3, cy - 6, cx + 3, cy - 6);   // a "6" drawn as strokes, not text
+    const res = s.finder().roomAt(...CENTRE, UPP);
+    expect(res.ok).toBe(true);
+    near(res.areaSf, 200, 0.5);
+    expect(res.note).toMatch(/callout|bubble/i);
+  });
+});
