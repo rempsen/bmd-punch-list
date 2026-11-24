@@ -82,8 +82,8 @@ export function JobTemplatesPanel() {
       )}
       <ul className="mt-4 divide-y divide-border">
         {templates.map((t) => (
-          <li key={t.id} className="flex flex-wrap items-center gap-3 py-3">
-            <div className="min-w-0 flex-1">
+          <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3">
+            <div className="min-w-0 flex-1 basis-full sm:basis-0">
               <p className="font-medium">{t.name}</p>
               <p className="text-xs text-muted-foreground">
                 {[

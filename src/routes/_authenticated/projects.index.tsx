@@ -92,7 +92,7 @@ function ProjectsPage() {
         }
       />
       <div className="space-y-4 p-4 md:p-6">
-        <div role="group" aria-label="Show jobs that are" className="-mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
+        <div role="group" aria-label="Show jobs that are" className="flex flex-wrap gap-2">
           {GROUP_BUTTONS.map((g) => (
             <button
               key={g.value}
@@ -100,7 +100,7 @@ function ProjectsPage() {
               aria-pressed={prefs.group === g.value}
               onClick={() => remember({ group: g.value })}
               className={cn(
-                "flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors",
+                "flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-sm font-medium transition-colors",
                 prefs.group === g.value ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card hover:bg-muted",
               )}
             >

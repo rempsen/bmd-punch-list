@@ -15,19 +15,8 @@ import { parseTasks, templateFromJob } from "@/lib/projects/templates";
 const panel = "rounded-lg border border-border bg-card p-4 md:p-5";
 type Draft = { id: string | null; kind: ContactKind; name: string; phone: string; email: string };
 
-/** On the job's Overview: who to call, the standard visit tasks, and "Save this job as a template". */
-export function JobExtras({ project, canEdit, onChanged }: { project: PipelineProject; canEdit: boolean; onChanged: () => void }) {
-  return (
-    <div className="mt-4 grid gap-4 lg:grid-cols-3">
-      <div className="lg:col-span-2">
-        <SiteContactsPanel projectId={project.id} canEdit={canEdit} />
-      </div>
-      <StandardTasksPanel project={project} canEdit={canEdit} onChanged={onChanged} />
-    </div>
-  );
-}
-
-function SiteContactsPanel({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
+/** On the job's Overview: who to call about the job. The project manager and superintendent are listed first. */
+export function SiteContactsPanel({ projectId, canEdit }: { projectId: string; canEdit: boolean }) {
   const { data: contacts = [], isLoading, error } = useSiteContacts(projectId);
   const qc = useQueryClient();
   const reload = () => void qc.invalidateQueries({ queryKey: ["contacts"] });
@@ -178,7 +167,8 @@ function SiteContactsPanel({ projectId, canEdit }: { projectId: string; canEdit:
   );
 }
 
-function StandardTasksPanel({ project, canEdit, onChanged }: { project: PipelineProject; canEdit: boolean; onChanged: () => void }) {
+/** On the job's Overview: the tasks every visit should include, and "Save this job as a template". */
+export function StandardTasksPanel({ project, canEdit, onChanged }: { project: PipelineProject; canEdit: boolean; onChanged: () => void }) {
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { data: contacts = [] } = useSiteContacts(project.id);

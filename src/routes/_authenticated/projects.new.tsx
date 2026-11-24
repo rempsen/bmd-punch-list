@@ -97,6 +97,7 @@ function NewProjectPage() {
   const chooseKind = (k: ProjectKind) => {
     setKind(k);
     setStage(k === "internal" ? "in_progress" : "opportunity");
+    setTemplateId("");
   };
   const setContact = (i: number, p: Partial<FormContact>) => setContacts((l) => l.map((c, j) => (j === i ? { ...c, ...p } : c)));
   const addContact = (k: ContactKind) => setContacts((l) => [...l, { kind: k, name: "", phone: "", email: "" }]);
