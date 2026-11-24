@@ -411,8 +411,15 @@
     {
       "idx": 58,
       "version": "7",
-      "when": 1795538186072,
-      "tag": "0057_admin_save_user_safeupdate",
+      "when": 1795538116270,
+      "tag": "0057_companycam_tasks_off",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795538300436,
+      "tag": "0058_admin_save_user_safeupdate",
       "breakpoints": true
     }
   ]
