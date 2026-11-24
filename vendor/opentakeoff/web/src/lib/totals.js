@@ -37,6 +37,10 @@ export { round2 } from "./num.js";
 // ea }) in place with the shape's raw computed numbers — no multiplier, no
 // waste, no rounding here. `cp.count || 1` is deliberate (||, not ??): a
 // count shape still tallies one unit even if computed.count is 0/missing.
+// BMD: an automatic-takeoff proposal (origin.method "auto_v1", not yet accepted) is a suggestion on the drawing,
+// not a measurement. It is left out of every total here, as it is on the simple screen and in the estimate.
+const counted = (shapes) => (shapes || []).filter((s) => !(s?.origin?.method === "auto_v1" && s.origin.reviewed === false));
+
 function accumulateRole(acc, s) {
   const cp = s.computed || {};
   switch (s.measure_role) {
@@ -65,6 +69,7 @@ function accumulateRole(acc, s) {
  *   correctly when it is handed one sheet's or one room's shapes.
  */
 export function conditionTotals(conditions, shapes, ctx = null) {
+  shapes = counted(shapes);
   const seamByShape = ctx?.seamByShape instanceof Map ? ctx.seamByShape : null;
   return conditions.map((c) => {
     const mult = c.multiplier || 1;
@@ -133,6 +138,7 @@ export function conditionTotals(conditions, shapes, ctx = null) {
 //   - floor_sf can be negative (a deduct pasted onto a different sheet than
 //     its positive area) — returned as-is, never clamped.
 export function sheetTotals(conditions, shapes) {
+  shapes = counted(shapes);
   const bySheet = new Map();        // sheet_id → Map(condition_id → accumulator)
   for (const s of shapes) {
     let conds = bySheet.get(s.sheet_id);
@@ -176,6 +182,7 @@ export function sheetTotals(conditions, shapes) {
 //     sheet all-orphan, mirroring the sheetTotals guard.
 /** @param {{seamByShape?: Map<any, number>}|null} [ctx] passed straight to conditionTotals */
 export function sheetGroupedRows(conditions, shapes, ctx = null) {
+  shapes = counted(shapes);
   const bySheet = new Map();        // sheet_id → that sheet's shapes
   for (const s of shapes) {
     let arr = bySheet.get(s.sheet_id);
@@ -212,6 +219,7 @@ export function sheetGroupedRows(conditions, shapes, ctx = null) {
  * @param {{seamByShape?: Map<any, number>}|null} [ctx] passed straight to conditionTotals
  */
 export function labelGroupedRows(conditions, shapes, shapeLabels = [], ctx = null) {
+  shapes = counted(shapes);
   const byLabel = new Map();        // label value → that bucket's shapes ("" key = Unlabeled)
   for (const s of shapes) {
     const v = shapeLabelValue(s);   // "" when unassigned
@@ -245,6 +253,7 @@ export function labelGroupedRows(conditions, shapes, shapeLabels = [], ctx = nul
  * @param {{seamByShape?: Map<any, number>}|null} [ctx] passed straight to conditionTotals
  */
 export function authorGroupedRows(conditions, shapes, ctx = null) {
+  shapes = counted(shapes);
   const byAuthor = new Map();     // author → that bucket's shapes ("" = Unattributed)
   for (const s of shapes) {
     const v = typeof s.author === "string" && s.author.trim() ? s.author.trim() : "";
@@ -290,6 +299,7 @@ export function authorGroupedRows(conditions, shapes, ctx = null) {
  * @param {{seamByShape?: Map<any, number>}|null} [ctx] passed straight to conditionTotals
  */
 export function sheetLabelGroupedRows(conditions, shapes, shapeLabels = [], ctx = null) {
+  shapes = counted(shapes);
   const bySheet = new Map();
   for (const s of shapes) {
     let arr = bySheet.get(s.sheet_id);
@@ -336,6 +346,7 @@ export function roundSheetRow(r) {
 // floor perimeter includes door openings and shared walls, so this is a
 // read-it-yourself ceiling estimate, not an order quantity.
 export function verticalWallSf(shapes, conditionId, heightFt, multiplier = 1) {
+  shapes = counted(shapes);
   const h = Number(heightFt) || 0;
   if (h <= 0) return 0;
   const perim = shapes
