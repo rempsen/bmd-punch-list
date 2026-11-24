@@ -9,6 +9,7 @@ import {
   checkArrivePingNow,
   connectArrivePingSync,
   disconnectArrivePingSync,
+  pullArrivePingNow,
   testArrivePingSync,
 } from "@/lib/arriveping/arriveping.functions";
 import { errText } from "@/lib/platform/db";
@@ -107,6 +108,18 @@ export function ArrivePingLiveUpdates({
       } else
         toast.success(
           "Test sent — it shows in the sync queue below as “ping” within a few seconds",
+        );
+    });
+  const pullFn = useServerFn(pullArrivePingNow);
+  const pullNow = () =>
+    run("pull", async () => {
+      const r = await pullFn({});
+      if (r.error) {
+        setProblem(r.error);
+        toast.error(r.error);
+      } else
+        toast.success(
+          `Read ${r.read} work order${r.read === 1 ? "" : "s"} from ArrivePing: ${r.visits} added to jobs, ${r.held} waiting under Scheduling → Work orders.`,
         );
     });
   const checkNow = () =>
@@ -242,6 +255,9 @@ export function ArrivePingLiveUpdates({
             aria-hidden
           />
           {busy === "check" ? "Checking…" : "Check now"}
+        </Button>
+        <Button className="h-11" variant="outline" disabled={!!busy} onClick={() => void pullNow()}>
+          {busy === "pull" ? "Pulling…" : "Pull from ArrivePing"}
         </Button>
         {s.connected && (
           <Button

@@ -1051,3 +1051,117 @@ export const checkArrivePingNow = createServerFn({ method: "POST" })
       projectId: data.force ? data.projectId : undefined,
     });
   });
+
+/* ---------- Work orders scheduled in ArrivePing (Scheduling → Work orders → "Unmatched from ArrivePing") ---------- */
+
+const inboxIdInput = (d: { inboxId: string; projectId?: string }) => {
+  if (!d || typeof d.inboxId !== "string" || !d.inboxId.trim()) throw new Error("Invalid request");
+  if (d.projectId !== undefined && (typeof d.projectId !== "string" || !d.projectId.trim())) throw new Error("Invalid request");
+  return { inboxId: d.inboxId.trim(), projectId: d.projectId?.trim() };
+};
+
+async function inboxRow(inboxId: string): Promise<{ id: string; arriveping_job_id: string; status: string; payload: unknown; customer_id: string | null; customer_name: string | null }> {
+  const db = await admin();
+  const { data, error } = await db.from("arriveping_inbox").select("id,arriveping_job_id,status,payload,customer_id,customer_name").eq("id", inboxId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("That work order is no longer waiting");
+  return data;
+}
+
+async function currentUserId(sb: unknown): Promise<string | null> {
+  const { data } = await (sb as { auth: { getUser: () => Promise<{ data: { user: { id: string } | null } }> } }).auth.getUser();
+  return data.user?.id ?? null;
+}
+
+/** Puts a waiting ArrivePing work order on a job as a visit. */
+export const linkInboxWorkOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(inboxIdInput)
+  .handler(async ({ data, context }): Promise<{ ok: true; visitId: string } | { ok: false; error: string }> => {
+    await requireAny(context.supabase as never, "manage_projects");
+    if (!data.projectId) return { ok: false, error: "Choose a job" };
+    const row = await inboxRow(data.inboxId);
+    if (row.status === "linked") return { ok: false, error: "Already on a job" };
+    const { readWorkOrder } = await import("./match");
+    const { createVisitFromWorkOrder } = await import("./import.server");
+    const wo = readWorkOrder(row.payload) ?? readWorkOrder({ ...(row.payload as object), id: row.arriveping_job_id });
+    if (!wo) return { ok: false, error: "The held work order could not be read" };
+    const r = await createVisitFromWorkOrder({ ...wo, id: row.arriveping_job_id }, data.projectId, "manual", await currentUserId(context.supabase));
+    if (r.kind !== "visit" && r.kind !== "exists") return { ok: false, error: r.kind === "error" ? r.error : r.reason };
+    if (r.kind === "exists") {
+      const db = await admin();
+      await db.from("arriveping_inbox").update({ status: "linked", visit_id: r.visitId, updated_at: new Date().toISOString() }).eq("id", row.id);
+    }
+    return { ok: true, visitId: r.visitId };
+  });
+
+/** Sets a waiting work order aside; a later event for it stays ignored. */
+export const ignoreInboxWorkOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(inboxIdInput)
+  .handler(async ({ data, context }): Promise<{ ok: true } | { ok: false; error: string }> => {
+    await requireAny(context.supabase as never, "manage_projects");
+    const db = await admin();
+    const { error } = await db.from("arriveping_inbox").update({ status: "ignored", updated_at: new Date().toISOString() }).eq("id", data.inboxId).eq("status", "unmatched");
+    return error ? { ok: false, error: error.message } : { ok: true };
+  });
+
+/**
+ * Makes a BMD job from a waiting work order, then puts the work order on it. The job goes through the same path as the
+ * new-job wizard (numbering, membership, defaults), as the person asking, and is marked won — scheduled work.
+ */
+export const createJobFromInbox = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(inboxIdInput)
+  .handler(async ({ data, context }): Promise<{ ok: true; projectId: string; visitId: string } | { ok: false; error: string }> => {
+    await requireAny(context.supabase as never, "manage_projects");
+    const row = await inboxRow(data.inboxId);
+    if (row.status === "linked") return { ok: false, error: "Already on a job" };
+    const { readWorkOrder, jobDraftFor } = await import("./match");
+    const { createVisitFromWorkOrder } = await import("./import.server");
+    const wo = readWorkOrder(row.payload);
+    if (!wo) return { ok: false, error: "The held work order could not be read" };
+    const db = await admin();
+
+    // The client: the BMD client linked to the ArrivePing customer, else a new one made from the customer's name.
+    let clientId: string | null = null;
+    if (row.customer_id) {
+      const { data: link } = await db.from("sync_links").select("bmd_id").eq("kind", "client").eq("system", "arriveping").eq("external_id", row.customer_id).maybeSingle();
+      clientId = link?.bmd_id ?? null;
+    }
+    if (!clientId) {
+      const name = row.customer_name?.trim() || wo.title?.trim() || `ArrivePing customer ${row.customer_id ?? row.arriveping_job_id}`;
+      const { data: client, error } = await db.from("clients").insert({ name }).select("id").single();
+      if (error) return { ok: false, error: `Could not create the client: ${error.message}` };
+      clientId = client.id as string;
+      if (row.customer_id)
+        await db.from("sync_links").insert({ kind: "client", bmd_id: clientId, system: "arriveping", external_id: row.customer_id, external_name: name, synced_at: new Date().toISOString() });
+    }
+
+    const payload = row.payload as Record<string, unknown>;
+    const draft = jobDraftFor(wo, (payload["site_address"] ?? payload["address"] ?? null) as Record<string, unknown> | string | null);
+    const sb = context.supabase as never as { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }> };
+    const address = [draft.street, draft.city, draft.province, draft.postal_code].filter(Boolean).join(", ");
+    const created = await sb.rpc("create_pipeline_project", {
+      _p: { ...draft, address, client_id: clientId, bid_due_date: "", job_type: "", estimator_id: "", project_lead_id: "", scopes: [] },
+    });
+    if (created.error) return { ok: false, error: `Could not create the job: ${created.error.message}` };
+    const projectId = created.data as string;
+    const moved = await sb.rpc("move_project_stage", { _project: projectId, _to_stage: "won", _reason: null, _note: `Created from ArrivePing work order ${row.arriveping_job_id}` });
+    if (moved.error) console.error(`ArrivePing inbox: job ${projectId} created but not marked won: ${moved.error.message}`);
+
+    const r = await createVisitFromWorkOrder({ ...wo, id: row.arriveping_job_id }, projectId, "manual", await currentUserId(context.supabase));
+    if (r.kind !== "visit" && r.kind !== "exists") return { ok: false, error: `Job created, but ${r.kind === "error" ? r.error : r.reason}` };
+    await db.from("install_visit_events").insert({ visit_id: r.visitId, project_id: projectId, status: "note", note: `Job created from ArrivePing work order ${row.arriveping_job_id}`, source: "arriveping" });
+    await db.from("arriveping_inbox").update({ status: "linked", project_id: projectId, visit_id: r.visitId, updated_at: new Date().toISOString() }).eq("id", row.id);
+    return { ok: true, projectId, visitId: r.visitId };
+  });
+
+/** "Pull from ArrivePing": reads work orders changed since the last pull and places the ones BMD does not have. */
+export const pullArrivePingNow = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<import("./import.server").PullResult> => {
+    await requireAny(context.supabase as never, "manage_integrations");
+    const { pullWorkOrders } = await import("./import.server");
+    return await pullWorkOrders();
+  });

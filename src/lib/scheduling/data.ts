@@ -11,6 +11,8 @@ export type SchedVisit = Visit & {
   technician_supplier_id: string | null;
   areas: Area[];
   scope: string | null;
+  /** Where the visit began: 'bmd' (scheduled here) or 'arriveping' (scheduled there and brought in). */
+  source: "bmd" | "arriveping";
   project: { id: string; name: string; project_number: string | null } | null;
   tasks: { id: string; done: boolean }[];
 };
@@ -33,7 +35,7 @@ export type VisitTask = {
 };
 
 const COLS =
-  "id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status,assigned_user_id,assigned_name,technician_supplier_id,areas,scope,project:projects(id,name,project_number),tasks:visit_tasks(id,done)";
+  "id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status,assigned_user_id,assigned_name,technician_supplier_id,areas,scope,source,project:projects(id,name,project_number),tasks:visit_tasks(id,done)";
 
 /** BMD field staff, the catalogue's active Labour and Both vendors, and any other crew name ArrivePing has reported on a visit. */
 export function useTechnicians() {

@@ -9,6 +9,7 @@ import {
   type DrawerTarget,
 } from "@/components/scheduling/VisitDrawer";
 import { ArrivePingPill } from "@/components/visits/visit-bits";
+import { ArrivePingInbox, useArrivePingInbox } from "@/components/scheduling/ArrivePingInbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
@@ -115,6 +116,7 @@ function Scheduling() {
     [projects.data],
   );
   const techs = useTechnicians();
+  const inbox = useArrivePingInbox();
   const upcoming = view === "workorders" && !!search.job;
   const visits = useScheduledVisits(monday, { job: search.job, upcoming });
   const week = useMemo(
@@ -217,7 +219,10 @@ function Scheduling() {
             canEdit={canEdit}
           />
         ) : view === "workorders" ? (
-          <WorkOrders visits={week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
+          <>
+            <ArrivePingInbox rows={inbox.data ?? []} jobs={jobs} canEdit={canEdit} />
+            <WorkOrders visits={week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
+          </>
         ) : (
           <Tasks visits={week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
         )}
@@ -303,7 +308,10 @@ function TechGrid({
                         onClick={() => open({ visitId: v.id })}
                         className={`block w-full rounded border px-1.5 py-1 text-left text-xs ${TONE[chipTone(v)]}`}
                       >
-                        <span className="block truncate font-medium">{jobName(v)}</span>
+                        <span className="block truncate font-medium">
+                          {jobName(v)}
+                          {v.source === "arriveping" && <span className="ml-1 text-[10px] font-normal text-muted-foreground">· ArrivePing</span>}
+                        </span>
                         {v.scope && <span className="block truncate">{v.scope}</span>}
                         <span className="block opacity-80">
                           {timeLabel(v.starts_at)}
@@ -410,6 +418,11 @@ function WorkOrders({
                   >
                     {jobName(v)}
                   </Link>
+                  {v.source === "arriveping" && (
+                    <div>
+                      <ArrivePingPill label="From ArrivePing" />
+                    </div>
+                  )}
                 </td>
                 <td className="p-2">{v.scope ?? "—"}</td>
                 <td className="p-2">

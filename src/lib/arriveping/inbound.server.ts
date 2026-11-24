@@ -98,9 +98,19 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
     b["data"] && typeof b["data"] === "object" ? (b["data"] as Record<string, unknown>) : null;
   const typeName = [b["event"], b["type"]].find((v) => typeof v === "string" && v.trim());
   const name = typeof typeName === "string" ? typeName.trim().slice(0, 100) : "unknown";
-  // An integration event about a work order BMD did not send (a service call booked in ArrivePing) is none of BMD's business.
-  if (data && name.startsWith("workorder.") && data["external_source"] !== EXTERNAL_SOURCE)
-    return done({ ok: true, ignored: "not a BMD job" });
+  // A work order BMD did not send (scheduled in ArrivePing itself) is brought in: a visit when it fits a job, else the inbox.
+  if (data && name.startsWith("workorder.") && data["external_source"] !== EXTERNAL_SOURCE) {
+    const jobId = [data["id"], data["work_order_id"], data["job_id"]].find((v) => typeof v === "string" || typeof v === "number");
+    if (jobId == null) return done({ ok: true, ignored: "not a BMD job" });
+    const { importWorkOrderById } = await import("./import.server");
+    const placed = await importWorkOrderById(String(jobId));
+    if (placed.kind === "error") console.error(`ArrivePing webhook: could not import work order ${String(jobId)}: ${placed.error}`);
+    if (placed.kind === "exists" || (placed.kind === "ignored" && placed.reason === "BMD's own work order")) {
+      // Already a visit here (or BMD's own work order after all): fall through so the event updates it like any other.
+    } else {
+      return done({ ok: true, imported: placed.kind, ...(placed.kind === "inbox" ? { reason: placed.reason } : {}) });
+    }
+  }
 
   let rowId: string | null = null;
   try {
@@ -168,7 +178,18 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
     if (!visit && !data && (b["bookingId"] != null || b["booking_id"] != null))
       return done({ ok: true, ignored: "not a BMD job" });
     rowId = await record(visit ?? null, ev.kind === "status" ? ev.status : ev.kind, ev.jobId);
-    if (!visit) return await ignore(rowId, "no matching visit");
+    if (!visit) {
+      // The visit may simply not exist yet: a work order scheduled in ArrivePing that no webhook has introduced.
+      if (ev.jobId && !ev.visitId) {
+        const { importWorkOrderById } = await import("./import.server");
+        const placed = await importWorkOrderById(ev.jobId);
+        if (placed.kind === "visit" || placed.kind === "inbox") {
+          await markAcked(rowId);
+          return done({ ok: true, imported: placed.kind });
+        }
+      }
+      return await ignore(rowId, "no matching visit");
+    }
     // A reschedule BMD itself just sent comes straight back as an event; applying it would only log it twice.
     if (ev.kind === "rescheduled" && isOwnEcho(body, process.env["ARRIVEPING_API_KEY_NAME"]))
       return await ignore(rowId, "own change");
@@ -228,6 +249,7 @@ async function logActivity(
 /** How often an automatic check may run; "Check now" ignores it. */
 export const CHECK_EVERY_MS = 2 * 60_000;
 const MAX_VISITS_PER_CHECK = 40;
+const PULL_EVERY_MS = 10 * 60_000;
 
 export type CheckResult = {
   ran: boolean;
@@ -384,6 +406,18 @@ export async function reconcileVisits(
     }
   }
   const checked = (visits ?? []).length;
+  // Work orders scheduled in ArrivePing itself: pulled with the forced check, and otherwise at most every ten minutes.
+  try {
+    const { data: link } = await db.from("arriveping_link").select("last_pull_at").eq("id", 1).maybeSingle();
+    const lastPull = link?.last_pull_at ? Date.parse(link.last_pull_at) : 0;
+    if (opts.force || now.getTime() - lastPull > PULL_EVERY_MS) {
+      const { pullWorkOrders } = await import("./import.server");
+      const pulled = await pullWorkOrders();
+      if (pulled.error) firstError ??= `Pull from ArrivePing: ${pulled.error}`;
+    }
+  } catch (error) {
+    console.error("ArrivePing check: pull failed:", error);
+  }
   // Visits completed in the last week with no photos on file: a download that failed earlier is retried here, a few at a time.
   try {
     let done = db
@@ -396,7 +430,8 @@ export async function reconcileVisits(
       .limit(25);
     if (opts.projectId) done = done.eq("project_id", opts.projectId);
     const { data: completed } = await done;
-    const bare = ((completed ?? []) as { id: string; project_id: string; arriveping_job_id: string; photos: unknown[] }[]).filter((v) => !v.photos?.length).slice(0, 5);
+    // Shuffled before taking five, so visits that simply have no photos don't keep the same five slots every check.
+    const bare = ((completed ?? []) as { id: string; project_id: string; arriveping_job_id: string; photos: unknown[] }[]).filter((v) => !v.photos?.length).sort(() => Math.random() - 0.5).slice(0, 5);
     for (const v of bare) await copyCompletionPhotos(v, null);
   } catch (error) {
     console.error("ArrivePing check: photo retry failed:", error);
