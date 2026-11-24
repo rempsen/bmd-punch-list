@@ -25,5 +25,14 @@ Bottom: Settings (company), user
 - Technicians are BMD field staff plus crew names ArrivePing has reported on visits; there is no technicians table.
 - One visit per day in the visit drawer (ArrivePing's 24-hour work-order cap); multi-day work is one visit per day. Editing a visit already in ArrivePing does not re-send its time — ArrivePing's reschedule from BMD is not wired yet.
 
+- Installation Progress (release 6) decisions:
+  - Progress is stored per room × scope (`area_progress`), created only when someone changes it; no row means Not started.
+  - Scopes are the job's wizard scopes; otherwise install categories guessed from the base estimate's lines (adhesive, underlay, prep and other excluded); otherwise "flooring".
+  - ArrivePing pre-fill runs on both the webhook and the catch-up check: en route / on site moves Not started rooms to In progress, complete moves them to Complete. It never downgrades and never touches Complete or Not required. The visit's free-text scope is matched to a job scope by key or label; a job with one scope uses it; otherwise nothing is pre-filled.
+  - "Awaiting material" is job-wide: any material line for the job not yet On site blocks every room that still has work left (material lines are not tied to rooms). Shown, never stored.
+  - A room's blocker is one note per room (saved on the job's first scope); Clear removes it from every scope.
+  - Tiles: Ready to install = Not ready rooms (nothing blocking, nothing started); In progress; Blocked. Installed rooms are not counted in a tile.
+  - Editing needs capture_items or manage_projects on the job; viewing needs view_dashboard or view_pipeline.
+
 ## Release order
-1 Sidebar with existing screens · 2 Overview · 3 Estimates & Quotes list · 4 Materials + QuickBooks PO · 5 Scheduling (Technicians, Work orders, Tasks) · 6 Installation Progress · 7 Inspections & Sign-off
+1 Sidebar with existing screens · 2 Overview · 3 Estimates & Quotes list · 4 Materials + QuickBooks PO · 5 Scheduling (Technicians, Work orders, Tasks) · 6 Installation Progress (built) · 7 Inspections & Sign-off

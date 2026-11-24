@@ -439,8 +439,15 @@
     {
       "idx": 62,
       "version": "7",
-      "when": 1795539252924,
-      "tag": "0062_document_text_index",
+      "when": 1795538924403,
+      "tag": "0062_area_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795539420630,
+      "tag": "0063_document_text_index",
       "breakpoints": true
     }
   ]
