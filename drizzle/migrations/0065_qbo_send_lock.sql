@@ -2,22 +2,26 @@
 -- send the same waiting change twice.
 ALTER TABLE public.sync_settings ADD COLUMN IF NOT EXISTS sending_since timestamptz;
 --> statement-breakpoint
--- Takes the run lock: true when this caller may send, false when another run started less than 10 minutes ago.
+ALTER TABLE public.sync_settings ADD COLUMN IF NOT EXISTS sending_token uuid;
+--> statement-breakpoint
+-- Takes the run lock. Returns a token when this caller may send, null when another run started less than 30 minutes
+-- ago. The token is what lets only the owning run release the lock.
 CREATE OR REPLACE FUNCTION public.sync_send_lock()
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE got boolean;
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE tok uuid := gen_random_uuid(); got uuid;
 BEGIN
-  UPDATE public.sync_settings SET sending_since = now()
-   WHERE id = 1 AND (sending_since IS NULL OR sending_since < now() - interval '10 minutes')
-   RETURNING true INTO got;
-  RETURN coalesce(got, false);
+  UPDATE public.sync_settings SET sending_since = now(), sending_token = tok
+   WHERE id = 1 AND (sending_since IS NULL OR sending_since < now() - interval '30 minutes')
+   RETURNING sending_token INTO got;
+  RETURN got;
 END; $$;
 --> statement-breakpoint
-CREATE OR REPLACE FUNCTION public.sync_send_unlock()
+-- Releases the lock only when the caller still owns it, so a run that outlived its lease cannot clear a newer run's lock.
+CREATE OR REPLACE FUNCTION public.sync_send_unlock(_token uuid)
 RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
-  UPDATE public.sync_settings SET sending_since = NULL WHERE id = 1;
+  UPDATE public.sync_settings SET sending_since = NULL, sending_token = NULL WHERE id = 1 AND sending_token = _token;
 $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION public.sync_send_lock() FROM PUBLIC, anon, authenticated;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION public.sync_send_unlock() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.sync_send_unlock(uuid) FROM PUBLIC, anon, authenticated;
