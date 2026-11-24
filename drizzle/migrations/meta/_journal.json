@@ -407,6 +407,13 @@
       "when": 1795537934188,
       "tag": "0056_staff_all_jobs_signin",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1795538116270,
+      "tag": "0057_companycam_tasks_off",
+      "breakpoints": true
     }
   ]
 }
