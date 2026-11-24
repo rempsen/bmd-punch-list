@@ -52,6 +52,16 @@ export function lookupsFor(sb: Sb, opts: { canPrice: boolean }): Lookups {
       const q = str(args["q"]);
       const or = ilike(q, ["name", "manufacturer", "product_line", "sku", "cost_code", "category"]);
       if (!or) throw new Error("q is required");
+      if (!opts.canPrice) {
+        // The catalogue tables are readable only with pricing access; this reads names and units alone.
+        const rows = must(await sb.rpc("search_catalogue_names", { _q: q, _limit: 40 })) as Record<string, unknown>[] | null;
+        const all = rows ?? [];
+        return {
+          materials: all.filter((r) => r["kind"] === "material").map(({ kind: _k, uom: _u, ...r }) => r),
+          labour_rates: all.filter((r) => r["kind"] === "labour").map((r) => ({ id: r["id"], name: r["name"], cost_code: r["cost_code"], uom: r["uom"], active: r["active"] })),
+          note: "Costs are hidden: the asker has no pricing access.",
+        };
+      }
       const mats = must(await sb.from("catalogue_materials").select("id,name,category,manufacturer,product_line,sku,colour,cost_code,purchase_uom,cost_uom,coverage_per_purchase_unit,coverage_uom,unit_cost_cents,price_date,price_source,pst_applies,active,supplier:suppliers(name)").or(or).order("name").limit(25)) as Record<string, unknown>[];
       const lab = must(await sb.from("labour_rates").select("id,name,cost_code,uom,unit_cost_cents,active").or(ilike(q, ["name", "cost_code"])!).order("name").limit(15)) as Record<string, unknown>[];
       const price = (r: Record<string, unknown>) => (opts.canPrice ? { unit_cost: dollars(r["unit_cost_cents"] as number | null), price_date: r["price_date"] ?? null, price_source: r["price_source"] ?? null } : {});

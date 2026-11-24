@@ -16,8 +16,8 @@ const NO_FOLDER = "(no folder)";
 
 /** Company settings → Knowledge: what the assistant knows beyond the records — written memories and uploaded reference files. */
 export function KnowledgePanel() {
-  const { can, canAny, isSuperAdmin } = useAuth();
-  const canWrite = isSuperAdmin || can("manage_settings");
+  const { canAny, isSuperAdmin } = useAuth();
+  const canWrite = isSuperAdmin || canAny("manage_settings");
   const canPrice = isSuperAdmin || canAny("view_pricing");
   const { data: items = [], isLoading, error } = useKnowledge();
   const qc = useQueryClient();
