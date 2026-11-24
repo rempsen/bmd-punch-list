@@ -28,6 +28,10 @@ import {
   Home,
   FileText,
   Package,
+  CalendarClock,
+  ClipboardCheck,
+  ListChecks,
+  Users,
   PackageCheck,
   ShoppingCart,
   Truck,
@@ -40,7 +44,16 @@ import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { cn } from "@/lib/utils";
 
-type NavGroup = "company" | "resources" | "materials" | "job" | "deficiencies" | "post" | "records" | "bottom";
+type NavGroup =
+  | "company"
+  | "resources"
+  | "materials"
+  | "scheduling"
+  | "job"
+  | "deficiencies"
+  | "post"
+  | "records"
+  | "bottom";
 type NavItem = {
   to: string;
   label: string;
@@ -49,14 +62,27 @@ type NavItem = {
   /** Where the item sits in the desktop sidebar. */
   group?: NavGroup;
   /** Settings tab, or a project tab for Billing / Activity. */
-  search?: { tab: string } | { stage: string };
+  search?: { tab: string } | { stage: string } | { view: "technicians" | "workorders" | "tasks" };
   params?: { id: string };
 };
 /** Settings entries share one page, and so do project tabs, so each is lit only when its own tab is open. */
-const isActive = (item: NavItem, pathname: string, tab: string | undefined, stage?: string) => {
-  if (item.search && "stage" in item.search) return pathname.startsWith(item.to) && (stage ?? "on_order") === item.search.stage;
+const isActive = (
+  item: NavItem,
+  pathname: string,
+  tab: string | undefined,
+  stage?: string,
+  view?: string,
+) => {
+  if (item.search && "view" in item.search)
+    return pathname.startsWith(item.to) && (view ?? "technicians") === item.search.view;
+  if (item.search && "stage" in item.search)
+    return pathname.startsWith(item.to) && (stage ?? "on_order") === item.search.stage;
   if (item.params) return pathname === `/projects/${item.params.id}` && tab === item.search?.tab;
-  return pathname.startsWith(item.to) && (!item.search || ("tab" in item.search && settingsGroup(tab) === settingsGroup(item.search.tab)));
+  return (
+    pathname.startsWith(item.to) &&
+    (!item.search ||
+      ("tab" in item.search && settingsGroup(tab) === settingsGroup(item.search.tab)))
+  );
 };
 
 export function useNavItems() {
@@ -66,46 +92,194 @@ export function useNavItems() {
   if (canAny("view_pipeline")) {
     items.push({ to: "/overview", label: "Overview", icon: Home, group: "company" });
     items.push({ to: "/pipeline", label: "Pipeline", icon: Columns3, group: "company" });
-    if (canAny("view_pricing")) items.push({ to: "/estimates", label: "Estimates & Quotes", short: "Quotes", icon: FileText, group: "company" });
+    if (canAny("view_pricing"))
+      items.push({
+        to: "/estimates",
+        label: "Estimates & Quotes",
+        short: "Quotes",
+        icon: FileText,
+        group: "company",
+      });
     items.push({ to: "/projects", label: "Projects", icon: FolderKanban, group: "company" });
-    if (canAny("view_pricing")) items.push({ to: "/catalogue", label: "Catalogue", icon: BookOpen, group: "resources" });
+    if (canAny("view_pricing"))
+      items.push({ to: "/catalogue", label: "Catalogue", icon: BookOpen, group: "resources" });
     items.push({ to: "/clients", label: "Clients", icon: Building2, group: "resources" });
-    items.push({ to: "/materials", label: "Ordering", icon: ShoppingCart, group: "materials", search: { stage: "on_order" } });
-    items.push({ to: "/materials", label: "Receiving", icon: PackageCheck, group: "materials", search: { stage: "received" } });
-    items.push({ to: "/materials", label: "To site", icon: Truck, group: "materials", search: { stage: "on_site" } });
+    items.push({
+      to: "/materials",
+      label: "Ordering",
+      icon: ShoppingCart,
+      group: "materials",
+      search: { stage: "on_order" },
+    });
+    items.push({
+      to: "/materials",
+      label: "Receiving",
+      icon: PackageCheck,
+      group: "materials",
+      search: { stage: "received" },
+    });
+    items.push({
+      to: "/materials",
+      label: "To site",
+      icon: Truck,
+      group: "materials",
+      search: { stage: "on_site" },
+    });
+    items.push({
+      to: "/scheduling",
+      label: "Technicians",
+      icon: Users,
+      group: "scheduling",
+      search: { view: "technicians" },
+    });
+    items.push({
+      to: "/scheduling",
+      label: "Work orders",
+      icon: ClipboardCheck,
+      group: "scheduling",
+      search: { view: "workorders" },
+    });
+    items.push({
+      to: "/scheduling",
+      label: "Tasks",
+      icon: ListChecks,
+      group: "scheduling",
+      search: { view: "tasks" },
+    });
   }
   // Current job: role-specific entries, then job settings.
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench, group: "job" });
-  if (isTrade) items.push({ to: "/trade-portal", label: "Trade portal", short: "Portal", icon: Briefcase, group: "job" });
-  if (role === "bmd_field") items.push({ to: "/trade-portal", label: "My items", short: "Mine", icon: Wrench, group: "job" });
+  if (isTrade)
+    items.push({
+      to: "/trade-portal",
+      label: "Trade portal",
+      short: "Portal",
+      icon: Briefcase,
+      group: "job",
+    });
+  if (role === "bmd_field")
+    items.push({
+      to: "/trade-portal",
+      label: "My items",
+      short: "Mine",
+      icon: Wrench,
+      group: "job",
+    });
   if (can("decide_client_items") && !can("capture_items"))
     items.push({ to: "/decisions", label: "Decisions", icon: ShieldCheck, group: "job" });
-  if (role === "client") items.push({ to: "/client-portal", label: "Client portal", short: "Portal", icon: Briefcase, group: "job" });
+  if (role === "client")
+    items.push({
+      to: "/client-portal",
+      label: "Client portal",
+      short: "Portal",
+      icon: Briefcase,
+      group: "job",
+    });
   if (can("manage_settings") || can("manage_users"))
-    items.push({ to: "/settings", search: { tab: can("manage_settings") ? "project" : "users" }, label: "Job settings", short: "Job", icon: Settings, group: "job" });
+    items.push({
+      to: "/settings",
+      search: { tab: can("manage_settings") ? "project" : "users" },
+      label: "Job settings",
+      short: "Job",
+      icon: Settings,
+      group: "job",
+    });
   // Post-installation.
-  if (can("view_dashboard")) items.push({ to: "/dashboard", label: "Closeout Overview", short: "Overview", icon: BarChart3, group: "post" });
+  if (can("view_dashboard"))
+    items.push({
+      to: "/dashboard",
+      label: "Closeout Overview",
+      short: "Overview",
+      icon: BarChart3,
+      group: "post",
+    });
   if (can("capture_items") || can("edit_any_item"))
     items.push({ to: "/board", label: "Board", icon: KanbanSquare, group: "deficiencies" });
   items.push({ to: "/floors", label: "Floors", icon: Grid3x3, group: "deficiencies" });
   items.push({ to: "/list", label: "List", icon: ClipboardList, group: "deficiencies" });
-  if (can("view_dashboard")) items.push({ to: "/summary", label: "Summary", icon: Sparkles, group: "deficiencies" });
-  if (can("capture_items")) items.push({ to: "/capture", label: "Add a deficiency", short: "Add", icon: Camera, group: "deficiencies" });
+  if (can("view_dashboard"))
+    items.push({ to: "/summary", label: "Summary", icon: Sparkles, group: "deficiencies" });
+  if (can("capture_items"))
+    items.push({
+      to: "/capture",
+      label: "Add a deficiency",
+      short: "Add",
+      icon: Camera,
+      group: "deficiencies",
+    });
   if (can("export_pdf") || can("export_excel"))
     items.push({ to: "/exports", label: "Exports", icon: FileDown, group: "deficiencies" });
-  if (role !== "trade" && role !== "viewer") items.push({ to: "/company-work", label: "Remedial Work", short: "Remedial", icon: Wrench, group: "post" });
+  if (role !== "trade" && role !== "viewer")
+    items.push({
+      to: "/company-work",
+      label: "Remedial Work",
+      short: "Remedial",
+      icon: Wrench,
+      group: "post",
+    });
   if (currentJob && canAny("view_pricing"))
-    items.push({ to: "/projects/$id", params: { id: currentJob.id }, search: { tab: "billing" }, label: "Billing", icon: Receipt, group: "post" });
+    items.push({
+      to: "/projects/$id",
+      params: { id: currentJob.id },
+      search: { tab: "billing" },
+      label: "Billing",
+      icon: Receipt,
+      group: "post",
+    });
   // Job records.
-  if (can("view_documents")) items.push({ to: "/documents", label: "Documents", short: "Docs", icon: FolderOpen, group: "records" });
-  if (role !== "trade" && role !== "viewer") items.push({ to: "/photos", label: "Job photos", short: "Photos", icon: Images, group: "records" });
-  if (can("manage_settings")) items.push({ to: "/email-intake", label: "Email intake", short: "Email", icon: Mail, group: "records" });
+  if (can("view_documents"))
+    items.push({
+      to: "/documents",
+      label: "Documents",
+      short: "Docs",
+      icon: FolderOpen,
+      group: "records",
+    });
+  if (role !== "trade" && role !== "viewer")
+    items.push({
+      to: "/photos",
+      label: "Job photos",
+      short: "Photos",
+      icon: Images,
+      group: "records",
+    });
+  if (can("manage_settings"))
+    items.push({
+      to: "/email-intake",
+      label: "Email intake",
+      short: "Email",
+      icon: Mail,
+      group: "records",
+    });
   if (currentJob && canAny("view_pipeline"))
-    items.push({ to: "/projects/$id", params: { id: currentJob.id }, search: { tab: "activity" }, label: "Activity", icon: History, group: "records" });
+    items.push({
+      to: "/projects/$id",
+      params: { id: currentJob.id },
+      search: { tab: "activity" },
+      label: "Activity",
+      icon: History,
+      group: "records",
+    });
   // Company settings.
-  const companyTab = canAny("send_quotes") ? "quotes" : canAny("manage_integrations") ? "integrations" : isSuperAdmin ? "allusers" : can("manage_settings") ? "projects" : null;
-  if (companyTab) items.push({ to: "/settings", search: { tab: companyTab }, label: "Settings", short: "Company", icon: Settings, group: "bottom" });
+  const companyTab = canAny("send_quotes")
+    ? "quotes"
+    : canAny("manage_integrations")
+      ? "integrations"
+      : isSuperAdmin
+        ? "allusers"
+        : can("manage_settings")
+          ? "projects"
+          : null;
+  if (companyTab)
+    items.push({
+      to: "/settings",
+      search: { tab: companyTab },
+      label: "Settings",
+      short: "Company",
+      icon: Settings,
+      group: "bottom",
+    });
   return items;
 }
 
@@ -113,15 +287,27 @@ const linkCls = (active: boolean, indent = false) =>
   cn(
     "flex items-center gap-3 rounded-md border-l-2 py-2.5 text-sm font-medium transition-colors",
     indent ? "pl-9 pr-3" : "px-3",
-    active ? "border-blush bg-sidebar-accent text-sidebar-accent-foreground" : "border-transparent opacity-80 hover:bg-sidebar-accent/60",
+    active
+      ? "border-blush bg-sidebar-accent text-sidebar-accent-foreground"
+      : "border-transparent opacity-80 hover:bg-sidebar-accent/60",
   );
 
 const SectionLabel = ({ children }: { children: ReactNode }) => (
-  <p className="mt-3 px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">{children}</p>
+  <p className="mt-3 px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide opacity-70">
+    {children}
+  </p>
 );
 
 /** An accordion in the sidebar. Remembers open/closed in this browser and opens itself when one of its pages is showing. */
-function SidebarGroup({ id, label, icon: Icon, storageKey, items, renderItem, activeItem }: {
+function SidebarGroup({
+  id,
+  label,
+  icon: Icon,
+  storageKey,
+  items,
+  renderItem,
+  activeItem,
+}: {
   id: string;
   label: string;
   icon: typeof Camera;
@@ -163,11 +349,20 @@ function SidebarGroup({ id, label, icon: Icon, storageKey, items, renderItem, ac
       >
         <Icon className="h-4 w-4" />
         <span className="min-w-0 flex-1">{label}</span>
-        {!open && activeItem && <span className="truncate text-[11px] font-medium opacity-80">{activeItem.label}</span>}
-        <ChevronRight className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-90")} aria-hidden />
+        {!open && activeItem && (
+          <span className="truncate text-[11px] font-medium opacity-80">{activeItem.label}</span>
+        )}
+        <ChevronRight
+          className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-90")}
+          aria-hidden
+        />
       </button>
       <div id={id}>
-        {open && <div className="ml-5 flex flex-col gap-1 border-l border-sidebar-border pl-1">{items.map((i) => renderItem(i, true))}</div>}
+        {open && (
+          <div className="ml-5 flex flex-col gap-1 border-l border-sidebar-border pl-1">
+            {items.map((i) => renderItem(i, true))}
+          </div>
+        )}
       </div>
     </>
   );
@@ -178,31 +373,37 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { roles, currentJob, jobsLoaded, loading, canCreateJobs } = useAuth();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tabNow = useRouterState({ select: (s) => (s.location.search as { tab?: string }).tab });
-  const stageNow = useRouterState({ select: (s) => (s.location.search as { stage?: string }).stage });
+  const stageNow = useRouterState({
+    select: (s) => (s.location.search as { stage?: string }).stage,
+  });
+  const viewNow = useRouterState({ select: (s) => (s.location.search as { view?: string }).view });
   const of = (g: NavGroup) => nav.filter((i) => i.group === g);
   const company = of("company");
   const resources = of("resources");
   const materials = of("materials");
+  const scheduling = of("scheduling");
   const jobItems = of("job");
   const post = of("post");
   const deficiencies = of("deficiencies");
   const records = of("records");
   const bottom = of("bottom");
-  const activeIn = (list: NavItem[]) => list.find((i) => isActive(i, pathname, tabNow, stageNow));
+  const activeIn = (list: NavItem[]) =>
+    list.find((i) => isActive(i, pathname, tabNow, stageNow, viewNow));
   const navLink = (item: NavItem, indent = false) => (
     <Link
       key={item.label}
       to={item.to}
       {...(item.search ? { search: item.search } : {})}
       {...(item.params ? { params: item.params } : {})}
-      className={linkCls(isActive(item, pathname, tabNow, stageNow), indent)}
+      className={linkCls(isActive(item, pathname, tabNow, stageNow, viewNow), indent)}
     >
       <item.icon className="h-4 w-4" />
       {item.label}
     </Link>
   );
   // Company-wide screens, company settings included, open without a job chosen.
-  if (!loading && jobsLoaded && !currentJob && needsJob(pathname, tabNow)) return <Navigate to="/jobs" replace />;
+  if (!loading && jobsLoaded && !currentJob && needsJob(pathname, tabNow))
+    return <Navigate to="/jobs" replace />;
   const closeout = post.find((i) => i.to === "/dashboard");
   const postRest = post.filter((i) => i !== closeout);
   const showPost = !!currentJob || post.length + deficiencies.length > 0;
@@ -218,13 +419,38 @@ export function AppShell({ children }: { children: ReactNode }) {
               <>
                 <SectionLabel>Workspace · All jobs</SectionLabel>
                 {company.map((i) => navLink(i))}
-                <SidebarGroup id="nav-resources" label="Resources" icon={Boxes} storageKey={NAV_GROUP_KEYS.resources} items={resources} renderItem={navLink} activeItem={activeIn(resources)} />
+                <SidebarGroup
+                  id="nav-resources"
+                  label="Resources"
+                  icon={Boxes}
+                  storageKey={NAV_GROUP_KEYS.resources}
+                  items={resources}
+                  renderItem={navLink}
+                  activeItem={activeIn(resources)}
+                />
               </>
             )}
-            {materials.length > 0 && (
+            {materials.length + scheduling.length > 0 && (
               <>
                 <SectionLabel>Materials &amp; Install</SectionLabel>
-                <SidebarGroup id="nav-materials" label="Materials" icon={Package} storageKey={NAV_GROUP_KEYS.materials} items={materials} renderItem={navLink} activeItem={activeIn(materials)} />
+                <SidebarGroup
+                  id="nav-materials"
+                  label="Materials"
+                  icon={Package}
+                  storageKey={NAV_GROUP_KEYS.materials}
+                  items={materials}
+                  renderItem={navLink}
+                  activeItem={activeIn(materials)}
+                />
+                <SidebarGroup
+                  id="nav-scheduling"
+                  label="Scheduling"
+                  icon={CalendarClock}
+                  storageKey={NAV_GROUP_KEYS.scheduling}
+                  items={scheduling}
+                  renderItem={navLink}
+                  activeItem={activeIn(scheduling)}
+                />
               </>
             )}
             <SectionLabel>Current job</SectionLabel>
@@ -236,11 +462,27 @@ export function AppShell({ children }: { children: ReactNode }) {
               <>
                 <SectionLabel>Post-installation</SectionLabel>
                 {closeout && navLink(closeout)}
-                <SidebarGroup id="nav-deficiencies" label="Deficiencies" icon={ClipboardList} storageKey={NAV_GROUP_KEYS.deficiencies} items={deficiencies} renderItem={navLink} activeItem={activeIn(deficiencies)} />
+                <SidebarGroup
+                  id="nav-deficiencies"
+                  label="Deficiencies"
+                  icon={ClipboardList}
+                  storageKey={NAV_GROUP_KEYS.deficiencies}
+                  items={deficiencies}
+                  renderItem={navLink}
+                  activeItem={activeIn(deficiencies)}
+                />
                 {postRest.map((i) => navLink(i))}
               </>
             )}
-            <SidebarGroup id="nav-records" label="Job Records" icon={FolderOpen} storageKey={NAV_GROUP_KEYS.records} items={records} renderItem={navLink} activeItem={activeIn(records)} />
+            <SidebarGroup
+              id="nav-records"
+              label="Job Records"
+              icon={FolderOpen}
+              storageKey={NAV_GROUP_KEYS.records}
+              items={records}
+              renderItem={navLink}
+              activeItem={activeIn(records)}
+            />
             <div className="mt-auto flex flex-col gap-1 pt-3">
               {canCreateJobs && (
                 <Link to="/new-job" className={linkCls(pathname.startsWith("/new-job"))}>
@@ -265,7 +507,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="flex min-w-0 items-center gap-3">
               <img src="/bmd-logo.png" alt="BMD Materials" className="w-[90px] shrink-0" />
               <div className="min-w-0">
-                <p className="truncate text-xs font-semibold">{currentJob?.name ?? "Choose a job"}</p>
+                <p className="truncate text-xs font-semibold">
+                  {currentJob?.name ?? "Choose a job"}
+                </p>
                 {currentJob?.address && (
                   <p className="truncate text-[11px] text-muted-foreground">{currentJob.address}</p>
                 )}
@@ -283,7 +527,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </header>
 
-          <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">{children}</main>
+          <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
+            {children}
+          </main>
 
           <MobileTabBar pathname={pathname} />
         </div>
@@ -316,7 +562,9 @@ function MobileTabBar({ pathname }: { pathname: string }) {
       to={item.to}
       className={cn(
         "flex min-h-[60px] flex-col items-center justify-center gap-1 text-[11px] font-medium",
-        pathname.startsWith(item.to) ? "border-t-2 border-blush text-primary" : "text-muted-foreground",
+        pathname.startsWith(item.to)
+          ? "border-t-2 border-blush text-primary"
+          : "text-muted-foreground",
       )}
     >
       <item.icon className="h-5 w-5" />
@@ -347,7 +595,12 @@ function MobileTabBar({ pathname }: { pathname: string }) {
               >
                 <centre.icon className="h-8 w-8" strokeWidth={centre.label === "Add" ? 3 : 2.25} />
               </span>
-              <span className={cn("text-[11px] font-semibold", active ? "text-primary" : "text-foreground")}>
+              <span
+                className={cn(
+                  "text-[11px] font-semibold",
+                  active ? "text-primary" : "text-foreground",
+                )}
+              >
                 {centre.label}
               </span>
             </Link>
@@ -364,10 +617,15 @@ function JobBadge() {
   const { currentJob } = useAuth();
   return (
     <div className="rounded-md border border-sidebar-border bg-card px-2.5 py-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Current job</p>
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Current job
+      </p>
       <p className="text-sm font-semibold leading-tight">{currentJob?.name ?? "None selected"}</p>
       {currentJob?.address && <p className="text-xs text-muted-foreground">{currentJob.address}</p>}
-      <Link to="/jobs" className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+      <Link
+        to="/jobs"
+        className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+      >
         <ArrowLeftRight className="h-3 w-3" /> Switch job
       </Link>
     </div>

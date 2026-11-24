@@ -2,6 +2,7 @@
 export const NAV_GROUP_KEYS = {
   resources: "bmd:nav:resources",
   materials: "bmd:nav:materials",
+  scheduling: "bmd:nav:scheduling",
   deficiencies: "bmd:nav:deficiencies",
   records: "bmd:nav:records",
 } as const;

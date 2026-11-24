@@ -21,6 +21,9 @@ Bottom: Settings (company), user
 - Scheduling in BMD creates install visits/work orders and assigns technicians through ArrivePing; ArrivePing remains the system that runs the day.
 - Materials (release 4): order lines are seeded by a database trigger when a project enters Won (accepted quote's version, else the base estimate), and appended by a trigger when a change order is accepted (`change_order_seed_materials`). Only required material components are seeded. QuickBooks POs are created and emailed from the Ordering tab, one supplier at a time, not automatically on Won.
 - Takeoff, Estimate, Quotes, Billing remain tabs inside a project; the sidebar links into them for the current job.
+- Scheduling (release 5): a visit carries a technician (a BMD field person, or a typed name for a subcontractor), a scope, the rooms it covers and a task checklist. ArrivePing's API takes work-order create and cancel from BMD but no assignment, so a technician change is stored in BMD, queued in the sync outbox (kind `arriveping_assignment`) and shown as "Pending in ArrivePing" until ArrivePing reports the same person as assigned.
+- Technicians are BMD field staff plus crew names ArrivePing has reported on visits; there is no technicians table.
+- One visit per day in the visit drawer (ArrivePing's 24-hour work-order cap); multi-day work is one visit per day. Editing a visit already in ArrivePing does not re-send its time — ArrivePing's reschedule from BMD is not wired yet.
 
 ## Release order
-1 Sidebar with existing screens · 2 Overview · 3 Estimates & Quotes list · 4 Materials & Deliveries + QuickBooks PO · 5 Installation Progress · 6 Schedule & Crews · 7 Inspections & Sign-off
+1 Sidebar with existing screens · 2 Overview · 3 Estimates & Quotes list · 4 Materials + QuickBooks PO · 5 Scheduling (Technicians, Work orders, Tasks) · 6 Installation Progress · 7 Inspections & Sign-off

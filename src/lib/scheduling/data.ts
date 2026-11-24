@@ -12,7 +12,17 @@ export type SchedVisit = Visit & {
   project: { id: string; name: string; project_number: string | null } | null;
   tasks: { id: string; done: boolean }[];
 };
-export type VisitTask = { id: string; visit_id: string; project_id: string; title: string; details: string | null; done: boolean; done_at: string | null; done_by: string | null; sort: number };
+export type VisitTask = {
+  id: string;
+  visit_id: string;
+  project_id: string;
+  title: string;
+  details: string | null;
+  done: boolean;
+  done_at: string | null;
+  done_by: string | null;
+  sort: number;
+};
 
 const COLS =
   "id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status,assigned_user_id,assigned_name,areas,scope,project:projects(id,name,project_number),tasks:visit_tasks(id,done)";
@@ -25,11 +35,21 @@ export function useTechnicians() {
     queryFn: async (): Promise<Technician[]> => {
       const [staff, ap] = await Promise.all([
         db.rpc("bmd_technicians"),
-        db.from("install_visits").select("arriveping_assigned_to").not("arriveping_assigned_to", "is", null).order("starts_at", { ascending: false }).limit(500),
+        db
+          .from("install_visits")
+          .select("arriveping_assigned_to")
+          .not("arriveping_assigned_to", "is", null)
+          .order("starts_at", { ascending: false })
+          .limit(500),
       ]);
       if (staff.error) throw staff.error;
       if (ap.error) throw ap.error;
-      return mergeTechnicians((staff.data ?? []) as never, ((ap.data ?? []) as { arriveping_assigned_to: string | null }[]).map((r) => r.arriveping_assigned_to));
+      return mergeTechnicians(
+        (staff.data ?? []) as never,
+        ((ap.data ?? []) as { arriveping_assigned_to: string | null }[]).map(
+          (r) => r.arriveping_assigned_to,
+        ),
+      );
     },
   });
 }
@@ -38,11 +58,17 @@ export function useTechnicians() {
  * Visits for the Scheduling screens. A week (starting Monday) reads a day either side so visits spanning midnight in Winnipeg are kept;
  * with a job and `upcoming`, every visit for that job from the week's Monday on.
  */
-export function useScheduledVisits(monday: string, opts: { job?: string | undefined; upcoming?: boolean } = {}) {
+export function useScheduledVisits(
+  monday: string,
+  opts: { job?: string | undefined; upcoming?: boolean } = {},
+) {
   return useQuery({
     queryKey: ["sched-visits", monday, opts.job ?? null, !!opts.upcoming],
     queryFn: async () => {
-      let q = db.from("install_visits").select(COLS).gte("starts_at", `${shiftWeek(monday, -1)}T00:00:00Z`);
+      let q = db
+        .from("install_visits")
+        .select(COLS)
+        .gte("starts_at", `${shiftWeek(monday, -1)}T00:00:00Z`);
       if (!(opts.upcoming && opts.job)) q = q.lt("starts_at", `${shiftWeek(monday, 1)}T12:00:00Z`);
       if (opts.job) q = q.eq("project_id", opts.job);
       const { data, error } = await q.order("starts_at");
@@ -70,14 +96,24 @@ export function useVisitTasks(visitIds: string[]) {
     queryKey: ["visit-tasks", key],
     enabled: visitIds.length > 0,
     queryFn: async () => {
-      const { data, error } = await db.from("visit_tasks").select("id,visit_id,project_id,title,details,done,done_at,done_by,sort").in("visit_id", visitIds).order("sort").order("created_at");
+      const { data, error } = await db
+        .from("visit_tasks")
+        .select("id,visit_id,project_id,title,details,done,done_at,done_by,sort")
+        .in("visit_id", visitIds)
+        .order("sort")
+        .order("created_at");
       if (error) throw error;
       return (data ?? []) as VisitTask[];
     },
   });
 }
 
-export type JobFloor = { id: string; label: string; sort_order: number; rooms: { id: string; floor_id: string; name: string; sort_order: number }[] };
+export type JobFloor = {
+  id: string;
+  label: string;
+  sort_order: number;
+  rooms: { id: string; floor_id: string; name: string; sort_order: number }[];
+};
 
 /** A job's floors with their rooms and common areas, in building order. */
 export function useJobAreas(projectId: string | null | undefined) {
@@ -86,9 +122,20 @@ export function useJobAreas(projectId: string | null | undefined) {
     enabled: !!projectId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data, error } = await db.from("floors").select("id,label,sort_order,rooms:locations(id,floor_id,name,sort_order)").eq("project_id", projectId!).order("sort_order");
+      const { data, error } = await db
+        .from("floors")
+        .select("id,label,sort_order,rooms:locations(id,floor_id,name,sort_order)")
+        .eq("project_id", projectId!)
+        .order("sort_order");
       if (error) throw error;
-      return ((data ?? []) as JobFloor[]).map((f) => ({ ...f, rooms: [...f.rooms].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, undefined, { numeric: true })) }));
+      return ((data ?? []) as JobFloor[]).map((f) => ({
+        ...f,
+        rooms: [...f.rooms].sort(
+          (a, b) =>
+            a.sort_order - b.sort_order ||
+            a.name.localeCompare(b.name, undefined, { numeric: true }),
+        ),
+      }));
     },
   });
 }
@@ -97,6 +144,14 @@ export function useJobAreas(projectId: string | null | undefined) {
 export function useRefreshSchedule() {
   const qc = useQueryClient();
   return () => {
-    for (const k of ["sched-visits", "sched-visit", "visit-tasks", "visits", "visit-events", "technicians"]) void qc.invalidateQueries({ queryKey: [k] });
+    for (const k of [
+      "sched-visits",
+      "sched-visit",
+      "visit-tasks",
+      "visits",
+      "visit-events",
+      "technicians",
+    ])
+      void qc.invalidateQueries({ queryKey: [k] });
   };
 }

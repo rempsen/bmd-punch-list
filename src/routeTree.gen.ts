@@ -37,6 +37,7 @@ import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedOverviewRouteImport } from './routes/_authenticated/overview'
 import { Route as AuthenticatedPhotosRouteImport } from './routes/_authenticated/photos'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
+import { Route as AuthenticatedSchedulingRouteImport } from './routes/_authenticated/scheduling'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
@@ -196,6 +197,11 @@ const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
   path: '/pipeline',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSchedulingRoute = AuthenticatedSchedulingRouteImport.update({
+  id: '/scheduling',
+  path: '/scheduling',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -305,6 +311,7 @@ export interface FileRoutesByFullPath {
   '/overview': typeof AuthenticatedOverviewRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
+  '/scheduling': typeof AuthenticatedSchedulingRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
@@ -349,6 +356,7 @@ export interface FileRoutesByTo {
   '/overview': typeof AuthenticatedOverviewRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
+  '/scheduling': typeof AuthenticatedSchedulingRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
@@ -395,6 +403,7 @@ export interface FileRoutesById {
   '/_authenticated/overview': typeof AuthenticatedOverviewRoute
   '/_authenticated/photos': typeof AuthenticatedPhotosRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
+  '/_authenticated/scheduling': typeof AuthenticatedSchedulingRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
@@ -441,6 +450,7 @@ export interface FileRouteTypes {
     | '/overview'
     | '/photos'
     | '/pipeline'
+    | '/scheduling'
     | '/settings'
     | '/summary'
     | '/trade-portal'
@@ -485,6 +495,7 @@ export interface FileRouteTypes {
     | '/overview'
     | '/photos'
     | '/pipeline'
+    | '/scheduling'
     | '/settings'
     | '/summary'
     | '/trade-portal'
@@ -530,6 +541,7 @@ export interface FileRouteTypes {
     | '/_authenticated/overview'
     | '/_authenticated/photos'
     | '/_authenticated/pipeline'
+    | '/_authenticated/scheduling'
     | '/_authenticated/settings'
     | '/_authenticated/summary'
     | '/_authenticated/trade-portal'
@@ -761,6 +773,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPipelineRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/scheduling': {
+      id: '/_authenticated/scheduling'
+      path: '/scheduling'
+      fullPath: '/scheduling'
+      preLoaderRoute: typeof AuthenticatedSchedulingRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
@@ -893,6 +912,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOverviewRoute: typeof AuthenticatedOverviewRoute
   AuthenticatedPhotosRoute: typeof AuthenticatedPhotosRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
+  AuthenticatedSchedulingRoute: typeof AuthenticatedSchedulingRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSummaryRoute: typeof AuthenticatedSummaryRoute
   AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
@@ -926,6 +946,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOverviewRoute: AuthenticatedOverviewRoute,
   AuthenticatedPhotosRoute: AuthenticatedPhotosRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
+  AuthenticatedSchedulingRoute: AuthenticatedSchedulingRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSummaryRoute: AuthenticatedSummaryRoute,
   AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
