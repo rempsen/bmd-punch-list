@@ -79,3 +79,47 @@ export function planClientImport(parsed: ParsedClient[], existing: ExistingClien
   const inserts = parsed.filter((p) => !have.has(key(p.name)));
   return { inserts, unchanged: parsed.length - inserts.length };
 }
+
+// ── From the QuickBooks connection (staged Customer records) ────────────────────────────────────────────────────
+export type StagedClient = { external_id: string; name: string; data: { email?: string | null; phone?: string | null; billing_address?: string | null; contact_name?: string | null; active?: boolean } };
+export type QboClientPlan = {
+  /** New clients to create, each carrying its QuickBooks customer id. */
+  inserts: (ParsedClient & { qboId: string })[];
+  /** BMD clients with the same name and no QuickBooks id yet: link them, change nothing else. */
+  links: { id: string; name: string; qboId: string }[];
+  /** Already linked to this QuickBooks customer. */
+  unchanged: number;
+  /** Inactive in QuickBooks and unknown to BMD: left out. */
+  skippedInactive: number;
+};
+
+/**
+ * What importing the staged QuickBooks customers would do. BMD is the centre of truth: a client BMD already has keeps
+ * every field it has; only the QuickBooks id is attached. Nothing is ever removed.
+ */
+export function planQboClientImport(staged: StagedClient[], existing: ExistingClient[]): QboClientPlan {
+  const byQbo = new Map(existing.filter((c) => c.qbo_customer_id).map((c) => [c.qbo_customer_id!, c]));
+  const byName = new Map(existing.map((c) => [key(c.name), c]));
+  const plan: QboClientPlan = { inserts: [], links: [], unchanged: 0, skippedInactive: 0 };
+  const seen = new Set<string>();
+  for (const s of staged) {
+    if (!s.external_id || !s.name || seen.has(key(s.name))) continue;
+    seen.add(key(s.name));
+    if (byQbo.has(s.external_id)) {
+      plan.unchanged++;
+      continue;
+    }
+    const same = byName.get(key(s.name));
+    if (same) {
+      if (same.qbo_customer_id) plan.unchanged++;
+      else plan.links.push({ id: same.id, name: same.name, qboId: s.external_id });
+      continue;
+    }
+    if (s.data.active === false) {
+      plan.skippedInactive++;
+      continue;
+    }
+    plan.inserts.push({ name: s.name, email: s.data.email ?? null, phone: s.data.phone ?? null, billingAddress: s.data.billing_address ?? null, contactName: s.data.contact_name ?? null, qboId: s.external_id });
+  }
+  return plan;
+}

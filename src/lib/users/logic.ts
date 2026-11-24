@@ -98,3 +98,14 @@ export function validateInvite(i: InviteInput): { ok: true; value: InviteValue }
   if (!i.allJobs && i.level !== "super_admin" && i.jobs.length === 0) return { ok: false, why: "Choose at least one job, or give access to all jobs" };
   return { ok: true, value: { ...i, email, fullName: i.fullName.trim(), company: i.company.trim() || null } };
 }
+
+/** BMD staff levels: the people who work every job. Trades, clients and viewers are invited job by job. */
+export const STAFF_LEVELS: readonly AppRole[] = ["super_admin", "bmd_manager", "bmd_field"];
+export const isStaffLevel = (level: AppRole) => STAFF_LEVELS.includes(level);
+
+/**
+ * Dan's rule (24 Nov 2026, "until further notice"): while the user base is small, every BMD staff member is on every
+ * job, new ones included. Trades and clients still get only the jobs they are picked for. An admin can still switch a
+ * person to selected jobs after this default is applied.
+ */
+export const defaultAllJobs = (level: AppRole) => isStaffLevel(level);

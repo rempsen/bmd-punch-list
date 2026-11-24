@@ -158,12 +158,15 @@ DO $$ BEGIN ASSERT NOT public.user_has_capability('00000000-0000-0000-0000-00000
 SELECT public.admin_set_status(:mgr, 'active');
 
 -- Supabase rejects DELETE/UPDATE with no WHERE (safeupdate), so no function may contain one.
-DO $$ BEGIN
-  ASSERT NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace
-                      AND prosrc ~* '(delete\s+from|update)\s+[a-z_."]+(\s+set\s[^;]*?)?\s*;' AND prosrc !~* 'where'),
-    'a function has DELETE/UPDATE with no WHERE';
-  ASSERT NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND prosrc ~* 'delete\s+from\s+[a-z_."]+\s*;'),
-    'a function has DELETE with no WHERE';
+-- Checked statement by statement; an upsert's ON CONFLICT … DO UPDATE is not a bare UPDATE.
+DO $$ DECLARE bad text; BEGIN
+  SELECT string_agg(DISTINCT p.proname, ', ') INTO bad
+    FROM pg_proc p, LATERAL regexp_split_to_table(p.prosrc, ';') AS stmt
+   WHERE p.pronamespace = 'public'::regnamespace
+     AND stmt ~* '\m(delete\s+from|update)\s+[a-z_."]+'
+     AND stmt !~* '\mdo\s+update\M'
+     AND stmt !~* '\mwhere\M';
+  ASSERT bad IS NULL, format('DELETE/UPDATE with no WHERE in: %s', bad);
 END $$;
 
 SELECT 'user-admin SQL tests passed' AS result;
