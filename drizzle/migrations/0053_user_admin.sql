@@ -657,3 +657,20 @@ GRANT EXECUTE ON FUNCTION public.admin_invite(text, text, text, public.app_role,
 REVOKE ALL ON FUNCTION public.admin_cancel_invite(uuid) FROM PUBLIC, anon;
 --> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.admin_cancel_invite(uuid) TO authenticated;
+--> statement-breakpoint
+-- The same rule as has_capability, for one named person; for server code that has no session (OAuth callbacks).
+CREATE OR REPLACE FUNCTION public.user_has_capability(_user uuid, _capability text)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT public.is_super_admin(_user) OR (public.is_active(_user) AND EXISTS (
+    SELECT 1 FROM public.role_permissions rp
+     WHERE rp.capability = _capability AND rp.allowed AND rp.role IN (
+       SELECT CASE WHEN m.role_source = 'level' THEN coalesce(a.level, m.role) ELSE m.role END
+         FROM public.project_members m LEFT JOIN public.user_access a ON a.user_id = m.user_id
+        WHERE m.user_id = _user
+       UNION ALL
+       SELECT a.level FROM public.user_access a WHERE a.user_id = _user AND a.all_jobs)));
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.user_has_capability(uuid, text) FROM PUBLIC, anon, authenticated;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.user_has_capability(uuid, text) TO service_role;

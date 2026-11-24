@@ -145,4 +145,16 @@ DO $$ BEGIN
   ASSERT (SELECT role_source FROM project_members WHERE user_id = '00000000-0000-0000-0000-0000000000a1' AND project_id = '10000000-0000-0000-0000-000000000003') = 'level', 'assignment follows level';
 END $$;
 
+-- Server-side permission checks (no session) follow the same rule.
+INSERT INTO role_permissions (role, capability) VALUES ('bmd_manager','manage_integrations');
+DO $$ BEGIN
+  ASSERT public.user_has_capability('00000000-0000-0000-0000-0000000000a1', 'manage_integrations'), 'all-jobs manager may manage integrations';
+  ASSERT NOT public.user_has_capability('00000000-0000-0000-0000-0000000000e1', 'manage_integrations'), 'client may not';
+  ASSERT public.user_has_capability('00000000-0000-0000-0000-0000000000d1', 'anything'), 'super admin may';
+END $$;
+SELECT pg_temp.as_user(:dan);
+SELECT public.admin_set_status(:mgr, 'deactivated');
+DO $$ BEGIN ASSERT NOT public.user_has_capability('00000000-0000-0000-0000-0000000000a1', 'manage_integrations'), 'deactivated may not'; END $$;
+SELECT public.admin_set_status(:mgr, 'active');
+
 SELECT 'user-admin SQL tests passed' AS result;

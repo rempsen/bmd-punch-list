@@ -3482,6 +3482,7 @@ export type Database = {
         Args: { _user: string }
         Returns: { project_id: string; name: string; archived_at: string | null; role: Database["public"]["Enums"]["app_role"]; source: string }[]
       }
+      user_has_capability: { Args: { _user: string; _capability: string }; Returns: boolean }
       admin_user_log: {
         Args: { _user: string }
         Returns: { at: string; actor_name: string; action: string; detail: Json }[]
