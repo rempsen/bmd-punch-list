@@ -32,6 +32,7 @@ import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/l
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
 import { Route as AuthenticatedMyWorkRouteImport } from './routes/_authenticated/my-work'
 import { Route as AuthenticatedNewJobRouteImport } from './routes/_authenticated/new-job'
+import { Route as AuthenticatedOverviewRouteImport } from './routes/_authenticated/overview'
 import { Route as AuthenticatedPhotosRouteImport } from './routes/_authenticated/photos'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -168,6 +169,11 @@ const AuthenticatedNewJobRoute = AuthenticatedNewJobRouteImport.update({
   path: '/new-job',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedOverviewRoute = AuthenticatedOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPhotosRoute = AuthenticatedPhotosRouteImport.update({
   id: '/photos',
   path: '/photos',
@@ -282,6 +288,7 @@ export interface FileRoutesByFullPath {
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -323,6 +330,7 @@ export interface FileRoutesByTo {
   '/more': typeof AuthenticatedMoreRoute
   '/my-work': typeof AuthenticatedMyWorkRoute
   '/new-job': typeof AuthenticatedNewJobRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/photos': typeof AuthenticatedPhotosRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -366,6 +374,7 @@ export interface FileRoutesById {
   '/_authenticated/more': typeof AuthenticatedMoreRoute
   '/_authenticated/my-work': typeof AuthenticatedMyWorkRoute
   '/_authenticated/new-job': typeof AuthenticatedNewJobRoute
+  '/_authenticated/overview': typeof AuthenticatedOverviewRoute
   '/_authenticated/photos': typeof AuthenticatedPhotosRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -409,6 +418,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/my-work'
     | '/new-job'
+    | '/overview'
     | '/photos'
     | '/pipeline'
     | '/settings'
@@ -450,6 +460,7 @@ export interface FileRouteTypes {
     | '/more'
     | '/my-work'
     | '/new-job'
+    | '/overview'
     | '/photos'
     | '/pipeline'
     | '/settings'
@@ -492,6 +503,7 @@ export interface FileRouteTypes {
     | '/_authenticated/more'
     | '/_authenticated/my-work'
     | '/_authenticated/new-job'
+    | '/_authenticated/overview'
     | '/_authenticated/photos'
     | '/_authenticated/pipeline'
     | '/_authenticated/settings'
@@ -690,6 +702,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedNewJobRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/overview': {
+      id: '/_authenticated/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof AuthenticatedOverviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/photos': {
       id: '/_authenticated/photos'
       path: '/photos'
@@ -831,6 +850,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
   AuthenticatedMyWorkRoute: typeof AuthenticatedMyWorkRoute
   AuthenticatedNewJobRoute: typeof AuthenticatedNewJobRoute
+  AuthenticatedOverviewRoute: typeof AuthenticatedOverviewRoute
   AuthenticatedPhotosRoute: typeof AuthenticatedPhotosRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -861,6 +881,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,
   AuthenticatedMyWorkRoute: AuthenticatedMyWorkRoute,
   AuthenticatedNewJobRoute: AuthenticatedNewJobRoute,
+  AuthenticatedOverviewRoute: AuthenticatedOverviewRoute,
   AuthenticatedPhotosRoute: AuthenticatedPhotosRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
