@@ -61,6 +61,42 @@ export type Database = {
           },
         ]
       }
+      arriveping_link: {
+        Row: {
+          connected_at: string | null
+          connected_by: string | null
+          events: string | null
+          id: number
+          last_check_at: string | null
+          last_check_error: string | null
+          secret_enc: string | null
+          subscription_id: string | null
+          webhook_url: string | null
+        }
+        Insert: {
+          connected_at?: string | null
+          connected_by?: string | null
+          events?: string | null
+          id?: number
+          last_check_at?: string | null
+          last_check_error?: string | null
+          secret_enc?: string | null
+          subscription_id?: string | null
+          webhook_url?: string | null
+        }
+        Update: {
+          connected_at?: string | null
+          connected_by?: string | null
+          events?: string | null
+          id?: number
+          last_check_at?: string | null
+          last_check_error?: string | null
+          secret_enc?: string | null
+          subscription_id?: string | null
+          webhook_url?: string | null
+        }
+        Relationships: []
+      }
       assembly_template_components: {
         Row: {
           catalogue_material_id: string | null
@@ -204,6 +240,7 @@ export type Database = {
           sku: string | null
           supplier_id: string | null
           unit_cost_cents: number | null
+          uom_confirmed: boolean
           updated_at: string
         }
         Insert: {
@@ -228,6 +265,7 @@ export type Database = {
           sku?: string | null
           supplier_id?: string | null
           unit_cost_cents?: number | null
+          uom_confirmed?: boolean
           updated_at?: string
         }
         Update: {
@@ -252,6 +290,7 @@ export type Database = {
           sku?: string | null
           supplier_id?: string | null
           unit_cost_cents?: number | null
+          uom_confirmed?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -1457,6 +1496,7 @@ export type Database = {
           name: string
           unit_cost_cents: number | null
           uom: string
+          uom_confirmed: boolean
         }
         Insert: {
           active?: boolean
@@ -1466,6 +1506,7 @@ export type Database = {
           name: string
           unit_cost_cents?: number | null
           uom?: string
+          uom_confirmed?: boolean
         }
         Update: {
           active?: boolean
@@ -1475,6 +1516,7 @@ export type Database = {
           name?: string
           unit_cost_cents?: number | null
           uom?: string
+          uom_confirmed?: boolean
         }
         Relationships: [
           {
@@ -2534,6 +2576,7 @@ export type Database = {
           display: Json | null
           document_id: string | null
           drawing_sheet_ids: string[]
+          drawing_sheets: string[]
           exclusions: string[]
           id: string
           inclusions: string[]
@@ -2569,6 +2612,7 @@ export type Database = {
           display?: Json | null
           document_id?: string | null
           drawing_sheet_ids?: string[]
+          drawing_sheets?: string[]
           exclusions?: string[]
           id?: string
           inclusions?: string[]
@@ -2604,6 +2648,7 @@ export type Database = {
           display?: Json | null
           document_id?: string | null
           drawing_sheet_ids?: string[]
+          drawing_sheets?: string[]
           exclusions?: string[]
           id?: string
           inclusions?: string[]
@@ -2720,7 +2765,6 @@ export type Database = {
           name: string
           notes: string | null
           phone: string | null
-          supplies: string
         }
         Insert: {
           account_number?: string | null
@@ -2732,7 +2776,6 @@ export type Database = {
           name: string
           notes?: string | null
           phone?: string | null
-          supplies?: string
         }
         Update: {
           account_number?: string | null
@@ -2744,7 +2787,6 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string | null
-          supplies?: string
         }
         Relationships: []
       }
@@ -3219,6 +3261,35 @@ export type Database = {
           },
         ]
       }
+      takeoff_sheet_labels: {
+        Row: {
+          label: string
+          project_id: string
+          sheet_key: string
+          updated_at: string
+        }
+        Insert: {
+          label: string
+          project_id: string
+          sheet_key: string
+          updated_at?: string
+        }
+        Update: {
+          label?: string
+          project_id?: string
+          sheet_key?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "takeoff_sheet_labels_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tax_settings: {
         Row: {
           gst_pct: number
@@ -3578,6 +3649,10 @@ export type Database = {
       setup_project_site: {
         Args: { _job: Json; _project: string }
         Returns: undefined
+      }
+      sync_import_apply: {
+        Args: { _actions: Json; _system: string }
+        Returns: Json
       }
       sync_mark_reviewed: { Args: { _id: string }; Returns: undefined }
     }
