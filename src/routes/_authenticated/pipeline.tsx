@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { useClients } from "@/lib/clients/data";
+import { useOpenBookJobs } from "@/lib/billing/data";
 import { stageValueText } from "@/lib/billing/openBook";
 import { errText } from "@/lib/platform/db";
 import {
@@ -52,7 +53,8 @@ function PipelinePage() {
   const setF = (p: Partial<Filters>) => setFilters((f) => ({ ...f, ...p }));
 
   const shown = useMemo(() => applyFilters(projects, filters), [projects, filters]);
-  const summary = useMemo(() => columnSummary(shown), [shown]);
+  const openBookJobs = useOpenBookJobs();
+  const summary = useMemo(() => columnSummary(shown, new Set(openBookJobs.data?.keys() ?? [])), [shown, openBookJobs.data]);
   const rate = useMemo(() => winRate(shown, period), [shown, period]);
   const clientsInUse = useMemo(() => clients.filter((c) => projects.some((p) => p.client_id === c.id)), [clients, projects]);
   const filtered = JSON.stringify(filters) !== JSON.stringify(NO_FILTERS);
@@ -225,7 +227,6 @@ function Board({
 }) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<ProjectStage | null>(null);
-  const openBook = useOpenBookValue();
 
   return (
     <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 md:mx-0 md:px-0">
@@ -260,7 +261,7 @@ function Board({
                 <span className="text-xs tabular-nums text-muted-foreground">{t.count}</span>
               </div>
               <p className="text-xs tabular-nums text-muted-foreground">
-                {stageValueText(t, cards.filter((p) => openBook(p.id)).map((p) => p.estimated_value_cents), money)}
+                {stageValueText({ count: t.count, valueCents: t.valueCents, unvalued: t.unvalued + t.openBook }, Array<null>(t.openBook).fill(null), money)}
               </p>
             </header>
             <ul className="flex min-h-24 flex-1 flex-col gap-2 p-2">

@@ -19,8 +19,7 @@ import {
   toolsToCopy,
   weatherLine,
   winnipegDate,
-  type MaterialRaw,
-} from "./logic";
+  type MaterialRaw, openRequestsByJob } from "./logic";
 
 const log = (o: Partial<{ id: string; author_id: string; log_date: string }>) => ({ id: "l1", author_id: "me", log_date: "2026-11-24", ...o });
 
@@ -188,5 +187,20 @@ describe("weather on a log", () => {
     expect(weatherLine({ weather_status: "unavailable", weather_conditions: null, temp_now_c: null, temp_high_c: null, temp_low_c: null })).toBe("Weather unavailable");
     expect(weatherLine({ weather_status: "pending", weather_conditions: null, temp_now_c: null, temp_high_c: null, temp_low_c: null })).toBe("Weather unavailable");
     expect(weatherLine({ weather_status: "ok", weather_conditions: null, temp_now_c: null, temp_high_c: null, temp_low_c: null })).toBe("Weather unavailable");
+  });
+});
+
+describe("open requests across every job", () => {
+  const r = (project_id: string, status: string, needed_by: string | null) => ({ project_id, status, needed_by }) as never;
+  test("one line per job with its open count and the soonest date, most urgent job first", () => {
+    const rows = [r("a", "open", null), r("a", "ordered", "2026-12-04"), r("a", "done", "2026-11-01"), r("b", "on_its_way", "2026-11-28"), r("c", "cant_do", null), r("d", "open", null)];
+    expect(openRequestsByJob(rows, { a: "Hyatt L4", b: "Kildonan School", d: "Shop" })).toEqual([
+      { projectId: "b", name: "Kildonan School", count: 1, soonest: "2026-11-28" },
+      { projectId: "a", name: "Hyatt L4", count: 2, soonest: "2026-12-04" },
+      { projectId: "d", name: "Shop", count: 1, soonest: null },
+    ]);
+  });
+  test("a job whose name is not known still shows", () => {
+    expect(openRequestsByJob([r("x", "open", null)], {})).toEqual([{ projectId: "x", name: "Job", count: 1, soonest: null }]);
   });
 });

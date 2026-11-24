@@ -177,3 +177,16 @@ export function toolsToCopy(standard: ToolRef[], existing: ToolRef[]): ToolRef[]
   }
   return out;
 }
+
+/** Open requests across every job, one line per job: the job whose need is soonest first, jobs with no date last. */
+export function openRequestsByJob(rows: { project_id: string; status: RequestStatus; needed_by: string | null }[], names: Record<string, string>): { projectId: string; name: string; count: number; soonest: string | null }[] {
+  const by = new Map<string, { projectId: string; name: string; count: number; soonest: string | null }>();
+  for (const r of rows) {
+    if (!isOpenRequest(r.status)) continue;
+    const j = by.get(r.project_id) ?? { projectId: r.project_id, name: names[r.project_id] ?? "Job", count: 0, soonest: null };
+    j.count += 1;
+    if (r.needed_by && (!j.soonest || r.needed_by < j.soonest)) j.soonest = r.needed_by;
+    by.set(r.project_id, j);
+  }
+  return [...by.values()].sort((a, b) => (a.soonest ?? "9999").localeCompare(b.soonest ?? "9999") || a.name.localeCompare(b.name));
+}

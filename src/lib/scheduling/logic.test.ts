@@ -16,6 +16,8 @@ import {
   visitDays,
   weekDays,
   assignmentFor,
+  startingTasks,
+  canSchedule,
   clashesFor,
   linkChanges,
   rowsToShow,
@@ -238,5 +240,22 @@ describe("crews: a calmer grid, clashes and suggestions", () => {
   it("saving the crews on a labour item adds and removes only what changed", () => {
     expect(linkChanges(["a", "b"], ["b", "c", "c"])).toEqual({ add: ["c"], remove: ["a"] });
     expect(linkChanges([], [])).toEqual({ add: [], remove: [] });
+  });
+});
+
+describe("a new visit starts with the job's standard tasks", () => {
+  it("fills an empty list, replaces a list it filled itself when the job changes, and never touches typed tasks", () => {
+    expect(startingTasks([], null, ["Protect floors", "Photos"])).toEqual({ tasks: [{ title: "Protect floors", done: false }, { title: "Photos", done: false }], filled: true });
+    const auto = [{ title: "Old job task", done: false }];
+    expect(startingTasks(auto, auto, ["New job task"]).tasks.map((t) => t.title)).toEqual(["New job task"]);
+    const typed = [{ title: "Mine", done: false }];
+    expect(startingTasks(typed, null, ["Standard"])).toEqual({ tasks: typed, filled: false });
+    expect(startingTasks([], null, [])).toEqual({ tasks: [], filled: false });
+  });
+});
+
+describe("which jobs can have a visit booked", () => {
+  test("won, in progress and warranty jobs; nothing earlier or closed", () => {
+    expect(["opportunity", "estimating", "quote_out", "won", "in_progress", "warranty", "closed", "lost"].filter((s) => canSchedule(s))).toEqual(["won", "in_progress", "warranty"]);
   });
 });

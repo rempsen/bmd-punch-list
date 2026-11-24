@@ -1,5 +1,5 @@
 import { AP_PATHS } from "./core";
-import { matchWorkOrder, readWorkOrder, readWorkOrderPage, visitStatusFor, type ApWorkOrder, type MatchContext } from "./match";
+import { IMPORT_MATCH_STAGES, matchWorkOrder, readWorkOrder, readWorkOrderPage, visitStatusFor, type ApWorkOrder, type MatchContext } from "./match";
 
 /**
  * Work orders scheduled in ArrivePing itself, brought into BMD. Server only. A work order the matcher can place becomes
@@ -7,7 +7,6 @@ import { matchWorkOrder, readWorkOrder, readWorkOrderPage, visitStatusFor, type 
  * person links them to a job, makes a job from them, or ignores them. Everything here is idempotent on the ArrivePing id.
  */
 
-const OPEN_STAGES = ["opportunity", "estimating", "quote_out", "won", "in_progress"];
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -24,7 +23,7 @@ export type ImportOutcome =
 
 async function matchContext(db: Awaited<ReturnType<typeof admin>>): Promise<MatchContext> {
   const [{ data: projects }, { data: links }] = await Promise.all([
-    db.from("projects").select("id,project_number,name,client_id").in("stage", OPEN_STAGES),
+    db.from("projects").select("id,project_number,name,client_id").in("stage", IMPORT_MATCH_STAGES),
     db.from("sync_links").select("bmd_id,external_id").eq("kind", "client").eq("system", "arriveping"),
   ]);
   const clientLinks: Record<string, string> = {};

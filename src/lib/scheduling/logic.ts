@@ -228,6 +228,22 @@ export function linkChanges(before: string[], after: string[]): { add: string[];
   return { add: [...a].filter((x) => !b.has(x)), remove: [...b].filter((x) => !a.has(x)) };
 }
 
+/** A visit can be booked on a job that is won, under way, or back for warranty work. */
+export const canSchedule = (stage: string): boolean => stage === "won" || stage === "in_progress" || stage === "warranty";
+
+export type StartTask = { title: string; done: boolean };
+/**
+ * The task list a new visit starts with when a job is chosen: the job's standard tasks, unless the person has
+ * already typed tasks of their own. `autoFilled` is the list this function put there last (so changing the job replaces it).
+ */
+export function startingTasks(current: StartTask[], autoFilled: StartTask[] | null, standard: string[]): { tasks: StartTask[]; filled: boolean } {
+  const untouched = current.length === 0 || current === autoFilled;
+  const std = standard.map((t) => t.trim()).filter(Boolean);
+  if (!untouched) return { tasks: current, filled: false };
+  if (!std.length) return { tasks: current === autoFilled ? [] : current, filled: false };
+  return { tasks: std.map((title) => ({ title, done: false })), filled: true };
+}
+
 // ── Areas ──────────────────────────────────────────────────────────────────────────────────────────────────
 export type Area = { floor_id: string; room_id: string };
 export type Room = { id: string; floor_id: string };

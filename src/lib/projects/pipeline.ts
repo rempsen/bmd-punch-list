@@ -23,15 +23,16 @@ export function applyFilters(rows: PipelineProject[], f: Filters, now: Date = ne
   });
 }
 
-export type ColumnTotals = { count: number; valueCents: number; unvalued: number };
+export type ColumnTotals = { count: number; valueCents: number; unvalued: number; /** Open-book jobs: counted, but they have no contract value to add. */ openBook: number };
 
 /** Per-stage count and value. Projects with no value yet are counted separately, never treated as zero dollars. */
-export function columnSummary(rows: PipelineProject[]): Record<ProjectStage, ColumnTotals> {
-  const out = Object.fromEntries(STAGES.map((s) => [s.value, { count: 0, valueCents: 0, unvalued: 0 }])) as Record<ProjectStage, ColumnTotals>;
+export function columnSummary(rows: PipelineProject[], openBook: ReadonlySet<string> = new Set()): Record<ProjectStage, ColumnTotals> {
+  const out = Object.fromEntries(STAGES.map((s) => [s.value, { count: 0, valueCents: 0, unvalued: 0, openBook: 0 }])) as Record<ProjectStage, ColumnTotals>;
   for (const p of rows) {
     const c = out[p.stage];
     c.count += 1;
-    if (p.estimated_value_cents == null) c.unvalued += 1;
+    if (openBook.has(p.id)) c.openBook += 1;
+    else if (p.estimated_value_cents == null) c.unvalued += 1;
     else c.valueCents += p.estimated_value_cents;
   }
   return out;

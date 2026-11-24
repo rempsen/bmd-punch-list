@@ -144,6 +144,19 @@ export function useJobRequests(projectId: string | null | undefined) {
     },
   });
 }
+/** Every request still open, on any job this person can see (the database decides which). */
+export function useOpenRequests(enabled = true) {
+  return useQuery({
+    queryKey: ["job-requests", "open"],
+    enabled,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await db.from("job_requests").select("project_id,status,needed_by").in("status", ["open", "ordered", "on_its_way"]);
+      fail(error);
+      return (data ?? []) as Pick<JobRequest, "project_id" | "status" | "needed_by">[];
+    },
+  });
+}
 export async function addRequest(input: { projectId: string; what: string; quantity?: string; neededBy?: string; file?: File | null; dailyLogId?: string | null }) {
   const what = input.what.trim();
   if (!what) throw new Error("Say what is needed.");

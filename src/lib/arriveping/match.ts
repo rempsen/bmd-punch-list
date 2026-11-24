@@ -175,3 +175,6 @@ export function jobDraftFor(wo: ApWorkOrder, siteAddress: Record<string, unknown
     notes: [wo.reference ? `ArrivePing reference ${wo.reference}` : null, wo.notes].filter(Boolean).join("\n"),
   };
 }
+
+/** Job stages an incoming ArrivePing work order may be matched to. Warranty call-backs are real site visits. */
+export const IMPORT_MATCH_STAGES = ["opportunity", "estimating", "quote_out", "won", "in_progress", "warranty"];

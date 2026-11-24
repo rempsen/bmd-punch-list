@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -31,6 +32,8 @@ import { MAX_RUN_DAYS, planRun, runLabel, shiftRun } from "@/lib/scheduling/runs
 import { nonWorkdayReason } from "@/lib/scheduling/workdays";
 import {
   areasFromSelection,
+  canSchedule,
+  startingTasks,
   assignmentFor,
   assignmentState,
   clashesFor,
@@ -290,11 +293,25 @@ function DrawerBody({
   useEffect(() => {
     if (!visit) setF((x) => ({ ...x, rooms: new Set() }));
   }, [f.project, visit]);
+  // A new visit starts with the job's standard tasks; tasks the person typed are never replaced.
+  const autoTasks = useRef<DraftTask[] | null>(null);
+  const standardTasks = (projects.data ?? []).find((p) => p.id === f.project)?.standard_tasks;
+  const standardKey = (standardTasks ?? []).join("\n");
+  useEffect(() => {
+    if (visit || !projects.data) return;
+    setDraftTasks((cur) => {
+      const next = startingTasks(cur, autoTasks.current, standardTasks ?? []);
+      if (next.tasks === cur) return cur;
+      autoTasks.current = next.filled ? next.tasks : null;
+      return next.tasks;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.project, standardKey, visit, !!projects.data]);
 
   const jobs = useMemo(
     () =>
       (projects.data ?? []).filter(
-        (p) => p.stage === "won" || p.stage === "in_progress" || p.id === f.project,
+        (p) => canSchedule(p.stage) || p.id === f.project,
       ),
     [projects.data, f.project],
   );
@@ -758,6 +775,12 @@ function DrawerBody({
           </form>
         )}
       </div>
+
+      {visit && (
+        <Link to="/daily-log" search={{ job: visit.project_id }} className="inline-flex min-h-11 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted">
+          Add today's log for this job →
+        </Link>
+      )}
 
       {visit && (
         <div className="space-y-2 rounded-md border border-border p-3">

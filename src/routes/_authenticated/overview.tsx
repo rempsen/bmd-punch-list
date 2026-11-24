@@ -1,6 +1,8 @@
 import { createFileRoute, Link, Navigate, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { useOpenRequests } from "@/lib/dailylog/data";
+import { openRequestsByJob } from "@/lib/dailylog/logic";
 import { PageHeader } from "@/components/AppShell";
 import { useAuth } from "@/lib/auth";
 import { db } from "@/lib/platform/db";
@@ -61,6 +63,7 @@ function OverviewPage() {
         {canAny("view_dashboard") && <OpenDeficiencies />}
         {canAny("view_pricing") && <BillsNeedingAttention />}
         {canAny("manage_projects") && <NoSiteYet />}
+        {canAny("manage_projects") && <RequestsFromSite />}
         <ScopeHitsToReview />
       </div>
     </div>
@@ -235,6 +238,34 @@ function BillsNeedingAttention() {
               <Link to="/projects/$id" params={{ id: b.project_id }} search={{ tab: "billing" }} className="flex justify-between gap-2 py-2 hover:underline">
                 <span className="truncate">{b.projects?.name ?? "Job"}{b.number ? ` · ${b.number}` : ""} <span className="text-muted-foreground">· Draft</span></span>
                 <span className="shrink-0">{money(b.total_cents)}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function RequestsFromSite() {
+  const jobs = usePipelineProjects();
+  const open = useOpenRequests();
+  const rows = openRequestsByJob(open.data ?? [], Object.fromEntries((jobs.data ?? []).map((p) => [p.id, p.name])));
+  return (
+    <Card title="Requests from site" loading={open.isLoading || jobs.isLoading}>
+      {open.isError ? (
+        <Empty>Could not load the requests.</Empty>
+      ) : rows.length === 0 ? (
+        <Empty>Nothing is waiting on the office.</Empty>
+      ) : (
+        <ul className="divide-y divide-border">
+          {rows.map((r) => (
+            <li key={r.projectId}>
+              <Link to="/daily-log" search={{ job: r.projectId, view: "lists" }} className="flex justify-between gap-2 py-2 hover:underline">
+                <span className="truncate">{r.name}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {r.count} open{r.soonest ? ` · needed ${shortDate(r.soonest)}` : ""}
+                </span>
               </Link>
             </li>
           ))}

@@ -45,9 +45,9 @@ describe("columnSummary", () => {
       p({ stage: "estimating", estimated_value_cents: null }),
       p({ stage: "won", estimated_value_cents: 2_500_00 }),
     ]);
-    expect(s.estimating).toEqual({ count: 2, valueCents: 1_000_00, unvalued: 1 });
-    expect(s.won).toEqual({ count: 1, valueCents: 2_500_00, unvalued: 0 });
-    expect(s.lost).toEqual({ count: 0, valueCents: 0, unvalued: 0 });
+    expect(s.estimating).toEqual({ count: 2, valueCents: 1_000_00, unvalued: 1, openBook: 0 });
+    expect(s.won).toEqual({ count: 1, valueCents: 2_500_00, unvalued: 0, openBook: 0 });
+    expect(s.lost).toEqual({ count: 0, valueCents: 0, unvalued: 0, openBook: 0 });
   });
 });
 
@@ -87,5 +87,17 @@ describe("toCsv", () => {
   });
   test("cells that could run as spreadsheet formulas are neutralised", () => {
     expect(toCsv([["=SUM(A1)", "+1", "-2", "@x"]])).toBe("'=SUM(A1),'+1,'-2,'@x");
+  });
+});
+
+describe("open-book jobs in the stage totals", () => {
+  test("an open-book job is counted but adds no dollars and is not 'unpriced'", () => {
+    const rows = [
+      { id: "a", stage: "won", estimated_value_cents: 100_00 },
+      { id: "b", stage: "won", estimated_value_cents: 999_00 },
+      { id: "c", stage: "won", estimated_value_cents: null },
+    ] as never;
+    const s = columnSummary(rows, new Set(["b"])).won;
+    expect(s).toEqual({ count: 3, valueCents: 100_00, unvalued: 1, openBook: 1 });
   });
 });

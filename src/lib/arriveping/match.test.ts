@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { jobDraftFor, matchWorkOrder, readWorkOrder, readWorkOrderPage, visitStatusFor, type ApWorkOrder, type MatchContext } from "./match";
+import { IMPORT_MATCH_STAGES, jobDraftFor, matchWorkOrder, readWorkOrder, readWorkOrderPage, visitStatusFor, type ApWorkOrder, type MatchContext } from "./match";
 
 const wo = (over: Partial<ApWorkOrder> = {}): ApWorkOrder => ({
   id: "wo_1",
@@ -80,4 +80,10 @@ test("readWorkOrder hands back a payload already in BMD's shape unchanged", () =
   expect(wo.siteAddress).toEqual({ line1: "1 Main" });
   const again = readWorkOrder(JSON.parse(JSON.stringify(wo)))!;
   expect(again).toEqual(wo);
+});
+
+describe("which jobs an ArrivePing work order can be matched to", () => {
+  test("every live job, warranty call-backs included; not closed or lost", () => {
+    expect(IMPORT_MATCH_STAGES).toEqual(["opportunity", "estimating", "quote_out", "won", "in_progress", "warranty"]);
+  });
 });

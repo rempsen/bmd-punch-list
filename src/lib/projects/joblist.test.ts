@@ -33,7 +33,7 @@ describe("stages with Warranty", () => {
   test("Warranty has its own pipeline column and counts as a win, not as an open bid", () => {
     const rows = [p({ id: "a", stage: "warranty", estimated_value_cents: 500, stage_entered_at: "2026-11-20T00:00:00Z" }), p({ id: "b", stage: "in_progress", estimated_value_cents: 100 })];
     const s = columnSummary(rows);
-    expect(s.warranty).toEqual({ count: 1, valueCents: 500, unvalued: 0 });
+    expect(s.warranty).toEqual({ count: 1, valueCents: 500, unvalued: 0, openBook: 0 });
     expect(s.in_progress.valueCents).toBe(100);
     expect(s.opportunity.count + s.estimating.count + s.quote_out.count).toBe(0);
     expect(winRate(rows, 30, new Date("2026-11-22T00:00:00Z"))).toEqual({ won: 2, lost: 0, pct: 100 });
@@ -73,7 +73,7 @@ describe("internal jobs", () => {
   const rows = [p({ id: "a", stage: "in_progress", estimated_value_cents: 1000 }), p({ id: "i", stage: "in_progress", kind: "internal", estimated_value_cents: 999 })];
   test("are left out of the pipeline, its totals and the estimates list", () => {
     expect(clientJobs(rows).map((r) => r.id)).toEqual(["a"]);
-    expect(columnSummary(clientJobs(rows)).in_progress).toEqual({ count: 1, valueCents: 1000, unvalued: 0 });
+    expect(columnSummary(clientJobs(rows)).in_progress).toEqual({ count: 1, valueCents: 1000, unvalued: 0, openBook: 0 });
   });
   test("a job loaded before the column exists counts as a client job", () => {
     expect(clientJobs([{ ...rows[1]!, kind: undefined as never }])).toHaveLength(1);
