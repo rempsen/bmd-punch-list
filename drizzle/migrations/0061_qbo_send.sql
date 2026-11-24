@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS public.sync_settings (
   id int PRIMARY KEY DEFAULT 1 CHECK (id = 1),
   quickbooks_send_enabled boolean NOT NULL DEFAULT false,
   last_send_at timestamptz,
+  -- Set while a send run is in progress so the schedule and a manual "Send now" never send the same change twice.
+  sending_since timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now(),
   updated_by uuid
 );
@@ -30,3 +32,23 @@ SELECT cron.schedule('bmd-qbo-send', '*/5 * * * *', $$
     body := '{}'::jsonb
   );
 $$);
+--> statement-breakpoint
+-- Takes the run lock: true when this caller may send, false when another run started less than 10 minutes ago.
+CREATE OR REPLACE FUNCTION public.sync_send_lock()
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE got boolean;
+BEGIN
+  UPDATE public.sync_settings SET sending_since = now()
+   WHERE id = 1 AND (sending_since IS NULL OR sending_since < now() - interval '10 minutes')
+   RETURNING true INTO got;
+  RETURN coalesce(got, false);
+END; $$;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.sync_send_unlock()
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.sync_settings SET sending_since = NULL WHERE id = 1;
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.sync_send_lock() FROM PUBLIC, anon, authenticated;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.sync_send_unlock() FROM PUBLIC, anon, authenticated;
