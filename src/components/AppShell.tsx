@@ -3,6 +3,7 @@ import {
   BarChart3,
   Camera,
   ClipboardList,
+  ClipboardSignature,
   FileDown,
   Grid3x3,
   KanbanSquare,
@@ -239,6 +240,8 @@ export function useNavItems() {
       icon: Receipt,
       group: "post",
     });
+  if (currentJob && (can("view_dashboard") || can("manage_projects")))
+    items.push({ to: "/signoff", label: "Inspections & Sign-off", short: "Sign-off", icon: ClipboardSignature, group: "post" });
   // Job records.
   if (can("view_documents"))
     items.push({

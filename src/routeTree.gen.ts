@@ -40,6 +40,7 @@ import { Route as AuthenticatedPhotosRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedSchedulingRouteImport } from './routes/_authenticated/scheduling'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedSignoffRouteImport } from './routes/_authenticated/signoff'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as QTokenRouteImport } from './routes/q.$token'
@@ -48,6 +49,7 @@ import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects.index'
 import { Route as AuthenticatedProjectsIdRouteImport } from './routes/_authenticated/projects.$id'
 import { Route as AuthenticatedProjectsNewRouteImport } from './routes/_authenticated/projects.new'
+import { Route as AuthenticatedSignTokenRouteImport } from './routes/_authenticated/sign.$token'
 import { Route as ApiMsCallbackRouteImport } from './routes/api/ms/callback'
 import { Route as ApiQboCallbackRouteImport } from './routes/api/qbo/callback'
 import { Route as ApiPublicArrivepingWebhookRouteImport } from './routes/api/public/arriveping/webhook'
@@ -215,6 +217,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSignoffRoute = AuthenticatedSignoffRouteImport.update({
+  id: '/signoff',
+  path: '/signoff',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSummaryRoute = AuthenticatedSummaryRouteImport.update({
   id: '/summary',
   path: '/summary',
@@ -258,6 +265,11 @@ const AuthenticatedProjectsNewRoute =
     path: '/projects/new',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSignTokenRoute = AuthenticatedSignTokenRouteImport.update({
+  id: '/sign/$token',
+  path: '/sign/$token',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const ApiMsCallbackRoute = ApiMsCallbackRouteImport.update({
   id: '/api/ms/callback',
   path: '/api/ms/callback',
@@ -327,6 +339,7 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/scheduling': typeof AuthenticatedSchedulingRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/q/$token': typeof QTokenRoute
@@ -334,6 +347,7 @@ export interface FileRoutesByFullPath {
   '/item/$id': typeof AuthenticatedItemIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
+  '/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
@@ -374,6 +388,7 @@ export interface FileRoutesByTo {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/scheduling': typeof AuthenticatedSchedulingRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/q/$token': typeof QTokenRoute
@@ -381,6 +396,7 @@ export interface FileRoutesByTo {
   '/item/$id': typeof AuthenticatedItemIdRoute
   '/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/projects/new': typeof AuthenticatedProjectsNewRoute
+  '/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
@@ -423,6 +439,7 @@ export interface FileRoutesById {
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/scheduling': typeof AuthenticatedSchedulingRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/signoff': typeof AuthenticatedSignoffRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/q/$token': typeof QTokenRoute
@@ -430,6 +447,7 @@ export interface FileRoutesById {
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
   '/_authenticated/projects/$id': typeof AuthenticatedProjectsIdRoute
   '/_authenticated/projects/new': typeof AuthenticatedProjectsNewRoute
+  '/_authenticated/sign/$token': typeof AuthenticatedSignTokenRoute
   '/api/ms/callback': typeof ApiMsCallbackRoute
   '/api/qbo/callback': typeof ApiQboCallbackRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
@@ -472,6 +490,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/scheduling'
     | '/settings'
+    | '/signoff'
     | '/summary'
     | '/trade-portal'
     | '/q/$token'
@@ -479,6 +498,7 @@ export interface FileRouteTypes {
     | '/item/$id'
     | '/projects/$id'
     | '/projects/new'
+    | '/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
     | '/projects/'
@@ -519,6 +539,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/scheduling'
     | '/settings'
+    | '/signoff'
     | '/summary'
     | '/trade-portal'
     | '/q/$token'
@@ -526,6 +547,7 @@ export interface FileRouteTypes {
     | '/item/$id'
     | '/projects/$id'
     | '/projects/new'
+    | '/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
     | '/projects'
@@ -567,6 +589,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pipeline'
     | '/_authenticated/scheduling'
     | '/_authenticated/settings'
+    | '/_authenticated/signoff'
     | '/_authenticated/summary'
     | '/_authenticated/trade-portal'
     | '/q/$token'
@@ -574,6 +597,7 @@ export interface FileRouteTypes {
     | '/_authenticated/item/$id'
     | '/_authenticated/projects/$id'
     | '/_authenticated/projects/new'
+    | '/_authenticated/sign/$token'
     | '/api/ms/callback'
     | '/api/qbo/callback'
     | '/_authenticated/projects/'
@@ -820,6 +844,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/signoff': {
+      id: '/_authenticated/signoff'
+      path: '/signoff'
+      fullPath: '/signoff'
+      preLoaderRoute: typeof AuthenticatedSignoffRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/summary': {
       id: '/_authenticated/summary'
       path: '/summary'
@@ -874,6 +905,13 @@ declare module '@tanstack/react-router' {
       path: '/projects/new'
       fullPath: '/projects/new'
       preLoaderRoute: typeof AuthenticatedProjectsNewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sign/$token': {
+      id: '/_authenticated/sign/$token'
+      path: '/sign/$token'
+      fullPath: '/sign/$token'
+      preLoaderRoute: typeof AuthenticatedSignTokenRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/ms/callback': {
@@ -955,11 +993,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedSchedulingRoute: typeof AuthenticatedSchedulingRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedSignoffRoute: typeof AuthenticatedSignoffRoute
   AuthenticatedSummaryRoute: typeof AuthenticatedSummaryRoute
   AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
   AuthenticatedProjectsNewRoute: typeof AuthenticatedProjectsNewRoute
+  AuthenticatedSignTokenRoute: typeof AuthenticatedSignTokenRoute
   AuthenticatedProjectsIndexRoute: typeof AuthenticatedProjectsIndexRoute
 }
 
@@ -990,11 +1030,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedSchedulingRoute: AuthenticatedSchedulingRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedSignoffRoute: AuthenticatedSignoffRoute,
   AuthenticatedSummaryRoute: AuthenticatedSummaryRoute,
   AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,
   AuthenticatedProjectsNewRoute: AuthenticatedProjectsNewRoute,
+  AuthenticatedSignTokenRoute: AuthenticatedSignTokenRoute,
   AuthenticatedProjectsIndexRoute: AuthenticatedProjectsIndexRoute,
 }
 

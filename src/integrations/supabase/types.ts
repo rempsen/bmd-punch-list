@@ -1322,6 +1322,127 @@ export type Database = {
           },
         ]
       }
+      inspection_items: {
+        Row: {
+          deficiency_id: string | null
+          description: string
+          id: string
+          inspection_id: string
+          note: string | null
+          project_id: string
+          result: string
+          room_id: string | null
+          scope: string | null
+          sort: number
+        }
+        Insert: {
+          deficiency_id?: string | null
+          description: string
+          id?: string
+          inspection_id: string
+          note?: string | null
+          project_id: string
+          result?: string
+          room_id?: string | null
+          scope?: string | null
+          sort?: number
+        }
+        Update: {
+          deficiency_id?: string | null
+          description?: string
+          id?: string
+          inspection_id?: string
+          note?: string | null
+          project_id?: string
+          result?: string
+          room_id?: string | null
+          scope?: string | null
+          sort?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_items_deficiency_id_fkey"
+            columns: ["deficiency_id"]
+            isOneToOne: false
+            referencedRelation: "deficiencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_items_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_items_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspections: {
+        Row: {
+          attendees: string | null
+          created_at: string
+          created_by: string | null
+          held_at: string | null
+          held_by: string | null
+          id: string
+          kind: string
+          notes: string | null
+          outcome: string
+          project_id: string
+          scheduled_for: string | null
+          updated_at: string
+        }
+        Insert: {
+          attendees?: string | null
+          created_at?: string
+          created_by?: string | null
+          held_at?: string | null
+          held_by?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          outcome?: string
+          project_id: string
+          scheduled_for?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attendees?: string | null
+          created_at?: string
+          created_by?: string | null
+          held_at?: string | null
+          held_by?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          outcome?: string
+          project_id?: string
+          scheduled_for?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       install_visit_events: {
         Row: {
           at: string
@@ -1752,6 +1873,13 @@ export type Database = {
             columns: ["received_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_orders_source_version_id_fkey"
+            columns: ["source_version_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_versions"
             referencedColumns: ["id"]
           },
           {
@@ -2954,6 +3082,92 @@ export type Database = {
           },
         ]
       }
+      signoffs: {
+        Row: {
+          created_at: string
+          document_id: string | null
+          holdback_bill_id: string | null
+          holdback_released: boolean
+          holdback_released_at: string | null
+          id: string
+          inspection_id: string | null
+          link_expires_at: string | null
+          method: string
+          notes: string | null
+          project_id: string
+          recorded_by: string | null
+          signature_data: string | null
+          signed_at: string | null
+          signed_by_email: string | null
+          signed_by_name: string
+        }
+        Insert: {
+          created_at?: string
+          document_id?: string | null
+          holdback_bill_id?: string | null
+          holdback_released?: boolean
+          holdback_released_at?: string | null
+          id?: string
+          inspection_id?: string | null
+          link_expires_at?: string | null
+          method: string
+          notes?: string | null
+          project_id: string
+          recorded_by?: string | null
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_by_email?: string | null
+          signed_by_name: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string | null
+          holdback_bill_id?: string | null
+          holdback_released?: boolean
+          holdback_released_at?: string | null
+          id?: string
+          inspection_id?: string | null
+          link_expires_at?: string | null
+          method?: string
+          notes?: string | null
+          project_id?: string
+          recorded_by?: string | null
+          signature_data?: string | null
+          signed_at?: string | null
+          signed_by_email?: string | null
+          signed_by_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signoffs_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signoffs_holdback_bill_id_fkey"
+            columns: ["holdback_bill_id"]
+            isOneToOne: false
+            referencedRelation: "progress_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signoffs_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "signoffs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppliers: {
         Row: {
           account_number: string | null
@@ -4109,6 +4323,10 @@ export type Database = {
       }
       setup_project_site: {
         Args: { _job: Json; _project: string }
+        Returns: undefined
+      }
+      sign_signoff: {
+        Args: { _id: string; _name: string; _signature: string }
         Returns: undefined
       }
       staff_all_jobs: {
