@@ -166,7 +166,12 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
       return await ignore(rowId, "own change");
 
     const plan = applyInboundEvent(visit, ev, new Date().toISOString());
-    if (!plan.ok) return await ignore(rowId, plan.reason);
+    const completed = ev.kind === "status" && ev.status === "completed";
+    if (!plan.ok) {
+      // A completion that changes nothing (BMD marked it done first, or a repeat delivery) still carries the crew's photos.
+      if (completed) await copyCompletionPhotos(visit, data);
+      return await ignore(rowId, plan.reason);
+    }
     const { error } = await db.from("install_visits").update(plan.patch).eq("id", visit.id);
     // A job id already tied to another visit is a data mix-up, not something a retry will fix: answer 200 so the sender stops.
     if (error)
@@ -176,7 +181,7 @@ export async function processInbound(body: unknown): Promise<InboundReply> {
     await prefillAreaProgress(db, visit.id, plan.patch["status"]);
     const logError = await logActivity(db, visit, [plan.event]);
     await markAcked(rowId);
-    if (plan.patch["status"] === "completed") await copyCompletionPhotos(visit, data);
+    if (completed || plan.patch["status"] === "completed") await copyCompletionPhotos(visit, data);
     return done({
       ok: true,
       kind: ev.kind,
@@ -328,7 +333,11 @@ export async function reconcileVisits(
       continue;
     }
     const { patch, events } = reconcileWithWorkOrder(fresh as never, wo, nowIso);
-    if (!events.length) continue;
+    // A visit already marked done still gets any photos the crew added since; the importer skips what is on file.
+    if (!events.length) {
+      if (fresh.status === "completed" && ((wo as Record<string, unknown>)["status"] === "completed" || (wo as Record<string, unknown>)["status"] === "complete")) await copyCompletionPhotos(visit, wo);
+      continue;
+    }
     const marker = fresh.arriveping_last_event_at as string | null;
     const write = db.from("install_visits").update(patch).eq("id", visit.id);
     const { data: wrote, error } = await (

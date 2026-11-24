@@ -99,7 +99,8 @@ export function workOrderPayload(visit: VisitForPush, project: ProjectForPush, c
 /** The body ArrivePing's PATCH /api/v1/workorders/{id} takes when BMD re-times a visit: the schedule, and the site contact and crew notes as they now stand. */
 export function reschedulePayload(visit: VisitForPush): Record<string, unknown> {
   const { start_at, end_at, site_contact, notes_for_crew } = workOrderPayload(visit, { id: "", name: "", number: null, address: null, client: null });
-  return { start_at, ...(end_at ? { end_at } : {}), ...(site_contact ? { site_contact } : {}), ...(notes_for_crew ? { notes_for_crew } : {}) };
+  // Contact and notes always travel, so a value the user blanked is cleared in ArrivePing too (an omitted field would keep the old text).
+  return { start_at, ...(end_at ? { end_at } : {}), site_contact: site_contact ?? null, notes_for_crew: notes_for_crew ?? "" };
 }
 
 /** A completion photo as ArrivePing describes it (§9 of the API requirements): a signed, time-limited `url` and whatever else it knows. */
