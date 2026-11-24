@@ -7,6 +7,7 @@ const TONE: Record<ProjectStage, string> = {
   quote_out: "bg-amber-100 text-amber-900",
   won: "bg-emerald-100 text-emerald-900",
   in_progress: "bg-teal-100 text-teal-900",
+  warranty: "bg-violet-100 text-violet-900",
   closed: "bg-zinc-200 text-zinc-800",
   lost: "bg-rose-100 text-rose-900",
 };

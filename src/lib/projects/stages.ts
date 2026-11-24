@@ -1,4 +1,6 @@
-export type ProjectStage = "opportunity" | "estimating" | "quote_out" | "won" | "in_progress" | "closed" | "lost";
+export type ProjectStage = "opportunity" | "estimating" | "quote_out" | "won" | "in_progress" | "warranty" | "closed" | "lost";
+/** A client job is work for a customer; an internal job holds BMD's own time (shop, quoting, equipment repairs). */
+export type ProjectKind = "client" | "internal";
 export type LostReason = "price" | "scope" | "timing" | "no_decision" | "other";
 export type JobRole = "estimator" | "project_lead" | "site_lead" | "other";
 
@@ -8,9 +10,22 @@ export const STAGES: { value: ProjectStage; label: string }[] = [
   { value: "quote_out", label: "Quote out" },
   { value: "won", label: "Won" },
   { value: "in_progress", label: "In progress" },
+  { value: "warranty", label: "Warranty" },
   { value: "closed", label: "Closed" },
   { value: "lost", label: "Lost" },
 ];
+
+/** The four plain groups the job list is filtered by. */
+export type StageGroup = "presale" | "open" | "warranty" | "closed";
+export const STAGE_GROUPS: { value: StageGroup; label: string; stages: ProjectStage[] }[] = [
+  { value: "presale", label: "Presale", stages: ["opportunity", "estimating", "quote_out"] },
+  { value: "open", label: "Open", stages: ["won", "in_progress"] },
+  { value: "warranty", label: "Warranty", stages: ["warranty"] },
+  { value: "closed", label: "Closed", stages: ["closed", "lost"] },
+];
+export const stageGroup = (s: ProjectStage): StageGroup => STAGE_GROUPS.find((g) => g.stages.includes(s))?.value ?? "closed";
+/** Open work is a job that is won or under way. A job in Warranty is finished work and is not counted as open. */
+export const isOpenStage = (s: ProjectStage): boolean => stageGroup(s) === "open";
 
 export const LOST_REASONS: { value: LostReason; label: string }[] = [
   { value: "price", label: "Price" },

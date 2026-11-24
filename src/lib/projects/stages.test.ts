@@ -3,7 +3,7 @@ import { STAGES, daysInStage, formatProjectNumber, isOverdue, stageLabel, valida
 
 describe("stages", () => {
   test("pipeline order is opportunity through closed, with lost last", () => {
-    expect(STAGES.map((s) => s.value)).toEqual(["opportunity", "estimating", "quote_out", "won", "in_progress", "closed", "lost"]);
+    expect(STAGES.map((s) => s.value)).toEqual(["opportunity", "estimating", "quote_out", "won", "in_progress", "warranty", "closed", "lost"]);
   });
   test("labels read as the board column names", () => {
     expect(stageLabel("quote_out")).toBe("Quote out");
