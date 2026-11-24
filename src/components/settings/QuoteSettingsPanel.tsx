@@ -68,7 +68,7 @@ export function QuoteSettingsPanel() {
     }
   };
   const logoSize = data.logo ? fitLogo(data.logo.width, data.logo.height, 170, 54) : null;
-  const text = (label: string, key: "companyName" | "phone" | "email" | "website" | "gstNumber" | "termsTitle", o: { max: number; placeholder?: string; type?: string } = { max: 200 }) => (
+  const text = (label: string, key: "companyName" | "phone" | "email" | "website" | "gstNumber" | "businessNumber" | "hours" | "termsTitle", o: { max: number; placeholder?: string; type?: string } = { max: 200 }) => (
     <label className="block text-sm font-medium">
       {label}
       <Input className="mt-1" type={o.type ?? "text"} maxLength={o.max} placeholder={o.placeholder} value={form[key]} onChange={(e) => set(key, e.target.value)} />
@@ -117,6 +117,8 @@ export function QuoteSettingsPanel() {
           {text("Phone", "phone", { max: 100, type: "tel" })}
           {text("Email", "email", { max: 320, type: "email" })}
           {text("Website", "website", { max: 200 })}
+          {text("Business number (not printed)", "businessNumber", { max: 100, placeholder: "e.g. 123456789" })}
+          {text("Hours (not printed)", "hours", { max: 400, placeholder: "e.g. Mon–Fri 7:30–4:30" })}
         </div>
         <p className="mt-3 text-xs text-muted-foreground">On the quote this reads: {companyLines(companyOf(current)).join("  |  ") || "nothing yet"}</p>
       </section>

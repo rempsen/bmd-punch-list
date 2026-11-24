@@ -58,6 +58,8 @@ export async function saveBranding(b: Branding) {
       email: b.email.trim(),
       website: b.website.trim(),
       gst_number: b.gstNumber.trim(),
+      business_number: b.businessNumber.trim(),
+      hours: b.hours.trim(),
       footer_text: b.footer.trim(),
       default_notes: b.defaultNotes.trim(),
       short_terms: b.shortTerms.map((t) => t.trim()).filter(Boolean),

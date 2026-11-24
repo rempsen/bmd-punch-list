@@ -11,6 +11,7 @@ describe("settings are split into company-wide and this-job", () => {
   test("Integrations replaces the old Microsoft 365 tab, and AI has its own tab", () => {
     expect(COMPANY_TABS).toContain("integrations");
     expect(COMPANY_TABS).toContain("ai");
+    expect(COMPANY_TABS).toContain("knowledge");
     expect(COMPANY_TABS).not.toContain("microsoft");
     expect(settingsGroup("integrations")).toBe("company");
   });

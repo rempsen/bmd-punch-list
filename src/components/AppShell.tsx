@@ -45,6 +45,7 @@ import { useAuth } from "@/lib/auth";
 import { NAV_GROUP_KEYS, navGroupOpen } from "@/lib/nav";
 import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
+import { AskBmdButton } from "@/components/assistant/AssistantPanel";
 import { cn } from "@/lib/utils";
 
 type NavGroup =
@@ -501,6 +502,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               activeItem={activeIn(records)}
             />
             <div className="mt-auto flex flex-col gap-1 pt-3">
+              <AskBmdButton className={cn(linkCls(false), "w-full")} />
               {canCreateJobs && (
                 <Link to="/new-job" className={linkCls(pathname.startsWith("/new-job"))}>
                   <Plus className="h-4 w-4" /> New job
@@ -539,9 +541,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <ArrowLeftRight className="h-4 w-4" />
               </Link>
             </div>
-            <Link to="/more" className="rounded-md p-2 hover:bg-muted" aria-label="More">
-              <MoreHorizontal className="h-5 w-5" />
-            </Link>
+            <div className="flex shrink-0 items-center gap-1">
+              <AskBmdButton compact className="rounded-md p-2 hover:bg-muted" />
+              <Link to="/more" className="rounded-md p-2 hover:bg-muted" aria-label="More">
+                <MoreHorizontal className="h-5 w-5" />
+              </Link>
+            </div>
           </header>
 
           <main className="flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-8">
