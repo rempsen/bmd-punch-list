@@ -143,7 +143,10 @@ export async function pullWorkOrders(opts: { since?: string | null; maxPages?: n
   const { apFetch } = await import("./client.server");
   const db = await admin();
   const { data: link } = await db.from("arriveping_link").select("last_pull_at").eq("id", 1).maybeSingle();
-  const since = opts.since === undefined ? ((link?.last_pull_at as string | null) ?? null) : opts.since;
+  // The first pull (no marker yet) goes back 30 days rather than through the whole history, so old completed and
+  // cancelled work orders are not turned into visits and inbox rows nobody asked for.
+  const firstWindow = new Date(Date.now() - 30 * 24 * 3_600_000).toISOString();
+  const since = opts.since === undefined ? ((link?.last_pull_at as string | null) ?? firstWindow) : opts.since;
   const startedAt = new Date().toISOString();
   const out: PullResult = { ran: true, read: 0, visits: 0, held: 0, skipped: 0 };
   let cursor: string | null = null;
