@@ -204,7 +204,7 @@ CREATE POLICY "knowledge files uploadable" ON storage.objects FOR INSERT TO auth
 DROP POLICY IF EXISTS "knowledge files deletable" ON storage.objects;
 --> statement-breakpoint
 CREATE POLICY "knowledge files deletable" ON storage.objects FOR DELETE TO authenticated
-  USING (bucket_id = 'knowledge' AND public.has_capability('manage_settings'));
+  USING (bucket_id = 'knowledge' AND EXISTS (SELECT 1 FROM public.knowledge_items k WHERE k.id = public.knowledge_path_item(name) AND public.can_write_knowledge(k.visibility)));
 --> statement-breakpoint
 
 -- Search Knowledge: memories and file pages together, best match first. Web-search syntax, as for documents.
@@ -233,3 +233,53 @@ REVOKE ALL ON FUNCTION public.search_knowledge(text, int) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.search_knowledge(text, int) TO authenticated;
 --> statement-breakpoint
 NOTIFY pgrst, 'reload schema';
+
+-- Document text (0064) must keep the pricing rule of 0039: pages of quotes-sent and contract documents are for pricing staff only.
+DROP POLICY IF EXISTS "document pages read" ON public.document_pages;
+--> statement-breakpoint
+CREATE POLICY "document pages read" ON public.document_pages FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.project_documents d WHERE d.id = document_id AND public.can_project_documents(d.project_id, false)
+                   AND (d.section NOT IN ('quotes_sent','contract') OR public.has_capability('view_pricing'))));
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.search_document_pages(_project uuid, _q text, _limit int DEFAULT 20)
+RETURNS TABLE (document_id uuid, file_name text, section public.document_section, version int, page int, rank real, snippet text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  WITH q AS (SELECT websearch_to_tsquery('english', coalesce(_q, '')) AS query),
+  latest AS (
+    SELECT DISTINCT ON (d.project_id, d.section, lower(d.file_name)) d.id, d.project_id, d.file_name, d.section, d.version
+      FROM public.project_documents d
+     WHERE (_project IS NULL OR d.project_id = _project)
+       AND public.can_project_documents(d.project_id, false)
+       AND (d.section NOT IN ('quotes_sent','contract') OR public.has_capability('view_pricing'))
+     ORDER BY d.project_id, d.section, lower(d.file_name), d.version DESC
+  )
+  SELECT l.id, l.file_name, l.section, l.version, p.page,
+         ts_rank_cd(p.tsv, q.query)::real,
+         ts_headline('english', p.text, q.query, 'MaxWords=24, MinWords=12, MaxFragments=2, FragmentDelimiter=" … "')
+    FROM q, public.document_pages p
+    JOIN latest l ON l.id = p.document_id
+   WHERE numnode(q.query) > 0 AND p.tsv @@ q.query
+   ORDER BY ts_rank_cd(p.tsv, q.query) DESC, l.file_name, p.page
+   LIMIT greatest(1, least(coalesce(_limit, 20), 100));
+$$;
+--> statement-breakpoint
+
+-- Catalogue names for staff without pricing access (the tables themselves are readable only with view_pricing): no cost columns.
+CREATE OR REPLACE FUNCTION public.search_catalogue_names(_q text, _limit int DEFAULT 25)
+RETURNS TABLE (kind text, id uuid, name text, category text, manufacturer text, product_line text, sku text, colour text, cost_code text, purchase_uom text, cost_uom text, coverage_per_purchase_unit numeric, coverage_uom text, uom text, pst_applies boolean, active boolean, supplier text)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT * FROM (
+    SELECT 'material'::text AS kind, m.id, m.name, m.category, m.manufacturer, m.product_line, m.sku, m.colour, m.cost_code, m.purchase_uom, m.cost_uom, m.coverage_per_purchase_unit, m.coverage_uom, NULL::text AS uom, m.pst_applies, m.active, s.name AS supplier
+      FROM public.catalogue_materials m LEFT JOIN public.suppliers s ON s.id = m.supplier_id
+     WHERE public.has_capability('view_pipeline')
+       AND (m.name ILIKE '%' || _q || '%' OR m.manufacturer ILIKE '%' || _q || '%' OR m.product_line ILIKE '%' || _q || '%' OR m.sku ILIKE '%' || _q || '%' OR m.cost_code ILIKE '%' || _q || '%' OR m.category ILIKE '%' || _q || '%')
+    UNION ALL
+    SELECT 'labour'::text, l.id, l.name, NULL, NULL, NULL, NULL, NULL, l.cost_code, NULL, NULL, NULL, NULL, l.uom, NULL, l.active, NULL
+      FROM public.labour_rates l
+     WHERE public.has_capability('view_pipeline') AND (l.name ILIKE '%' || _q || '%' OR l.cost_code ILIKE '%' || _q || '%')
+  ) x ORDER BY kind, name LIMIT greatest(1, least(coalesce(_limit, 25), 100));
+$$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.search_catalogue_names(text, int) FROM PUBLIC, anon;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.search_catalogue_names(text, int) TO authenticated;

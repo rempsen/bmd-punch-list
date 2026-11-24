@@ -498,6 +498,13 @@
       "when": 1795543174216,
       "tag": "0071_visit_photo_reads",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1795543311385,
+      "tag": "0068_assistant",
+      "breakpoints": true
     }
   ]
 }
