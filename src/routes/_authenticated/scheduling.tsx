@@ -247,7 +247,13 @@ function Scheduling() {
         ) : visits.error ? (
           <p className="text-sm text-destructive">{errText(visits.error)}</p>
         ) : view === "calendar" ? (
-          <CalendarView mode="week" anchor={monday} visits={weekCal.data ?? week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
+          weekCal.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : weekCal.error ? (
+            <p className="text-sm text-destructive">{errText(weekCal.error)}</p>
+          ) : (
+            <CalendarView mode="week" anchor={monday} visits={weekCal.data ?? week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
+          )
         ) : view === "technicians" ? (
           <TechGrid
             visits={week}
