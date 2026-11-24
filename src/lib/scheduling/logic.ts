@@ -54,14 +54,26 @@ export const inWeek = (
 };
 
 // ── Technicians ────────────────────────────────────────────────────────────────────────────────────────────
-export type Technician = { id: string; name: string; source: "bmd" | "arriveping" };
+/** A BMD login, a Labour or Both vendor from the catalogue (id "sup:<vendor id>"), or a crew name only ArrivePing has reported. */
+export type Technician = {
+  id: string;
+  name: string;
+  source: "bmd" | "supplier" | "arriveping";
+  /** Subcontractors: contact and phone, for telling two crews apart. */
+  detail?: string;
+  /** Subcontractors: also supplies materials. */
+  both?: boolean;
+};
+export type Subcontractor = { id: string; name: string; contact_name: string | null; phone: string | null; supplies: string };
+export const SUP = "sup:";
 export const UNASSIGNED = "unassigned";
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
-/** BMD field staff first, then crew names ArrivePing has reported that aren't already a BMD person. */
+/** BMD field staff first, then the catalogue's subcontractors by name, then crew names ArrivePing has reported that are neither. */
 export function mergeTechnicians(
   bmd: { id: string; full_name: string | null; email: string | null }[],
   arrivepingNames: (string | null | undefined)[],
+  subcontractors: Subcontractor[] = [],
 ): Technician[] {
   const out: Technician[] = bmd.map((s) => ({
     id: s.id,
@@ -76,6 +88,12 @@ export function mergeTechnicians(
         : []),
     ]),
   );
+  for (const s of [...subcontractors].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))) {
+    const contact = s.contact_name?.trim();
+    const detail = [contact && norm(contact) !== norm(s.name) ? contact : null, s.phone?.trim()].filter(Boolean).join(" · ");
+    out.push({ id: `${SUP}${s.id}`, name: s.name.trim(), source: "supplier", ...(detail ? { detail } : {}), ...(s.supplies === "both" ? { both: true } : {}) });
+    seen.add(norm(s.name));
+  }
   for (const raw of arrivepingNames) {
     const name = (raw ?? "").trim();
     if (!name || seen.has(norm(name))) continue;
@@ -86,6 +104,7 @@ export function mergeTechnicians(
 }
 
 type Assignable = {
+  technician_supplier_id?: string | null;
   assigned_user_id?: string | null;
   assigned_name?: string | null;
   arriveping_assigned_to?: string | null;
@@ -95,6 +114,8 @@ type Assignable = {
 export function technicianOf(v: Assignable, techs: Technician[]): string {
   if (v.assigned_user_id && techs.some((t) => t.id === v.assigned_user_id))
     return v.assigned_user_id;
+  if (v.technician_supplier_id && techs.some((t) => t.id === SUP + v.technician_supplier_id))
+    return SUP + v.technician_supplier_id;
   const byName = (n: string | null | undefined) =>
     n?.trim() ? techs.find((t) => norm(t.name) === norm(n)) : undefined;
   const named =
@@ -136,6 +157,23 @@ export function assignmentState(
   return wanted && v.arriveping_assigned_to && norm(wanted) === norm(v.arriveping_assigned_to)
     ? "confirmed"
     : "pending";
+}
+
+/** The technicians matching what was typed: names starting with it first, then any name, contact or phone containing it. */
+export function searchTechnicians(techs: Technician[], query: string): Technician[] {
+  const q = norm(query);
+  if (!q) return techs;
+  const starts = techs.filter((t) => norm(t.name).startsWith(q));
+  const has = techs.filter((t) => !starts.includes(t) && (norm(t.name).includes(q) || norm(t.detail ?? "").includes(q)));
+  return [...starts, ...has];
+}
+
+/** What is saved on a visit for a pick: "" is unassigned, a staff id, or "sup:<vendor id>". The vendor's name still travels to ArrivePing as the crew name. */
+export function assignmentFor(value: string, techs: Technician[]): { assigned_user_id: string | null; assigned_name: string | null; technician_supplier_id: string | null } {
+  const t = techs.find((x) => x.id === value);
+  if (t?.source === "supplier") return { assigned_user_id: null, assigned_name: t.name, technician_supplier_id: t.id.slice(SUP.length) };
+  if (t?.source === "bmd") return { assigned_user_id: t.id, assigned_name: null, technician_supplier_id: null };
+  return { assigned_user_id: null, assigned_name: null, technician_supplier_id: null };
 }
 
 // ── Areas ──────────────────────────────────────────────────────────────────────────────────────────────────

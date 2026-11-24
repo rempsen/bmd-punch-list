@@ -284,11 +284,14 @@ function TechGrid({
             <tr key={r.id} className="border-t border-border align-top">
               <td className="p-2">
                 <div className="font-medium">{r.name}</div>
+                {r.source === "supplier" && (
+                  <div className="truncate text-xs text-muted-foreground">Subcontractor{(r as Technician).detail ? ` · ${(r as Technician).detail}` : ""}</div>
+                )}
                 {r.source === "arriveping" && (
                   <div className="text-xs text-muted-foreground">ArrivePing crew</div>
                 )}
                 {r.source === "free" && (
-                  <div className="text-xs text-muted-foreground">Not a BMD login</div>
+                  <div className="text-xs text-muted-foreground">Typed name, not in the catalogue</div>
                 )}
               </td>
               {days.map((d) => (
