@@ -1,10 +1,11 @@
 /** Pure rules for material order lines: statuses, grouping and what an estimate seeds. No I/O. */
 
-export const MATERIAL_STATUSES = ["on_order", "received", "on_site"] as const;
+export const MATERIAL_STATUSES = ["to_order", "on_order", "received", "on_site"] as const;
 export type MaterialStatus = (typeof MATERIAL_STATUSES)[number];
 export const isMaterialStatus = (s: unknown): s is MaterialStatus => typeof s === "string" && (MATERIAL_STATUSES as readonly string[]).includes(s);
 
-export const STATUS_LABEL: Record<MaterialStatus, string> = { on_order: "Ordering", received: "Receiving", on_site: "To site" };
+/** Each tab is named for the work done there: order it, receive it, take it to site, done. */
+export const STATUS_LABEL: Record<MaterialStatus, string> = { to_order: "Ordering", on_order: "Receiving", received: "To site", on_site: "On site" };
 
 /** A line moves one step forward or one step back; nothing skips. */
 export function canMove(from: MaterialStatus, to: MaterialStatus): boolean {
@@ -17,14 +18,21 @@ export function canMove(from: MaterialStatus, to: MaterialStatus): boolean {
 export function transitionPatch(
   from: MaterialStatus,
   to: MaterialStatus,
-  info: { at?: string; by?: string | null; qty?: number | null; note?: string | null } = {},
+  info: { at?: string; by?: string | null; qty?: number | null; note?: string | null; po?: string | null } = {},
 ): Record<string, unknown> {
   if (!canMove(from, to)) throw new Error(`A line can't go from ${STATUS_LABEL[from]} to ${STATUS_LABEL[to]}.`);
   const at = info.at ?? new Date().toISOString();
+  if (from === "to_order" && to === "on_order") return { status: to, ordered_at: at, ...(info.po?.trim() ? { po_number: info.po.trim() } : {}) };
+  if (from === "on_order" && to === "to_order") return { status: to, ordered_at: null, po_number: null };
   if (from === "on_order" && to === "received") return { status: to, received_at: at, received_by: info.by ?? null, received_qty: info.qty ?? null, received_note: info.note?.trim() || null };
   if (from === "received" && to === "on_site") return { status: to, on_site_at: at, on_site_by: info.by ?? null };
   if (from === "received" && to === "on_order") return { status: to, received_at: null, received_by: null, received_qty: null, received_note: null };
   return { status: to, on_site_at: null, on_site_by: null };
+}
+
+/** Why the selected ordered lines can't go back to Ordering, or null when they can. A QuickBooks PO has to be dealt with in QuickBooks. */
+export function undoOrderBlock(rows: { qbo_po_id: string | null }[]): string | null {
+  return rows.some((r) => r.qbo_po_id) ? "Some lines are on a purchase order in QuickBooks. Void or change it there first." : null;
 }
 
 /** Lines for one purchase order must share a supplier. Lines with no supplier group under null. */
@@ -37,7 +45,7 @@ export function groupBySupplier<T extends { supplier_id: string | null }>(rows: 
 /** Why the selected lines can't become one PO, or null when they can. */
 export function poBlock(rows: { supplier_id: string | null; status: string; qbo_po_id: string | null }[]): string | null {
   if (rows.length === 0) return "Select the lines to order.";
-  if (rows.some((r) => r.status !== "on_order")) return "Only lines on order can go on a purchase order.";
+  if (rows.some((r) => r.status !== "to_order")) return "Only lines still to order can go on a purchase order.";
   if (rows.some((r) => r.qbo_po_id)) return "Some selected lines are already on a purchase order.";
   const g = groupBySupplier(rows);
   if (g.has(null)) return "Give every selected line a supplier first.";

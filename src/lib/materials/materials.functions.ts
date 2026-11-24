@@ -82,7 +82,7 @@ export const createPurchaseOrder = createServerFn({ method: "POST" })
       poId = po?.Id ? String(po.Id) : null;
       docNumber = po?.DocNumber ? String(po.DocNumber) : poId;
       if (!poId) throw new Error("QuickBooks did not return the purchase order.");
-      const { error: ue } = await admin.from("material_orders").update({ qbo_po_id: poId, po_number: docNumber }).in("id", data.ids);
+      const { error: ue } = await admin.from("material_orders").update({ qbo_po_id: poId, po_number: docNumber, status: "on_order", ordered_at: new Date().toISOString() }).in("id", data.ids);
       if (ue) throw new Error(`Purchase order ${docNumber} was created in QuickBooks but not saved here: ${ue.message}`);
 
       await q.post(`purchaseorder/${encodeURIComponent(poId)}/send?sendTo=${encodeURIComponent(data.email)}`, undefined, auth);
