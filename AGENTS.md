@@ -25,3 +25,6 @@
 - When merging `main`, take main's `meta/_journal.json` and re-append only your own entries. Never add entries for files another session left out of the journal on purpose.
 - `bun test src/lib/migrations-journal.test.ts` checks the files and the journal match (each file listed once, `idx` 0, 1, 2… with no repeats).
 - Migrations are applied to the live database by hand, and only when Dan says so. Keep them idempotent.
+## Vercel
+- The Vercel project is on **Pro** (from 24 Nov 2026). PR preview builds are no longer capped at 100 a day, so a red "Vercel" status on a PR is a real build failure: read the build log and fix it, rather than waiting a day or pushing again.
+- Vercel only builds previews. Production publishes through Lovable.
