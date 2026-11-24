@@ -866,6 +866,35 @@ export type Database = {
           },
         ]
       }
+      document_pages: {
+        Row: {
+          document_id: string
+          page: number
+          text: string
+          tsv: unknown
+        }
+        Insert: {
+          document_id: string
+          page: number
+          text: string
+          tsv?: unknown
+        }
+        Update: {
+          document_id?: string
+          page?: number
+          text?: string
+          tsv?: unknown
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_pages_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_intake: {
         Row: {
           ai_json: Json | null
@@ -2255,6 +2284,9 @@ export type Database = {
           section: Database["public"]["Enums"]["document_section"]
           size_bytes: number
           storage_path: string
+          text_indexed_at: string | null
+          text_pages: number | null
+          text_status: string
           uploaded_by: string | null
           version: number
         }
@@ -2272,6 +2304,9 @@ export type Database = {
           section: Database["public"]["Enums"]["document_section"]
           size_bytes: number
           storage_path: string
+          text_indexed_at?: string | null
+          text_pages?: number | null
+          text_status?: string
           uploaded_by?: string | null
           version?: number
         }
@@ -2289,6 +2324,9 @@ export type Database = {
           section?: Database["public"]["Enums"]["document_section"]
           size_bytes?: number
           storage_path?: string
+          text_indexed_at?: string | null
+          text_pages?: number | null
+          text_status?: string
           uploaded_by?: string | null
           version?: number
         }
@@ -4142,6 +4180,17 @@ export type Database = {
       delete_estimate_version: { Args: { _id: string }; Returns: undefined }
       delete_quote: { Args: { _id: string }; Returns: undefined }
       document_path_project: { Args: { _name: string }; Returns: string }
+      document_text_backlog: {
+        Args: { _project: string }
+        Returns: {
+          file_name: string
+          id: string
+          mime: string
+          section: Database["public"]["Enums"]["document_section"]
+          size_bytes: number
+          storage_path: string
+        }[]
+      }
       effective_role: {
         Args: { _project: string; _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -4276,6 +4325,18 @@ export type Database = {
             }
             Returns: number
           }
+      search_document_pages: {
+        Args: { _limit?: number; _project: string; _q: string }
+        Returns: {
+          document_id: string
+          file_name: string
+          page: number
+          rank: number
+          section: Database["public"]["Enums"]["document_section"]
+          snippet: string
+          version: number
+        }[]
+      }
       seed_material_orders: {
         Args: { _project: string; _version: string }
         Returns: number
