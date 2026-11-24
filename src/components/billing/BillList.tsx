@@ -17,7 +17,7 @@ export function BillList({ bills, canBill, busy, onPdf, onStatus }: { bills: Bil
               {b.number} <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{b.kind === "holdback_release" ? "Holdback release · " : ""}{STATUS[b.status]}</span>
             </p>
             {/* An open-book bill shows the three figures to type into QuickBooks; a fixed-price bill shows what it was for. */}
-            <p className="truncate text-xs text-muted-foreground">{b.lines.map((l) => (b.open_book ? `${l.description} ${dollars(l.amountCents)}` : l.description)).join(b.open_book ? " · " : ", ")}{b.period_note ? ` · ${b.period_note}` : ""}</p>
+            <p className={`text-xs text-muted-foreground ${b.open_book ? "" : "truncate"}`}>{b.lines.map((l) => (b.open_book ? `${l.description} ${dollars(l.amountCents)}` : l.description)).join(b.open_book ? " · " : ", ")}{b.period_note ? ` · ${b.period_note}` : ""}</p>
           </div>
           <p className="text-right text-sm tabular-nums">
             {dollars(b.total_cents)}
