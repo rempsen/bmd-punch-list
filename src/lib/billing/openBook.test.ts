@@ -12,6 +12,7 @@ import {
   openBookPosition,
   parseHours,
   quickBooksLines,
+  stageValueText,
   type LabourEntry,
   type MaterialEntry,
   type Terms,
@@ -172,5 +173,21 @@ describe("changing a job's contract type", () => {
     expect(contractTypeLock([{ status: "issued" }])).toBe("This job has issued bills, so its contract type can no longer be changed.");
     expect(contractTypeLock([{ status: "void" }])).toBe("This job has issued bills, so its contract type can no longer be changed.");
     expect(contractTypeLock([{ status: "draft" }])).toBe("Delete the draft bills on this job before changing its contract type.");
+  });
+});
+
+describe("pipeline stage value with open-book jobs", () => {
+  const money = (c: number) => `$${c / 100}`;
+  test("fixed-price stages read as they always did", () => {
+    expect(stageValueText({ count: 0, valueCents: 0, unvalued: 0 }, [], money)).toBe(" ");
+    expect(stageValueText({ count: 2, valueCents: 0, unvalued: 2 }, [], money)).toBe("No values yet");
+    expect(stageValueText({ count: 3, valueCents: 500000, unvalued: 0 }, [], money)).toBe("$5000");
+    expect(stageValueText({ count: 3, valueCents: 500000, unvalued: 1 }, [], money)).toBe("$5000 · 1 unpriced");
+  });
+  test("an open-book job is neither $0 nor unpriced", () => {
+    expect(stageValueText({ count: 3, valueCents: 500000, unvalued: 2 }, [null], money)).toBe("$5000 · 1 unpriced · 1 open book");
+    expect(stageValueText({ count: 2, valueCents: 0, unvalued: 2 }, [null, null], money)).toBe("2 open book");
+    expect(stageValueText({ count: 2, valueCents: 0, unvalued: 2 }, [null], money)).toBe("No values yet · 1 open book");
+    expect(stageValueText({ count: 2, valueCents: 500000, unvalued: 1 }, [null], money)).toBe("$5000 · 1 open book");
   });
 });

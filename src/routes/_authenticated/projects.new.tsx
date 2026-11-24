@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppShell";
+import { ContractTypeField, applyContractType } from "@/components/billing/ContractType";
 import { Field, ScopePicker } from "@/components/job/fields";
 import { SearchSelect } from "@/components/SearchSelect";
 import { Button } from "@/components/ui/button";
@@ -59,6 +60,7 @@ function NewProjectPage() {
   const [scopes, setScopes] = useState<string[]>([]);
   const [other, setOther] = useState("");
   const [busy, setBusy] = useState(false);
+  const [contractType, setContractType] = useState<"fixed" | "open_book">("fixed");
   const [tried, setTried] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [progress, setProgress] = useState<string | null>(null);
@@ -138,6 +140,11 @@ function NewProjectPage() {
       const id = plain
         ? await createPipelineProject(base)
         : await createJob({ ...base, bid_due_date: internal ? "" : base.bid_due_date, estimator_id: internal ? "" : base.estimator_id, kind, stage, standard_tasks: tasks, contacts: people });
+      const id = await createPipelineProject({
+        ...f,
+        scopes: scopes.map((s) => ({ scope: s, other_text: s === "other" ? other.trim() || null : null })),
+      });
+      await applyContractType(id, contractType);
       await refreshPermissions();
       refreshPipeline();
       let failed = 0;
@@ -287,6 +294,9 @@ function NewProjectPage() {
                 </select>
               </Field>
             )}
+            <div className="sm:col-span-2">
+              <ContractTypeField value={contractType} onChange={setContractType} />
+            </div>
           </div>
         </Section>
 

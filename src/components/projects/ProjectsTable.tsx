@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowDown, ArrowRightLeft, ArrowUp, Hammer } from "lucide-react";
+import { OpenBookValue, useOpenBookValue } from "@/components/billing/ContractType";
 import { StageBadge } from "@/components/projects/StageBadge";
 import { Button } from "@/components/ui/button";
 import { holderOf, money, shortDate, staffName, type PipelineProject, type Staff } from "@/lib/projects/data";
@@ -53,6 +54,8 @@ export function ProjectsTable({
   const navigate = useNavigate();
   const [own, setOwn] = useState<TableSort>({ key: "project_number", dir: "desc" });
   const sort = sortProp ?? own;
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "project_number", dir: "desc" });
+  const openBook = useOpenBookValue();
   const sorted = sortProjects(rows, sort.key, sort.dir);
   const toggle = (key: SortKey) => {
     const next: TableSort = sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" };
@@ -120,7 +123,7 @@ export function ProjectsTable({
                 <td className={cn("whitespace-nowrap px-4 py-3", isOverdue(p.bid_due_date, p.stage) && "font-semibold text-destructive")}>
                   {shortDate(p.bid_due_date)}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3 tabular-nums">{money(p.estimated_value_cents)}</td>
+                <td className="whitespace-nowrap px-4 py-3 tabular-nums">{openBook(p.id) ? <OpenBookValue billedCents={openBook(p.id)!.billedCents} /> : money(p.estimated_value_cents)}</td>
                 <td className="px-4 py-3">{staffName(staff, holderOf(p, "estimator")) ?? "—"}</td>
                 <td className="px-4 py-3">{staffName(staff, holderOf(p, "project_lead")) ?? "—"}</td>
                 <td className="whitespace-nowrap px-4 py-3 text-right">

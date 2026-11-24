@@ -17,8 +17,10 @@ export function useContractType(projectId: string | null | undefined) {
 }
 
 export async function setContractType(projectId: string, to: ContractType) {
-  const { error } = await db.from("projects").update({ contract_type: to }).eq("id", projectId);
+  const { data, error } = await db.from("projects").update({ contract_type: to }).eq("id", projectId).select("id");
   if (error) throw new Error(error.message);
+  // No row back means the person may not change this job: say so instead of leaving the job quietly unchanged.
+  if (!data?.length) throw new Error("You don't have access to change this job's contract type.");
 }
 
 export function useRefreshContractType() {

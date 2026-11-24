@@ -144,3 +144,16 @@ export function contractTypeLock(bills: { status: string }[]): string | null {
   if (bills.length > 0) return "Delete the draft bills on this job before changing its contract type.";
   return null;
 }
+
+/**
+ * The value line under a pipeline stage. Open-book jobs have no contract value: they are counted as "open book",
+ * never as $0 and never as "unpriced". `openBookValues` is the typed value (usually none) of each open-book job in the stage.
+ */
+export function stageValueText(t: { count: number; valueCents: number; unvalued: number }, openBookValues: (number | null)[], money: (cents: number) => string): string {
+  if (t.count === 0) return " ";
+  const openBook = openBookValues.length;
+  const unpriced = t.unvalued - openBookValues.filter((v) => v == null).length;
+  const priced = t.count - t.unvalued;
+  const parts = [priced > 0 ? `${money(t.valueCents)}${unpriced ? ` · ${unpriced} unpriced` : ""}` : unpriced > 0 ? "No values yet" : null, openBook ? `${openBook} open book` : null];
+  return parts.filter(Boolean).join(" · ");
+}

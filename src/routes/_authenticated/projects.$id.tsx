@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Field } from "@/components/job/fields";
 import { EstimateTab } from "@/components/estimate/EstimateTab";
 import { BillingTab } from "@/components/billing/BillingTab";
+import { ContractTag, ContractTypeFact } from "@/components/billing/ContractType";
 import { QuotesTab } from "@/components/quotes/QuotesTab";
 import { CrewStatusPanel } from "@/components/visits/CrewStatusPanel";
 import { VisitsPanel } from "@/components/visits/VisitsPanel";
@@ -109,6 +110,7 @@ function ProjectPage() {
           </div>
           <div className="flex items-center gap-2">
             <StageBadge stage={project.stage} className="px-3 py-1 text-sm" />
+            <ContractTag projectId={project.id} />
             {canEdit && (
               <Button variant="outline" onClick={() => setMoving(true)}>
                 <ArrowRightLeft className="mr-2 h-4 w-4" /> Move
@@ -289,7 +291,7 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
               <Fact label="Site address" value={project.address ?? "—"} />
               <Fact label="Bid due" value={shortDate(project.bid_due_date)} tone={overdue ? "bad" : undefined} note={overdue ? "Overdue" : undefined} />
               <Fact label="Job type" value={project.job_type ?? "—"} />
-              <Fact label="Estimated value" value={money(project.estimated_value_cents)} />
+              <ContractTypeFact projectId={project.id} estimatedValue={money(project.estimated_value_cents)} />
               <Fact label="In this stage" value={`${daysInStage(project.stage_entered_at)} days, since ${shortDate(project.stage_entered_at)}`} />
               {project.stage === "lost" && (
                 <Fact
