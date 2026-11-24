@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canMove, groupBySupplier, poBlock, purchaseOrderBody, seedRows, transitionPatch } from "./logic";
+import { canMove, groupBySupplier, poBlock, purchaseOrderBody, seedRows, STATUS_LABEL, transitionPatch, undoOrderBlock } from "./logic";
 
 const comp = (o: Partial<Parameters<typeof seedRows>[0][number]["components"][number]> = {}) => ({
   kind: "material", catalogue_material_id: "m1", label: "LVT Oak", qty_per_driver: 1, waste_pct: 10, coverage_per_purchase_unit: 20, round_up: true, purchase_uom: "BOX", cost_uom: "BOX", unit_cost_cents: 5000, ...o,
@@ -12,6 +12,20 @@ describe("status transitions", () => {
     expect(canMove("on_site", "received")).toBe(true);
     expect(canMove("on_order", "on_site")).toBe(false);
     expect(canMove("on_order", "on_order")).toBe(false);
+    expect(canMove("to_order", "on_order")).toBe(true);
+    expect(canMove("to_order", "received")).toBe(false);
+  });
+  it("names each tab for the work done there", () => {
+    expect(STATUS_LABEL).toEqual({ to_order: "Ordering", on_order: "Receiving", received: "To site", on_site: "On site" });
+  });
+  it("records the order date and reference when marked ordered, and clears them on undo", () => {
+    expect(transitionPatch("to_order", "on_order", { at: "2026-11-24", po: " 4512 " })).toEqual({ status: "on_order", ordered_at: "2026-11-24", po_number: "4512" });
+    expect(transitionPatch("to_order", "on_order", { at: "2026-11-24" })).toEqual({ status: "on_order", ordered_at: "2026-11-24" });
+    expect(transitionPatch("on_order", "to_order")).toEqual({ status: "to_order", ordered_at: null, po_number: null });
+  });
+  it("won't undo an order already sent to QuickBooks", () => {
+    expect(undoOrderBlock([{ qbo_po_id: null }])).toBeNull();
+    expect(undoOrderBlock([{ qbo_po_id: "9" }])).toMatch(/QuickBooks/);
   });
   it("records receipt and clears it on undo", () => {
     expect(transitionPatch("on_order", "received", { at: "2026-11-24", by: "u1", qty: 5, note: " ok " })).toEqual({ status: "received", received_at: "2026-11-24", received_by: "u1", received_qty: 5, received_note: "ok" });
@@ -23,12 +37,13 @@ describe("status transitions", () => {
 
 describe("grouping by supplier", () => {
   it("groups lines and blocks mixed suppliers", () => {
-    const rows = [{ supplier_id: "a", status: "on_order", qbo_po_id: null }, { supplier_id: "b", status: "on_order", qbo_po_id: null }, { supplier_id: "a", status: "on_order", qbo_po_id: null }];
+    const rows = [{ supplier_id: "a", status: "to_order", qbo_po_id: null }, { supplier_id: "b", status: "to_order", qbo_po_id: null }, { supplier_id: "a", status: "to_order", qbo_po_id: null }];
     expect(groupBySupplier(rows).get("a")).toHaveLength(2);
     expect(poBlock(rows)).toMatch(/one supplier/);
     expect(poBlock([rows[0]!, rows[2]!])).toBeNull();
-    expect(poBlock([{ supplier_id: null, status: "on_order", qbo_po_id: null }])).toMatch(/supplier/);
-    expect(poBlock([{ supplier_id: "a", status: "on_order", qbo_po_id: "9" }])).toMatch(/already/);
+    expect(poBlock([{ supplier_id: null, status: "to_order", qbo_po_id: null }])).toMatch(/supplier/);
+    expect(poBlock([{ supplier_id: "a", status: "to_order", qbo_po_id: "9" }])).toMatch(/already/);
+    expect(poBlock([{ supplier_id: "a", status: "on_order", qbo_po_id: null }])).toMatch(/to order/);
   });
 });
 

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { useMaterials, useSuppliers } from "@/lib/catalogue/data";
 import { useAddMaterial, useMaterialOrders, useMoveMaterials, useRefreshMaterials, type MaterialOrder } from "@/lib/materials/data";
-import { isMaterialStatus, MATERIAL_STATUSES, poBlock, STATUS_LABEL, type MaterialStatus } from "@/lib/materials/logic";
+import { isMaterialStatus, MATERIAL_STATUSES, poBlock, STATUS_LABEL, undoOrderBlock, type MaterialStatus } from "@/lib/materials/logic";
 import { createPurchaseOrder } from "@/lib/materials/materials.functions";
 import { errText } from "@/lib/platform/db";
 import { money, shortDate, staffName, useBmdStaff, usePipelineProjects } from "@/lib/projects/data";
@@ -26,9 +26,9 @@ export const Route = createFileRoute("/_authenticated/materials")({
   head: () => ({
     meta: [
       { title: "Materials · BMD Materials" },
-      { name: "description", content: "Material for every won job: on order, received at the warehouse, and delivered to site." },
+      { name: "description", content: "Material for every accepted quote: to order, ordered, received at the warehouse, and delivered to site." },
       { property: "og:title", content: "Materials · BMD Materials" },
-      { property: "og:description", content: "Ordered, received, and on site." },
+      { property: "og:description", content: "To order, ordered, received, and on site." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -46,13 +46,13 @@ function MaterialsPage() {
   return <Materials />;
 }
 
-type Dlg = null | "po" | "receive" | "site" | "add";
+type Dlg = null | "po" | "ordered" | "receive" | "site" | "add";
 
 function Materials() {
   const { canAny, user } = useAuth();
   const canManage = canAny("manage_materials") || canAny("manage_projects");
   const search = Route.useSearch();
-  const stage: MaterialStatus = search.stage ?? "on_order";
+  const stage: MaterialStatus = search.stage ?? "to_order";
   const navigate = useNavigate({ from: "/materials" });
   const set = (patch: Partial<Search>) => void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true });
 
@@ -96,7 +96,7 @@ function Materials() {
 
   return (
     <div>
-      <PageHeader title="Materials" subtitle="Ordered, received, and on site" actions={canManage ? <Button size="sm" onClick={() => setDlg("add")}><Plus className="mr-1 h-4 w-4" />Add material</Button> : undefined} />
+      <PageHeader title="Materials" subtitle="Material from accepted quotes: order it, receive it, deliver it" actions={canManage ? <Button size="sm" onClick={() => setDlg("add")}><Plus className="mr-1 h-4 w-4" />Add material</Button> : undefined} />
       <div className="space-y-4 p-4 md:p-6">
         <div role="tablist" className="flex flex-wrap gap-1 border-b border-border">
           {MATERIAL_STATUSES.map((s) => (
@@ -114,15 +114,19 @@ function Materials() {
           <Input aria-label="Search" placeholder="Search material, supplier, PO, job" className="h-10 max-w-xs" value={search.q ?? ""} onChange={(e) => set({ q: e.target.value || undefined })} />
           {canManage && (
             <div className="ml-auto flex flex-wrap gap-2">
+              {stage === "to_order" && <>
+                <Button size="sm" variant="outline" disabled={!chosen.length} onClick={() => setDlg("ordered")}>Mark ordered</Button>
+                <Button size="sm" disabled={!chosen.length} onClick={() => { const b = poBlock(chosen); if (b) toast.error(b); else setDlg("po"); }}>Create PO in QuickBooks</Button>
+              </>}
               {stage === "on_order" && <>
-                <Button size="sm" variant="outline" disabled={!chosen.length} onClick={() => { const b = poBlock(chosen); if (b) toast.error(b); else setDlg("po"); }}>Create PO in QuickBooks</Button>
+                <Button size="sm" variant="outline" disabled={!chosen.length || move.isPending} onClick={() => { const b = undoOrderBlock(chosen); if (b) toast.error(b); else void undo("to_order"); }}>Back to ordering</Button>
                 <Button size="sm" disabled={!chosen.length} onClick={() => setDlg("receive")}>Mark received</Button>
               </>}
               {stage === "received" && <>
-                <Button size="sm" variant="outline" disabled={!chosen.length || move.isPending} onClick={() => undo("on_order")}>Back to ordering</Button>
+                <Button size="sm" variant="outline" disabled={!chosen.length || move.isPending} onClick={() => undo("on_order")}>Back to receiving</Button>
                 <Button size="sm" disabled={!chosen.length} onClick={() => setDlg("site")}>Deliver to site</Button>
               </>}
-              {stage === "on_site" && <Button size="sm" variant="outline" disabled={!chosen.length || move.isPending} onClick={() => undo("received")}>Back to received</Button>}
+              {stage === "on_site" && <Button size="sm" variant="outline" disabled={!chosen.length || move.isPending} onClick={() => undo("received")}>Back to To site</Button>}
             </div>
           )}
         </div>
@@ -137,7 +141,7 @@ function Materials() {
                 <tr>
                   <th className="w-8 p-2" />
                   <th className="p-2">Material</th><th className="p-2">Qty</th><th className="p-2">Supplier</th><th className="p-2">PO</th>
-                  <th className="p-2">Ordered</th>{stage !== "on_order" && <th className="p-2">Received</th>}{stage === "on_site" && <th className="p-2">On site</th>}
+                  {stage !== "to_order" && <th className="p-2">Ordered</th>}{(stage === "received" || stage === "on_site") && <th className="p-2">Received</th>}{stage === "on_site" && <th className="p-2">On site</th>}
                   <th className="p-2">Who</th><th className="p-2">Notes</th>
                 </tr>
               </thead>
@@ -158,11 +162,11 @@ function Materials() {
                         <tr key={o.id} className="border-t border-border">
                           <td className="p-2">{canManage && <input type="checkbox" aria-label={`Select ${o.description}`} checked={selected.has(o.id)} onChange={() => toggle(o.id)} />}</td>
                           <td className="p-2"><div className="font-medium">{o.description}</div>{cat && <div className="text-xs text-muted-foreground">{cat.name}{cat.sku ? ` · ${cat.sku}` : ""}</div>}</td>
-                          <td className="p-2 whitespace-nowrap">{o.status !== "on_order" && o.received_qty != null && o.received_qty !== o.quantity ? `${o.received_qty} of ${o.quantity}` : o.quantity} {o.unit}{o.unit_cost_cents != null && <div className="text-xs text-muted-foreground">{money(o.unit_cost_cents)} each</div>}</td>
+                          <td className="p-2 whitespace-nowrap">{o.received_qty != null && o.received_qty !== o.quantity ? `${o.received_qty} of ${o.quantity}` : o.quantity} {o.unit}{o.unit_cost_cents != null && <div className="text-xs text-muted-foreground">{money(o.unit_cost_cents)} each</div>}</td>
                           <td className="p-2">{supplierOf.get(o.supplier_id ?? "")?.name ?? <span className="text-muted-foreground">No supplier</span>}</td>
                           <td className="p-2 whitespace-nowrap">{o.po_number ? <>{o.po_number}<div className="text-xs text-muted-foreground">{o.qbo_po_sent_at ? `Sent ${shortDate(o.qbo_po_sent_at)}` : "Not sent"}</div></> : <span className="text-muted-foreground">Not sent</span>}</td>
-                          <td className="p-2 whitespace-nowrap">{shortDate(o.ordered_at)}</td>
-                          {stage !== "on_order" && <td className="p-2 whitespace-nowrap">{shortDate(o.received_at)}</td>}
+                          {stage !== "to_order" && <td className="p-2 whitespace-nowrap">{o.ordered_at ? shortDate(o.ordered_at) : "—"}</td>}
+                          {(stage === "received" || stage === "on_site") && <td className="p-2 whitespace-nowrap">{shortDate(o.received_at)}</td>}
                           {stage === "on_site" && <td className="p-2 whitespace-nowrap">{shortDate(o.on_site_at)}</td>}
                           <td className="p-2">{who ? staffName(staff.data ?? [], who) : "—"}</td>
                           <td className="p-2 text-muted-foreground">{[o.received_note, o.notes].filter(Boolean).join(" · ") || "—"}</td>
@@ -178,6 +182,7 @@ function Materials() {
       </div>
 
       {dlg === "po" && <PoDialog rows={chosen} supplier={supplierOf.get(chosen[0]?.supplier_id ?? "")} onClose={() => setDlg(null)} onDone={done} />}
+      {dlg === "ordered" && <MoveDialog title="Mark ordered" rows={chosen} to="on_order" askPo staff={[]} me={null} onClose={() => setDlg(null)} onDone={done} />}
       {dlg === "receive" && <MoveDialog title="Mark received" rows={chosen} to="received" askQty staff={staff.data ?? []} me={user?.id ?? null} onClose={() => setDlg(null)} onDone={done} />}
       {dlg === "site" && <MoveDialog title="Deliver to site" rows={chosen} to="on_site" staff={staff.data ?? []} me={user?.id ?? null} onClose={() => setDlg(null)} onDone={done} />}
       {dlg === "add" && <AddDialog jobs={jobs} suppliers={(suppliers.data ?? []).filter((s) => s.active !== false)} defaultJob={search.job} onClose={() => setDlg(null)} />}
@@ -224,18 +229,19 @@ function PoDialog({ rows, supplier, onClose, onDone }: { rows: MaterialOrder[]; 
   );
 }
 
-function MoveDialog({ title, rows, to, askQty, staff, me, onClose, onDone }: { title: string; rows: MaterialOrder[]; to: MaterialStatus; askQty?: boolean; staff: { id: string; full_name: string | null; email: string | null }[]; me: string | null; onClose: () => void; onDone: () => void }) {
+function MoveDialog({ title, rows, to, askQty, askPo, staff, me, onClose, onDone }: { title: string; rows: MaterialOrder[]; to: MaterialStatus; askQty?: boolean; askPo?: boolean; staff: { id: string; full_name: string | null; email: string | null }[]; me: string | null; onClose: () => void; onDone: () => void }) {
   const move = useMoveMaterials();
   const [date, setDate] = useState(today());
   const [by, setBy] = useState(me ?? "");
   const [qty, setQty] = useState(String(rows[0]?.quantity ?? ""));
   const [note, setNote] = useState("");
+  const [po, setPo] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const one = rows.length === 1;
   const go = async () => {
     setErr(null);
     try {
-      await move.mutateAsync({ rows, to, at: toIso(date), by: by || null, qty: askQty && one && qty !== "" ? Number(qty) : null, note: note || null });
+      await move.mutateAsync({ rows, to, at: toIso(date), by: by || null, qty: askQty && one && qty !== "" ? Number(qty) : null, note: note || null, po: askPo ? po : null });
       toast.success(`${rows.length} line${one ? "" : "s"} moved to ${STATUS_LABEL[to]}`);
       onDone();
     } catch (e) { setErr(errText(e)); }
@@ -246,13 +252,14 @@ function MoveDialog({ title, rows, to, askQty, staff, me, onClose, onDone }: { t
       {askQty && (one
         ? <Row label={`Received quantity (${rows[0]?.unit ?? ""})`}><Input type="number" min="0" step="any" value={qty} onChange={(e) => setQty(e.target.value)} /></Row>
         : <p className="text-xs text-muted-foreground">Each line is received at its full ordered quantity. Select one line to record a different amount.</p>)}
-      <Row label={askQty ? "Received by" : "Delivered by"}>
+      {askPo && <Row label="PO or order reference (optional)"><Input value={po} onChange={(e) => setPo(e.target.value)} placeholder="e.g. 4512 or supplier order #" /></Row>}
+      {!askPo && <Row label={askQty ? "Received by" : "Delivered by"}>
         <select className={`${field} w-full`} value={by} onChange={(e) => setBy(e.target.value)}>
           <option value="">—</option>
           {staff.map((s) => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
         </select>
-      </Row>
-      <Row label="Date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Row>
+      </Row>}
+      <Row label={askPo ? "Ordered on" : "Date"}><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Row>
       {askQty && <Row label="Note"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Damaged box, short shipped…" /></Row>}
       {err && <p role="alert" className="rounded bg-destructive/10 p-2 text-destructive">{err}</p>}
     </Shell>

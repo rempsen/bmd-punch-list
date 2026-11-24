@@ -1595,7 +1595,7 @@ export type Database = {
           notes: string | null
           on_site_at: string | null
           on_site_by: string | null
-          ordered_at: string
+          ordered_at: string | null
           po_number: string | null
           project_id: string
           qbo_po_id: string | null
@@ -1605,6 +1605,7 @@ export type Database = {
           received_by: string | null
           received_note: string | null
           received_qty: number | null
+          source_version_id: string | null
           status: string
           supplier_id: string | null
           unit: string
@@ -1620,7 +1621,7 @@ export type Database = {
           notes?: string | null
           on_site_at?: string | null
           on_site_by?: string | null
-          ordered_at?: string
+          ordered_at?: string | null
           po_number?: string | null
           project_id: string
           qbo_po_id?: string | null
@@ -1630,6 +1631,7 @@ export type Database = {
           received_by?: string | null
           received_note?: string | null
           received_qty?: number | null
+          source_version_id?: string | null
           status?: string
           supplier_id?: string | null
           unit?: string
@@ -1645,7 +1647,7 @@ export type Database = {
           notes?: string | null
           on_site_at?: string | null
           on_site_by?: string | null
-          ordered_at?: string
+          ordered_at?: string | null
           po_number?: string | null
           project_id?: string
           qbo_po_id?: string | null
@@ -1655,6 +1657,7 @@ export type Database = {
           received_by?: string | null
           received_note?: string | null
           received_qty?: number | null
+          source_version_id?: string | null
           status?: string
           supplier_id?: string | null
           unit?: string
