@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import type { DocRow } from "./logic";
 
-const COLS = "id,project_id,section,file_name,storage_path,size_bytes,mime,version,uploaded_by,note,mirror_status,mirror_error,created_at";
+const COLS = "id,project_id,section,file_name,storage_path,size_bytes,mime,version,uploaded_by,note,mirror_status,mirror_error,text_status,created_at";
 
 export function useProjectDocuments(projectId: string | null) {
   return useQuery({
