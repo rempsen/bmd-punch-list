@@ -192,3 +192,15 @@
   .st-auto { border-radius: 16px 16px 0 0; max-height: 92%; }
   .st-auto-actions .st-btn { flex: 1; }
 }
+
+/* BMD: base by area, at the top of the review list */
+.st-base-areas { flex: none; padding: 10px 12px; border: 1px solid var(--st-line, #e2e8f0); border-radius: 10px; background: #fff; }
+.st-base-areas h3 { margin: 0; font-size: 14px; font-weight: 600; }
+.st-base-areas table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.st-base-areas th, .st-base-areas td { padding: 5px 4px; text-align: left; border-top: 1px solid var(--st-line, #e2e8f0); font-weight: 400; }
+.st-base-areas thead th { border-top: 0; color: var(--st-muted); font-size: 12px; }
+.st-base-areas tfoot th, .st-base-areas tfoot td { font-weight: 600; }
+.st-base-areas label { display: inline-flex; align-items: center; gap: 8px; min-height: 28px; cursor: pointer; }
+.st-base-areas input[type="checkbox"] { width: 18px; height: 18px; }
+.st-base-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.st-base-actions p { margin: 0; }

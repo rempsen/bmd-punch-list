@@ -18,7 +18,7 @@ import { pageSpans, graphSpans } from "../lib/pageSpans.ts";
 import { AutoReview, AutoRunPanel } from "../components/BmdAutoTakeoff.jsx";
 import { scanSheets, scheduleLine } from "../lib/bmd/autoScan.js";
 import { applyDecisions, runSheet, runSummary } from "../lib/bmd/autoTakeoff.js";
-import { acceptProposals, idsAbove, idsOnSheet, isProposal, removeProposals, reviewCount, reviewList, setProposalFinish } from "../lib/bmd/autoReview.js";
+import { acceptProposals, idsAbove, idsOnSheet, isProposal, removeProposals, reviewCount, reviewList, setProposalFinish, acceptBase, baseByGroup } from "../lib/bmd/autoReview.js";
 import { symbolProposals } from "../lib/bmd/symbolCount.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -418,6 +418,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   };
   const proposalCount = useMemo(() => (doc ? reviewCount(doc.shapes) : 0), [doc]);
   const review = useMemo(() => (reviewing && doc ? reviewList(doc, sheets) : []), [reviewing, doc, sheets]);
+  const baseAreas = useMemo(() => (reviewing && doc ? baseByGroup(doc) : []), [reviewing, doc]);
   const acceptIds = (ids) => {
     if (!doc || !ids.length) return;
     const out = acceptProposals(doc, ids);
@@ -425,6 +426,15 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     const left = out.needFinish ? ` ${out.needFinish} ${out.needFinish === 1 ? "has" : "have"} no finish chosen and ${out.needFinish === 1 ? "was" : "were"} left. Choose a finish first.` : "";
     say(out.accepted ? `Accepted ${out.accepted} measurement${out.accepted === 1 ? "" : "s"}. ${out.accepted === 1 ? "It now counts" : "They now count"} in the totals and the estimate. Undo takes that back.${left}` : `Nothing was accepted.${left}`, out.accepted ? "good" : "warn");
     if (selected && ids.includes(selected)) setSelected(null);
+  };
+  const acceptBaseIds = (ids, conditionId) => {
+    if (!doc || !ids.length) return;
+    try {
+      const out = acceptBase(doc, ids, conditionId);
+      if (out.accepted) commit(out.doc);
+      const left = out.needFinish ? ` ${out.needFinish} line${out.needFinish === 1 ? " has" : "s have"} no base finish and ${out.needFinish === 1 ? "was" : "were"} left. Pick the finish the ticked areas take, then accept again.` : "";
+      say(out.accepted ? `Base accepted for the ticked areas. It now counts in the totals and the estimate. Undo takes that back.${left}` : `Nothing was accepted.${left}`, out.accepted && !out.needFinish ? "good" : "warn");
+    } catch (e) { say(String(e?.message || e), "warn"); }
   };
   const removeIds = (ids) => { if (!doc) return; commit(removeProposals(doc, ids)); if (selected && ids.includes(selected)) setSelected(null); };
   const chooseFinish = (ids, conditionId) => { try { commit(setProposalFinish(doc, ids, conditionId)); } catch (e) { say(String(e?.message || e), "warn"); } };
@@ -825,7 +835,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           <aside className="st-finishes st-finishes-review" aria-label="Review proposals">
             <AutoReview list={review} conditions={doc?.conditions ?? []} summary={summary} readOnly={readOnly} selected={selected} above={doc ? idsAbove(doc, 0.8).length : 0}
               onJump={jumpTo} onAccept={(it) => acceptIds(it.ids)} onRemove={(it) => removeIds(it.ids)} onFinish={(it, id) => chooseFinish(it.ids, id)}
-              onAcceptAbove={() => acceptIds(idsAbove(doc, 0.8))} onAcceptSheet={(key) => acceptIds(idsOnSheet(doc, key))} onClose={() => setReviewing(false)} />
+              onAcceptAbove={() => acceptIds(idsAbove(doc, 0.8))} onAcceptSheet={(key) => acceptIds(idsOnSheet(doc, key))} onClose={() => setReviewing(false)}
+              base={baseAreas} onBaseAccept={acceptBaseIds} onBaseRemove={removeIds} />
           </aside>
         )}
         <aside className="st-finishes" aria-label="Measuring" hidden={reviewing}>
