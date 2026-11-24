@@ -4,11 +4,13 @@
  */
 import { useMemo, useState } from "react";
 import type { DrawerTarget } from "@/components/scheduling/VisitDrawer";
-import type { SchedVisit } from "@/lib/scheduling/data";
+import { ConfirmationMark } from "@/components/scheduling/schedule-bits";
+import { useWorkCalendar, type SchedVisit } from "@/lib/scheduling/data";
+import { runLabel } from "@/lib/scheduling/runs";
+import { holidayName, isWorkday, type WorkCalendar } from "@/lib/scheduling/workdays";
 import { chipTone, technicianOf, UNASSIGNED, type Technician } from "@/lib/scheduling/logic";
 import {
   calendarRange,
-  isWeekend,
   monthGrid,
   placeVisits,
   today as siteToday,
@@ -56,7 +58,9 @@ function Block({
   toNext?: boolean;
 }) {
   const who = techName(v, techs);
-  const title = `${jobLabel(v)}${who ? ` — ${who}` : ""}${v.arriveping_job_id ? " (ArrivePing)" : ""}`;
+  const run = runLabel(v);
+  const tentative = !!v.tentative && v.status !== "cancelled";
+  const title = `${jobLabel(v)}${run ? ` · ${run}` : ""}${who ? ` — ${who}` : ""}${tentative ? " (Tentative)" : ""}${v.arriveping_job_id ? " (ArrivePing)" : ""}`;
   return (
     <button
       type="button"
@@ -64,9 +68,12 @@ function Block({
       title={title}
       className={`flex w-full min-w-0 items-center gap-1 overflow-hidden border px-1.5 text-left text-xs leading-5 ${TONE[chipTone(v)]} ${
         fromPrev ? "rounded-l-none border-l-0" : "rounded-l"
-      } ${toNext ? "rounded-r-none border-r-0" : "rounded-r"} ${compact ? "" : "py-0.5"}`}
+      } ${toNext ? "rounded-r-none border-r-0" : "rounded-r"} ${compact ? "" : "py-0.5"} ${tentative ? "border-dashed opacity-70" : ""}`}
     >
+      <ConfirmationMark v={v} />
       <span className="truncate font-medium">{jobLabel(v)}</span>
+      {run && <span className="shrink-0 rounded bg-foreground/10 px-1 text-[9px] font-semibold">{run}</span>}
+      {tentative && <span className="shrink-0 text-[10px] font-semibold">Tentative</span>}
       {who && !compact && <span className="truncate text-muted-foreground">· {who}</span>}
       {v.arriveping_job_id && (
         <span
@@ -118,6 +125,8 @@ function WeekRow({
   expanded?: Set<string>;
   setExpanded?: (d: string) => void;
 }) {
+  const cal = useWorkCalendar();
+  const closed = (d: string) => !isWorkday(d, cal);
   const placed = useMemo(() => placeVisits(visits, days), [visits, days]);
   const lanes = placed.reduce((m, p) => Math.max(m, p.lane + 1), 0);
   // In the month grid, a day with more than MONTH_LIMIT visits shows the first few and "+n more" unless expanded.
@@ -151,7 +160,8 @@ function WeekRow({
         return (
           <div
             key={d}
-            className={`group flex min-h-24 flex-col border-r border-border last:border-r-0 ${isWeekend(d) ? "bg-muted/40" : ""} ${
+            title={holidayName(d, cal) ?? undefined}
+            className={`group flex min-h-24 flex-col border-r border-border last:border-r-0 ${closed(d) ? "bg-muted/60" : ""} ${
               off ? "opacity-50" : ""
             }`}
           >
@@ -215,6 +225,8 @@ export function CalendarView({
   canEdit: boolean;
 }) {
   const todayDay = siteToday();
+  const cal: WorkCalendar = useWorkCalendar();
+  const closed = (d: string) => !isWorkday(d, cal);
   const [expanded, setExpandedState] = useState<Set<string>>(new Set());
   const toggle = (d: string) =>
     setExpandedState((prev) => {
@@ -240,7 +252,7 @@ export function CalendarView({
             {days.map((d) => (
               <div
                 key={d}
-                className={`border-r border-border px-2 py-1.5 last:border-r-0 ${d === todayDay ? "text-foreground" : ""} ${isWeekend(d) ? "bg-muted/40" : ""}`}
+                className={`border-r border-border px-2 py-1.5 last:border-r-0 ${d === todayDay ? "text-foreground" : ""} ${closed(d) ? "bg-muted/60" : ""}`}
               >
                 <span className={d === todayDay ? "rounded bg-primary px-1.5 py-0.5 text-primary-foreground" : ""}>{shortDay(d)}</span>
               </div>
@@ -262,7 +274,7 @@ export function CalendarView({
       <div className="hidden rounded-md border border-border bg-card md:block">
         <div className="grid grid-cols-7 border-b border-border text-xs font-medium text-muted-foreground">
           {WEEKDAYS.map((w, i) => (
-            <div key={w} className={`border-r border-border px-2 py-1.5 last:border-r-0 ${i >= 5 ? "bg-muted/40" : ""}`}>
+            <div key={w} className={`border-r border-border px-2 py-1.5 last:border-r-0 ${cal.workdays.length && !cal.workdays.includes((i + 1) % 7) ? "bg-muted/60" : ""}`}>
               {w}
             </div>
           ))}
@@ -290,7 +302,7 @@ export function CalendarView({
           const list = visitsOn(visits, d);
           if (!list.length && d !== todayDay) return null;
           return (
-            <div key={d} className={`group rounded-md border border-border bg-card p-2 ${isWeekend(d) ? "bg-muted/40" : ""}`}>
+            <div key={d} className={`group rounded-md border border-border bg-card p-2 ${closed(d) ? "bg-muted/60" : ""}`}>
               <div className={`mb-1 text-xs font-medium ${d === todayDay ? "text-primary" : "text-muted-foreground"}`}>{longDay(d)}</div>
               <div className="space-y-1">
                 {list.map((v) => (

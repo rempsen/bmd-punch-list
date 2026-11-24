@@ -4,6 +4,7 @@ import {
   confirmationCounts,
   confirmationOf,
   countsLine,
+  crewNames,
   crewRef,
   defaultAssignmentDay,
   groupByCrew,
@@ -75,6 +76,13 @@ const visits = [
   v("h", { technician_supplier_id: "s1", tentative: true }),
   v("i", { assigned_user_id: "u1", starts_at: "2026-11-26T14:00:00.000Z" }),
 ];
+
+describe("crew names from the Scheduling crew list", () => {
+  test("staff by login id, subcontractors by vendor id; names only ArrivePing knows are not looked up", () => {
+    const m = crewNames([{ id: "u1", name: "Alex Staff", source: "bmd" }, { id: "sup:s1", name: "Floors R Us", source: "supplier" }, { id: "ap:sam", name: "Sam", source: "arriveping" }]);
+    expect([...m]).toEqual([["user:u1", "Alex Staff"], ["sup:s1", "Floors R Us"]]);
+  });
+});
 
 describe("the day's visits by crew", () => {
   const g = groupByCrew(visits, "2026-11-25", names);

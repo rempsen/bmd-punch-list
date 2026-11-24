@@ -49,6 +49,11 @@ describe("which screens need a job chosen first", () => {
     expect(needsJob("/more", undefined)).toBe(false);
     expect(needsJob("/technicians", undefined)).toBe(false);
   });
+  test("company scheduling settings and the crew's confirmation page open with no job chosen", () => {
+    expect(settingsGroup("scheduling")).toBe("company");
+    expect(needsJob("/settings", "scheduling")).toBe(false);
+    expect(needsJob("/confirm/abc", undefined)).toBe(false);
+  });
   test("job screens and job settings still ask for a job", () => {
     for (const p of ["/dashboard", "/board", "/floors", "/documents"]) expect(needsJob(p, undefined)).toBe(true);
     expect(needsJob("/settings", "structure")).toBe(true);

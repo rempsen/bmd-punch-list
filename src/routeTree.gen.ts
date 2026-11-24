@@ -44,6 +44,7 @@ import { Route as AuthenticatedSignoffRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTechniciansRouteImport } from './routes/_authenticated/technicians'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
+import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
 import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedItemIdRouteImport } from './routes/_authenticated/item.$id'
@@ -240,6 +241,11 @@ const AuthenticatedTradePortalRoute =
     path: '/trade-portal',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ConfirmTokenRoute = ConfirmTokenRouteImport.update({
+  id: '/confirm/$token',
+  path: '/confirm/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const QTokenRoute = QTokenRouteImport.update({
   id: '/q/$token',
   path: '/q/$token',
@@ -350,6 +356,7 @@ export interface FileRoutesByFullPath {
   '/summary': typeof AuthenticatedSummaryRoute
   '/technicians': typeof AuthenticatedTechniciansRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -400,6 +407,7 @@ export interface FileRoutesByTo {
   '/summary': typeof AuthenticatedSummaryRoute
   '/technicians': typeof AuthenticatedTechniciansRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/item/$id': typeof AuthenticatedItemIdRoute
@@ -452,6 +460,7 @@ export interface FileRoutesById {
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/technicians': typeof AuthenticatedTechniciansRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/item/$id': typeof AuthenticatedItemIdRoute
@@ -504,6 +513,7 @@ export interface FileRouteTypes {
     | '/summary'
     | '/technicians'
     | '/trade-portal'
+    | '/confirm/$token'
     | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -554,6 +564,7 @@ export interface FileRouteTypes {
     | '/summary'
     | '/technicians'
     | '/trade-portal'
+    | '/confirm/$token'
     | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/item/$id'
@@ -605,6 +616,7 @@ export interface FileRouteTypes {
     | '/_authenticated/summary'
     | '/_authenticated/technicians'
     | '/_authenticated/trade-portal'
+    | '/confirm/$token'
     | '/q/$token'
     | '/.lovable/oauth/consent'
     | '/_authenticated/item/$id'
@@ -627,6 +639,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   McpRoute: typeof McpRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ConfirmTokenRoute: typeof ConfirmTokenRoute
   QTokenRoute: typeof QTokenRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiMsCallbackRoute: typeof ApiMsCallbackRoute
@@ -885,6 +898,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTradePortalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/confirm/$token': {
+      id: '/confirm/$token'
+      path: '/confirm/$token'
+      fullPath: '/confirm/$token'
+      preLoaderRoute: typeof ConfirmTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/q/$token': {
       id: '/q/$token'
       path: '/q/$token'
@@ -1072,6 +1092,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ConfirmTokenRoute: ConfirmTokenRoute,
   QTokenRoute: QTokenRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiMsCallbackRoute: ApiMsCallbackRoute,

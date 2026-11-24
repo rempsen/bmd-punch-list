@@ -39,6 +39,7 @@ import { QuoteSettingsPanel } from "@/components/settings/QuoteSettingsPanel";
 import { KnowledgePanel } from "@/components/settings/KnowledgePanel";
 import { SyncPanel } from "@/components/settings/SyncPanel";
 import { IntegrationsPanel } from "@/components/settings/IntegrationsPanel";
+import { SchedulingSettingsPanel } from "@/components/settings/SchedulingSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   validateSearch: (s: Record<string, unknown>): { tab?: string | undefined; ms?: string | undefined; qbo?: string | undefined; message?: string | undefined } => ({
@@ -96,6 +97,7 @@ function SettingsPage() {
     [canAny("manage_settings") || isSuperAdmin, "scope", "Scope keywords"],
     [canManageAnyUsers, "allusers", "Users"],
     [isSuperAdmin, "roles", "Roles"],
+    [canAny("manage_settings") || isSuperAdmin, "scheduling", "Scheduling"],
     [canSettings, "projects", "All jobs"],
     [canSettings, "jobs", "Jobs admin"],
     [canAny("manage_projects"), "templates", "Job templates"],
@@ -294,6 +296,12 @@ function SettingsPage() {
           {canMicrosoft && (
             <TabsContent value="ai">
               <AiModelPanel />
+            </TabsContent>
+          )}
+
+          {(canAny("manage_settings") || isSuperAdmin) && (
+            <TabsContent value="scheduling">
+              <SchedulingSettingsPanel />
             </TabsContent>
           )}
 

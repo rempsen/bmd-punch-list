@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import type { Visit } from "@/lib/visits/logic";
 import { mergeTechnicians, monthOf, shiftWeek, siteDay, SUP, type Area, type Subcontractor, type Technician } from "./logic";
+import { cleanEmail, type Confirmation, type ReportTo } from "./assignments";
+import { DEFAULT_CALENDAR, readCalendar, type WorkCalendar } from "./workdays";
 
 export type SchedVisit = Visit & {
   project_id: string;
@@ -15,6 +17,20 @@ export type SchedVisit = Visit & {
   source: "bmd" | "arriveping";
   project: { id: string; name: string; project_number: string | null } | null;
   tasks: { id: string; done: boolean }[];
+  /** A run of days: the same `run_id` on each day's visit, numbered `run_day` of `run_total`. All null for a single visit. */
+  run_id?: string | null;
+  run_day?: number | null;
+  run_total?: number | null;
+  /** Not yet firm: shown dashed, never sent to ArrivePing or emailed to the crew. */
+  tentative?: boolean | null;
+  report_to?: ReportTo | null;
+  report_to_other?: string | null;
+  /** "07:00:00"; null means the visit's start time. */
+  report_time?: string | null;
+  confirmation?: Confirmation | null;
+  confirmation_at?: string | null;
+  decline_reason?: string | null;
+  assignment_sent_at?: string | null;
 };
 /** Adds a crew to Catalogue → Suppliers & subcontractors as Labour (or reuses the vendor of that name) and returns its technician id. */
 export async function addSubcontractor(name: string): Promise<string> {
@@ -34,8 +50,8 @@ export type VisitTask = {
   sort: number;
 };
 
-const COLS =
-  "id,project_id,starts_at,ends_at,crew,notes,site_contact,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,status,assigned_user_id,assigned_name,technician_supplier_id,areas,scope,source,project:projects(id,name,project_number),tasks:visit_tasks(id,done)";
+// "*" so the run, tentative, report-to and confirmation columns are read once migration 0083 is applied, and nothing breaks before.
+const COLS = "*,project:projects(id,name,project_number),tasks:visit_tasks(id,done)";
 
 /** BMD field staff, the catalogue's active Labour and Both vendors, and any other crew name ArrivePing has reported on a visit. */
 export function useTechnicians() {
@@ -192,6 +208,7 @@ export function useRefreshSchedule() {
       "visits",
       "visit-events",
       "technicians",
+      "run-visits",
     ])
       void qc.invalidateQueries({ queryKey: [k] });
   };
@@ -286,4 +303,51 @@ export async function saveLabourCrews(labourRateId: string, changes: { add: stri
     const { error } = await db.from("labour_crews").insert(changes.add.map((supplier_id) => ({ labour_rate_id: labourRateId, supplier_id })));
     if (error) throw new Error(error.message);
   }
+}
+
+// ── Company settings → Scheduling ────────────────────────────────────────────────────────────────────────────
+export type ScheduleSettings = { calendar: WorkCalendar; assignmentCc: string[] };
+const NO_SETTINGS: ScheduleSettings = { calendar: DEFAULT_CALENDAR, assignmentCc: [] };
+// schedule_settings is newer than the generated types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const settingsTable = () => (db as unknown as { from: (t: string) => any }).from("schedule_settings");
+
+/** The company's workdays, holidays and copy-to list. Until they can be read, Monday to Friday with no holidays. */
+export function useScheduleSettings() {
+  return useQuery({
+    queryKey: ["schedule-settings"],
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<ScheduleSettings> => {
+      const { data, error } = await settingsTable().select("workdays,holidays,assignment_cc").eq("id", 1).maybeSingle();
+      if (error || !data) return NO_SETTINGS;
+      const cc = Array.isArray(data.assignment_cc) ? (data.assignment_cc as unknown[]).map((e) => cleanEmail(typeof e === "string" ? e : null)).filter((e): e is string => !!e) : [];
+      return { calendar: readCalendar(data), assignmentCc: cc };
+    },
+  });
+}
+/** The work calendar for shading and run arithmetic; the default while loading. */
+export function useWorkCalendar(): WorkCalendar {
+  return useScheduleSettings().data?.calendar ?? DEFAULT_CALENDAR;
+}
+
+export async function saveScheduleSettings(s: ScheduleSettings) {
+  const { data, error } = await settingsTable()
+    .update({ workdays: s.calendar.workdays, holidays: s.calendar.holidays, assignment_cc: s.assignmentCc })
+    .eq("id", 1)
+    .select("id");
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error("You don't have permission to change these settings.");
+}
+
+/** Every visit of a run, in date order. */
+export function useRunVisits(runId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["run-visits", runId],
+    enabled: !!runId,
+    queryFn: async () => {
+      const { data, error } = await db.from("install_visits").select(COLS).eq("run_id" as never, runId!).order("starts_at");
+      if (error) throw error;
+      return (data ?? []) as unknown as SchedVisit[];
+    },
+  });
 }

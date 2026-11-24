@@ -55,6 +55,16 @@ export function crewRef(v: Assigned): CrewRef | null {
   return name ? { key: `name:${norm(name)}`, kind: "name", name } : null;
 }
 
+/** Crew names by crew key, from the Scheduling crew list (staff ids, and "sup:<vendor id>" for subcontractors). */
+export function crewNames(techs: { id: string; name: string; source: string }[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const t of techs) {
+    if (t.source === "bmd") out.set(`user:${t.id}`, t.name);
+    else if (t.source === "supplier") out.set(t.id, t.name);
+  }
+  return out;
+}
+
 type DayVisit = Assigned & { id: string; starts_at: string; status: string; tentative?: boolean | null; confirmation?: string | null };
 export type CrewGroup<V> = { key: string; kind: CrewRef["kind"]; name: string; visits: V[] };
 

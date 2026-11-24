@@ -1,6 +1,29 @@
 /** Install visits and what ArrivePing tells us about them. */
 export type VisitStatus = "scheduled" | "en_route" | "arrived" | "completed" | "cancelled";
-export type Visit = { id: string; starts_at: string; ends_at: string | null; crew: string | null; notes: string | null; site_contact: string | null; arriveping_job_id: string | null; status: VisitStatus; arriveping_status: string | null; arriveping_assigned_to: string | null; arriveping_last_event_at: string | null };
+export type Visit = {
+  id: string;
+  starts_at: string;
+  ends_at: string | null;
+  crew: string | null;
+  notes: string | null;
+  site_contact: string | null;
+  arriveping_job_id: string | null;
+  status: VisitStatus;
+  arriveping_status: string | null;
+  arriveping_assigned_to: string | null;
+  arriveping_last_event_at: string | null;
+  /** A run of days ("Day 2 of 3"): null on a single visit, and on visits read before runs existed. */
+  run_day?: number | null;
+  run_total?: number | null;
+  /** Not yet firm: never sent to ArrivePing, and the crew is not told. */
+  tentative?: boolean | null;
+  /** Where and when the crew reports: 'site' | 'shop' | 'other' (with its text), at `report_time` or else the start. */
+  report_to?: string | null;
+  report_to_other?: string | null;
+  report_time?: string | null;
+  /** The crew's answer to the assignment email: 'not_sent' | 'waiting' | 'confirmed' | 'declined'. */
+  confirmation?: string | null;
+};
 
 /** Compares the secret a caller sent with ours without leaking where they differ. No secret configured means nobody gets in. */
 export function secretMatches(got: string | null | undefined, expected: string | null | undefined): boolean {

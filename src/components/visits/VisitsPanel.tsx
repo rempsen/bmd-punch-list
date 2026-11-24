@@ -9,6 +9,8 @@ import { useSignedUrls } from "@/lib/photos";
 import { db, errText } from "@/lib/platform/db";
 import { useProjectVisitPhotos, useProjectVisits, type VisitPhoto } from "@/lib/visits/data";
 import { ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
+import { ConfirmationPill, VisitTags } from "@/components/scheduling/schedule-bits";
+import { reportLine } from "@/lib/scheduling/assignments";
 import {
   applyVisitEvent,
   arrivepingPill,
@@ -216,7 +218,9 @@ export function VisitsPanel({
                   >
                     {range}
                   </button>
+                  <VisitTags v={v} />
                   {who && <p className="truncate text-xs text-muted-foreground">{who}</p>}
+                  <p className="text-xs text-muted-foreground">{reportLine(v)}</p>
                   {v.notes && (
                     <p className="truncate text-xs text-muted-foreground" title={v.notes}>
                       {v.notes}
@@ -225,6 +229,7 @@ export function VisitsPanel({
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <StatusPill label={VISIT_LABEL[v.status]} />
                     {ap && <ArrivePingPill label={ap} />}
+                    {v.status === "scheduled" && !v.tentative && <ConfirmationPill v={v} />}
                     {v.arriveping_job_id && <OpenInArrivePing jobId={v.arriveping_job_id} />}
                   </div>
                   <VisitPhotos photos={photosByVisit.get(v.id) ?? []} />
@@ -240,7 +245,7 @@ export function VisitsPanel({
                     v.status === "en_route" ||
                     v.status === "arrived") && (
                     <div className="flex flex-wrap gap-2">
-                      {v.status === "scheduled" && !v.arriveping_job_id && (
+                      {v.status === "scheduled" && !v.arriveping_job_id && !v.tentative && (
                         <Button
                           size="sm"
                           variant="outline"
