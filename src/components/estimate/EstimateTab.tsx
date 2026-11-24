@@ -3,7 +3,11 @@ import { ImportDialog } from "./ImportDialog";
 import { ScopeProposals } from "./ScopeProposals";
 import { areasText, lineAreas, useTakeoffAreas } from "@/lib/takeoff/areas";
 import { finishLinks, offerQty, offerUom, takeoffOffers, totalsByFinish, useTakeoffQuantities, type Offer } from "@/lib/takeoff/quantities";
-import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, GripVertical, Plus, RefreshCw, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, GripVertical, History, LockOpen, Plus, RefreshCw, Trash2, TriangleAlert, Upload, X } from "lucide-react";
+import { ChangesSheet, keyCommit, TypedBadge, UnlockDialog, UnlockedBar } from "@/components/estimate/editing";
+import { categoryMarkup, followsCategory, marginToMarkup, markupFromSell, markupToMargin, ORDER_UNITS, parseMargin, perUnit, revertPatch } from "@/lib/estimating/overrides";
+import { UOMS } from "@/lib/catalogue/logic";
+import { staffName, useBmdStaff } from "@/lib/projects/data";
 import { toast } from "sonner";
 import { selectCls } from "@/components/catalogue/fields";
 import { CompareView, SwapFinishDialog } from "@/components/estimate/alternates";
@@ -21,8 +25,17 @@ import {
   deleteLine,
   deleteVersion,
   dollars,
+  isEditable,
   isReload,
+  logChanges,
+  markReverted,
+  relockVersion,
   saveFinish,
+  unlockVersion,
+  useAcceptedQuotes,
+  useEstimateChanges,
+  type EstChange,
+  type NewChange,
   saveLines,
   updateVersion,
   useEstimate,
@@ -45,7 +58,8 @@ const numInput = "h-10 w-16 rounded-md border border-input bg-background px-2 te
 
 /** The project's estimate: Base and alternates, each a worksheet of priced lines. */
 export function EstimateTab({ projectId }: { projectId: string }) {
-  const { canAny } = useAuth();
+  const { canAny, user } = useAuth();
+  const canUnlock = canAny("manage_projects");
   const canSee = canAny("view_pricing");
   const canEdit = canAny("manage_estimates");
   const { data: versions = [], isLoading, error } = useEstimate(projectId, canSee);
@@ -58,7 +72,6 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const { data: tax } = useTaxSettings(canSee);
   const refresh = useRefreshEstimate(projectId);
   const refreshCatalogue = useRefreshCatalogue();
-  const canCatalogue = canAny("manage_catalogue");
   const { data: measured } = useTakeoffQuantities(projectId, canSee);
   const takeoffTotals = useMemo(() => totalsByFinish(measured ?? []), [measured]);
   // Base by area (suites, common areas, washrooms) under each line that follows the takeoff in LF. A view setting,
@@ -87,7 +100,10 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   // Change orders are priced on the same worksheet, listed after the estimate prices.
   const shown = useMemo(() => [...estimates, ...versions.filter((v) => v.kind === "change_order")], [versions]); // eslint-disable-line react-hooks/exhaustive-deps
   const active = shown.find((v) => v.id === activeId) ?? shown[0] ?? null;
-  const [dialog, setDialog] = useState<"add" | "paste" | "windows" | "refresh" | "swap" | "import" | null>(null);
+  const [dialog, setDialog] = useState<"add" | "paste" | "windows" | "refresh" | "swap" | "import" | "unlock" | "changes" | null>(null);
+  const { data: changes = [] } = useEstimateChanges(active?.id ?? null, canSee);
+  const { data: acceptedQuotes = [] } = useAcceptedQuotes(projectId, canSee);
+  const { data: staff = [] } = useBmdStaff(canSee);
   const [comparing, setComparing] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -132,17 +148,75 @@ export function EstimateTab({ projectId }: { projectId: string }) {
    * A unit cost typed on a line. For a catalogue material, a labour rate or a finish it becomes the catalogue's price
    * (and so is queued for QuickBooks); a one-off stays on the line. Clearing a cost only clears it on the line.
    */
-  const applyCost = (l: EstLine, i: number, cents: number | null) =>
+  /** Saves lines and records what was typed in the change history. */
+  const saveLogged = (items: SaveItem[], log: NewChange[], done?: string) =>
+    run(async () => {
+      await saveLines(items);
+      await logChanges(log, user?.id ?? null);
+    }, done);
+  const changeFor = (l: EstLine, field: string, field_label: string, from_value: unknown, to_value: unknown, component_index: number | null = null): NewChange => ({ version_id: l.version_id, line_id: l.id, component_index, line_label: l.description, field, field_label, from_value, to_value });
+
+  /** A unit cost typed on a part. It stays on this line ("typed here") until pushed to the catalogue or reset from it. */
+  const typeCost = (l: EstLine, i: number, cents: number | null) => {
+    const c = l.components[i]!;
+    const patch: Partial<SnapComponent> = { unit_cost_cents: cents, cost_overridden: cents != null, overridden_by: null, overridden_at: null };
+    void saveLogged(
+      [{ id: l.id, row_version: l.row_version, line: {}, components: l.components.map((x, j) => (j === i ? { ...x, ...patch } : x)) }],
+      [changeFor(l, "unit_cost_cents", `${c.label}: unit cost`, { unit_cost_cents: c.unit_cost_cents, cost_overridden: c.cost_overridden }, { unit_cost_cents: cents, cost_overridden: cents != null }, i)],
+      cents == null ? "Cost cleared on this line" : undefined,
+    );
+  };
+  /** Puts a part back to the catalogue's current price and unit. */
+  const resetFromCatalogue = (l: EstLine, i: number) => {
+    const c = l.components[i]!;
+    const m = c.catalogue_material_id ? catalogue.materials[c.catalogue_material_id] : null;
+    const r = c.labour_rate_id ? catalogue.labour[c.labour_rate_id] : null;
+    if (!m && !r) return;
+    const patch: Partial<SnapComponent> = m
+      ? { unit_cost_cents: m.unit_cost_cents, cost_uom: m.cost_uom, purchase_uom: m.purchase_uom, cost_overridden: false, order_uom: null, order_uom_factor: null, price_per: "cost_unit" }
+      : { unit_cost_cents: r!.unit_cost_cents, cost_uom: r!.uom, purchase_uom: r!.uom, cost_overridden: false };
+    void saveLogged(
+      [{ id: l.id, row_version: l.row_version, line: {}, components: l.components.map((x, j) => (j === i ? { ...x, ...patch } : x)) }],
+      [changeFor(l, "reset_from_catalogue", `${c.label}: reset from catalogue`, { unit_cost_cents: c.unit_cost_cents, cost_uom: c.cost_uom, cost_overridden: c.cost_overridden }, { unit_cost_cents: patch.unit_cost_cents ?? null }, i)],
+      `${c.label} reset to the catalogue price`,
+    );
+  };
+  /** A typed part edit other than its cost (cost unit, order unit, conversion, priced per). */
+  const typePart = (l: EstLine, i: number, patch: Partial<SnapComponent>, label: string) => {
+    const c = l.components[i]!;
+    const from = Object.fromEntries(Object.keys(patch).map((k) => [k, (c as Record<string, unknown>)[k] ?? null]));
+    void saveLogged([{ id: l.id, row_version: l.row_version, line: {}, components: l.components.map((x, j) => (j === i ? { ...x, ...patch } : x)) }], [changeFor(l, Object.keys(patch).join(","), `${c.label}: ${label}`, from, patch, i)]);
+  };
+  /** A line-level figure: markup, margin, sell, or the line's unit cost. */
+  const typeLine = (l: EstLine, patch: SaveItem["line"], field: string, label: string, done?: string) => {
+    const from = Object.fromEntries(Object.keys(patch).map((k) => [k, (l as Record<string, unknown>)[k] ?? null]));
+    void saveLogged([{ id: l.id, row_version: l.row_version, line: patch }], [changeFor(l, field, label, from, patch)], done);
+  };
+  const revert = (c: EstChange) => {
+    const l = active?.lines.find((x) => x.id === c.line_id);
+    if (!l) return void toast.error("That line is no longer on this price");
+    const p = revertPatch(c, l.components);
+    if (!p) return void toast.error("This change cannot be reverted");
+    void run(async () => {
+      await saveLines([{ id: l.id, row_version: l.row_version, line: p.line as SaveItem["line"], ...(p.components ? { components: p.components } : {}) }]);
+      await markReverted(c.id, user?.id ?? null);
+    }, "Change reverted");
+  };
+
+  /** "Push to catalogue": the cost typed on a part becomes the catalogue's price, and is queued for QuickBooks. */
+  const pushToCatalogue = (l: EstLine, i: number) =>
     run(async () => {
       const c = l.components[i]!;
+      const cents = c.unit_cost_cents;
       const finish = finishes.find((f) => f.id === l.finish_id) ?? null;
-      let target: ReturnType<typeof costTarget> = cents == null || !canCatalogue ? { kind: "line_only" } : costTarget(c, finish, l.components.length);
+      let target: ReturnType<typeof costTarget> = cents == null ? { kind: "line_only" } : costTarget(c, finish, l.components.length);
+      if (target.kind === "line_only") throw new Error(`${c.label} is not linked to a catalogue item, so its cost stays on this line`);
       // Another job may already have a catalogue material with this name. It is a different product, so it is not repriced from here.
       const newName = target.kind === "new_material" ? target.name.trim().toLowerCase() : null;
       const taken = newName != null && materials.some((m) => m.name.trim().toLowerCase() === newName);
       if (taken) target = { kind: "line_only" };
-      let patch: Partial<SnapComponent> = { unit_cost_cents: cents, cost_overridden: cents != null };
-      let said = cents == null ? "Cost cleared on this line" : "Cost saved on this line";
+      let patch: Partial<SnapComponent> = { unit_cost_cents: cents, cost_overridden: true };
+      let said = "Cost kept on this line";
       if (target.kind === "material" || target.kind === "labour") {
         // The catalogue keeps each price in its own unit. A cost typed per SY for a material priced per SF is converted; an unrelated unit stays on the line.
         const id = target.id;
@@ -166,6 +240,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         said = `${target.name} added to the catalogue at ${dollars(cents!)} / ${target.uom}`;
       }
       await saveLines([{ id: l.id, row_version: l.row_version, line: {}, components: l.components.map((x, j) => (j === i ? { ...x, ...patch } : x)) }]);
+      await logChanges([changeFor(l, "push_to_catalogue", `${c.label}: pushed to catalogue`, null, { unit_cost_cents: cents })], user?.id ?? null);
       if (target.kind !== "line_only") refreshCatalogue();
       if (taken) toast.info(`${said}. The catalogue already has a material with this finish's name, so it was not changed. Pick the material on the finish above to link them.`, { duration: 9000 });
       else toast.success(target.kind === "line_only" ? said : `${said}. It will be sent to QuickBooks when that is connected.`);
@@ -197,7 +272,10 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       </div>
     );
 
-  const editable = canEdit && !active.locked;
+  const editable = canEdit && isEditable(active);
+  const unlocked = active.locked && active.unlocked_at != null;
+  const quote = acceptedQuotes.find((q) => q.accepted_version_id === active.id);
+  const changedSinceUnlock = unlocked && changes.some((c) => c.changed_at > active.unlocked_at! && c.line_id != null && !c.reverted_at);
   const sum = summaries[active.id]!;
   const sections = [...new Set(active.lines.map((l) => l.section))];
   const chosen = active.lines.filter((l) => selected.has(l.id));
@@ -211,7 +289,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       chosen.map((l) => ({
         id: l.id,
         row_version: l.row_version,
-        line: { ...(waste != null ? { waste_pct: waste } : {}), ...(markup != null ? { markup_pct: markup, price_basis: "markup" as const } : {}) },
+        line: { ...(waste != null ? { waste_pct: waste } : {}), ...(markup != null ? { markup_pct: markup, price_basis: "markup" as const, markup_overridden: true, sell_override_cents: null } : {}) },
         ...(waste != null ? { components: setLineWaste(l.components, waste) } : {}),
       })),
       `${chosen.length} lines updated`,
@@ -335,8 +413,25 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       })()}
       {comparing && estimates.length > 1 && <CompareView versions={[...estimates].sort((a, b) => Number(b.is_base) - Number(a.is_base))} rates={rates} />}
 
-      {active.locked && (
-        <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">This price has been {active.status === "accepted" ? "accepted" : "sent"} and is locked. Copy it as an alternate to keep working.</p>
+      {active.locked && !unlocked && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-sm">
+          <p className="min-w-0 flex-1">This price has been {active.status === "accepted" ? "accepted" : "sent"} and is locked. Copy it as an alternate to keep working.</p>
+          {canUnlock && canEdit && (
+            <Button size="sm" variant="outline" className="h-9" onClick={() => setDialog("unlock")}>
+              <LockOpen className="mr-1.5 h-4 w-4" /> Unlock to fix an error
+            </Button>
+          )}
+        </div>
+      )}
+      {unlocked && (
+        <UnlockedBar
+          by={staffName(staff, active.unlocked_by ?? undefined) ?? "someone"}
+          reason={active.unlock_reason ?? ""}
+          canRelock={canUnlock}
+          onRelock={() => void run(() => relockVersion(active.id), "Price re-locked")}
+          projectId={projectId}
+          quoteMismatch={quote && changedSinceUnlock ? `This price has been changed since quote ${quote.number ?? ""} was accepted${quote.accepted_value_cents != null ? ` at ${dollars(quote.accepted_value_cents)}` : ""}, so the quote total no longer matches.` : null}
+        />
       )}
 
       {canEdit && <ScopeProposals projectId={projectId} finishCount={finishes.length} onAccepted={refresh} />}
@@ -440,6 +535,17 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                 {sections.map((section) => {
                   const lines = active.lines.filter((l) => l.section === section);
                   const sub = sum.sections.find((s) => s.section === section);
+                  const catMarkup = categoryMarkup(section, active.section_markups, lines, active.default_markup_pct);
+                  /** A category markup: saved on the price and applied to every line in it not set individually. */
+                  const setCategory = (markup: number) => {
+                    if (markup === catMarkup && active.section_markups[section] != null) return;
+                    const follow = lines.filter((l) => followsCategory(l, section) && l.markup_pct !== markup);
+                    void run(async () => {
+                      await updateVersion(active.id, { section_markups: { ...active.section_markups, [section]: markup } });
+                      await saveLines(follow.map((l) => ({ id: l.id, row_version: l.row_version, line: { markup_pct: markup, price_basis: "markup" as const } })));
+                      await logChanges([{ version_id: active.id, line_id: null, component_index: null, line_label: section, field: "section_markup", field_label: "Category markup", from_value: { markup_pct: catMarkup }, to_value: { markup_pct: markup } }], user?.id ?? null);
+                    }, `${section}: ${markup}% markup on ${follow.length} ${follow.length === 1 ? "line" : "lines"}`);
+                  };
                   return (
                     <Fragment key={section}>
                       <tr
@@ -454,10 +560,16 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                           if (dragId) moveTo([dragId], section);
                         }}
                       >
-                        <th colSpan={8} scope="rowgroup" className="px-3 py-1.5 text-left text-sm font-semibold">
+                        <th colSpan={6} scope="rowgroup" className="px-3 py-1.5 text-left text-sm font-semibold">
                           {section}
                           {dragId && <span className="ml-2 text-xs font-normal text-muted-foreground">drop here to move it to {section}</span>}
                         </th>
+                        <td className="px-2 py-1.5 text-right">
+                          <PctInput key={`${section}-cm-${catMarkup}`} label={`Markup for ${section}`} value={catMarkup} disabled={!editable} onCommit={(n) => setCategory(n)} />
+                        </td>
+                        <td className="px-2 py-1.5 text-right">
+                          <PctInput key={`${section}-cg-${catMarkup}`} label={`Margin for ${section}`} value={markupToMargin(catMarkup)} margin disabled={!editable} onCommit={(n) => setCategory(marginToMarkup(n))} />
+                        </td>
                         <td className="px-2 py-1.5 text-right text-sm font-semibold tabular-nums">{dollars(sub?.sellCents ?? 0)}</td>
                         <td />
                       </tr>
@@ -473,7 +585,13 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                           onToggle={() => setOpen((s) => toggle(s, l.id))}
                           onSelect={() => setSelected((s) => toggle(s, l.id))}
                           onSave={(line, components) => void save([{ id: l.id, row_version: l.row_version, line, ...(components ? { components } : {}) }])}
-                          onCost={(i, cents) => void applyCost(l, i, cents)}
+                          onCost={(i, cents) => typeCost(l, i, cents)}
+                          onLine={(patch, field, label, done) => typeLine(l, patch, field, label, done)}
+                          onPart={(i, patch, label) => typePart(l, i, patch, label)}
+                          onPush={(i) => window.confirm(`Make ${dollars(l.components[i]!.unit_cost_cents ?? 0)} / ${l.components[i]!.cost_uom} the catalogue price for ${l.components[i]!.label}? Every new estimate will start from it, and it is sent to QuickBooks when that is connected.`) && void pushToCatalogue(l, i)}
+                          onReset={(i) => resetFromCatalogue(l, i)}
+                          canPush={canSee}
+                          categoryMarkup={catMarkup}
                           sections={sections}
                           materials={materials}
                           labour={labour}
@@ -536,6 +654,23 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         </Button>
       )}
 
+      {dialog === "unlock" && (
+        <UnlockDialog
+          onClose={() => setDialog(null)}
+          onUnlock={async (reason) => {
+            try {
+              await unlockVersion(active.id, reason);
+              toast.success("Unlocked for corrections");
+              setDialog(null);
+            } catch (e) {
+              toast.error(errText(e));
+            } finally {
+              refresh();
+            }
+          }}
+        />
+      )}
+      {dialog === "changes" && <ChangesSheet changes={changes} staff={staff} canRevert={editable} onRevert={revert} onClose={() => setDialog(null)} />}
       {dialog === "add" && <AddLineDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} costCodes={costCodes} sections={sections} onClose={() => setDialog(null)} onAdd={(items, note) => save(items, note).then(() => setDialog(null))} />}
       {dialog === "windows" && <WindowScheduleDialog version={active} sections={sections} onClose={() => setDialog(null)} onAdd={(items) => save(items, `${items.length} window types added`).then(() => setDialog(null))} />}
       {dialog === "import" && (
@@ -592,8 +727,13 @@ function VersionName({ version, editable, onSaved }: { version: EstVersion; edit
             const n = Number(e.target.value);
             if (n >= 0 && n <= 1000 && n !== version.default_markup_pct) void commit({ default_markup_pct: n });
           }}
+          onKeyDown={keyCommit}
           className={numInput}
         />
+      </label>
+      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        Margin %
+        <PctInput key={`${version.id}-g-${version.default_markup_pct}`} label="Default margin percent" value={markupToMargin(version.default_markup_pct)} margin disabled={!editable} onCommit={(g) => void commit({ default_markup_pct: marginToMarkup(g) })} />
       </label>
     </div>
   );
@@ -624,6 +764,12 @@ function LineRows({
   onDropLine,
   onMove,
   onOpen,
+  onLine,
+  onPart,
+  onPush,
+  onReset,
+  canPush,
+  categoryMarkup: catMarkup,
 }: {
   line: EstLine;
   areas: ReturnType<typeof lineAreas>;
@@ -647,6 +793,12 @@ function LineRows({
   onDropLine: () => void;
   onMove: (section: string) => void;
   onOpen: () => void;
+  onLine: (patch: SaveItem["line"], field: string, label: string, done?: string) => void;
+  onPart: (index: number, patch: Partial<SnapComponent>, label: string) => void;
+  onPush: (index: number) => void;
+  onReset: (index: number) => void;
+  canPush: boolean;
+  categoryMarkup: number;
 }) {
   const fixed = line.price_basis === "fixed_sell";
   const commitNumber = (raw: string, current: number, max: number, make: (n: number) => [SaveItem["line"], SnapComponent[]?]) => {
@@ -690,6 +842,23 @@ function LineRows({
     if (cents !== line.fixed_sell_cents) onSave({ fixed_sell_cents: cents });
   };
   const wasteShown = lineWasteShown(line.waste_pct, line.components);
+  const shownMarkup = line.price_basis === "margin" || line.sell_override_cents != null ? priced.markupPct : line.markup_pct;
+  /** Markup, margin or sell typed on the line: markup is stored, the other two follow. */
+  const setMarkup = (markup: number, field: string, label: string) => onLine({ markup_pct: markup, price_basis: "markup", sell_override_cents: null, markup_overridden: true }, field, label);
+  const commitSell = (raw: string) => {
+    const cents = raw.trim() === "" ? null : parseMoneyCents(raw);
+    if (raw.trim() !== "" && cents == null) return void toast.error("Enter the selling price in dollars");
+    if (cents == null) return line.sell_override_cents != null ? onLine({ sell_override_cents: null }, "sell_override_cents", "Sell (cleared)") : undefined;
+    if (cents === priced.sellCents) return;
+    onLine({ sell_override_cents: cents, markup_pct: markupFromSell(priced.costCents, cents) ?? line.markup_pct, price_basis: "markup", markup_overridden: true }, "sell_override_cents", "Sell");
+  };
+  const commitLineCost = (raw: string) => {
+    const cents = raw.trim() === "" ? null : parseMoneyCents(raw);
+    if (raw.trim() !== "" && cents == null) return void toast.error("Enter the unit cost in dollars, or leave it blank to use the parts");
+    if (cents !== (line.unit_cost_override_cents ?? null)) onLine({ unit_cost_override_cents: cents }, "unit_cost_override_cents", "Line unit cost");
+  };
+  const partsPerUnit = perUnit(priced.partsCostCents, line.driver_qty);
+  const lineOverride = line.unit_cost_override_cents != null;
   // A line made of one thing has its unit cost right on the row. A line made of several opens to show each.
   const needed = line.components.map((c, i) => ({ c, i })).filter((x) => !x.c.not_applicable);
   const single = needed.length === 1 ? needed[0]! : null;
@@ -811,7 +980,7 @@ function LineRows({
           </select>
         </td>
         <td className={cn(cell, "text-right")}>
-          <input key={`${line.id}-w-${line.row_version}`} aria-label="Waste percent" disabled={!editable || fixed} inputMode="decimal" defaultValue={wasteShown} onBlur={(e) => commitNumber(e.target.value, wasteShown, 100, (n) => [{ waste_pct: n }, setLineWaste(line.components, n)])} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className={numInput} />
+          <input key={`${line.id}-w-${line.row_version}`} aria-label="Waste percent" disabled={!editable || fixed} inputMode="decimal" defaultValue={wasteShown} onBlur={(e) => commitNumber(e.target.value, wasteShown, 100, (n) => [{ waste_pct: n }, setLineWaste(line.components, n)])} onKeyDown={keyCommit} className={numInput} />
         </td>
         <td className={cn(cell, "text-right")}>
           {single && !fixed ? (
@@ -826,12 +995,38 @@ function LineRows({
                   placeholder="Add cost"
                   defaultValue={single.c.unit_cost_cents == null ? "" : (single.c.unit_cost_cents / 100).toFixed(2)}
                   onBlur={(e) => commitCost(single.i, e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  onKeyDown={keyCommit}
                   className={cn(numInput, "w-20", single.c.unit_cost_cents == null && "border-amber-400 bg-amber-50 placeholder:text-amber-800")}
                 />
                 <span className="w-9 text-left text-xs text-muted-foreground">/ {single.c.cost_uom}</span>
               </div>
             )
+          ) : !fixed && (editable || lineOverride) && line.components.length > 1 ? (
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                <span className="text-xs text-muted-foreground">$</span>
+                <input
+                  key={`${line.id}-lu-${line.row_version}`}
+                  aria-label={`Unit cost of ${line.description || "this line"} per ${line.driver_uom}`}
+                  disabled={!editable}
+                  inputMode="decimal"
+                  placeholder={partsPerUnit == null ? "Type" : (partsPerUnit / 100).toFixed(2)}
+                  defaultValue={lineOverride ? (line.unit_cost_override_cents! / 100).toFixed(2) : ""}
+                  onBlur={(e) => commitLineCost(e.target.value)}
+                  onKeyDown={keyCommit}
+                  className={cn(numInput, "w-20")}
+                />
+                <span className="w-9 text-left text-xs text-muted-foreground">/ {line.driver_uom}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                {lineOverride ? (
+                  <TypedBadge label="overridden" title={`Parts come to ${partsPerUnit == null ? "—" : dollars(partsPerUnit)} / ${line.driver_uom}`} onClear={editable ? () => onLine({ unit_cost_override_cents: null }, "unit_cost_override_cents", "Line unit cost (cleared)", "Back to the parts' cost") : undefined} />
+                ) : null}
+                <button type="button" aria-expanded={expanded} onClick={onToggle} className={cn("underline-offset-2 hover:underline", priced.unknown && "font-medium text-amber-800")}>
+                  {lineOverride ? `parts ${partsPerUnit == null ? "—" : dollars(partsPerUnit)}` : priced.unknown && editable ? "Add costs" : `${needed.length} parts`}
+                </button>
+              </div>
+            </div>
           ) : (
             line.components.length > 0 && (
               <button
@@ -854,10 +1049,26 @@ function LineRows({
           {fixed ? (
             <span className="tabular-nums text-muted-foreground">{priced.unknown ? "—" : priced.markupPct.toFixed(1)}</span>
           ) : (
-            <input key={`${line.id}-m-${line.row_version}`} aria-label="Markup percent" disabled={!editable} inputMode="decimal" defaultValue={line.price_basis === "margin" ? priced.markupPct : line.markup_pct} onBlur={(e) => commitNumber(e.target.value, line.price_basis === "margin" ? priced.markupPct : line.markup_pct, 1000, (n) => [{ markup_pct: n, price_basis: "markup" }])} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className={numInput} />
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-1">
+                {line.markup_overridden && <span className="h-1.5 w-1.5 rounded-full bg-primary" title="Set on this line" aria-label="Set on this line" />}
+                <PctInput key={`${line.id}-m-${line.row_version}`} label="Markup percent" value={shownMarkup} disabled={!editable} onCommit={(n) => setMarkup(n, "markup_pct", "Markup")} />
+              </div>
+              {editable && line.markup_overridden && line.markup_pct !== catMarkup && (
+                <button type="button" className="text-[11px] text-muted-foreground underline-offset-2 hover:underline" onClick={() => onLine({ markup_pct: catMarkup, price_basis: "markup", markup_overridden: false, sell_override_cents: null }, "markup_pct", "Markup (reset to category)")}>
+                  Reset to category
+                </button>
+              )}
+            </div>
           )}
         </td>
-        <td className={cn(cell, "text-right tabular-nums text-muted-foreground")}>{priced.unknown ? "—" : `${priced.marginPct.toFixed(1)}%`}</td>
+        <td className={cn(cell, "text-right tabular-nums text-muted-foreground")}>
+          {fixed || priced.unknown ? (
+            priced.unknown ? "—" : `${priced.marginPct.toFixed(1)}%`
+          ) : (
+            <PctInput key={`${line.id}-g-${line.row_version}`} label="Margin percent" value={priced.marginPct} margin disabled={!editable} onCommit={(g) => setMarkup(marginToMarkup(g), "margin_pct", "Margin")} />
+          )}
+        </td>
         <td className={cn(cell, "whitespace-nowrap text-right font-medium tabular-nums")}>
           {fixed && editable ? (
             <>
@@ -869,12 +1080,31 @@ function LineRows({
                 placeholder="Set price"
                 defaultValue={line.fixed_sell_cents == null ? "" : (line.fixed_sell_cents / 100).toFixed(2)}
                 onBlur={(e) => commitFixedSell(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                onKeyDown={keyCommit}
                 className={cn(numInput, "w-28 font-medium")}
               />
             </>
+          ) : !fixed && editable ? (
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-normal text-muted-foreground">$</span>
+                <input
+                  key={`${line.id}-sl-${line.row_version}-${priced.sellCents}`}
+                  aria-label={`Selling price of ${line.description || "this line"}`}
+                  inputMode="decimal"
+                  defaultValue={(priced.sellCents / 100).toFixed(2)}
+                  onBlur={(e) => commitSell(e.target.value)}
+                  onKeyDown={keyCommit}
+                  className={cn(numInput, "w-28 font-medium")}
+                />
+              </div>
+              {priced.sellOverridden && <TypedBadge title="This selling price was typed; it stays when the cost changes" onClear={() => onLine({ sell_override_cents: null }, "sell_override_cents", "Sell (cleared)", "Back to markup")} />}
+            </div>
           ) : (
-            dollars(priced.sellCents)
+            <>
+              {dollars(priced.sellCents)}
+              {priced.sellOverridden && <span className="ml-1"><TypedBadge /></span>}
+            </>
           )}
         </td>
         <td className="px-1">
@@ -894,6 +1124,7 @@ function LineRows({
                 <tr>
                   <th className="py-1 font-medium">Made up of</th>
                   <th className="py-1 text-right font-medium">Unit cost</th>
+                  <th className="py-1 text-right font-medium">Order unit</th>
                   <th className="py-1 text-right font-medium">Order</th>
                   <th className="py-1 text-right font-medium">Waste %</th>
                   <th className="py-1 text-right font-medium">Cost</th>
@@ -902,13 +1133,27 @@ function LineRows({
               </thead>
               <tbody>
                 {line.components.map((c, i) => (
-                  <tr key={i} className={c.not_applicable ? "opacity-50" : undefined}>
+                  <tr key={i} className={c.not_applicable || lineOverride ? "opacity-50" : undefined}>
                     <td className="py-1">
                       {c.label}
                       <span className="ml-2 text-xs text-muted-foreground">
                         {c.kind === "labour" ? "labour" : c.pst_applies ? "plus PST" : ""}
                         {c.cost_overridden ? " · typed here" : ""}
                       </span>
+                      {editable && (c.catalogue_material_id || c.labour_rate_id) && (
+                        <span className="ml-2 inline-flex gap-2 text-xs">
+                          {c.cost_overridden && canPush && c.unit_cost_cents != null && (
+                            <button type="button" className="inline-flex items-center gap-0.5 text-primary hover:underline" onClick={() => onPush(i)}>
+                              <Upload className="h-3 w-3" /> Push to catalogue
+                            </button>
+                          )}
+                          {c.cost_overridden && (
+                            <button type="button" className="inline-flex items-center gap-0.5 text-muted-foreground hover:underline" onClick={() => onReset(i)}>
+                              <X className="h-3 w-3" /> Reset from catalogue
+                            </button>
+                          )}
+                        </span>
+                      )}
                     </td>
                     <td className="py-1">
                       <div className="flex items-center justify-end gap-1 whitespace-nowrap">
@@ -921,15 +1166,95 @@ function LineRows({
                           placeholder="Unknown"
                           defaultValue={c.unit_cost_cents == null ? "" : (c.unit_cost_cents / 100).toFixed(2)}
                           onBlur={(e) => commitCost(i, e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                          onKeyDown={keyCommit}
                           className={cn(numInput, "w-24")}
                         />
-                        <span className="w-12 text-left text-xs text-muted-foreground">/ {c.cost_uom}</span>
+                        <select
+                          aria-label={`Cost unit of ${c.label}`}
+                          disabled={!editable}
+                          value={c.cost_uom}
+                          onChange={(e) => onPart(i, { cost_uom: e.target.value as Uom, ...(c.order_uom ? {} : { purchase_uom: e.target.value as Uom }) }, "cost unit")}
+                          className="h-10 rounded-md border border-input bg-background px-1 text-xs disabled:border-transparent disabled:bg-transparent disabled:opacity-100"
+                        >
+                          {[...new Set([c.cost_uom, ...UOMS])].map((u) => (
+                            <option key={u} value={u}>
+                              / {u}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td className="py-1">
+                      <div className="flex flex-wrap items-center justify-end gap-1 whitespace-nowrap text-xs">
+                        <select
+                          aria-label={`Order unit of ${c.label}`}
+                          disabled={!editable}
+                          value={c.order_uom ?? ""}
+                          onChange={(e) => {
+                            const u = e.target.value || null;
+                            const m = c.catalogue_material_id ? catalogue.materials[c.catalogue_material_id] : null;
+                            // From the catalogue when it states what one of these holds in the cost unit.
+                            const fromCat = m && u && m.purchase_uom === u && m.coverage_per_purchase_unit && m.coverage_uom === c.cost_uom ? m.coverage_per_purchase_unit : null;
+                            onPart(i, u ? { order_uom: u, order_uom_factor: c.order_uom_factor ?? fromCat ?? 1 } : { order_uom: null, order_uom_factor: null, price_per: "cost_unit" }, "order unit");
+                          }}
+                          className="h-10 rounded-md border border-input bg-background px-1 text-xs disabled:border-transparent disabled:bg-transparent disabled:opacity-100"
+                        >
+                          <option value="">As needed</option>
+                          {ORDER_UNITS.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                        {c.order_uom && (
+                          <>
+                            <span>1 {c.order_uom} =</span>
+                            <input
+                              key={`${line.id}-of${i}-${line.row_version}`}
+                              aria-label={`${c.cost_uom} in one ${c.order_uom} of ${c.label}`}
+                              disabled={!editable}
+                              inputMode="decimal"
+                              defaultValue={c.order_uom_factor ?? ""}
+                              onKeyDown={keyCommit}
+                              onBlur={(e) => {
+                                const n = Number(e.target.value.replace(/,/g, ""));
+                                if (!(n > 0)) {
+                                  e.target.value = e.target.defaultValue;
+                                  return void toast.error("Enter how many " + c.cost_uom + " one " + c.order_uom + " holds, above zero");
+                                }
+                                if (n !== c.order_uom_factor) onPart(i, { order_uom_factor: n }, "conversion");
+                              }}
+                              className={cn(numInput, "w-20")}
+                            />
+                            <span>{c.cost_uom}</span>
+                            <select
+                              aria-label={`${c.label} is priced per`}
+                              disabled={!editable}
+                              value={c.price_per ?? "cost_unit"}
+                              onChange={(e) => onPart(i, { price_per: e.target.value as "cost_unit" | "order_unit" }, "priced per")}
+                              className="h-10 rounded-md border border-input bg-background px-1 text-xs disabled:border-transparent disabled:bg-transparent disabled:opacity-100"
+                            >
+                              <option value="cost_unit">price per {c.cost_uom}</option>
+                              <option value="order_unit">price per {c.order_uom}</option>
+                            </select>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="py-1 text-right tabular-nums">
-                      {priced.components[i]!.purchaseQty.toLocaleString("en-CA")} {c.purchase_uom}
-                      {c.coverage_per_purchase_unit != null && (
+                      {priced.orders[i] ? (
+                        <>
+                          Order {priced.orders[i]!.orderQty.toLocaleString("en-CA")} {c.order_uom}
+                          <div className="text-xs text-muted-foreground">
+                            ({priced.orders[i]!.costUnitQty.toLocaleString("en-CA")} {c.cost_uom})
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {priced.components[i]!.purchaseQty.toLocaleString("en-CA")} {c.purchase_uom}
+                        </>
+                      )}
+                      {!c.order_uom && c.coverage_per_purchase_unit != null && (
                         <div className="flex items-center justify-end gap-1 whitespace-nowrap text-xs text-muted-foreground">
                           one covers
                           <input
@@ -939,7 +1264,7 @@ function LineRows({
                             inputMode="decimal"
                             defaultValue={c.coverage_per_purchase_unit}
                             onBlur={(e) => commitCoverage(i, e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                            onKeyDown={keyCommit}
                             className={cn(numInput, "h-8 w-20 text-xs")}
                           />
                           {line.driver_uom}
@@ -954,7 +1279,7 @@ function LineRows({
                         inputMode="decimal"
                         defaultValue={wasteApplies(c) ? c.waste_pct : 0}
                         onBlur={(e) => commitPartWaste(i, e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                        onKeyDown={keyCommit}
                         className={numInput}
                       />
                     </td>

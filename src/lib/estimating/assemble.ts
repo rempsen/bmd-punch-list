@@ -4,6 +4,7 @@
  * A null unit cost means "not known yet". It is never priced as zero without being reported.
  */
 import { convert, priceLine, type Component, type PricedComponent, type TaxCode, type Uom } from "./calc";
+import { overrideCost, priceOrderPart } from "./overrides";
 
 export type CatMaterial = {
   id: string;
@@ -58,6 +59,13 @@ export type SnapComponent = {
   /** Deliberately excluded from this line (no adhesive needed, say); stops it blocking a quote. */
   not_applicable: boolean;
   sort_order: number;
+  /** Bought in whole order units (carton, roll…) holding `order_uom_factor` cost units each. */
+  order_uom?: string | null;
+  order_uom_factor?: number | null;
+  /** The unit cost is per cost unit (default) or per order unit. */
+  price_per?: "cost_unit" | "order_unit";
+  overridden_by?: string | null;
+  overridden_at?: string | null;
 };
 
 export type PriceBasis = "markup" | "margin" | "fixed_sell";
@@ -69,6 +77,12 @@ export type LineInput = {
   margin_pct: number | null;
   fixed_sell_cents: number | null;
   tax_code: TaxCode;
+  /** A unit cost typed on the line itself: cost = qty × this, and the parts are for information. */
+  unit_cost_override_cents?: number | null;
+  /** A selling price typed on the line; kept when the cost changes until it is cleared. */
+  sell_override_cents?: number | null;
+  /** The markup was set on this line, so a category markup does not change it. */
+  markup_overridden?: boolean;
 };
 
 const PACKED: Uom[] = ["carton", "roll", "pail", "EA"];
@@ -195,40 +209,75 @@ export type PricedEstimateLine = {
   components: PricedComponent[];
   /** Set when the units on a row cannot be worked out; the line cannot be priced until it is fixed. */
   error: string | null;
+  /** What the parts add up to, whether or not a unit cost was typed on the line. */
+  partsCostCents: number;
+  /** Per part bought in order units: how many to order and what that holds in the cost unit. */
+  orders: ({ orderQty: number; costUnitQty: number } | null)[];
+  costOverridden: boolean;
+  sellOverridden: boolean;
 };
+
+const ordered = (c: SnapComponent) => !!c.order_uom && c.order_uom_factor != null && c.order_uom_factor > 0;
+
+/** A part bought in order units: what the line needs in its cost unit (waste included), rounded up to whole order units. */
+function priceOrdered(c: SnapComponent, line: LineInput, pstPct: number) {
+  const calc = toCalc(c);
+  const waste = calc.kind === "material" || calc.onGross ? 1 + c.waste_pct / 100 : 1;
+  const need = convert(line.driver_qty * c.qty_per_driver * waste, line.driver_uom, c.cost_uom);
+  const r = priceOrderPart(need, { unitCostCents: c.unit_cost_cents ?? 0, factor: c.order_uom_factor!, pricePer: c.price_per ?? "cost_unit" });
+  return { ...r, costCents: Math.round(r.costCents * (c.pst_applies ? 1 + pstPct / 100 : 1)) };
+}
 
 export function priceEstimateLine(line: LineInput, components: SnapComponent[], rates: { pstPct: number }): PricedEstimateLine {
   const live = components.map((c) => !c.not_applicable && c.unit_cost_cents != null);
   const unknownLabels = components.filter((c) => !c.not_applicable && c.unit_cost_cents == null).map((c) => c.label);
   let priced: PricedComponent[] = [];
+  let orders: PricedEstimateLine["orders"] = components.map(() => null);
   let error: string | null = null;
   try {
+    const plain = components.map((c, i) => live[i] && !ordered(c));
     const p = priceLine(
-      { driverQty: line.driver_qty, driverUom: line.driver_uom, markupPct: 0, taxCode: line.tax_code, components: components.filter((_, i) => live[i]).map(toCalc) },
+      { driverQty: line.driver_qty, driverUom: line.driver_uom, markupPct: 0, taxCode: line.tax_code, components: components.filter((_, i) => plain[i]).map(toCalc) },
       rates,
     );
     let k = 0;
-    priced = components.map((_, i) => (live[i] ? p.components[k++]! : { purchaseQty: 0, costCents: 0 }));
+    priced = components.map((c, i) => {
+      if (plain[i]) return p.components[k++]!;
+      if (!live[i]) return { purchaseQty: 0, costCents: 0 };
+      const o = priceOrdered(c, line, rates.pstPct);
+      orders[i] = { orderQty: o.orderQty, costUnitQty: o.costUnitQty };
+      return { purchaseQty: o.orderQty, costCents: o.costCents };
+    });
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
     priced = components.map(() => ({ purchaseQty: 0, costCents: 0 }));
+    orders = components.map(() => null);
   }
-  const costCents = priced.reduce((s, c) => s + c.costCents, 0);
+  const partsCostCents = priced.reduce((s, c) => s + c.costCents, 0);
+  const costOverridden = line.unit_cost_override_cents != null;
+  const costCents = costOverridden ? overrideCost(line.driver_qty, line.unit_cost_override_cents!) : partsCostCents;
+  const sellOverridden = line.price_basis !== "fixed_sell" && line.sell_override_cents != null;
   const sellCents =
     line.price_basis === "fixed_sell"
       ? (line.fixed_sell_cents ?? 0)
-      : line.price_basis === "margin"
-        ? sellFromMargin(costCents, line.margin_pct ?? 0)
-        : sellFromMarkup(costCents, line.markup_pct);
+      : sellOverridden
+        ? line.sell_override_cents!
+        : line.price_basis === "margin"
+          ? sellFromMargin(costCents, line.margin_pct ?? 0)
+          : sellFromMarkup(costCents, line.markup_pct);
   return {
     costCents,
     sellCents,
     marginPct: sellCents === 0 ? 0 : round2(((sellCents - costCents) / sellCents) * 100),
     markupPct: costCents === 0 ? 0 : round2(((sellCents - costCents) / costCents) * 100),
-    unknown: unknownLabels.length > 0,
-    unknownLabels,
+    unknown: !costOverridden && unknownLabels.length > 0,
+    unknownLabels: costOverridden ? [] : unknownLabels,
     components: priced,
-    error,
+    error: costOverridden ? null : error,
+    partsCostCents,
+    orders,
+    costOverridden,
+    sellOverridden,
   };
 }
 
