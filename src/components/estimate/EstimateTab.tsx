@@ -446,6 +446,9 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                 Base by area: {byArea ? "On" : "Off"}
               </Button>
             )}
+            <Button variant="outline" className="h-10" onClick={() => setDialog("changes")}>
+              <History className="mr-1.5 h-4 w-4" /> Changes{changes.length > 0 ? ` · ${changes.filter((c) => !c.reverted_at).length}` : ""}
+            </Button>
             {editable && (
               <>
                 <Button className="h-10" onClick={() => setDialog("add")}>
@@ -736,6 +739,38 @@ function VersionName({ version, editable, onSaved }: { version: EstVersion; edit
         <PctInput key={`${version.id}-g-${version.default_markup_pct}`} label="Default margin percent" value={markupToMargin(version.default_markup_pct)} margin disabled={!editable} onCommit={(g) => void commit({ default_markup_pct: marginToMarkup(g) })} />
       </label>
     </div>
+  );
+}
+
+/** A percentage typed in place. Margins must be below 100%. Commits on blur or Enter; Esc cancels. */
+function PctInput({ label, value, onCommit, disabled, margin }: { label: string; value: number; onCommit: (n: number) => void; disabled?: boolean; margin?: boolean }) {
+  return (
+    <input
+      aria-label={label}
+      disabled={disabled}
+      inputMode="decimal"
+      defaultValue={Number(value.toFixed(2))}
+      onKeyDown={keyCommit}
+      onBlur={(e) => {
+        const raw = e.target.value;
+        if (margin) {
+          const r = parseMargin(raw);
+          if (!r.ok) {
+            e.target.value = e.target.defaultValue;
+            return void toast.error(r.error);
+          }
+          if (Math.abs(r.value - value) > 0.004) onCommit(r.value);
+          return;
+        }
+        const n = Number(raw.replace(/[%,]/g, ""));
+        if (raw.trim() === "" || !Number.isFinite(n) || n < 0 || n > 1000) {
+          e.target.value = e.target.defaultValue;
+          return void toast.error("Enter a markup between 0 and 1000");
+        }
+        if (Math.abs(n - value) > 0.004) onCommit(n);
+      }}
+      className={numInput}
+    />
   );
 }
 
