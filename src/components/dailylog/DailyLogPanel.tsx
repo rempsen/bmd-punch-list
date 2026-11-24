@@ -173,7 +173,7 @@ export function DailyLogPanel({ projectId }: { projectId: string }) {
                               <Check className="h-3.5 w-3.5" /> Requested
                             </span>
                           ) : (
-                            <Button variant={o.suggested ? "default" : "outline"} size="sm" className="h-9" onClick={() => void makeRequest(log, o.line)}>
+                            <Button variant={o.suggested ? "default" : "outline"} className="h-11" onClick={() => void makeRequest(log, o.line)}>
                               Make this a request
                             </Button>
                           )}
