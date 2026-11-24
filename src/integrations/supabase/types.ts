@@ -271,6 +271,79 @@ export type Database = {
           },
         ]
       }
+      assistant_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_conversations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          lookups: Json
+          model: string | null
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          lookups?: Json
+          model?: string | null
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          lookups?: Json
+          model?: string | null
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalogue_materials: {
         Row: {
           active: boolean
@@ -1517,6 +1590,60 @@ export type Database = {
           },
         ]
       }
+      install_visit_photos: {
+        Row: {
+          arriveping_photo_id: string
+          caption: string | null
+          content_type: string | null
+          created_at: string
+          id: string
+          project_id: string
+          storage_path: string
+          taken_at: string | null
+          taken_by: string | null
+          visit_id: string
+        }
+        Insert: {
+          arriveping_photo_id: string
+          caption?: string | null
+          content_type?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          storage_path: string
+          taken_at?: string | null
+          taken_by?: string | null
+          visit_id: string
+        }
+        Update: {
+          arriveping_photo_id?: string
+          caption?: string | null
+          content_type?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          storage_path?: string
+          taken_at?: string | null
+          taken_by?: string | null
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "install_visit_photos_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_visit_photos_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "install_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       install_visits: {
         Row: {
           areas: Json
@@ -1537,6 +1664,7 @@ export type Database = {
           site_contact: string | null
           starts_at: string
           status: string
+          technician_supplier_id: string | null
         }
         Insert: {
           areas?: Json
@@ -1557,6 +1685,7 @@ export type Database = {
           site_contact?: string | null
           starts_at: string
           status?: string
+          technician_supplier_id?: string | null
         }
         Update: {
           areas?: Json
@@ -1577,6 +1706,7 @@ export type Database = {
           site_contact?: string | null
           starts_at?: string
           status?: string
+          technician_supplier_id?: string | null
         }
         Relationships: [
           {
@@ -1591,6 +1721,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_visits_technician_supplier_id_fkey"
+            columns: ["technician_supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -1709,6 +1846,92 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      knowledge_items: {
+        Row: {
+          body: string | null
+          created_at: string
+          created_by: string | null
+          file_name: string | null
+          folder: string | null
+          id: string
+          kind: string
+          mime: string | null
+          size_bytes: number | null
+          storage_path: string | null
+          text_pages: number | null
+          text_status: string
+          title: string
+          tsv: unknown
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          folder?: string | null
+          id?: string
+          kind: string
+          mime?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
+          text_pages?: number | null
+          text_status?: string
+          title: string
+          tsv?: unknown
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string | null
+          folder?: string | null
+          id?: string
+          kind?: string
+          mime?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
+          text_pages?: number | null
+          text_status?: string
+          title?: string
+          tsv?: unknown
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
+      knowledge_pages: {
+        Row: {
+          item_id: string
+          page: number
+          text: string
+          tsv: unknown
+        }
+        Insert: {
+          item_id: string
+          page: number
+          text: string
+          tsv?: unknown
+        }
+        Update: {
+          item_id?: string
+          page?: number
+          text?: string
+          tsv?: unknown
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_pages_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       labour_rates: {
         Row: {
@@ -2823,11 +3046,13 @@ export type Database = {
       }
       quote_settings: {
         Row: {
+          business_number: string
           company_name: string
           default_notes: string
           email: string
           footer_text: string
           gst_number: string
+          hours: string
           id: number
           logo_data_url: string | null
           logo_height: number | null
@@ -2843,11 +3068,13 @@ export type Database = {
           website: string
         }
         Insert: {
+          business_number?: string
           company_name?: string
           default_notes?: string
           email?: string
           footer_text?: string
           gst_number?: string
+          hours?: string
           id?: number
           logo_data_url?: string | null
           logo_height?: number | null
@@ -2863,11 +3090,13 @@ export type Database = {
           website?: string
         }
         Update: {
+          business_number?: string
           company_name?: string
           default_notes?: string
           email?: string
           footer_text?: string
           gst_number?: string
+          hours?: string
           id?: number
           logo_data_url?: string | null
           logo_height?: number | null
@@ -3430,6 +3659,36 @@ export type Database = {
           sent_at?: string | null
           status?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      sync_settings: {
+        Row: {
+          id: number
+          last_send_at: string | null
+          quickbooks_send_enabled: boolean
+          sending_since: string | null
+          sending_token: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          last_send_at?: string | null
+          quickbooks_send_enabled?: boolean
+          sending_since?: string | null
+          sending_token?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          last_send_at?: string | null
+          quickbooks_send_enabled?: boolean
+          sending_since?: string | null
+          sending_token?: string | null
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -4021,6 +4280,7 @@ export type Database = {
         }
         Returns: string
       }
+      add_subcontractor: { Args: { _name: string }; Returns: string }
       admin_assert: {
         Args: {
           _new_level: Database["public"]["Enums"]["app_role"]
@@ -4102,12 +4362,23 @@ export type Database = {
           detail: Json
         }[]
       }
+      assistant_allowed: { Args: never; Returns: boolean }
       bmd_staff: {
         Args: never
         Returns: {
           email: string
           full_name: string
           id: string
+        }[]
+      }
+      bmd_subcontractors: {
+        Args: never
+        Returns: {
+          contact_name: string
+          id: string
+          name: string
+          phone: string
+          supplies: string
         }[]
       }
       bmd_technicians: {
@@ -4121,6 +4392,22 @@ export type Database = {
       can_project_documents: {
         Args: { _project: string; _write: boolean }
         Returns: boolean
+      }
+      can_read_knowledge: { Args: { _visibility: string }; Returns: boolean }
+      can_write_knowledge: { Args: { _visibility: string }; Returns: boolean }
+      company_details: {
+        Args: never
+        Returns: {
+          business_number: string
+          company_name: string
+          email: string
+          gst_number: string
+          hours: string
+          mailing_address: string
+          office_address: string
+          phone: string
+          website: string
+        }[]
       }
       copy_estimate_version: {
         Args: { _description?: string; _from: string; _name: string }
@@ -4237,6 +4524,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      knowledge_path_item: { Args: { _name: string }; Returns: string }
       list_users: {
         Args: { _project: string }
         Returns: {
@@ -4325,6 +4613,28 @@ export type Database = {
             }
             Returns: number
           }
+      search_catalogue_names: {
+        Args: { _limit?: number; _q: string }
+        Returns: {
+          active: boolean
+          category: string
+          colour: string
+          cost_code: string
+          cost_uom: string
+          coverage_per_purchase_unit: number
+          coverage_uom: string
+          id: string
+          kind: string
+          manufacturer: string
+          name: string
+          product_line: string
+          pst_applies: boolean
+          purchase_uom: string
+          sku: string
+          supplier: string
+          uom: string
+        }[]
+      }
       search_document_pages: {
         Args: { _limit?: number; _project: string; _q: string }
         Returns: {
@@ -4335,6 +4645,20 @@ export type Database = {
           section: Database["public"]["Enums"]["document_section"]
           snippet: string
           version: number
+        }[]
+      }
+      search_knowledge: {
+        Args: { _limit?: number; _q: string }
+        Returns: {
+          file_name: string
+          folder: string
+          item_id: string
+          kind: string
+          page: number
+          rank: number
+          snippet: string
+          title: string
+          visibility: string
         }[]
       }
       seed_material_orders: {
@@ -4399,6 +4723,8 @@ export type Database = {
         Returns: Json
       }
       sync_mark_reviewed: { Args: { _id: string }; Returns: undefined }
+      sync_send_lock: { Args: never; Returns: string }
+      sync_send_unlock: { Args: { _token: string }; Returns: undefined }
       user_has_capability: {
         Args: { _capability: string; _user: string }
         Returns: boolean
