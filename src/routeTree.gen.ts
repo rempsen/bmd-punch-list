@@ -27,7 +27,6 @@ import { Route as AuthenticatedDocumentsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedEmailIntakeRouteImport } from './routes/_authenticated/email-intake'
 import { Route as AuthenticatedExportsRouteImport } from './routes/_authenticated/exports'
 import { Route as AuthenticatedFloorsRouteImport } from './routes/_authenticated/floors'
-import { Route as AuthenticatedJobFlowRouteImport } from './routes/_authenticated/job-flow'
 import { Route as AuthenticatedJobsRouteImport } from './routes/_authenticated/jobs'
 import { Route as AuthenticatedListRouteImport } from './routes/_authenticated/list'
 import { Route as AuthenticatedMoreRouteImport } from './routes/_authenticated/more'
@@ -142,11 +141,6 @@ const AuthenticatedExportsRoute = AuthenticatedExportsRouteImport.update({
 const AuthenticatedFloorsRoute = AuthenticatedFloorsRouteImport.update({
   id: '/floors',
   path: '/floors',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedJobFlowRoute = AuthenticatedJobFlowRouteImport.update({
-  id: '/job-flow',
-  path: '/job-flow',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedJobsRoute = AuthenticatedJobsRouteImport.update({
@@ -283,7 +277,6 @@ export interface FileRoutesByFullPath {
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
-  '/job-flow': typeof AuthenticatedJobFlowRoute
   '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
@@ -325,7 +318,6 @@ export interface FileRoutesByTo {
   '/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/exports': typeof AuthenticatedExportsRoute
   '/floors': typeof AuthenticatedFloorsRoute
-  '/job-flow': typeof AuthenticatedJobFlowRoute
   '/jobs': typeof AuthenticatedJobsRoute
   '/list': typeof AuthenticatedListRoute
   '/more': typeof AuthenticatedMoreRoute
@@ -369,7 +361,6 @@ export interface FileRoutesById {
   '/_authenticated/email-intake': typeof AuthenticatedEmailIntakeRoute
   '/_authenticated/exports': typeof AuthenticatedExportsRoute
   '/_authenticated/floors': typeof AuthenticatedFloorsRoute
-  '/_authenticated/job-flow': typeof AuthenticatedJobFlowRoute
   '/_authenticated/jobs': typeof AuthenticatedJobsRoute
   '/_authenticated/list': typeof AuthenticatedListRoute
   '/_authenticated/more': typeof AuthenticatedMoreRoute
@@ -413,7 +404,6 @@ export interface FileRouteTypes {
     | '/email-intake'
     | '/exports'
     | '/floors'
-    | '/job-flow'
     | '/jobs'
     | '/list'
     | '/more'
@@ -455,7 +445,6 @@ export interface FileRouteTypes {
     | '/email-intake'
     | '/exports'
     | '/floors'
-    | '/job-flow'
     | '/jobs'
     | '/list'
     | '/more'
@@ -498,7 +487,6 @@ export interface FileRouteTypes {
     | '/_authenticated/email-intake'
     | '/_authenticated/exports'
     | '/_authenticated/floors'
-    | '/_authenticated/job-flow'
     | '/_authenticated/jobs'
     | '/_authenticated/list'
     | '/_authenticated/more'
@@ -665,13 +653,6 @@ declare module '@tanstack/react-router' {
       path: '/floors'
       fullPath: '/floors'
       preLoaderRoute: typeof AuthenticatedFloorsRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/job-flow': {
-      id: '/_authenticated/job-flow'
-      path: '/job-flow'
-      fullPath: '/job-flow'
-      preLoaderRoute: typeof AuthenticatedJobFlowRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/jobs': {
@@ -845,7 +826,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEmailIntakeRoute: typeof AuthenticatedEmailIntakeRoute
   AuthenticatedExportsRoute: typeof AuthenticatedExportsRoute
   AuthenticatedFloorsRoute: typeof AuthenticatedFloorsRoute
-  AuthenticatedJobFlowRoute: typeof AuthenticatedJobFlowRoute
   AuthenticatedJobsRoute: typeof AuthenticatedJobsRoute
   AuthenticatedListRoute: typeof AuthenticatedListRoute
   AuthenticatedMoreRoute: typeof AuthenticatedMoreRoute
@@ -876,7 +856,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEmailIntakeRoute: AuthenticatedEmailIntakeRoute,
   AuthenticatedExportsRoute: AuthenticatedExportsRoute,
   AuthenticatedFloorsRoute: AuthenticatedFloorsRoute,
-  AuthenticatedJobFlowRoute: AuthenticatedJobFlowRoute,
   AuthenticatedJobsRoute: AuthenticatedJobsRoute,
   AuthenticatedListRoute: AuthenticatedListRoute,
   AuthenticatedMoreRoute: AuthenticatedMoreRoute,

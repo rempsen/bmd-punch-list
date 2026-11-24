@@ -1,14 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { isPriceListFile, jobMenuOpen } from "./nav";
+import { isPriceListFile, navGroupOpen } from "./nav";
 
-describe("the Job Site Open Items section in the sidebar", () => {
-  test("starts hidden", () => {
-    expect(jobMenuOpen(null)).toBe(false);
-    expect(jobMenuOpen("nonsense")).toBe(false);
+describe("sidebar accordions", () => {
+  test("stay open when left open", () => {
+    expect(navGroupOpen("open", false)).toBe(true);
   });
-  test("stays the way the person left it", () => {
-    expect(jobMenuOpen("open")).toBe(true);
-    expect(jobMenuOpen("closed")).toBe(false);
+  test("stay closed when left closed", () => {
+    expect(navGroupOpen("closed", true)).toBe(false);
+  });
+  test("use their default when nothing is remembered", () => {
+    expect(navGroupOpen(null, false)).toBe(false);
+    expect(navGroupOpen(null, true)).toBe(true);
   });
 });
 

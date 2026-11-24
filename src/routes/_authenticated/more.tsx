@@ -45,6 +45,7 @@ function MorePage() {
               key={item.label}
               to={item.to}
               {...(item.search ? { search: item.search } : {})}
+              {...(item.params ? { params: item.params } : {})}
               className="flex min-h-[60px] items-center gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm font-medium"
             >
               <item.icon className="h-5 w-5 text-primary" />
