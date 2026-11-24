@@ -54,6 +54,7 @@ import { Route as ApiPublicArrivepingWebhookRouteImport } from './routes/api/pub
 import { Route as ApiPublicCompanycamWebhookRouteImport } from './routes/api/public/companycam/webhook'
 import { Route as ApiPublicIntakePollRouteImport } from './routes/api/public/intake/poll'
 import { Route as ApiPublicOnedriveMirrorRouteImport } from './routes/api/public/onedrive/mirror'
+import { Route as ApiPublicSyncSendRouteImport } from './routes/api/public/sync/send'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -289,6 +290,11 @@ const ApiPublicOnedriveMirrorRoute = ApiPublicOnedriveMirrorRouteImport.update({
   path: '/api/public/onedrive/mirror',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicSyncSendRoute = ApiPublicSyncSendRouteImport.update({
+  id: '/api/public/sync/send',
+  path: '/api/public/sync/send',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -335,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
+  '/api/public/sync/send': typeof ApiPublicSyncSendRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -381,6 +388,7 @@ export interface FileRoutesByTo {
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
+  '/api/public/sync/send': typeof ApiPublicSyncSendRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -429,6 +437,7 @@ export interface FileRoutesById {
   '/api/public/companycam/webhook': typeof ApiPublicCompanycamWebhookRoute
   '/api/public/intake/poll': typeof ApiPublicIntakePollRoute
   '/api/public/onedrive/mirror': typeof ApiPublicOnedriveMirrorRoute
+  '/api/public/sync/send': typeof ApiPublicSyncSendRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -477,6 +486,7 @@ export interface FileRouteTypes {
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
+    | '/api/public/sync/send'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -523,6 +533,7 @@ export interface FileRouteTypes {
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
+    | '/api/public/sync/send'
   id:
     | '__root__'
     | '/'
@@ -570,6 +581,7 @@ export interface FileRouteTypes {
     | '/api/public/companycam/webhook'
     | '/api/public/intake/poll'
     | '/api/public/onedrive/mirror'
+    | '/api/public/sync/send'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -586,6 +598,7 @@ export interface RootRouteChildren {
   ApiPublicCompanycamWebhookRoute: typeof ApiPublicCompanycamWebhookRoute
   ApiPublicIntakePollRoute: typeof ApiPublicIntakePollRoute
   ApiPublicOnedriveMirrorRoute: typeof ApiPublicOnedriveMirrorRoute
+  ApiPublicSyncSendRoute: typeof ApiPublicSyncSendRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -905,6 +918,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOnedriveMirrorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/sync/send': {
+      id: '/api/public/sync/send'
+      path: '/api/public/sync/send'
+      fullPath: '/api/public/sync/send'
+      preLoaderRoute: typeof ApiPublicSyncSendRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -996,6 +1016,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicCompanycamWebhookRoute: ApiPublicCompanycamWebhookRoute,
   ApiPublicIntakePollRoute: ApiPublicIntakePollRoute,
   ApiPublicOnedriveMirrorRoute: ApiPublicOnedriveMirrorRoute,
+  ApiPublicSyncSendRoute: ApiPublicSyncSendRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
