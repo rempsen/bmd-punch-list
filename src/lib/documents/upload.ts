@@ -84,6 +84,8 @@ export function uploadDocument(opts: {
     });
     // 23505 on the primary key means this upload's row was already written by an earlier attempt.
     if (error && !(error.code === "23505" && /pkey|storage_path/.test(error.message))) throw new Error(error.message);
+    // Read the text for search in the background; the upload is complete whether or not this succeeds.
+    void import("./text").then(({ indexDocumentFile }) => indexDocumentFile(documentId, file, file.type || null, file.name));
   })();
 
   return {

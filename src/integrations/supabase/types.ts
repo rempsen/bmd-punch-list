@@ -61,6 +61,60 @@ export type Database = {
           },
         ]
       }
+      area_progress: {
+        Row: {
+          blocker: string | null
+          blocker_kind: string | null
+          id: string
+          project_id: string
+          room_id: string
+          scope: string
+          source: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          blocker?: string | null
+          blocker_kind?: string | null
+          id?: string
+          project_id: string
+          room_id: string
+          scope: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          blocker?: string | null
+          blocker_kind?: string | null
+          id?: string
+          project_id?: string
+          room_id?: string
+          scope?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "area_progress_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "area_progress_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       arriveping_link: {
         Row: {
           connected_at: string | null
@@ -1595,7 +1649,7 @@ export type Database = {
           notes: string | null
           on_site_at: string | null
           on_site_by: string | null
-          ordered_at: string
+          ordered_at: string | null
           po_number: string | null
           project_id: string
           qbo_po_id: string | null
@@ -1605,6 +1659,7 @@ export type Database = {
           received_by: string | null
           received_note: string | null
           received_qty: number | null
+          source_version_id: string | null
           status: string
           supplier_id: string | null
           unit: string
@@ -1620,7 +1675,7 @@ export type Database = {
           notes?: string | null
           on_site_at?: string | null
           on_site_by?: string | null
-          ordered_at?: string
+          ordered_at?: string | null
           po_number?: string | null
           project_id: string
           qbo_po_id?: string | null
@@ -1630,6 +1685,7 @@ export type Database = {
           received_by?: string | null
           received_note?: string | null
           received_qty?: number | null
+          source_version_id?: string | null
           status?: string
           supplier_id?: string | null
           unit?: string
@@ -1645,7 +1701,7 @@ export type Database = {
           notes?: string | null
           on_site_at?: string | null
           on_site_by?: string | null
-          ordered_at?: string
+          ordered_at?: string | null
           po_number?: string | null
           project_id?: string
           qbo_po_id?: string | null
@@ -1655,6 +1711,7 @@ export type Database = {
           received_by?: string | null
           received_note?: string | null
           received_qty?: number | null
+          source_version_id?: string | null
           status?: string
           supplier_id?: string | null
           unit?: string

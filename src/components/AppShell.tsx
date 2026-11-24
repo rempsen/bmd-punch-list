@@ -28,11 +28,13 @@ import {
   Home,
   FileText,
   Package,
+  Layers,
   CalendarClock,
   ClipboardCheck,
   ListChecks,
   Users,
   PackageCheck,
+  MapPinCheck,
   ShoppingCart,
   Truck,
 } from "lucide-react";
@@ -49,6 +51,7 @@ type NavGroup =
   | "resources"
   | "materials"
   | "scheduling"
+  | "install"
   | "job"
   | "deficiencies"
   | "post"
@@ -76,7 +79,7 @@ const isActive = (
   if (item.search && "view" in item.search)
     return pathname.startsWith(item.to) && (view ?? "technicians") === item.search.view;
   if (item.search && "stage" in item.search)
-    return pathname.startsWith(item.to) && (stage ?? "on_order") === item.search.stage;
+    return pathname.startsWith(item.to) && (stage ?? "to_order") === item.search.stage;
   if (item.params) return pathname === `/projects/${item.params.id}` && tab === item.search?.tab;
   return (
     pathname.startsWith(item.to) &&
@@ -109,19 +112,26 @@ export function useNavItems() {
       label: "Ordering",
       icon: ShoppingCart,
       group: "materials",
-      search: { stage: "on_order" },
+      search: { stage: "to_order" },
     });
     items.push({
       to: "/materials",
       label: "Receiving",
       icon: PackageCheck,
       group: "materials",
-      search: { stage: "received" },
+      search: { stage: "on_order" },
     });
     items.push({
       to: "/materials",
       label: "To site",
       icon: Truck,
+      group: "materials",
+      search: { stage: "received" },
+    });
+    items.push({
+      to: "/materials",
+      label: "On site",
+      icon: MapPinCheck,
       group: "materials",
       search: { stage: "on_site" },
     });
@@ -147,6 +157,8 @@ export function useNavItems() {
       search: { view: "tasks" },
     });
   }
+  if (canAny("view_pipeline") || canAny("view_dashboard"))
+    items.push({ to: "/installation", label: "Installation Progress", short: "Install", icon: Layers, group: "install" });
   // Current job: role-specific entries, then job settings.
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench, group: "job" });
@@ -382,6 +394,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const resources = of("resources");
   const materials = of("materials");
   const scheduling = of("scheduling");
+  const install = of("install");
   const jobItems = of("job");
   const post = of("post");
   const deficiencies = of("deficiencies");
@@ -430,7 +443,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 />
               </>
             )}
-            {materials.length + scheduling.length > 0 && (
+            {materials.length + scheduling.length + install.length > 0 && (
               <>
                 <SectionLabel>Materials &amp; Install</SectionLabel>
                 <SidebarGroup
@@ -451,6 +464,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   renderItem={navLink}
                   activeItem={activeIn(scheduling)}
                 />
+                {install.map((i) => navLink(i))}
               </>
             )}
             <SectionLabel>Current job</SectionLabel>

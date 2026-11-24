@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { useProjectDocuments, useRefreshDocuments } from "@/lib/documents/data";
 import { SECTIONS, checkFile, formatBytes, groupVersions, guessSection, previewKind, sectionLabel, type DocRow, type DocSection } from "@/lib/documents/logic";
 import { signedUrl, uploadDocument, type UploadHandle } from "@/lib/documents/upload";
+import { DocumentSearch, TextIndexStatus } from "@/components/projects/DocumentText";
 import { errText } from "@/lib/platform/db";
 import { shortDate, staffName, useBmdStaff } from "@/lib/projects/data";
 import { cn } from "@/lib/utils";
@@ -216,6 +217,12 @@ export function DocumentsTab({ projectId }: { projectId: string }) {
 
       {error && <p className="text-sm text-destructive">Could not load documents: {errText(error)}</p>}
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {canView && docs.length > 0 && (
+        <>
+          <DocumentSearch projectId={projectId} docs={docs} onOpen={(d) => (previewKind(d.mime, d.file_name) ? setPreview(d) : void download(d))} />
+          <TextIndexStatus projectId={projectId} docs={docs} onChanged={refresh} />
+        </>
+      )}
       {!isLoading && !error && docs.length === 0 && jobs.length === 0 && (
         <p className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">No documents yet.</p>
       )}
@@ -294,6 +301,7 @@ function Entry({
               uploader(d.uploaded_by),
               d.note,
               d.mirror_status === "done" ? "In OneDrive" : d.mirror_status === "failed" ? "OneDrive copy failed" : null,
+              d.text_status === "no_text" ? "scanned — no text yet" : d.text_status === "failed" ? "text not read" : null,
             ]
               .filter(Boolean)
               .join(" · ")}
