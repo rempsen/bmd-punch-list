@@ -44,6 +44,8 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedSignoffRouteImport } from './routes/_authenticated/signoff'
 import { Route as AuthenticatedSummaryRouteImport } from './routes/_authenticated/summary'
 import { Route as AuthenticatedTechniciansRouteImport } from './routes/_authenticated/technicians'
+import { Route as AuthenticatedTimeRouteImport } from './routes/_authenticated/time'
+import { Route as AuthenticatedTimesheetsRouteImport } from './routes/_authenticated/timesheets'
 import { Route as AuthenticatedTradePortalRouteImport } from './routes/_authenticated/trade-portal'
 import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
 import { Route as QTokenRouteImport } from './routes/q.$token'
@@ -241,6 +243,16 @@ const AuthenticatedTechniciansRoute =
     path: '/technicians',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedTimeRoute = AuthenticatedTimeRouteImport.update({
+  id: '/time',
+  path: '/time',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTimesheetsRoute = AuthenticatedTimesheetsRouteImport.update({
+  id: '/timesheets',
+  path: '/timesheets',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTradePortalRoute =
   AuthenticatedTradePortalRouteImport.update({
     id: '/trade-portal',
@@ -362,6 +374,8 @@ export interface FileRoutesByFullPath {
   '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/technicians': typeof AuthenticatedTechniciansRoute
+  '/time': typeof AuthenticatedTimeRoute
+  '/timesheets': typeof AuthenticatedTimesheetsRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
@@ -414,6 +428,8 @@ export interface FileRoutesByTo {
   '/signoff': typeof AuthenticatedSignoffRoute
   '/summary': typeof AuthenticatedSummaryRoute
   '/technicians': typeof AuthenticatedTechniciansRoute
+  '/time': typeof AuthenticatedTimeRoute
+  '/timesheets': typeof AuthenticatedTimesheetsRoute
   '/trade-portal': typeof AuthenticatedTradePortalRoute
   '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
@@ -468,6 +484,8 @@ export interface FileRoutesById {
   '/_authenticated/signoff': typeof AuthenticatedSignoffRoute
   '/_authenticated/summary': typeof AuthenticatedSummaryRoute
   '/_authenticated/technicians': typeof AuthenticatedTechniciansRoute
+  '/_authenticated/time': typeof AuthenticatedTimeRoute
+  '/_authenticated/timesheets': typeof AuthenticatedTimesheetsRoute
   '/_authenticated/trade-portal': typeof AuthenticatedTradePortalRoute
   '/confirm/$token': typeof ConfirmTokenRoute
   '/q/$token': typeof QTokenRoute
@@ -522,6 +540,8 @@ export interface FileRouteTypes {
     | '/signoff'
     | '/summary'
     | '/technicians'
+    | '/time'
+    | '/timesheets'
     | '/trade-portal'
     | '/confirm/$token'
     | '/q/$token'
@@ -574,6 +594,8 @@ export interface FileRouteTypes {
     | '/signoff'
     | '/summary'
     | '/technicians'
+    | '/time'
+    | '/timesheets'
     | '/trade-portal'
     | '/confirm/$token'
     | '/q/$token'
@@ -627,6 +649,8 @@ export interface FileRouteTypes {
     | '/_authenticated/signoff'
     | '/_authenticated/summary'
     | '/_authenticated/technicians'
+    | '/_authenticated/time'
+    | '/_authenticated/timesheets'
     | '/_authenticated/trade-portal'
     | '/confirm/$token'
     | '/q/$token'
@@ -910,6 +934,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTechniciansRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/time': {
+      id: '/_authenticated/time'
+      path: '/time'
+      fullPath: '/time'
+      preLoaderRoute: typeof AuthenticatedTimeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/timesheets': {
+      id: '/_authenticated/timesheets'
+      path: '/timesheets'
+      fullPath: '/timesheets'
+      preLoaderRoute: typeof AuthenticatedTimesheetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/trade-portal': {
       id: '/_authenticated/trade-portal'
       path: '/trade-portal'
@@ -1056,6 +1094,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedSignoffRoute: typeof AuthenticatedSignoffRoute
   AuthenticatedSummaryRoute: typeof AuthenticatedSummaryRoute
   AuthenticatedTechniciansRoute: typeof AuthenticatedTechniciansRoute
+  AuthenticatedTimeRoute: typeof AuthenticatedTimeRoute
+  AuthenticatedTimesheetsRoute: typeof AuthenticatedTimesheetsRoute
   AuthenticatedTradePortalRoute: typeof AuthenticatedTradePortalRoute
   AuthenticatedItemIdRoute: typeof AuthenticatedItemIdRoute
   AuthenticatedProjectsIdRoute: typeof AuthenticatedProjectsIdRoute
@@ -1095,6 +1135,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSignoffRoute: AuthenticatedSignoffRoute,
   AuthenticatedSummaryRoute: AuthenticatedSummaryRoute,
   AuthenticatedTechniciansRoute: AuthenticatedTechniciansRoute,
+  AuthenticatedTimeRoute: AuthenticatedTimeRoute,
+  AuthenticatedTimesheetsRoute: AuthenticatedTimesheetsRoute,
   AuthenticatedTradePortalRoute: AuthenticatedTradePortalRoute,
   AuthenticatedItemIdRoute: AuthenticatedItemIdRoute,
   AuthenticatedProjectsIdRoute: AuthenticatedProjectsIdRoute,

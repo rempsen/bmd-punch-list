@@ -45,6 +45,7 @@ import {
 } from "@/lib/projects/data";
 import { JOB_ROLES, JOB_TYPES, LOST_REASONS, daysInStage, isOverdue, stageLabel } from "@/lib/projects/stages";
 import { cn } from "@/lib/utils";
+import { ClockedInLine } from "@/components/time/ClockedInLine";
 
 const TABS = [
   { key: "overview", label: "Overview" },
@@ -234,6 +235,7 @@ function Overview({ project, canEdit, onChanged }: { project: PipelineProject; c
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       <div className="space-y-4 lg:col-span-2">
+        <ClockedInLine projectId={project.id} />
         <Panel
           title="Details"
           actions={

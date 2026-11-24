@@ -159,6 +159,24 @@ export async function exportCsv(rows: ExportRow[], projectName: string, people?:
   URL.revokeObjectURL(url);
 }
 
+/** Any list of rows as an Excel file: one sheet, the keys as column headings. */
+export function exportTableExcel(rows: Record<string, string | number>[], sheetName: string, fileName: string) {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), sheetName.slice(0, 31));
+  XLSX.writeFile(book, `${fileName}.xlsx`);
+}
+
+/** Any list of rows as a CSV download. */
+export function exportTableCsv(rows: Record<string, string | number>[], fileName: string) {
+  const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(rows));
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${fileName}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 async function toDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url);

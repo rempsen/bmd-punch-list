@@ -272,3 +272,43 @@ export function clockedInLine(names: string[]): string | null {
 }
 
 export const mapLink = (lat: number, lng: number): string => `https://www.google.com/maps?q=${lat},${lng}`;
+
+// ── Jobs to clock in on ────────────────────────────────────────────────────────────────────────────────────
+export type ClockJob = { id: string; name: string; project_number: string | null; stage?: string | null; archived_at?: string | null; kind?: string | null };
+/**
+ * The jobs offered at clock-in: jobs under way first (won, in progress), then Internal jobs (when jobs have a kind),
+ * then jobs not yet won. Closed, lost and archived jobs are left out unless they are Internal.
+ */
+export function clockJobs<J extends ClockJob>(jobs: J[]): (J & { group: "open" | "internal" | "other" })[] {
+  const rank = { open: 0, internal: 1, other: 2 } as const;
+  return jobs
+    .filter((j) => !j.archived_at)
+    .map((j) => ({ ...j, group: j.kind === "internal" ? ("internal" as const) : j.stage === "won" || j.stage === "in_progress" ? ("open" as const) : ("other" as const) }))
+    .filter((j) => j.group !== "other" || (j.stage !== "closed" && j.stage !== "lost"))
+    .sort((a, b) => rank[a.group] - rank[b.group] || a.name.localeCompare(b.name));
+}
+export const jobLabel = (j: Pick<ClockJob, "name" | "project_number"> | null | undefined): string => (j ? [j.project_number, j.name].filter(Boolean).join(" ") : "Job");
+
+// ── Export ─────────────────────────────────────────────────────────────────────────────────────────────────
+/** One spreadsheet row per entry. Pass `rates` only for people who see pricing: without it there is no cost column. */
+export function exportRows(entries: TimeEntry[], names: Map<string, string>, jobNames: Map<string, string>, rates: Map<string, PersonRate> | null, tz: string = SCHEDULE_TZ): Record<string, string | number>[] {
+  const where = (lat: number | null, lng: number | null) => (lat != null && lng != null ? mapLink(lat, lng) : "No location");
+  return entries.map((e) => {
+    const cost = rates ? labourCostCents(e.rounded_minutes, rates.get(e.user_id)?.hourly_cost_cents) : null;
+    return {
+      Person: names.get(e.user_id) ?? "Unknown",
+      Date: entryDay(e, tz),
+      Job: jobNames.get(e.project_id) ?? "Job",
+      In: timeText(e.clock_in_at, tz),
+      Out: e.clock_out_at ? timeText(e.clock_out_at, tz) : "Still clocked in",
+      "Paid hours": e.rounded_minutes == null ? "" : Math.round((e.rounded_minutes / 60) * 100) / 100,
+      Notes: [e.note_in, e.note_out].filter(Boolean).join("; "),
+      "In location": where(e.in_lat, e.in_lng),
+      "Out location": e.clock_out_at ? where(e.out_lat, e.out_lng) : "",
+      Adjusted: adjustedLine(e, e.adjusted_by ? names.get(e.adjusted_by) : null, tz) ?? "",
+      Approved: e.approved_at ? "Yes" : "No",
+      QuickBooks: e.qbo_time_activity_id ? `Sent (${e.qbo_time_activity_id})` : e.qbo_error ? `Failed: ${e.qbo_error}` : "Not sent",
+      ...(rates ? { "Labour cost": e.rounded_minutes == null ? "" : cost == null ? "Unknown" : cost / 100 } : {}),
+    };
+  });
+}

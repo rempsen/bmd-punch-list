@@ -49,6 +49,7 @@ describe("which screens need a job chosen first", () => {
   test("the account page, where you sign out and change your password, opens with no job chosen", () => {
     expect(needsJob("/more", undefined)).toBe(false);
     expect(needsJob("/technicians", undefined)).toBe(false);
+    for (const p of ["/time", "/timesheets"]) expect(needsJob(p, undefined)).toBe(false);
   });
   test("company scheduling settings and the crew's confirmation page open with no job chosen", () => {
     expect(settingsGroup("scheduling")).toBe("company");

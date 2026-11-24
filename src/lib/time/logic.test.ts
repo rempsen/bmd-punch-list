@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   adjustedLine,
   clockedInLine,
+  clockJobs,
+  exportRows,
   dollarsToCents,
   entryDay,
   hoursText,
@@ -289,5 +291,47 @@ describe("small words", () => {
     expect(clockedInLine([])).toBeNull();
     expect(clockedInLine(["Ana"])).toBe("1 clocked in: Ana");
     expect(clockedInLine(["Ben", "Ana"])).toBe("2 clocked in: Ana, Ben");
+  });
+});
+
+describe("choosing the job to clock in on", () => {
+  const jobs = [
+    { id: "a", name: "Quote only", project_number: null, stage: "quote_out", archived_at: null },
+    { id: "b", name: "Zed Tower", project_number: "24-010", stage: "in_progress", archived_at: null },
+    { id: "c", name: "Old Mall", project_number: null, stage: "closed", archived_at: null },
+    { id: "d", name: "Archived", project_number: null, stage: "in_progress", archived_at: "2025-01-01" },
+    { id: "e", name: "Shop time", project_number: null, stage: "closed", archived_at: null, kind: "internal" },
+    { id: "f", name: "Alpha Flats", project_number: null, stage: "won", archived_at: null },
+    { id: "g", name: "Lost one", project_number: null, stage: "lost", archived_at: null },
+  ];
+  test("open jobs first, then Internal jobs, then the rest; closed, lost and archived are left out", () => {
+    expect(clockJobs(jobs).map((j) => j.id)).toEqual(["f", "b", "e", "a"]);
+    expect(clockJobs(jobs).map((j) => j.group)).toEqual(["open", "open", "internal", "other"]);
+  });
+  test("works the same when there is no kind column yet", () => {
+    expect(clockJobs(jobs.map(({ kind: _k, ...j }) => j)).map((j) => j.id)).toEqual(["f", "b", "a"]);
+  });
+});
+
+describe("the week as a spreadsheet", () => {
+  const e = entry({ in_lat: 49.9, in_lng: -97.1, note_in: "Stairs", note_out: "Done", approved_at: "2025-11-25T15:00:00.000Z", approved_by: "boss", original: { clock_in_at: "2025-11-24T13:00:00.000Z", clock_out_at: "2025-11-24T21:40:00.000Z", project_id: "p1", rounded_minutes: 525 }, adjusted_by: "boss", adjust_reason: "Late start" });
+  const names = new Map([["u1", "Ana Crew"], ["boss", "Dana"]]);
+  const jobNames = new Map([["p1", "Hyatt Centric"]]);
+  test("one row per entry with exact times, rounded hours, notes, locations and status", () => {
+    expect(exportRows([e], names, jobNames, null)).toEqual([
+      { Person: "Ana Crew", Date: "2025-11-24", Job: "Hyatt Centric", In: "7:02 a.m.", Out: "3:40 p.m.", "Paid hours": 8.75, Notes: "Stairs; Done", "In location": "https://www.google.com/maps?q=49.9,-97.1", "Out location": "No location", Adjusted: "Adjusted by Dana from 7:00 a.m.–3:40 p.m. · Late start", Approved: "Yes", QuickBooks: "Not sent" },
+    ]);
+  });
+  test("labour cost is a column only when rates are passed in (people who see pricing), and unknown stays Unknown", () => {
+    const known = exportRows([e], names, jobNames, new Map([["u1", { hourly_cost_cents: 3200, billable_rate_cents: null }]]));
+    expect(known[0]!["Labour cost"]).toBe(280);
+    const unknown = exportRows([e], names, jobNames, new Map());
+    expect(unknown[0]!["Labour cost"]).toBe("Unknown");
+    expect(exportRows([e], names, jobNames, null)[0]).not.toHaveProperty("Labour cost");
+  });
+  test("an open entry has no out and no hours", () => {
+    const r = exportRows([entry({ clock_out_at: null, rounded_minutes: null })], names, jobNames, null)[0]!;
+    expect(r.Out).toBe("Still clocked in");
+    expect(r["Paid hours"]).toBe("");
   });
 });

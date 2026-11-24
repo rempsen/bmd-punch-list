@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { GoesToSite } from "./GoesToSite";
+import { PersonRates } from "@/components/time/PersonRates";
 import { useServerFn } from "@tanstack/react-start";
 import { Copy, Send } from "lucide-react";
 import { toast } from "sonner";
@@ -249,6 +250,7 @@ function UserBody({ person, onClose, actor, activeSuperCount }: { person: AdminU
         <Block title="Scheduling">
           <GoesToSite userId={person.id} name={person.full_name || person.email || "This person"} disabled={!canEdit} />
         </Block>
+        <PersonRates userId={person.id} name={person.full_name || person.email || "This person"} disabled={!canEdit} />
         <Block title="Jobs">
           {isLoading ? <p className="text-sm text-muted-foreground">Loading jobs…</p> : <JobAccessPicker level={level} allJobs={allJobs} onAllJobs={change(setAllJobs)} picks={picks} onPicks={change(setPicks)} jobs={options} actorIsSuper={actor.isSuper} disabled={!canEdit} />}
         </Block>

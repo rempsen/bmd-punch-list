@@ -40,6 +40,7 @@ import {
   Truck,
   HardHat,
   NotebookPen,
+  Clock,
 } from "lucide-react";
 import { roleLabel } from "@/lib/roles";
 import { useEffect, useState, type ReactNode } from "react";
@@ -49,6 +50,7 @@ import { needsJob, settingsGroup } from "@/lib/settings-tabs";
 import { UpdateNotice } from "@/components/UpdateNotice";
 import { AskBmdButton } from "@/components/assistant/AssistantPanel";
 import { OpenJobsNav } from "@/components/OpenJobsNav";
+import { TimeClockLink, useShowTimeClock } from "@/components/time/TimeClockLink";
 import { cn } from "@/lib/utils";
 
 type NavGroup =
@@ -81,6 +83,7 @@ const isActive = (
   stage?: string,
   view?: string,
 ) => {
+  if (item.to === "/time") return pathname === "/time";
   if (item.search && "view" in item.search)
     return pathname.startsWith(item.to) && (view ?? "technicians") === item.search.view;
   if (item.search && "stage" in item.search)
@@ -95,6 +98,7 @@ const isActive = (
 
 export function useNavItems() {
   const { can, canAny, role, isSuperAdmin, currentJob } = useAuth();
+  const showTimeClock = useShowTimeClock();
   const items: NavItem[] = [];
   // Company-wide areas for BMD staff. Trades, clients and viewers never see these.
   if (canAny("view_pipeline")) {
@@ -166,6 +170,8 @@ export function useNavItems() {
   }
   if (canAny("view_pipeline") || canAny("view_dashboard"))
     items.push({ to: "/installation", label: "Installation Progress", short: "Install", icon: Layers, group: "install" });
+  if (showTimeClock) items.push({ to: "/time", label: "Time clock", short: "Time", icon: Clock, group: "install" });
+  if (canAny("manage_projects")) items.push({ to: "/timesheets", label: "Timesheets", icon: Clock, group: "scheduling" });
   // Current job: role-specific entries, then job settings.
   const isTrade = role === "trade";
   if (isTrade) items.push({ to: "/my-work", label: "My work", icon: Wrench, group: "job" });
@@ -550,6 +556,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             </div>
             <div className="flex shrink-0 items-center gap-1">
+              <TimeClockLink className="rounded-md p-2 hover:bg-muted" />
               <AskBmdButton compact className="rounded-md p-2 hover:bg-muted" />
               <Link to="/more" className="rounded-md p-2 hover:bg-muted" aria-label="More">
                 <MoreHorizontal className="h-5 w-5" />
