@@ -11,7 +11,7 @@ import { store } from "../lib/store.js";
 import { PALETTE } from "../lib/takeoffConstants.ts";
 import { createSheetEngine, RENDER_SCALE, STANDARD_SCALES } from "../lib/bmd/engine.js";
 import { labelsToSave, mergeSheets, pickDrawings } from "../lib/bmd/drawings.js";
-import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
+import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, setShapeFinish, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
 import { parseFeet } from "../lib/bmd/feet.js";
 import { pageSpans, graphSpans } from "../lib/pageSpans.ts";
@@ -640,6 +640,16 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const scaleLabel = scale ? (STANDARD_SCALES.find((s) => Math.abs(s.upp - scale.upp) / scale.upp < 1e-6)?.label ?? (scale.source === "calibrated" ? "Set from a known length" : "Custom scale")) : null;
   const shown = sheets.filter((s) => !filter.trim() || `${s.label ?? ""} page ${s.page} ${s.file}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const selectedShape = selected ? shapes.find((s) => s.id === selected) : null;
+  const selectedTag = selectedShape ? condById.get(selectedShape.condition_id)?.finish_tag ?? selectedShape.origin?.auto?.finish_tag ?? (isProposal(selectedShape) ? "No finish chosen" : "Measurement") : "";
+  // Moves the selected measurement (and any cut-out made in it) to another finish. A proposal stays a proposal.
+  const changeFinish = (conditionId) => {
+    if (!selectedShape || !doc || !conditionId || conditionId === selectedShape.condition_id) return;
+    try {
+      const moved = setShapeFinish(doc, selectedShape.id, conditionId, dims);
+      commit(isProposal(selectedShape) ? setProposalFinish(moved, [selectedShape.id], conditionId) : moved);
+      say(`Changed to ${condById.get(conditionId)?.finish_tag ?? "the new finish"}. The totals follow.`);
+    } catch (err) { say(String(err?.message || err), "warn"); }
+  };
   const pts = (s) => (s.verts_norm || []).map(([nx, ny]) => [nx * dims.w, ny * dims.h]);
   const boxed = tool === "alike" && draft.length === 1 && hover ? [draft[0], [hover[0], draft[0][1]], hover, [draft[0][0], hover[1]]] : null;
   const liveDraft = boxed ?? (draft.length && hover ? [...draft, hover] : draft);
@@ -752,7 +762,13 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           )}
           {selectedShape && (
             <div className="st-selected" onClick={(e) => e.stopPropagation()}>
-              <strong>{condById.get(selectedShape.condition_id)?.finish_tag ?? selectedShape.origin?.auto?.finish_tag ?? (isProposal(selectedShape) ? "No finish chosen" : "Measurement")}</strong>
+              {readOnly || !(doc?.conditions ?? []).length ? <strong>{selectedTag}</strong> : (
+                <select className="st-input st-finish-select" aria-label="Finish for this measurement" title="Change the finish this measurement counts toward"
+                  value={condById.has(selectedShape.condition_id) ? selectedShape.condition_id : ""} onChange={(e) => changeFinish(e.target.value)}>
+                  {!condById.has(selectedShape.condition_id) && <option value="" disabled>{selectedTag}</option>}
+                  {(doc?.conditions ?? []).map((c) => <option key={c.id} value={c.id}>{c.finish_tag}</option>)}
+                </select>
+              )}
               {isProposal(selectedShape) && <span className="st-proposed">Proposed · {Math.round((selectedShape.origin.confidence ?? 0) * 100)}%</span>}
               <span>{selectedShape.measure_role === "count" ? "1 counted" : selectedShape.measure_role === "linear" ? `${fmt(selectedShape.computed?.perimeter_lf)} LF` : `${fmt(selectedShape.computed?.area_sf)} SF${selectedShape.measure_role === "deduct" ? " taken out" : ` · ${fmt(selectedShape.computed?.perimeter_lf)} LF around`}`}</span>
               {!readOnly && (
@@ -810,7 +826,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
               const on = t.id === activeId;
               return (
                 <li key={t.id} className={on ? "st-on" : ""}>
-                  <button type="button" className="st-finish" onClick={() => setActiveId(t.id)} aria-pressed={on}>
+                  <button type="button" className="st-finish" onClick={() => { setActiveId(t.id); if (selectedShape && !readOnly) changeFinish(t.id); }} aria-pressed={on}
+                    title={selectedShape && !readOnly ? "Move the selected measurement to this finish" : undefined}>
                     <span className="st-swatch" style={{ background: t.colour }} />
                     <span className="st-finish-text">
                       <strong>{t.tag}</strong>

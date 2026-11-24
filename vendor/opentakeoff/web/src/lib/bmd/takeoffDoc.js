@@ -115,6 +115,26 @@ export function reshapeShape(doc, id, pointsPx, dims, origin = {}) {
   return { ...doc, shapes: doc.shapes.map((s) => (s.id === id ? shape : s)) };
 }
 
+/**
+ * Moves a measurement to another finish (a room marked CPT-1 that should be LVT-1). Cut-outs made in it go with it,
+ * so the old finish is not left taking off area it no longer has. Each moved shape is measured again at the new
+ * finish, because a wall's area follows the finish's height. Outline, area name and how it was made stay.
+ * An unknown measurement, or the finish it already has, changes nothing.
+ */
+export function setShapeFinish(doc, shapeId, conditionId, dims) {
+  const cond = (doc.conditions || []).find((c) => c.id === conditionId);
+  if (!cond) throw new Error("Choose a finish that is on this takeoff.");
+  const shape = (doc.shapes || []).find((s) => s.id === shapeId);
+  if (!shape || shape.condition_id === conditionId) return doc;
+  const upp = scaleFor(doc, shape.sheet_id)?.upp ?? 0;
+  const moved = (s) => {
+    const next = { ...s, condition_id: conditionId };
+    if (dims) next.computed = computeShapeMetrics(next, dims, upp, cond);
+    return next;
+  };
+  return { ...doc, shapes: doc.shapes.map((s) => (s.id === shapeId || s.cuts_shape_id === shapeId ? moved(s) : s)) };
+}
+
 export function removeShape(doc, id) {
   return { ...doc, shapes: (doc.shapes || []).filter((s) => s.id !== id && s.cuts_shape_id !== id) };
 }
