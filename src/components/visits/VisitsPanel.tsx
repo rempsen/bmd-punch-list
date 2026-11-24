@@ -3,29 +3,48 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { VisitDrawer, type DrawerTarget } from "@/components/scheduling/VisitDrawer";
 import { cancelVisitPush, pushVisit } from "@/lib/arriveping/arriveping.functions";
 import { db, errText } from "@/lib/platform/db";
 import { useProjectVisits } from "@/lib/visits/data";
 import { ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
-import { applyVisitEvent, arrivepingPill, visitNote, visitRange, visitsCsv, visitTimes, VISIT_LABEL, type Visit, type VisitStatus } from "@/lib/visits/logic";
+import {
+  applyVisitEvent,
+  arrivepingPill,
+  visitNote,
+  visitRange,
+  visitsCsv,
+  visitTimes,
+  VISIT_LABEL,
+  type Visit,
+  type VisitStatus,
+} from "@/lib/visits/logic";
 import { useArrivePingCheck } from "@/components/visits/useArrivePingCheck";
 
 const SEE_SETTINGS = "see Company settings → Integrations.";
 
-type VisitForm = { date: string; endDate: string; endDateEdited: boolean; start: string; end: string; crew: string; contact: string; notes: string };
-const blankForm = (): VisitForm => ({ date: "", endDate: "", endDateEdited: false, start: "08:00", end: "16:00", crew: "", contact: "", notes: "" });
 /** What a push came to, with ArrivePing's reason when it failed. A thrown call (no permission, network) counts as failed. */
 type PushResult = { outcome: "sent" | "skipped" } | { outcome: "failed"; error: string };
 
 /** Install visits for a project: schedule them here, send them to ArrivePing, and see what ArrivePing reports back. */
-export function VisitsPanel({ projectId, canEdit, project }: { projectId: string; canEdit: boolean; project: { name: string; number: string | null; address: string | null; client: string | null } }) {
+export function VisitsPanel({
+  projectId,
+  canEdit,
+  project,
+}: {
+  projectId: string;
+  canEdit: boolean;
+  project: { name: string; number: string | null; address: string | null; client: string | null };
+}) {
   const qc = useQueryClient();
   const pushFn = useServerFn(pushVisit);
   const cancelFn = useServerFn(cancelVisitPush);
   const { data: visits = [], isLoading, isError, error: loadError } = useProjectVisits(projectId);
-  useArrivePingCheck(projectId, visits.some((v) => v.arriveping_job_id));
-  const [form, setForm] = useState<VisitForm | null>(null);
+  useArrivePingCheck(
+    projectId,
+    visits.some((v) => v.arriveping_job_id),
+  );
+  const [drawer, setDrawer] = useState<DrawerTarget | null>(null);
   const [busy, setBusy] = useState(false);
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ["visits", projectId] });
@@ -38,43 +57,11 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
   const push = async (visitId: string): Promise<PushResult> => {
     try {
       const r = await pushFn({ data: { visitId } });
-      return r.outcome === "failed" ? { outcome: "failed", error: r.error } : { outcome: r.outcome };
+      return r.outcome === "failed"
+        ? { outcome: "failed", error: r.error }
+        : { outcome: r.outcome };
     } catch (e) {
       return { outcome: "failed", error: errText(e) };
-    }
-  };
-
-  const add = async () => {
-    if (!form) return;
-    const times = visitTimes(form);
-    if ("error" in times) {
-      toast.error(times.error);
-      return;
-    }
-    setBusy(true);
-    try {
-      const crew = form.crew.trim() || null;
-      const { data, error } = await db
-        .from("install_visits")
-        .insert({ project_id: projectId, starts_at: times.startsAt.toISOString(), ends_at: times.endsAt?.toISOString() ?? null, crew, site_contact: form.contact.trim() || null, notes: form.notes.trim() || null })
-        .select("id")
-        .single();
-      if (error) throw new Error(error.message);
-      const visitId = (data as { id: string }).id;
-      // The visit is saved from here on: close the form so it cannot be scheduled twice, whatever happens next.
-      setForm(null);
-      refresh();
-      const logged = await db.from("install_visit_events").insert({ visit_id: visitId, project_id: projectId, status: "scheduled", note: `${visitNote("scheduled", crew)} for ${visitRange(times.startsAt.toISOString(), times.endsAt?.toISOString() ?? null)}` });
-      if (logged.error) console.error(`install_visit_events: could not log the new visit ${visitId}: ${logged.error.message}`);
-      const sent = await push(visitId);
-      if (sent.outcome === "sent") toast.success("Visit scheduled and sent to ArrivePing.");
-      else if (sent.outcome === "failed") toast.warning(`Visit scheduled. ArrivePing push failed — ${SEE_SETTINGS}`, { description: sent.error });
-      else toast.success("Visit scheduled.");
-    } catch (e) {
-      toast.error(errText(e));
-    } finally {
-      refresh();
-      setBusy(false);
     }
   };
 
@@ -83,7 +70,8 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
     try {
       const sent = await push(v.id);
       if (sent.outcome === "sent") toast.success("Sent to ArrivePing.");
-      else if (sent.outcome === "failed") toast.warning(`Couldn't send to ArrivePing — ${SEE_SETTINGS}`, { description: sent.error });
+      else if (sent.outcome === "failed")
+        toast.warning(`Couldn't send to ArrivePing — ${SEE_SETTINGS}`, { description: sent.error });
       else toast.info("Already in ArrivePing.");
     } finally {
       refresh();
@@ -100,7 +88,11 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
     setBusy(true);
     try {
       must(await db.from("install_visits").update({ status: next.status }).eq("id", v.id));
-      must(await db.from("install_visit_events").insert({ visit_id: v.id, project_id: projectId, status: next.status, note: next.note }));
+      must(
+        await db
+          .from("install_visit_events")
+          .insert({ visit_id: v.id, project_id: projectId, status: next.status, note: next.note }),
+      );
     } catch (e) {
       toast.error(errText(e));
       refresh();
@@ -123,8 +115,14 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
         // A visit that was never in ArrivePing has nothing to tell it, so a refused call only matters for a linked one.
         if (v.arriveping_job_id) failure = errText(e);
       }
-      if (failure) toast.warning(`Cancelled here. ArrivePing wasn't told — ${SEE_SETTINGS}`, { description: failure });
-      else toast.success(told ? "Visit cancelled. ArrivePing asked to cancel too." : "Marked cancelled.");
+      if (failure)
+        toast.warning(`Cancelled here. ArrivePing wasn't told — ${SEE_SETTINGS}`, {
+          description: failure,
+        });
+      else
+        toast.success(
+          told ? "Visit cancelled. ArrivePing asked to cancel too." : "Marked cancelled.",
+        );
     } finally {
       refresh();
       setBusy(false);
@@ -146,67 +144,25 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="flex-1 font-semibold">Install visits</h2>
         {unsent.length > 0 && (
-          <Button size="sm" variant="outline" onClick={exportCsv} title="Export unsent visits as CSV">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={exportCsv}
+            title="Export unsent visits as CSV"
+          >
             Export for ArrivePing
           </Button>
         )}
-        {canEdit && !form && (
-          <Button size="sm" disabled={busy} onClick={() => setForm(blankForm())}>
+        {canEdit && (
+          <Button
+            size="sm"
+            disabled={busy}
+            onClick={() => setDrawer({ create: true, project: projectId })}
+          >
             Schedule install
           </Button>
         )}
       </div>
-      {form && (
-        <form
-          className="mt-3 grid gap-3 sm:grid-cols-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void add();
-          }}
-        >
-          <label className="text-xs font-medium">
-            Start date
-            <Input className="mt-1" type="date" required value={form.date} onChange={(e) => {
-                const date = e.target.value;
-                // The end date follows the start until it is edited, and never stays behind a start moved past it.
-                const endDate = !form.endDateEdited || (date && form.endDate < date) ? date : form.endDate;
-                setForm({ ...form, date, endDate });
-              }} />
-          </label>
-          <label className="text-xs font-medium">
-            End date
-            <Input className="mt-1" type="date" min={form.date || undefined} value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value, endDateEdited: true })} />
-          </label>
-          <label className="text-xs font-medium">
-            Start time
-            <Input className="mt-1" type="time" required value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })} />
-          </label>
-          <label className="text-xs font-medium">
-            End time
-            <Input className="mt-1" type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} />
-          </label>
-          <label className="text-xs font-medium sm:col-span-2">
-            Crew
-            <Input className="mt-1" placeholder="e.g. Brodie + 2" value={form.crew} onChange={(e) => setForm({ ...form, crew: e.target.value })} />
-          </label>
-          <label className="text-xs font-medium sm:col-span-2">
-            Site contact
-            <Input className="mt-1" placeholder="Name and phone" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} />
-          </label>
-          <label className="text-xs font-medium sm:col-span-4">
-            Notes for the crew
-            <Input className="mt-1" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
-          </label>
-          <div className="flex gap-2 sm:col-span-4">
-            <Button type="submit" disabled={busy}>
-              {busy ? "Scheduling…" : "Schedule"}
-            </Button>
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => setForm(null)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
-      )}
       {isLoading ? (
         <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
       ) : isError ? (
@@ -215,7 +171,7 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
           Couldn't load install visits: {errText(loadError)}
         </p>
       ) : visits.length === 0 ? (
-        !form && <p className="mt-2 text-sm text-muted-foreground">No install visits scheduled.</p>
+        <p className="mt-2 text-sm text-muted-foreground">No install visits scheduled.</p>
       ) : (
         <ul className="mt-3 divide-y divide-border">
           {visits.map((v) => {
@@ -224,9 +180,18 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
             const forVisit = <span className="sr-only">, {range}</span>;
             const who = [v.crew, v.site_contact].filter(Boolean).join(" · ");
             return (
-              <li key={v.id} className={`flex flex-wrap items-start gap-x-3 gap-y-2 py-3 text-sm ${v.status === "cancelled" ? "opacity-60" : ""}`}>
+              <li
+                key={v.id}
+                className={`flex flex-wrap items-start gap-x-3 gap-y-2 py-3 text-sm ${v.status === "cancelled" ? "opacity-60" : ""}`}
+              >
                 <div className="min-w-0 flex-1 space-y-1">
-                  <p className="font-medium">{range}</p>
+                  <button
+                    type="button"
+                    className="text-left font-medium underline-offset-2 hover:underline"
+                    onClick={() => setDrawer({ visitId: v.id })}
+                  >
+                    {range}
+                  </button>
                   {who && <p className="truncate text-xs text-muted-foreground">{who}</p>}
                   {v.notes && (
                     <p className="truncate text-xs text-muted-foreground" title={v.notes}>
@@ -239,35 +204,68 @@ export function VisitsPanel({ projectId, canEdit, project }: { projectId: string
                     {v.arriveping_job_id && <OpenInArrivePing jobId={v.arriveping_job_id} />}
                   </div>
                 </div>
-                {canEdit && (v.status === "scheduled" || v.status === "en_route" || v.status === "arrived") && (
-                  <div className="flex flex-wrap gap-2">
-                    {v.status === "scheduled" && !v.arriveping_job_id && (
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => void send(v)}>
-                        Send to ArrivePing
+                {canEdit &&
+                  (v.status === "scheduled" ||
+                    v.status === "en_route" ||
+                    v.status === "arrived") && (
+                    <div className="flex flex-wrap gap-2">
+                      {v.status === "scheduled" && !v.arriveping_job_id && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => void send(v)}
+                        >
+                          Send to ArrivePing
+                          {forVisit}
+                        </Button>
+                      )}
+                      {v.status !== "arrived" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => void move(v, "arrived")}
+                        >
+                          On site
+                          {forVisit}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => void move(v, "completed")}
+                      >
+                        Completed
                         {forVisit}
                       </Button>
-                    )}
-                    {v.status !== "arrived" && (
-                      <Button size="sm" variant="outline" disabled={busy} onClick={() => void move(v, "arrived")}>
-                        On site
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() =>
+                          window.confirm("Cancel this visit?") && void move(v, "cancelled")
+                        }
+                      >
+                        Cancel visit
                         {forVisit}
                       </Button>
-                    )}
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => void move(v, "completed")}>
-                      Completed
-                      {forVisit}
-                    </Button>
-                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => window.confirm("Cancel this visit?") && void move(v, "cancelled")}>
-                      Cancel visit
-                      {forVisit}
-                    </Button>
-                  </div>
-                )}
+                    </div>
+                  )}
               </li>
             );
           })}
         </ul>
       )}
+      <VisitDrawer
+        target={drawer}
+        lockProject
+        onClose={() => {
+          setDrawer(null);
+          refresh();
+        }}
+      />
     </section>
   );
 }

@@ -110,7 +110,10 @@ export function toggleFloor(selected: Set<string>, floorId: string, rooms: Room[
   const ids = rooms.filter((r) => r.floor_id === floorId).map((r) => r.id);
   const all = ids.length > 0 && ids.every((id) => selected.has(id));
   const next = new Set(selected);
-  for (const id of ids) all ? next.delete(id) : next.add(id);
+  for (const id of ids) {
+    if (all) next.delete(id);
+    else next.add(id);
+  }
   return next;
 }
 
