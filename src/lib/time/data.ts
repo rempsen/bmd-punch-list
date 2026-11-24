@@ -148,3 +148,9 @@ export function readLocation(): Promise<Location | null> {
     );
   });
 }
+
+/** A load failure in plain words. Before the time clock's tables exist the database's own message is jargon. */
+export function timeLoadError(e: unknown): string {
+  const m = e instanceof Error ? e.message : String((e as { message?: string } | null)?.message ?? e);
+  return /schema cache|does not exist/i.test(m) ? "The time clock has not been switched on in the database yet." : m;
+}

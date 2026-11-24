@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { errText } from "@/lib/platform/db";
 import { isIsoDay, mondayOf, shiftWeek, siteDay, thisMonday, weekDays } from "@/lib/scheduling/logic";
-import { useClockJobs, useRates, useRefreshTime, useTimePeople, useTimeSettings, useWeekEntries, type EntryWithJob } from "@/lib/time/data";
+import { useClockJobs, useRates, useRefreshTime, useTimePeople, useTimeSettings, useWeekEntries, timeLoadError, type EntryWithJob } from "@/lib/time/data";
 import { adjustedLine, centsText, dayText, DEFAULT_TIME_SETTINGS, entryDay, exportRows, hoursText, jobLabel, labourCostCents, mapLink, summariseWeek, timeText, type PersonRate, type PersonWeek } from "@/lib/time/logic";
 import { timeApprove } from "@/lib/time/time.functions";
 import { cn } from "@/lib/utils";
@@ -164,7 +164,7 @@ function Timesheets() {
         {week.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : week.error ? (
-          <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">Timesheets could not be loaded: {errText(week.error)}</p>
+          <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{timeLoadError(week.error)}</p>
         ) : rows.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border bg-card p-6 text-sm text-muted-foreground">
             Nobody clocked in this week. Crews clock in from Time clock on their phone. If someone forgot, use Add missed entry.
@@ -237,11 +237,14 @@ function PersonCard({ person, name, days, entries, rate, nameOf, busy, onAdjust,
 
 const Where = ({ label, lat, lng }: { label: string; lat: number | null; lng: number | null }) =>
   lat != null && lng != null ? (
-    <a className="underline underline-offset-2" href={mapLink(lat, lng)} target="_blank" rel="noreferrer">
-      {label} map
-    </a>
+    <span className="whitespace-nowrap">
+      {label}:{" "}
+      <a className="underline underline-offset-2" href={mapLink(lat, lng)} target="_blank" rel="noreferrer">
+        map
+      </a>
+    </span>
   ) : (
-    <span>{label}: no location</span>
+    <span className="whitespace-nowrap">{label}: no location</span>
   );
 
 function EntryRow({ entry: e, rate, nameOf, busy, onAdjust, onApprove }: { entry: EntryWithJob; rate: PersonRate | null | undefined; nameOf: (id: string) => string; busy: boolean; onAdjust: (e: EntryWithJob) => void; onApprove: (ids: string[], on: boolean) => Promise<void> }) {
@@ -252,28 +255,32 @@ function EntryRow({ entry: e, rate, nameOf, busy, onAdjust, onApprove }: { entry
   return (
     <li className="flex flex-wrap items-start gap-x-4 gap-y-2 px-4 py-3 text-sm">
       <div className="min-w-0 flex-1 basis-64">
-        <p>
-          <span className="font-medium">{dayText(entryDay(e))}</span> · {jobLabel(e.project)}
-        </p>
-        <p className="text-muted-foreground">
-          {timeText(e.clock_in_at)}–{e.clock_out_at ? timeText(e.clock_out_at) : "still clocked in"}
-          <span className="mx-2">·</span>
-          <Where label="In" lat={e.in_lat} lng={e.in_lng} />
-          {e.clock_out_at && (
-            <>
-              <span className="mx-2">·</span>
-              <Where label="Out" lat={e.out_lat} lng={e.out_lng} />
-            </>
-          )}
-        </p>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="min-w-0">
+            <span className="font-medium">{dayText(entryDay(e))}</span> · {jobLabel(e.project)}
+          </p>
+          <p className="shrink-0 font-semibold tabular-nums">{e.clock_out_at ? `${hoursText(e.rounded_minutes)} h` : "—"}</p>
+        </div>
+        <div className="flex items-baseline justify-between gap-3 text-muted-foreground">
+          <p className="min-w-0">
+            {timeText(e.clock_in_at)}–{e.clock_out_at ? timeText(e.clock_out_at) : "still clocked in"}
+            <span className="mx-2">·</span>
+            <Where label="In" lat={e.in_lat} lng={e.in_lng} />
+            {e.clock_out_at && (
+              <>
+                <span className="mx-2">·</span>
+                <Where label="Out" lat={e.out_lat} lng={e.out_lng} />
+              </>
+            )}
+          </p>
+          <p className="shrink-0 text-xs">
+            {cost !== undefined && e.clock_out_at && <span className="mr-2">{centsText(cost)}</span>}
+            <span className={cn(sent || e.approved_at ? "text-emerald-700 dark:text-emerald-300" : "")}>{status}</span>
+          </p>
+        </div>
         {(e.note_in || e.note_out) && <p className="text-muted-foreground">Note: {[e.note_in, e.note_out].filter(Boolean).join("; ")}</p>}
         {adjusted && <p className="text-xs text-amber-700 dark:text-amber-300">{adjusted}</p>}
         {e.qbo_error && !sent && <p className="text-xs text-destructive">QuickBooks: {e.qbo_error}</p>}
-      </div>
-      <div className="text-right">
-        <p className="font-semibold tabular-nums">{e.clock_out_at ? `${hoursText(e.rounded_minutes)} h` : "—"}</p>
-        {cost !== undefined && e.clock_out_at && <p className="text-xs text-muted-foreground">{centsText(cost)}</p>}
-        <p className={cn("text-xs", sent || e.approved_at ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground")}>{status}</p>
       </div>
       <div className="flex gap-2">
         {!sent && !e.approved_at && (

@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/lib/auth";
 import { errText } from "@/lib/platform/db";
 import { shiftWeek, thisMonday, weekDays } from "@/lib/scheduling/logic";
-import { readLocation, useClockJobs, useMayClock, useMyTime, useRefreshTime, useTimeSettings, type EntryWithJob } from "@/lib/time/data";
+import { readLocation, useClockJobs, useMayClock, useMyTime, useRefreshTime, useTimeSettings, timeLoadError, type EntryWithJob } from "@/lib/time/data";
 import { adjustedLine, clockJobs, dayText, entryDay, hoursText, jobLabel, runningText, summariseWeek, timeText } from "@/lib/time/logic";
 import { timeClockIn, timeClockOut } from "@/lib/time/time.functions";
 import { cn } from "@/lib/utils";
@@ -47,7 +47,7 @@ function TimeClock({ userId }: { userId: string | undefined }) {
         {mine.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : mine.error ? (
-          <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">The time clock could not be loaded: {errText(mine.error)}</p>
+          <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">{timeLoadError(mine.error)}</p>
         ) : open ? (
           <ClockedIn entry={open} />
         ) : (
