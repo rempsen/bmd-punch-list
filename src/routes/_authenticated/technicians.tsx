@@ -14,7 +14,7 @@ import { searchTechnicians, siteDay, visitsThisMonth, type Technician } from "@/
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/technicians")({
-  head: () => ({ meta: [{ title: "Technicians · BMD Materials" }] }),
+  head: () => ({ meta: [{ title: "Crews and Subcontractors · BMD Materials" }] }),
   component: TechniciansPage,
 });
 
@@ -92,7 +92,7 @@ function Technicians() {
   return (
     <div>
       <PageHeader
-        title="Technicians"
+        title="Crews and Subcontractors"
         subtitle="Everyone a visit can be assigned to: BMD staff, and the Labour vendors under Suppliers & subcontractors"
         actions={
           canAdd && (

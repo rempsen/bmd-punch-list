@@ -111,7 +111,7 @@ export function useNavItems() {
       items.push({ to: "/catalogue", label: "Catalogue", icon: BookOpen, group: "resources" });
     items.push({ to: "/clients", label: "Clients", icon: Building2, group: "resources" });
     if (canAny("view_pipeline"))
-      items.push({ to: "/technicians", label: "Technicians", icon: HardHat, group: "resources" });
+      items.push({ to: "/technicians", label: "Crews and Subcontractors", short: "Crews", icon: HardHat, group: "resources" });
     items.push({
       to: "/materials",
       label: "Ordering",
