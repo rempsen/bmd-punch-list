@@ -34,5 +34,16 @@ Bottom: Settings (company), user
   - Tiles: Ready to install = Not ready rooms (nothing blocking, nothing started); In progress; Blocked. Installed rooms are not counted in a tile.
   - Editing needs capture_items or manage_projects on the job; viewing needs view_dashboard or view_pipeline.
 
+- Inspections & Sign-off (release 7) decisions:
+  - A current-job screen at /signoff (Post-installation, after Billing). Viewing needs view_dashboard or manage_projects on the job; creating inspections, recording sign-off and filing PDFs need manage_projects; releasing holdback also needs view_pricing.
+  - Checklist = one item per room × job scope, skipping scopes marked Not required in Installation Progress. Items also carry project_id so access rules stay simple.
+  - Closing: Passed when nothing is deficient; Passed with items when every deficient item has a deficiency; otherwise closing is refused unless the user marks it Failed.
+  - Sign-off needs the latest closed inspection to be Passed or Passed with items. Only one signed sign-off counts per job (the newest).
+  - Emailed link: creates a pending sign-off row (its id is the link token), valid 14 days, sent through the existing Resend mailer. /sign/$token sits behind normal sign-in; the client signs through a database function that checks job membership, expiry and that it is unsigned. A failed email deletes the pending row.
+  - On paper: the scan uploads to Documents → Contract and is linked to the sign-off.
+  - Release holdback creates a draft holdback-release bill through the same create_progress_bill function the Billing tab uses, for all holdback currently held (held only builds up from issued progress bills). Drafts only; never issued automatically. Holdback 0% or nothing held → message, no bill.
+  - The sign-off PDF downloads and, for managers, is filed to Documents → Contract (so the OneDrive mirror copies it).
+  - Inspection closed / sign-off recorded / holdback released appear on the project Activity tab. Closeout Overview (/dashboard) has no timeline today, so they are not shown there.
+
 ## Release order
-1 Sidebar with existing screens · 2 Overview · 3 Estimates & Quotes list · 4 Materials + QuickBooks PO · 5 Scheduling (Technicians, Work orders, Tasks) · 6 Installation Progress (built) · 7 Inspections & Sign-off
+1 Sidebar with existing screens · 2 Overview · 3 Estimates & Quotes list · 4 Materials + QuickBooks PO · 5 Scheduling (Technicians, Work orders, Tasks) · 6 Installation Progress (built) · 7 Inspections & Sign-off (built)
