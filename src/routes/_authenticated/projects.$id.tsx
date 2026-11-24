@@ -449,8 +449,18 @@ function Activity({ projectId }: { projectId: string }) {
       return (data ?? []) as { id: string; note: string; at: string; source: string }[];
     },
   });
+  const { data: closeout } = useQuery({
+    queryKey: ["signoff-activity", projectId],
+    queryFn: async () => {
+      const [i, so] = await Promise.all([
+        db.from("inspections").select("id,kind,held_at,held_by,outcome").eq("project_id", projectId),
+        db.from("signoffs").select("id,signed_by_name,signed_at,method,recorded_by,holdback_released_at").eq("project_id", projectId),
+      ]);
+      return { inspections: i.data ?? [], signoffs: so.data ?? [] };
+    },
+  });
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  const entries = buildTimeline({ stages, documents, quotes, bills, visits }, { showPrices });
+  const entries = buildTimeline({ stages, documents, quotes, bills, visits, inspections: closeout?.inspections ?? [], signoffs: closeout?.signoffs ?? [] }, { showPrices });
   return (
     <Panel title="Activity">
       {entries.length === 0 ? (
