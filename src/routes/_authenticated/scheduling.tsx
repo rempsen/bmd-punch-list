@@ -38,16 +38,20 @@ import {
   type Technician,
 } from "@/lib/scheduling/logic";
 import { arrivepingBadge, scheduleRange, SCHEDULE_TZ } from "@/lib/visits/logic";
+import { CalendarView } from "@/components/scheduling/CalendarView";
+import { useVisitsBetween } from "@/lib/scheduling/data";
+import { calendarRange, monthOf, shiftMonth, today as calendarToday, type CalendarMode } from "@/lib/visits/calendar";
 
-const VIEWS = ["technicians", "workorders", "tasks"] as const;
+const VIEWS = ["technicians", "workorders", "tasks", "calendar"] as const;
 type View = (typeof VIEWS)[number];
-type Search = { view?: View | undefined; week?: string | undefined; job?: string | undefined };
+type Search = { view?: View | undefined; week?: string | undefined; job?: string | undefined; cal?: CalendarMode | undefined };
 
 export const Route = createFileRoute("/_authenticated/scheduling")({
   validateSearch: (s: Record<string, unknown>): Search => ({
     view: (VIEWS as readonly unknown[]).includes(s["view"]) ? (s["view"] as View) : undefined,
     week: isIsoDay(s["week"]) ? mondayOf(s["week"]) : undefined,
     job: typeof s["job"] === "string" && s["job"] ? s["job"] : undefined,
+    cal: s["cal"] === "month" ? "month" : undefined,
   }),
   head: () => ({
     meta: [
@@ -77,6 +81,7 @@ const VIEW_LABEL: Record<View, string> = {
   technicians: "Technicians",
   workorders: "Work orders",
   tasks: "Tasks",
+  calendar: "Calendar",
 };
 const dayLabel = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-CA", {
@@ -121,6 +126,12 @@ function Scheduling() {
     () => (visits.data ?? []).filter((v) => upcoming || inWeek(v, monday)),
     [visits.data, upcoming, monday],
   );
+  const calMode: CalendarMode = view === "calendar" && search.cal === "month" ? "month" : "week";
+  // The month shown is the one holding the week's Sunday (the 1st is never later than its week's Sunday); with no week chosen, today's.
+  const monthAnchor = search.week ? weekDays(monday)[6]! : calendarToday();
+  const month = useMemo(() => (calMode === "month" ? calendarRange("month", monthAnchor) : null), [calMode, monthAnchor]);
+  const monthVisits = useVisitsBetween(month?.from ?? monday, month?.to ?? monday, { job: search.job, enabled: !!month });
+  const monthText = new Date(`${monthOf(monthAnchor)}T12:00:00Z`).toLocaleDateString("en-CA", { month: "long", year: "numeric", timeZone: "UTC" });
   const current = thisMonday();
   const weekText =
     monday === current
@@ -164,23 +175,23 @@ function Scheduling() {
             <Button
               size="icon"
               variant="ghost"
-              aria-label="Previous week"
-              onClick={() => set({ week: shiftWeek(monday, -1) })}
+              aria-label={calMode === "month" ? "Previous month" : "Previous week"}
+              onClick={() => set({ week: calMode === "month" ? mondayOf(shiftMonth(monthAnchor, -1)) : shiftWeek(monday, -1) })}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <button
               className="min-w-32 px-2 text-sm font-medium"
               onClick={() => set({ week: undefined })}
-              title="Back to this week"
+              title={calMode === "month" ? "Back to this month" : "Back to this week"}
             >
-              {weekText}
+              {calMode === "month" ? monthText : weekText}
             </button>
             <Button
               size="icon"
               variant="ghost"
-              aria-label="Next week"
-              onClick={() => set({ week: shiftWeek(monday, 1) })}
+              aria-label={calMode === "month" ? "Next month" : "Next week"}
+              onClick={() => set({ week: calMode === "month" ? mondayOf(shiftMonth(monthAnchor, 1)) : shiftWeek(monday, 1) })}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -198,16 +209,41 @@ function Scheduling() {
               </option>
             ))}
           </select>
+          {view === "calendar" && (
+            <div role="group" aria-label="Calendar view" className="flex rounded-md border border-border bg-card p-0.5 text-sm">
+              {(["week", "month"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={calMode === m}
+                  onClick={() => set({ cal: m === "month" ? "month" : undefined })}
+                  className={`rounded px-2 py-1 ${calMode === m ? "bg-muted font-medium" : "text-muted-foreground"}`}
+                >
+                  {m === "week" ? "Week" : "Month"}
+                </button>
+              ))}
+            </div>
+          )}
           {upcoming && (
             <span className="text-xs text-muted-foreground">
               Showing every upcoming visit for this job.
             </span>
           )}
         </div>
-        {visits.isLoading || techs.isLoading ? (
+        {view === "calendar" && calMode === "month" ? (
+          monthVisits.isLoading || techs.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : monthVisits.error ? (
+            <p className="text-sm text-destructive">{errText(monthVisits.error)}</p>
+          ) : (
+            <CalendarView mode="month" anchor={monthAnchor} visits={monthVisits.data ?? []} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
+          )
+        ) : visits.isLoading || techs.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : visits.error ? (
           <p className="text-sm text-destructive">{errText(visits.error)}</p>
+        ) : view === "calendar" ? (
+          <CalendarView mode="week" anchor={monday} visits={week} techs={techs.data ?? []} open={setDrawer} canEdit={canEdit} />
         ) : view === "technicians" ? (
           <TechGrid
             visits={week}
