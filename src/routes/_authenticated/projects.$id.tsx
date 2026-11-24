@@ -54,7 +54,7 @@ const TABS = [
   { key: "takeoff", label: "Takeoff" },
   { key: "estimate", label: "Estimate" },
   { key: "quotes", label: "Quotes" },
-  { key: "site", label: "Site" },
+  { key: "site", label: "Install Plus" },
   { key: "log", label: "Daily log" },
   { key: "requests", label: "Requests & lists" },
   { key: "billing", label: "Billing" },
@@ -399,7 +399,13 @@ function SiteTab({ project, canEdit }: { project: PipelineProject; canEdit: bool
   const isMine = jobs.some((j) => j.id === project.id);
   const won = project.stage === "won" || project.stage === "in_progress" || project.stage === "closed";
 
-  const crew = <CrewStatusPanel projectId={project.id} canEdit={canEdit} />;
+  // Install Plus: crew status, then every work order oldest first (with "Create new work order"), then the site tracker.
+  const crew = (
+    <>
+      <CrewStatusPanel projectId={project.id} canEdit={canEdit} />
+      <VisitsPanel projectId={project.id} canEdit={canEdit} project={{ name: project.name, number: project.project_number, address: project.address, client: project.client_name }} />
+    </>
+  );
   if (project.floorCount > 0)
     return (
       <div className="space-y-4">

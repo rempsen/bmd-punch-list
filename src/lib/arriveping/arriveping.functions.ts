@@ -57,6 +57,8 @@ type VisitRow = {
   report_to?: string | null;
   report_to_other?: string | null;
   report_time?: string | null;
+  /** The estimate items the work order covers, loaded with the visit so every payload carries the "Work:" block. */
+  lines?: import("@/lib/visits/lines").VisitLine[];
 };
 
 /** The visit and its project, or a sentence saying why not. */
@@ -71,6 +73,14 @@ async function loadVisit(
     .maybeSingle();
   if (error) return { error: `Could not load the install visit: ${error.message}` };
   if (!visit) return { error: VISIT_NOT_FOUND };
+  // The table is newer than the generated types; a failure to read the lines is logged and the work order goes without them.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: lines, error: lError } = await (db as unknown as { from: (t: string) => any })
+    .from("install_visit_lines")
+    .select("id,visit_id,estimate_line_id,finish_id,description,quantity,uom,cost_code,sort_order")
+    .eq("visit_id", visitId)
+    .order("sort_order");
+  if (lError) console.error(`install_visit_lines: could not load the lines of ${visitId}: ${lError.message}`);
   const { data: p, error: pError } = await db
     .from("projects")
     .select("id,name,project_number,address,street,city,province,postal_code,client_id,client_name")
@@ -79,7 +89,7 @@ async function loadVisit(
   if (pError) return { error: `Could not load the project: ${pError.message}` };
   if (!p) return { error: "Project not found" };
   return {
-    visit,
+    visit: { ...visit, lines: (lines ?? []) as import("@/lib/visits/lines").VisitLine[] },
     project: {
       id: p.id,
       name: p.name,
@@ -725,6 +735,40 @@ export const rescheduleVisitPush = createServerFn({ method: "POST" })
     }
     if (!visit.arriveping_job_id) return { changed, push: null };
     return { changed, push: await runReschedulePush(visit.id) };
+  });
+
+export type ResendOutcome = PushCreateOutcome | PushRescheduleOutcome;
+
+/**
+ * "Resend to ArrivePing": a work order ArrivePing never got is created again (same idempotency key, so a create that did
+ * land is linked rather than duplicated); one it has is sent whole again as a PATCH, so what the crew sees matches BMD.
+ * Refused while an earlier push for the visit is still pending in the outbox.
+ */
+export const resendVisitPush = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(visitIdInput)
+  .handler(async ({ data, context }): Promise<ResendOutcome> => {
+    await requireAny(context.supabase as never, "manage_projects", "manage_integrations");
+    const db = await admin();
+    const { data: pending } = await db
+      .from("sync_events")
+      .select("id")
+      .eq("entity_type", "visit")
+      .eq("entity_id", data.visitId)
+      .eq("direction", "out")
+      .eq("status", "pending")
+      .limit(1);
+    if (pending?.length) return { outcome: "failed", error: "A push for this work order is still pending; wait for it to finish or retry it from the sync queue.", key: "" };
+    const loaded = await loadVisit(data.visitId);
+    if ("error" in loaded) return { outcome: "failed", error: loaded.error, key: "" };
+    const { visit } = loaded;
+    const result = visit.arriveping_job_id ? await runReschedulePush(visit.id) : await runPushCreate(visit.id);
+    if (result.outcome === "sent") {
+      const { data: who } = await db.from("profiles").select("full_name,email").eq("id", context.userId).maybeSingle();
+      const name = (who?.full_name ?? who?.email ?? "").trim() || "staff";
+      await logVisitEvent(visit, "resent", `Resent to ArrivePing by ${name}`);
+    }
+    return result;
   });
 
 /** Copies the photos on a visit's ArrivePing work order into the job's photos. Safe to press again: photos already copied are skipped. */

@@ -4,14 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { VisitDrawer, type DrawerTarget } from "@/components/scheduling/VisitDrawer";
-import { cancelVisitPush, fetchVisitPhotos, pushVisit } from "@/lib/arriveping/arriveping.functions";
+import { cancelVisitPush, fetchVisitPhotos, pushVisit, resendVisitPush } from "@/lib/arriveping/arriveping.functions";
 import { useSignedUrls } from "@/lib/photos";
 import { db, errText } from "@/lib/platform/db";
-import { useProjectVisitPhotos, useProjectVisits, type VisitPhoto } from "@/lib/visits/data";
-import { ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
+import { usePendingVisitPushes, useProjectVisitLines, useProjectVisitPhotos, useProjectVisits, type VisitPhoto } from "@/lib/visits/data";
+import { lineSummary } from "@/lib/visits/lines";
+import { AcceptancePill, ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
 import { ConfirmationPill, VisitTags } from "@/components/scheduling/schedule-bits";
 import { reportLine } from "@/lib/scheduling/assignments";
 import {
+  acceptanceBadge,
   applyVisitEvent,
   arrivepingPill,
   visitNote,
@@ -29,7 +31,7 @@ const SEE_SETTINGS = "see Company settings → Integrations.";
 /** What a push came to, with ArrivePing's reason when it failed. A thrown call (no permission, network) counts as failed. */
 type PushResult = { outcome: "sent" | "skipped" } | { outcome: "failed"; error: string };
 
-/** Install visits for a project: schedule them here, send them to ArrivePing, and see what ArrivePing reports back. */
+/** Work orders for a project, oldest first: create them here, send them to ArrivePing, and see what ArrivePing reports back. */
 export function VisitsPanel({
   projectId,
   canEdit,
@@ -43,8 +45,16 @@ export function VisitsPanel({
   const pushFn = useServerFn(pushVisit);
   const cancelFn = useServerFn(cancelVisitPush);
   const photosFn = useServerFn(fetchVisitPhotos);
+  const resendFn = useServerFn(resendVisitPush);
   const { data: visits = [], isLoading, isError, error: loadError } = useProjectVisits(projectId);
   const { data: photos = [] } = useProjectVisitPhotos(projectId);
+  const { data: lines = [] } = useProjectVisitLines(projectId);
+  const { data: pendingPush } = usePendingVisitPushes(projectId);
+  const linesByVisit = useMemo(() => {
+    const m = new Map<string, typeof lines>();
+    for (const l of lines) m.set(l.visit_id, [...(m.get(l.visit_id) ?? []), l]);
+    return m;
+  }, [lines]);
   const photosByVisit = useMemo(() => {
     const m = new Map<string, VisitPhoto[]>();
     for (const p of photos) m.set(p.visit_id, [...(m.get(p.visit_id) ?? []), p]);
@@ -60,6 +70,22 @@ export function VisitsPanel({
     void qc.invalidateQueries({ queryKey: ["visits", projectId] });
     void qc.invalidateQueries({ queryKey: ["visit-events", projectId] });
     void qc.invalidateQueries({ queryKey: ["visit-photos", projectId] });
+    void qc.invalidateQueries({ queryKey: ["visit-lines", projectId] });
+    void qc.invalidateQueries({ queryKey: ["visit-pushes-pending", projectId] });
+  };
+  const resend = async (v: Visit) => {
+    setBusy(true);
+    try {
+      const r = await resendFn({ data: { visitId: v.id } });
+      if (r.outcome === "sent") toast.success(v.arriveping_job_id ? "Work order resent to ArrivePing." : "Sent to ArrivePing.");
+      else if (r.outcome === "failed") toast.warning(`Couldn't resend to ArrivePing — ${SEE_SETTINGS}`, { description: r.error });
+      else toast.info(r.reason === "tentative" ? "Tentative work orders are not sent to ArrivePing." : "Nothing to resend.");
+    } catch (e) {
+      toast.warning(`Couldn't resend to ArrivePing — ${SEE_SETTINGS}`, { description: errText(e) });
+    } finally {
+      refresh();
+      setBusy(false);
+    }
   };
   const getPhotos = async (v: Visit) => {
     setBusy(true);
@@ -108,7 +134,7 @@ export function VisitsPanel({
   const move = async (v: Visit, to: VisitStatus) => {
     const next = applyVisitEvent(v, to);
     if (!next) {
-      toast.error("That visit is already past that point.");
+      toast.error("That work order is already past that point.");
       return;
     }
     setBusy(true);
@@ -147,7 +173,7 @@ export function VisitsPanel({
         });
       else
         toast.success(
-          told ? "Visit cancelled. ArrivePing asked to cancel too." : "Marked cancelled.",
+          told ? "Work order cancelled. ArrivePing asked to cancel too." : "Marked cancelled.",
         );
     } finally {
       refresh();
@@ -168,13 +194,13 @@ export function VisitsPanel({
   return (
     <section className="mt-4 rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="flex-1 font-semibold">Install visits</h2>
+        <h2 className="flex-1 font-semibold">Work orders</h2>
         {unsent.length > 0 && (
           <Button
             size="sm"
             variant="outline"
             onClick={exportCsv}
-            title="Export unsent visits as CSV"
+            title="Export unsent work orders as CSV"
           >
             Export for ArrivePing
           </Button>
@@ -185,7 +211,7 @@ export function VisitsPanel({
             disabled={busy}
             onClick={() => setDrawer({ create: true, project: projectId })}
           >
-            Schedule install
+            Create new work order
           </Button>
         )}
       </div>
@@ -194,10 +220,10 @@ export function VisitsPanel({
       ) : isError ? (
         // Never "No install visits" when the list could not be read (a missing migration, a lost connection).
         <p role="alert" className="mt-2 text-sm text-destructive">
-          Couldn't load install visits: {errText(loadError)}
+          Couldn't load work orders: {errText(loadError)}
         </p>
       ) : visits.length === 0 ? (
-        <p className="mt-2 text-sm text-muted-foreground">No install visits scheduled.</p>
+        <p className="mt-2 text-sm text-muted-foreground">No work orders yet.</p>
       ) : (
         <ul className="mt-3 divide-y divide-border">
           {visits.map((v) => {
@@ -205,6 +231,8 @@ export function VisitsPanel({
             const range = visitRange(v.starts_at, v.ends_at);
             const forVisit = <span className="sr-only">, {range}</span>;
             const who = [v.crew, v.site_contact].filter(Boolean).join(" · ");
+            const work = lineSummary(linesByVisit.get(v.id) ?? []);
+            const pushPending = !!pendingPush?.has(v.id);
             return (
               <li
                 key={v.id}
@@ -219,6 +247,11 @@ export function VisitsPanel({
                     {range}
                   </button>
                   <VisitTags v={v} />
+                  {work && (
+                    <p className="truncate text-xs" title={work}>
+                      {work}
+                    </p>
+                  )}
                   {who && <p className="truncate text-xs text-muted-foreground">{who}</p>}
                   <p className="text-xs text-muted-foreground">{reportLine(v)}</p>
                   {v.notes && (
@@ -229,6 +262,7 @@ export function VisitsPanel({
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <StatusPill label={VISIT_LABEL[v.status]} />
                     {ap && <ArrivePingPill label={ap} />}
+                    <AcceptancePill badge={acceptanceBadge(v)} />
                     {v.status === "scheduled" && !v.tentative && <ConfirmationPill v={v} />}
                     {v.arriveping_job_id && <OpenInArrivePing jobId={v.arriveping_job_id} />}
                   </div>
@@ -249,10 +283,22 @@ export function VisitsPanel({
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={busy}
+                          disabled={busy || pushPending}
                           onClick={() => void send(v)}
                         >
-                          Send to ArrivePing
+                          {pushPending ? "Sending…" : "Send to ArrivePing"}
+                          {forVisit}
+                        </Button>
+                      )}
+                      {v.arriveping_job_id && !v.tentative && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busy || pushPending}
+                          title={pushPending ? "A push to ArrivePing is still pending" : "Send the work order to ArrivePing again as it now stands"}
+                          onClick={() => void resend(v)}
+                        >
+                          {pushPending ? "Sending…" : "Resend to ArrivePing"}
                           {forVisit}
                         </Button>
                       )}
@@ -281,10 +327,10 @@ export function VisitsPanel({
                         variant="ghost"
                         disabled={busy}
                         onClick={() =>
-                          window.confirm("Cancel this visit?") && void move(v, "cancelled")
+                          window.confirm("Cancel this work order?") && void move(v, "cancelled")
                         }
                       >
-                        Cancel visit
+                        Cancel work order
                         {forVisit}
                       </Button>
                     </div>

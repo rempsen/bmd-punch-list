@@ -312,6 +312,28 @@ describe("subscription events", () => {
     expect(subscriptionEvents(["other.thing"])).toEqual([]);
     expect(subscriptionEvents([...AP_WEBHOOK_EVENTS])).toContain("workorder.status_changed");
   });
+  test("acceptance events are taken only when the catalogue lists them", () => {
+    expect(subscriptionEvents(null)).not.toContain("workorder.accepted");
+    expect(subscriptionEvents(["workorder.assigned", "workorder.accepted"])).toEqual(["workorder.assigned", "workorder.accepted"]);
+    expect(subscriptionEvents(["assignment.accepted"])).toEqual(["assignment.accepted"]);
+  });
+});
+
+describe("the work-order lines lead the notes for the crew", () => {
+  const p = { id: "p1", name: "Job", number: "24-101", address: null, client: null };
+  const base = { id: "v1", starts_at: "2026-07-02T13:00:00.000Z", ends_at: null, crew: "Brodie", notes: "Bring the roller", site_contact: null };
+  const lines = [
+    { estimate_line_id: "a", description: "LVT", quantity: 500, uom: "SF" },
+    { estimate_line_id: "b", description: "base", quantity: "10", uom: "LF" },
+  ];
+  test("a Work: block, one item per line, before the crew and notes", () => {
+    const body = workOrderPayload({ ...base, lines }, p, "c1");
+    expect(body.notes_for_crew).toBe("Work:\n- 500 SF LVT\n- 10 LF base\nCrew: Brodie\nBring the roller");
+  });
+  test("no lines, no block; reschedule carries the same notes", () => {
+    expect(workOrderPayload({ ...base, lines: [] }, p, "c1").notes_for_crew).toBe("Crew: Brodie\nBring the roller");
+    expect(reschedulePayload({ ...base, lines }).notes_for_crew).toBe("Work:\n- 500 SF LVT\n- 10 LF base\nCrew: Brodie\nBring the roller");
+  });
 });
 
 describe("where and when the crew reports travels in the notes for the crew", () => {

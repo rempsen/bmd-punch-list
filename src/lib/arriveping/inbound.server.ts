@@ -10,7 +10,7 @@ import { EXTERNAL_SOURCE } from "./core";
 /** Reasons an event was set aside that a redelivery could get past. */
 const RETRY_IGNORED = new Set<unknown>(["no matching visit", "unrecognised event"]);
 const VISIT_COLUMNS =
-  "id,project_id,status,crew,starts_at,ends_at,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at";
+  "id,project_id,status,crew,starts_at,ends_at,arriveping_job_id,arriveping_status,arriveping_assigned_to,arriveping_last_event_at,accepted_at,accepted_by";
 
 export type InboundReply = { status: number; body: Record<string, unknown> };
 
