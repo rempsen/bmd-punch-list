@@ -460,6 +460,10 @@
     {
       "idx": 65,
       "version": "7",
+      "when": 1795539325129,
+      "tag": "0063_document_text_index",
+      "idx": 64,
+      "version": "7",
       "when": 1795539677748,
       "tag": "0064_document_text_index",
       "breakpoints": true

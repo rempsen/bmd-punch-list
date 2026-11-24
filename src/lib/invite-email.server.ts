@@ -5,7 +5,7 @@ const FROM = "BMD Materials <noreply@bmdmaterials.com>";
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-function layout(appUrl: string, title: string, bodyHtml: string, button?: { href: string; label: string }) {
+export function layout(appUrl: string, title: string, bodyHtml: string, button?: { href: string; label: string }) {
   const LOGO = `${appUrl}/bmd-logo.png`;
   return `<!doctype html><html><body style="margin:0;background:#F9FAFA;font-family:Arial,Helvetica,sans-serif;color:#1b2a4a">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#F9FAFA;padding:24px 0"><tr><td align="center">
