@@ -34,6 +34,7 @@ import {
   ListChecks,
   Users,
   PackageCheck,
+  MapPinCheck,
   ShoppingCart,
   Truck,
 } from "lucide-react";
@@ -78,7 +79,7 @@ const isActive = (
   if (item.search && "view" in item.search)
     return pathname.startsWith(item.to) && (view ?? "technicians") === item.search.view;
   if (item.search && "stage" in item.search)
-    return pathname.startsWith(item.to) && (stage ?? "on_order") === item.search.stage;
+    return pathname.startsWith(item.to) && (stage ?? "to_order") === item.search.stage;
   if (item.params) return pathname === `/projects/${item.params.id}` && tab === item.search?.tab;
   return (
     pathname.startsWith(item.to) &&
@@ -111,19 +112,26 @@ export function useNavItems() {
       label: "Ordering",
       icon: ShoppingCart,
       group: "materials",
-      search: { stage: "on_order" },
+      search: { stage: "to_order" },
     });
     items.push({
       to: "/materials",
       label: "Receiving",
       icon: PackageCheck,
       group: "materials",
-      search: { stage: "received" },
+      search: { stage: "on_order" },
     });
     items.push({
       to: "/materials",
       label: "To site",
       icon: Truck,
+      group: "materials",
+      search: { stage: "received" },
+    });
+    items.push({
+      to: "/materials",
+      label: "On site",
+      icon: MapPinCheck,
       group: "materials",
       search: { stage: "on_site" },
     });

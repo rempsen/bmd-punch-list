@@ -12,7 +12,9 @@ MIGDIR=$(cd ../../drizzle/migrations && pwd)
 # The user-access migrations (0053 on) in order. Others need tables the stub doesn't have.
 MIG=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 >= 53 && $NF ~ /(user|staff|admin)/) print }' | tr '\n' ' ')
 # The migration uses drizzle's statement-breakpoint comments, which psql ignores.
-cat stub.sql seed.sql $MIG user-admin.test.sql > /tmp/$DB.sql
+# Materials: estimate/quote stand-ins, then the materials migrations (0055 material orders and later "material" ones).
+MAT=$(find "$MIGDIR" -maxdepth 1 -name "*.sql" | sort | awk -F/ '{ split($NF, a, "_"); if (a[1] + 0 >= 55 && $NF ~ /material/) print }' | tr '\n' ' ')
+cat stub.sql seed.sql $MIG user-admin.test.sql materials.stub.sql $MAT materials.test.sql > /tmp/$DB.sql
 chmod 644 /tmp/$DB.sql
 as_pg "${PSQL[@]}" -d "$DB" -f /tmp/$DB.sql
 rm -f /tmp/$DB.sql

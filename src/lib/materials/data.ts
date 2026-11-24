@@ -13,7 +13,8 @@ export type MaterialOrder = {
   unit: string;
   unit_cost_cents: number | null;
   status: MaterialStatus;
-  ordered_at: string;
+  ordered_at: string | null;
+  source_version_id: string | null;
   po_number: string | null;
   qbo_po_id: string | null;
   qbo_po_sent_at: string | null;
@@ -34,7 +35,7 @@ export function useMaterialOrders() {
   return useQuery({
     queryKey: KEY,
     queryFn: async () => {
-      const { data, error } = await db.from("material_orders").select("*").order("ordered_at", { ascending: false });
+      const { data, error } = await db.from("material_orders").select("*").order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as MaterialOrder[];
     },
@@ -47,7 +48,7 @@ export function useAwaitingMaterial(projectId: string | null | undefined) {
     queryKey: [...KEY, "awaiting", projectId],
     enabled: !!projectId,
     queryFn: async () => {
-      const { data, error } = await db.from("material_orders").select("*").eq("project_id", projectId!).neq("status", "on_site").order("ordered_at");
+      const { data, error } = await db.from("material_orders").select("*").eq("project_id", projectId!).neq("status", "on_site").order("created_at");
       if (error) throw error;
       return (data ?? []) as MaterialOrder[];
     },
@@ -63,9 +64,9 @@ export function useRefreshMaterials() {
 export function useMoveMaterials() {
   const refresh = useRefreshMaterials();
   return useMutation({
-    mutationFn: async (a: { rows: MaterialOrder[]; to: MaterialStatus; at?: string; by?: string | null; qty?: number | null; note?: string | null }) => {
+    mutationFn: async (a: { rows: MaterialOrder[]; to: MaterialStatus; at?: string; by?: string | null; qty?: number | null; note?: string | null; po?: string | null }) => {
       for (const r of a.rows) {
-        const patch = transitionPatch(r.status, a.to, { ...(a.at ? { at: a.at } : {}), by: a.by ?? null, qty: a.to === "received" ? (a.qty ?? r.quantity) : null, note: a.note ?? null });
+        const patch = transitionPatch(r.status, a.to, { ...(a.at ? { at: a.at } : {}), by: a.by ?? null, qty: a.to === "received" ? (a.qty ?? r.quantity) : null, note: a.note ?? null, po: a.po ?? null });
         const { error } = await db.from("material_orders").update(patch).eq("id", r.id).eq("status", r.status);
         if (error) throw new Error(error.message);
       }
