@@ -150,6 +150,7 @@ function QuickBooksSend({ onDone }: { onDone: () => void }) {
     setBusy("send");
     try {
       const r = await sendFn({ data: { ids } });
+      if ("skipped" in r && r.skipped) return void toast.error(r.skipped);
       toast.success(`Sent ${r.sent}${r.failed ? `, ${r.failed} failed (see the list above)` : ""}${r.held ? `, ${r.held} held` : ""}.`, { duration: 8000 });
       setPreview(null);
       onDone();
