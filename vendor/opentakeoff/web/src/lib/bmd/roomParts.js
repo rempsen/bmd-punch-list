@@ -10,6 +10,7 @@
 // (lib/oneclick.ts, lib/detectRooms.ts, lib/confidence.ts) and adds BMD's sorting in front and BMD's checks behind.
 //
 // Positions are image pixels (PDF points × the render scale, y downwards), as everywhere in lib/bmd.
+import { findDoors, closeDoorways } from "./doors.js";
 import { buildMask, traceRegion, snapVertices, snapNearest, ringArea, MASK_MAX_DIM, MASK_CURVE_BIT, MASK_NODOOR_BIT } from "../oneclick.ts";
 import { floodAtSeed } from "../detectRooms.ts";
 import { floodSignals, traceConfidence } from "../confidence.ts";
@@ -17,7 +18,7 @@ import { closedMetrics } from "../geometry.js";
 import { SNAP_TOL } from "../takeoffConstants.ts";
 
 /** What a drawn stroke is. Only WALL takes part in finding a room. */
-export const KIND = { WALL: 0, HIDDEN: 1, TEXT: 2, TAG: 3, DASH: 4, ARROW: 5 };
+export const KIND = { WALL: 0, HIDDEN: 1, TEXT: 2, TAG: 3, DASH: 4, ARROW: 5, DOOR: 6, GRID: 7 };
 
 const SEG_CURVE = 1, SEG_CLIP = 2, SEG_FILLONLY = 4;   // the stroke facts OpenTakeoff records per segment (oneclick.ts)
 const ROLE_ANNOTATION = 3;                             // buildMask leaves role-3 strokes out of the mask
@@ -37,8 +38,16 @@ const DASH_GAP_IN = 0.14;       // the widest gap between dashes; a door at 1/16
 const DASH_GAP_FT = 2;          // ...and never a gap a person could walk through
 const DASH_MIN_RUN = 3;         // fewer pieces in a row could be walls either side of an opening
 const WHITE = 240;              // fill or stroke this light is invisible on paper
+const CALLOUT_REACH = 1.7;      // a section bubble's cut triangles reach this many radii from its centre
+const GRID_PIECE_MAX_FT = 10;   // a grid or section line drawn as pieces: no piece longer than this
+const GRID_GAP_FT = 3;          // ...pieces continue one another across gaps no wider than this
+const GRID_MIN_FT = 40;         // ...and the line runs at least this far
+const GRID_MIN_PIECES = 8;
 
 const round2 = (n) => Math.round(n * 100) / 100;
+/** What a closed, text-filled figure is called: round ones are section or detail bubbles; boxes, hexagons and long
+ *  rounded tags ("D1") are tags. */
+const tagType = (curved, x0, y0, x1, y1) => (curved && Math.min(x1 - x0, y1 - y0) >= 0.7 * Math.max(x1 - x0, y1 - y0) ? "bubble" : "tag");
 
 /** pdf.js text items as upright boxes in image pixels. `transform` is the viewport's (page.getViewport(...).transform). */
 export function textBoxes(textContent, transform) {
@@ -84,7 +93,7 @@ function bucketGrid(cell) {
  *   `kind` per segment (KIND), `roles` for OpenTakeoff's buildMask, and `items`: the tags, notes, arrows and dashed
  *   runs found, each with where it is, so a room can say which of them it ignored.
  */
-export function classifyLinework({ segs, meta, lum = null, dashed = null, subpaths = null, texts = [], pxPerFt = 0, pxPerIn = 144 }) {
+export function classifyLinework({ segs, meta, lum = null, dashed = null, subpaths = null, texts = [], pxPerFt = 0, pxPerIn = 144, doorStrokes = null }) {
   const n = segs.length >> 2;
   const kind = new Uint8Array(n);
   const items = [];
@@ -94,7 +103,8 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
   //    put behind text so the note reads clearly over the drawing).
   for (let i = 0; i < n; i++) {
     const m = meta[i];
-    if (m & SEG_CLIP) kind[i] = KIND.HIDDEN;
+    if (doorStrokes && doorStrokes[i]) kind[i] = KIND.DOOR;   // a door's swing and leaf, already read (./doors.js)
+    else if (m & SEG_CLIP) kind[i] = KIND.HIDDEN;
     else if (lum && lum[i] >= WHITE && !(m & SEG_FILLONLY)) kind[i] = KIND.HIDDEN;
     else if (dashed && dashed[i]) kind[i] = KIND.DASH;
   }
@@ -124,10 +134,16 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
   //    arrowhead is a small one on its own.
   const vid = new Map();
   const vx = [], vy = [], deg = [];
+  // Ends within JOIN_PX of each other are one corner. CAD programs often draw a shape as separate pieces whose ends
+  // miss by a fraction of a pixel (a tag as two rounded ends and two sides), so exact matching would split it.
+  const JOIN_PX = 0.6;
   const vertex = (x, y) => {
-    const k = Math.round(x * 2) * 262144 + Math.round(y * 2);
-    let v = vid.get(k);
-    if (v === undefined) { v = vx.length; vid.set(k, v); vx.push(x); vy.push(y); deg.push(0); }
+    const gx = Math.round(x * 2), gy = Math.round(y * 2);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const v = vid.get((gx + dx) * 262144 + gy + dy);
+      if (v !== undefined && Math.hypot(vx[v] - x, vy[v] - y) <= JOIN_PX) return v;
+    }
+    const v = vx.length; vid.set(gx * 262144 + gy, v); vx.push(x); vy.push(y); deg.push(0);
     return v;
   };
   const va = new Int32Array(n).fill(-1), vb = new Int32Array(n).fill(-1);
@@ -135,7 +151,7 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
   const parent = [];
   const find = (a) => { while (parent[a] !== a) { parent[a] = parent[parent[a]]; a = parent[a]; } return a; };
   for (let i = 0; i < n; i++) {
-    if (kind[i] === KIND.HIDDEN) continue;
+    if (kind[i] === KIND.HIDDEN || kind[i] === KIND.DOOR) continue;
     const x1 = segs[i * 4], y1 = segs[i * 4 + 1], x2 = segs[i * 4 + 2], y2 = segs[i * 4 + 3];
     const a = vertex(x1, y1), b = vertex(x2, y2);
     if (a === b) continue;                       // a dot
@@ -184,7 +200,16 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
     const curved = f.curves >= f.segs.length * 0.6;
     if (!tagTest(f.x0, f.y0, f.x1, f.y1, curved)) continue;
     mark(f, KIND.TAG);
-    tagBoxes.push({ type: curved ? "bubble" : "tag", x0: f.x0, y0: f.y0, x1: f.x1, y1: f.y1 });
+    tagBoxes.push({ type: tagType(curved, f.x0, f.y0, f.x1, f.y1), x0: f.x0, y0: f.y0, x1: f.x1, y1: f.y1 });
+  }
+  // A tag drawn against a door's leaf, or with a short stroke run up to it, has a branch and is not a plain loop.
+  // A small closed figure (it has a cycle: at least as many strokes as corners) with rounded ends that its text fills
+  // by the strict measure is still a tag.
+  for (const f of figures) {
+    if (f.loop || f.kind !== KIND.WALL || !f.curves || f.segs.length < f.verts.length) continue;
+    if (!tagTest(f.x0, f.y0, f.x1, f.y1, false)) continue;
+    mark(f, KIND.TAG);
+    tagBoxes.push({ type: tagType(f.curves >= f.segs.length * 0.6, f.x0, f.y0, f.x1, f.y1), x0: f.x0, y0: f.y0, x1: f.x1, y1: f.y1 });
   }
   // A closed outline that shares a corner with something else (a bubble with a bar across it, an arrowhead on its
   // line) is not a figure on its own above, so closed outlines are also taken one drawn path at a time.
@@ -201,7 +226,41 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
     const curved = curves >= (sp.i1 - sp.i0) * 0.6;
     if (!tagTest(sp.x0, sp.y0, sp.x1, sp.y1, curved)) continue;
     for (let i = sp.i0; i < sp.i1; i++) if (kind[i] === KIND.WALL) kind[i] = KIND.TAG;
-    tagBoxes.push({ type: curved ? "bubble" : "tag", x0: sp.x0, y0: sp.y0, x1: sp.x1, y1: sp.y1 });
+    tagBoxes.push({ type: tagType(curved, sp.x0, sp.y0, sp.x1, sp.y1), x0: sp.x0, y0: sp.y0, x1: sp.x1, y1: sp.y1 });
+  }
+  // A tag drawn as a few open pieces in a row (two rounded ends and two sides): pieces drawn one after another whose
+  // ends pair up into one closed loop are a closed outline, whatever else happens to touch its corners.
+  {
+    const open = (subpaths ?? []).filter((sp) => !sp.closed && !(sp.flags & SEG_CLIP) && sp.i1 > sp.i0);
+    const endsOf = (sp) => [[segs[sp.i0 * 4], segs[sp.i0 * 4 + 1]], [segs[(sp.i1 - 1) * 4 + 2], segs[(sp.i1 - 1) * 4 + 3]]];
+    for (let a = 0; a < open.length; a++) {
+      for (let k = 2; k <= 6 && a + k <= open.length; k++) {
+        const run = open.slice(a, a + k);
+        if (run[k - 1].i0 - run[0].i1 > 64) break;   // drawn far apart in the file: not one figure
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (const sp of run) { x0 = Math.min(x0, sp.x0); y0 = Math.min(y0, sp.y0); x1 = Math.max(x1, sp.x1); y1 = Math.max(y1, sp.y1); }
+        if (Math.max(x1 - x0, y1 - y0) > TAG_MAX_IN * IN) break;
+        // every end meets exactly one end of another piece, and the pieces link into one loop
+        const ends = run.flatMap((sp, p) => endsOf(sp).map((e) => ({ p, e })));
+        let paired = true; const link = run.map(() => []);
+        for (let i = 0; i < ends.length && paired; i++) {
+          const m = ends.filter((q, j) => j !== i && q.p !== ends[i].p && Math.hypot(q.e[0] - ends[i].e[0], q.e[1] - ends[i].e[1]) <= 0.75);
+          if (m.length !== 1) paired = false; else link[ends[i].p].push(m[0].p);
+        }
+        if (!paired) continue;
+        const seen = new Set([0]), st = [0];
+        while (st.length) for (const q of link[st.pop()]) if (!seen.has(q)) { seen.add(q); st.push(q); }
+        if (seen.size !== k) continue;
+        let curves = 0, all = 0;
+        for (const sp of run) for (let i = sp.i0; i < sp.i1; i++) { all++; if (meta[i] & SEG_CURVE) curves++; }
+        const curved = curves >= all * 0.6;
+        if (!tagTest(x0, y0, x1, y1, false) && !(curved && tagTest(x0, y0, x1, y1, true))) continue;
+        for (const sp of run) for (let i = sp.i0; i < sp.i1; i++) if (kind[i] === KIND.WALL) kind[i] = KIND.TAG;
+        tagBoxes.push({ type: tagType(curved, x0, y0, x1, y1), x0, y0, x1, y1 });
+        a += k - 1;
+        break;
+      }
+    }
   }
   if (tagBoxes.length) {
     // whatever is drawn wholly inside a tag belongs to it (the bar across a section bubble)
@@ -215,6 +274,32 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
     }
   }
   for (const b of tagBoxes) items.push(b);
+
+  // 3b. Callouts (BMD hard rule: a callout is not a wall). A section bubble carries cut-direction triangles beside
+  //     it, often drawn as one triangle behind the bubble's white fill so only two wings show. Strokes no heavier
+  //     than the bubble's own pen that lie wholly within reach of a bubble's centre belong to the callout.
+  const bubbles = [];
+  for (const sp of outlines) {
+    let curves = 0; for (let i = sp.i0; i < sp.i1; i++) if (meta[i] & SEG_CURVE) curves++;
+    if (curves < (sp.i1 - sp.i0) * 0.6 || kind[sp.i0] !== KIND.TAG) continue;
+    if (Math.min(sp.x1 - sp.x0, sp.y1 - sp.y0) < 0.85 * Math.max(sp.x1 - sp.x0, sp.y1 - sp.y0)) continue;   // round bubbles only, not long door tags
+    const r = Math.max(sp.x1 - sp.x0, sp.y1 - sp.y0) / 2;
+    bubbles.push({ cx: (sp.x0 + sp.x1) / 2, cy: (sp.y0 + sp.y1) / 2, r, pen: meta[sp.i0] >> 4 });
+  }
+  if (bubbles.length) {
+    const bg = bucketGrid(96);
+    for (const b of bubbles) { const R = b.r * CALLOUT_REACH; bg.addBox(b, b.cx - R, b.cy - R, b.cx + R, b.cy + R); }
+    for (let i = 0; i < n; i++) {
+      if (kind[i] !== KIND.WALL || (meta[i] & SEG_CURVE)) continue;
+      const x1 = segs[i * 4], y1 = segs[i * 4 + 1], x2 = segs[i * 4 + 2], y2 = segs[i * 4 + 3];
+      let hit = false;
+      bg.near(Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2), (b) => {
+        const R = b.r * CALLOUT_REACH;
+        if ((meta[i] >> 4) <= b.pen && Math.hypot(x1 - b.cx, y1 - b.cy) <= R && Math.hypot(x2 - b.cx, y2 - b.cy) <= R) hit = true;
+      });
+      if (hit) kind[i] = KIND.TAG;
+    }
+  }
 
   // 4. Arrowheads, then the leader or dimension line each one ends.
   const heads = [];
@@ -340,6 +425,54 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
     }
   }
 
+  // 5b. Grid and section lines drawn as pieces: one straight line, pieces of one or two repeating lengths, running
+  //     across the building. Walls are broken where other walls meet them, at lengths that do not repeat.
+  if (pxPerFt > 0) {
+    const lines = new Map();
+    for (let i = 0; i < n; i++) {
+      if (kind[i] !== KIND.WALL || (meta[i] & SEG_CURVE)) continue;
+      const x1 = segs[i * 4], y1 = segs[i * 4 + 1], x2 = segs[i * 4 + 2], y2 = segs[i * 4 + 3];
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      if (len < 0.3 * pxPerFt || len > GRID_PIECE_MAX_FT * pxPerFt) continue;
+      let th = Math.atan2(y2 - y1, x2 - x1); if (th < 0) th += Math.PI; if (th >= Math.PI - 0.002) th -= Math.PI;
+      const c = Math.cos(th), sn = Math.sin(th), rho = -x1 * sn + y1 * c;
+      const key = Math.round(th / 0.004) * 1e7 + Math.round(rho);
+      let g = lines.get(key); if (!g) lines.set(key, (g = { c, sn, pieces: [] }));
+      const t1 = x1 * c + y1 * sn, t2 = x2 * c + y2 * sn;
+      g.pieces.push({ i, lo: Math.min(t1, t2), hi: Math.max(t1, t2), len });
+    }
+    for (const g of lines.values()) {
+      if (g.pieces.length < GRID_MIN_PIECES) continue;
+      g.pieces.sort((a, b) => a.lo - b.lo);
+      let run = [], end = -Infinity;
+      const flush = () => {
+        if (run.length >= GRID_MIN_PIECES && run[run.length - 1].hi - run[0].lo >= GRID_MIN_FT * pxPerFt || run.length && end - run[0].lo >= GRID_MIN_FT * pxPerFt && run.length >= GRID_MIN_PIECES) {
+          const lens = run.map((p) => p.len).sort((a, b) => a - b);
+          if (lens[lens.length >> 1] <= 8 * pxPerFt) {
+            // the one or two lengths the pieces repeat
+            const same = (a, b) => Math.abs(a - b) <= Math.max(1.5, 0.12 * b);
+            let l1 = null, c1 = 0;
+            for (const l of lens) { const k = lens.filter((m) => same(m, l)).length; if (k > c1) { c1 = k; l1 = l; } }
+            const rest = lens.filter((m) => !same(m, l1));
+            let c2 = 0; for (const l of rest) c2 = Math.max(c2, rest.filter((m) => same(m, l)).length);
+            if ((c1 + c2) / lens.length >= 0.7) {
+              let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+              for (const p of run) { kind[p.i] = KIND.GRID; for (const k of [0, 2]) { x0 = Math.min(x0, segs[p.i * 4 + k]); x1 = Math.max(x1, segs[p.i * 4 + k]); y0 = Math.min(y0, segs[p.i * 4 + k + 1]); y1 = Math.max(y1, segs[p.i * 4 + k + 1]); } }
+              const step = Math.max(1, Math.floor(run.length / 24));
+              items.push({ type: "grid", x0, y0, x1, y1, at: run.filter((_, k) => k % step === 0).map((p) => [(segs[p.i * 4] + segs[p.i * 4 + 2]) / 2, (segs[p.i * 4 + 1] + segs[p.i * 4 + 3]) / 2]) });
+            }
+          }
+        }
+        run = []; end = -Infinity;
+      };
+      for (const p of g.pieces) {
+        if (run.length && p.lo > end + GRID_GAP_FT * pxPerFt) flush();
+        run.push(p); end = Math.max(end, p.hi);
+      }
+      flush();
+    }
+  }
+
   // 6. Strokes that lie wholly inside a piece of text: underlines, and lettering drawn as outlines over real text.
   for (let i = 0; i < n; i++) {
     if (kind[i] !== KIND.WALL) continue;
@@ -363,8 +496,8 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
   for (const m of merged) items.push(m);
 
   const roles = new Uint8Array(n);
-  const counts = { wall: 0, hidden: 0, text: 0, tag: 0, dash: 0, arrow: 0 };
-  const names = ["wall", "hidden", "text", "tag", "dash", "arrow"];
+  const counts = { wall: 0, hidden: 0, text: 0, tag: 0, dash: 0, arrow: 0, door: 0, grid: 0 };
+  const names = ["wall", "hidden", "text", "tag", "dash", "arrow", "door", "grid"];
   for (let i = 0; i < n; i++) { if (kind[i] !== KIND.WALL) roles[i] = ROLE_ANNOTATION; counts[names[kind[i]]]++; }
   return { kind, roles, items, counts };
 }
@@ -382,7 +515,7 @@ const plural = (n, one, many) => (n === 1 ? `${/^[aeiou]/i.test(one) ? "an" : "a
 
 /** What was ignored inside a traced room, as counts and as one plain sentence (null when nothing was). */
 export function describeIgnored(items, ring) {
-  const c = { tag: 0, bubble: 0, note: 0, arrow: 0, dashed: 0 };
+  const c = { tag: 0, bubble: 0, note: 0, arrow: 0, dashed: 0, grid: 0, door: 0 };
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of ring) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
   for (const it of items) {
@@ -396,7 +529,9 @@ export function describeIgnored(items, ring) {
   if (c.bubble) parts.push(plural(c.bubble, "section marker", "section markers"));
   if (c.arrow) parts.push(plural(c.arrow, "arrow", "arrows"));
   if (c.dashed) parts.push("dashed lines");
-  const total = c.tag + c.bubble + c.note + c.arrow + c.dashed;
+  if (c.grid) parts.push(c.grid === 1 ? "a grid line" : "grid lines");
+  if (c.door) parts.push(plural(c.door, "door swing", "door swings"));
+  const total = c.tag + c.bubble + c.note + c.arrow + c.dashed + c.grid + c.door;
   if (!parts.length) return { counts: c, total, note: null };
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
   return { counts: c, total, note: `Ignored ${list} inside this room.` };
@@ -622,15 +757,44 @@ export function createRoomFinder({ geo, texts = [], dims, pagePt, renderScale, n
   function prepare(upp) {
     if (made && made.upp === upp) return made;
     const pxPerFt = 1 / upp;
-    const parts = classifyLinework({ segs: geo.segs, meta: geo.meta, lum: geo.lum, dashed: geo.dashed, subpaths: geo.subpaths, texts, pxPerFt, pxPerIn: 72 * renderScale });
-    const mask = buildMask(geo.segs, dims.w, dims.h, MASK_MAX_DIM, geo.meta, pxPerFt, pxPerFt, { pageW: pagePt.w, pageH: pagePt.h, renderScale, baseScale: renderScale }, parts.roles);
-    return (made = { upp, parts, mask });
+    const sort = (doorStrokes = null) => classifyLinework({ segs: geo.segs, meta: geo.meta, lum: geo.lum, dashed: geo.dashed, subpaths: geo.subpaths, texts, pxPerFt, pxPerIn: 72 * renderScale, doorStrokes });
+    let parts = sort();
+    const build = () => buildMask(geo.segs, dims.w, dims.h, MASK_MAX_DIM, geo.meta, pxPerFt, pxPerFt, { pageW: pagePt.w, pageH: pagePt.h, renderScale, baseScale: renderScale }, parts.roles);
+    let mask = build();
+    // Doors (BMD hard rules): the swing and leaf are lifted out of the walls, and each opening is closed again along
+    // its wall's centreline, so each room's floor runs to the middle of the doorway.
+    const doors = findDoors({ segs: geo.segs, meta: geo.meta, kind: parts.kind, wallKind: KIND.WALL, mask, pxPerFt });
+    if (doors.length) {
+      // sort again with the doors set aside: a tag drawn against a door's leaf is then judged on its own
+      const doorStrokes = new Uint8Array(geo.segs.length >> 2);
+      for (const d of doors) for (const i of d.strokes) doorStrokes[i] = 1;
+      parts = sort(doorStrokes);
+      for (const d of doors) {
+        const k = 0.35, x = d.hinge[0] + (d.strike[0] - d.hinge[0]) * k + (d.open[0] - d.hinge[0]) * k, y = d.hinge[1] + (d.strike[1] - d.hinge[1]) * k + (d.open[1] - d.hinge[1]) * k;
+        parts.items.push({ type: "door", x0: x, y0: y, x1: x, y1: y });
+      }
+      mask = closeDoorways(build(), doors, MASK_CURVE_BIT);
+    }
+    const doorEnds = doors.flatMap((d) => { const [p, q] = d.close, L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1, ux = (q[0] - p[0]) / L, uy = (q[1] - p[1]) / L, b = 0.35 * pxPerFt; return [[p[0] + ux * b, p[1] + uy * b], [q[0] - ux * b, q[1] - uy * b]]; });
+    return (made = { upp, parts, mask, doors, doorEnds });
   }
   const ringOf = (cells, win) => {
     const pts = traceRegion({ region: cells, mw: win.w, mh: win.h, ws: win.ws });
     const ox = win.x0 / win.ws, oy = win.y0 / win.ws;
     const moved = pts.map(([x, y]) => [x + ox, y + oy]);
-    return snapVertices(moved, (x, y, d) => (nearest ? nearest(x, y, d) : null), SNAP_TOL).map(([x, y]) => [x, y]);
+    // a doorway's closing line has no drawn corners of its own: its ends are offered first, so a room's corner there
+    // stays on the wall's centreline instead of jumping to the wall face beside it
+    const ends = made?.doorEnds ?? [];
+    const cell = 1 / (win.ws || 1);
+    const snapTo = (x, y, d) => {
+      let best = null, bd = d;
+      for (const p of ends) { const e = Math.hypot(p[0] - x, p[1] - y); if (e <= bd) { bd = e; best = p; } }
+      const drawn = nearest ? nearest(x, y, d) : null;
+      if (!best) return drawn;
+      // a traced corner is only as exact as one cell of the mask: a drawn corner wins only if it is nearer by more
+      return drawn && Math.hypot(drawn[0] - x, drawn[1] - y) + cell < bd ? drawn : best;
+    };
+    return snapVertices(moved, snapTo, SNAP_TOL).map(([x, y]) => [x, y]);
   };
   const measured = (ring, upp) => ({ pointsPx: ring, areaSf: round2(ringArea(ring) * upp * upp), perimeterLf: round2(closedMetrics(ring).perim * upp) });
 
@@ -682,6 +846,10 @@ export function createRoomFinder({ geo, texts = [], dims, pagePt, renderScale, n
   return {
     /** The sorting of this sheet's linework at a scale (for tests and for looking at what was decided). */
     parts: (upp) => prepare(upp).parts,
+    /** The doors read on this sheet at a scale: hinge, strike, open end, radius, and the line that closes each opening. */
+    doors: (upp) => prepare(upp).doors,
+    /** The fill mask at a scale (for tests and for looking at what the fill sees). */
+    mask: (upp) => prepare(upp).mask,
     /**
      * What is drawn at a point on a room's outline: "wall" (building linework), "swing" (only a door's swing arc)
      * or "open" (nothing: an opening the fill closed off). Used to leave door openings out of wall base.

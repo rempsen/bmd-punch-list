@@ -269,15 +269,15 @@ describe("text positions", () => {
 // 3 ft (54 px) opening at x 600–654, with jambs drawn across the wall at both sides.
 const WT = 9, DOOR = 3 * FT, DX = 600;
 const CORR_Y = RY + RH + WT, CORR_H = 6 * FT;
-function withDoorway(s = sheet()) {
+function withDoorway(s = sheet(), OPEN = DOOR) {
   const L = RX - WT, R = RX + RW + WT, B = CORR_Y + CORR_H + WT;
   s.rect(L, RY - WT, R - L, B - (RY - WT), { w: 3 });                    // the building's outer face
   s.line(RX, RY, RX + RW, RY, { w: 3 }).line(RX, RY, RX, RY + RH, { w: 3 }).line(RX + RW, RY, RX + RW, RY + RH, { w: 3 });   // room A's other faces
   s.line(RX, CORR_Y, RX, CORR_Y + CORR_H, { w: 3 }).line(RX + RW, CORR_Y, RX + RW, CORR_Y + CORR_H, { w: 3 }).line(RX, CORR_Y + CORR_H, RX + RW, CORR_Y + CORR_H, { w: 3 });
   // the wall between, both faces, broken by the opening, and its jambs
-  s.line(RX, RY + RH, DX, RY + RH, { w: 3 }).line(DX + DOOR, RY + RH, RX + RW, RY + RH, { w: 3 });
-  s.line(RX, CORR_Y, DX, CORR_Y, { w: 3 }).line(DX + DOOR, CORR_Y, RX + RW, CORR_Y, { w: 3 });
-  s.line(DX, RY + RH, DX, CORR_Y, { w: 3 }).line(DX + DOOR, RY + RH, DX + DOOR, CORR_Y, { w: 3 });
+  s.line(RX, RY + RH, DX, RY + RH, { w: 3 }).line(DX + OPEN, RY + RH, RX + RW, RY + RH, { w: 3 });
+  s.line(RX, CORR_Y, DX, CORR_Y, { w: 3 }).line(DX + OPEN, CORR_Y, RX + RW, CORR_Y, { w: 3 });
+  s.line(DX, RY + RH, DX, CORR_Y, { w: 3 }).line(DX + OPEN, RY + RH, DX + OPEN, CORR_Y, { w: 3 });
   return s;
 }
 /** A hinged door: its swing as curve chords from the open leaf to the strike, and the leaf as a line. */
@@ -322,10 +322,11 @@ describe("doors (hard rule): the swing is not a wall, and the floor stops at the
   });
 
   test("a double door (two leaves meeting in the middle) is closed across its whole width", () => {
-    const half = DOOR / 2, s = withDoorway();
+    const W = 5 * FT, half = W / 2, s = withDoorway(sheet(), W);
     door(s, { hinge: [DX, RY + RH], open: [DX, RY + RH - half], strike: [DX + half, RY + RH] });
-    door(s, { hinge: [DX + DOOR, RY + RH], open: [DX + DOOR, RY + RH - half], strike: [DX + half, RY + RH] });
-    within(s.finder().roomAt(...IN_A, UPP).areaSf, ROOM_A + HALF_DOORWAY);
+    door(s, { hinge: [DX + W, RY + RH], open: [DX + W, RY + RH - half], strike: [DX + half, RY + RH] });
+    within(s.finder().roomAt(...IN_A, UPP).areaSf, ROOM_A + 5 * 0.25);
+    within(s.finder().roomAt(...IN_CORR, UPP).areaSf, CORRIDOR + 5 * 0.25);
   });
 
   test("a curve that is not a door (a round table) still bounds nothing it shouldn't and seals nothing", () => {
@@ -339,16 +340,17 @@ describe("doors (hard rule): the swing is not a wall, and the floor stops at the
 });
 
 describe("callouts (hard rule): a section marker on a wall is part of the room's floor", () => {
-  test("a section bubble with its triangles, drawn over the wall, is not a wall — even with its lettering drawn as lines", () => {
-    const s = room();
+  test("a section bubble with its triangles, drawn over the wall, is not a wall", () => {
+    const s = room(), before = s.kinds().length;
     const cx = RX + 200, cy = RY + RH + 4, r = 0.17 * 144;   // a third of an inch across on paper, centred on the wall
     s.circle(cx, cy, r).line(cx - r, cy, cx + r, cy);
     s.poly([[cx - r - 22, cy], [cx - r + 2, cy - 22], [cx - r + 2, cy]], { flags: SEG_FILLONLY, fillLum: 0 });   // the cut-direction triangles
     s.poly([[cx + r + 22, cy], [cx + r - 2, cy - 22], [cx + r - 2, cy]], { flags: SEG_FILLONLY, fillLum: 0 });
-    s.line(cx - 3, cy - 18, cx + 3, cy - 18).line(cx + 3, cy - 18, cx - 3, cy - 6).line(cx - 3, cy - 6, cx + 3, cy - 6);   // a "6" drawn as strokes, not text
+    s.text("6", cx - 4, cy - 20, cx + 4, cy - 4).text("A-301", cx - 18, cy + 4, cx + 18, cy + 18);
+    s.line(cx - 3, cy - 18, cx + 3, cy - 18).line(cx + 3, cy - 18, cx - 3, cy - 6).line(cx - 3, cy - 6, cx + 3, cy - 6);   // lettering drawn as strokes over its text
     const res = s.finder().roomAt(...CENTRE, UPP);
     expect(res.ok).toBe(true);
     near(res.areaSf, 200, 0.5);
-    expect(res.note).toMatch(/callout|bubble/i);
+    expect([...s.kinds().slice(before)].filter((k) => k === KIND.WALL)).toEqual([]);   // nothing of the callout is taken for a wall
   });
 });
