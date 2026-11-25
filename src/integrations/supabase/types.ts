@@ -2098,6 +2098,77 @@ export type Database = {
           },
         ]
       }
+      install_visit_lines: {
+        Row: {
+          cost_code: string | null
+          created_at: string
+          description: string
+          estimate_line_id: string | null
+          finish_id: string | null
+          id: string
+          project_id: string
+          quantity: number
+          sort_order: number
+          uom: string
+          visit_id: string
+        }
+        Insert: {
+          cost_code?: string | null
+          created_at?: string
+          description?: string
+          estimate_line_id?: string | null
+          finish_id?: string | null
+          id?: string
+          project_id: string
+          quantity?: number
+          sort_order?: number
+          uom?: string
+          visit_id: string
+        }
+        Update: {
+          cost_code?: string | null
+          created_at?: string
+          description?: string
+          estimate_line_id?: string | null
+          finish_id?: string | null
+          id?: string
+          project_id?: string
+          quantity?: number
+          sort_order?: number
+          uom?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "install_visit_lines_estimate_line_id_fkey"
+            columns: ["estimate_line_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_visit_lines_finish_id_fkey"
+            columns: ["finish_id"]
+            isOneToOne: false
+            referencedRelation: "project_finishes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_visit_lines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_visit_lines_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "install_visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       install_visit_photos: {
         Row: {
           arriveping_photo_id: string
@@ -2154,6 +2225,8 @@ export type Database = {
       }
       install_visits: {
         Row: {
+          accepted_at: string | null
+          accepted_by: string | null
           areas: Json
           arriveping_assigned_to: string | null
           arriveping_job_id: string | null
@@ -2188,6 +2261,8 @@ export type Database = {
           tentative: boolean
         }
         Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
           areas?: Json
           arriveping_assigned_to?: string | null
           arriveping_job_id?: string | null
@@ -2222,6 +2297,8 @@ export type Database = {
           tentative?: boolean
         }
         Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
           areas?: Json
           arriveping_assigned_to?: string | null
           arriveping_job_id?: string | null
@@ -3356,14 +3433,20 @@ export type Database = {
       }
       progress_bills: {
         Row: {
+          bill_date: string | null
+          bill_type: string
+          client_notes: string | null
           created_at: string
           created_by: string | null
           document_id: string | null
+          due_date: string | null
           gross_cents: number
           gst_cents: number
+          gst_pct: number | null
           holdback_cents: number
           holdback_pct: number
           id: string
+          internal_notes: string | null
           issued_at: string | null
           kind: string
           lines: Json
@@ -3375,17 +3458,24 @@ export type Database = {
           qbo_invoice_id: string | null
           seq: number
           status: string
+          terms: string | null
           total_cents: number
         }
         Insert: {
+          bill_date?: string | null
+          bill_type?: string
+          client_notes?: string | null
           created_at?: string
           created_by?: string | null
           document_id?: string | null
+          due_date?: string | null
           gross_cents: number
           gst_cents: number
+          gst_pct?: number | null
           holdback_cents: number
           holdback_pct: number
           id?: string
+          internal_notes?: string | null
           issued_at?: string | null
           kind: string
           lines?: Json
@@ -3397,17 +3487,24 @@ export type Database = {
           qbo_invoice_id?: string | null
           seq: number
           status?: string
+          terms?: string | null
           total_cents: number
         }
         Update: {
+          bill_date?: string | null
+          bill_type?: string
+          client_notes?: string | null
           created_at?: string
           created_by?: string | null
           document_id?: string | null
+          due_date?: string | null
           gross_cents?: number
           gst_cents?: number
+          gst_pct?: number | null
           holdback_cents?: number
           holdback_pct?: number
           id?: string
+          internal_notes?: string | null
           issued_at?: string | null
           kind?: string
           lines?: Json
@@ -3419,6 +3516,7 @@ export type Database = {
           qbo_invoice_id?: string | null
           seq?: number
           status?: string
+          terms?: string | null
           total_cents?: number
         }
         Relationships: [
@@ -4580,6 +4678,142 @@ export type Database = {
           sort_order?: number
         }
         Relationships: []
+      }
+      subcontract_order_lines: {
+        Row: {
+          cost_code: string | null
+          description: string
+          id: string
+          order_id: string
+          quantity: number
+          sort_order: number
+          unit_cost_cents: number | null
+          uom: string
+          visit_line_id: string | null
+        }
+        Insert: {
+          cost_code?: string | null
+          description?: string
+          id?: string
+          order_id: string
+          quantity?: number
+          sort_order?: number
+          unit_cost_cents?: number | null
+          uom?: string
+          visit_line_id?: string | null
+        }
+        Update: {
+          cost_code?: string | null
+          description?: string
+          id?: string
+          order_id?: string
+          quantity?: number
+          sort_order?: number
+          unit_cost_cents?: number | null
+          uom?: string
+          visit_line_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_order_lines_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "subcontract_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_order_lines_visit_line_id_fkey"
+            columns: ["visit_line_id"]
+            isOneToOne: false
+            referencedRelation: "install_visit_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subcontract_orders: {
+        Row: {
+          billed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          paid_at: string | null
+          po_number: string
+          project_id: string
+          qbo_bill_id: string | null
+          qbo_bill_total_cents: number | null
+          qbo_po_id: string | null
+          qbo_po_sent_at: string | null
+          sending_since: string | null
+          status: string
+          subtotal_cents: number
+          supplier_id: string
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          billed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          po_number: string
+          project_id: string
+          qbo_bill_id?: string | null
+          qbo_bill_total_cents?: number | null
+          qbo_po_id?: string | null
+          qbo_po_sent_at?: string | null
+          sending_since?: string | null
+          status?: string
+          subtotal_cents?: number
+          supplier_id: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          billed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          po_number?: string
+          project_id?: string
+          qbo_bill_id?: string | null
+          qbo_bill_total_cents?: number | null
+          qbo_po_id?: string | null
+          qbo_po_sent_at?: string | null
+          sending_since?: string | null
+          status?: string
+          subtotal_cents?: number
+          supplier_id?: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcontract_orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_orders_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontract_orders_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "install_visits"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suppliers: {
         Row: {
@@ -6005,6 +6239,16 @@ export type Database = {
         Args: { _r: Database["public"]["Enums"]["app_role"] }
         Returns: number
       }
+      save_bill_draft: {
+        Args: {
+          _bill: Json
+          _confirm_over?: boolean
+          _copy?: boolean
+          _id: string
+          _issue?: boolean
+        }
+        Returns: string
+      }
       save_estimate_line: { Args: { _p: Json }; Returns: Json }
       save_estimate_lines: { Args: { _items: Json }; Returns: Json }
       save_project_takeoff:
@@ -6130,6 +6374,18 @@ export type Database = {
         Args: { _level: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      subcontract_order_totals: {
+        Args: { _project: string }
+        Returns: {
+          order_id: string
+          qbo_bill_total_cents: number
+          subtotal_cents: number
+        }[]
+      }
+      subcontract_replace_lines: {
+        Args: { _lines: Json; _notes?: string; _order: string }
+        Returns: number
+      }
       sync_import_apply: {
         Args: { _actions: Json; _system: string }
         Returns: Json
@@ -6164,6 +6420,22 @@ export type Database = {
         Returns: boolean
       }
       user_has_records: { Args: { _user: string }; Returns: boolean }
+      work_order_items: {
+        Args: { _project: string }
+        Returns: {
+          cost_code: string
+          description: string
+          estimate_line_id: string
+          finish_id: string
+          finish_tag: string
+          kind: string
+          quantity: number
+          section: string
+          sort_order: number
+          uom: string
+          version_status: string
+        }[]
+      }
     }
     Enums: {
       app_role:

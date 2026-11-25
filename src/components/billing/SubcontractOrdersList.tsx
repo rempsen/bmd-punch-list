@@ -39,7 +39,7 @@ export function SubcontractOrdersList({ projectId }: { projectId: string }) {
   };
 
   if (isLoading) return null;
-  if (error) return <p className="text-sm text-destructive">Could not load subcontractor orders: {errText(error)}</p>;
+  if (error) return <section className="border-t border-border py-4"><h3 className="font-medium">Subcontractor orders</h3><p className="mt-2 text-xs text-muted-foreground">Subcontractor orders unavailable: {errText(error)}</p></section>;
   const live = orders.filter((o) => o.status !== "cancelled");
   return (
     <section className="rounded-lg border border-border bg-card p-4">
