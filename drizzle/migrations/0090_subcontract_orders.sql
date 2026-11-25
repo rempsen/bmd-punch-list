@@ -23,8 +23,9 @@ ALTER TABLE public.install_visit_lines ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 DROP POLICY IF EXISTS "visit lines read" ON public.install_visit_lines;
 --> statement-breakpoint
+-- Same text as migration 0089 (which also creates this table), so the policy is the same whichever runs last.
 CREATE POLICY "visit lines read" ON public.install_visit_lines FOR SELECT TO authenticated
-  USING (public.has_capability('view_pipeline', project_id));
+  USING (public.can_project_documents(project_id, false) OR public.has_capability('view_pipeline', project_id));
 --> statement-breakpoint
 DROP POLICY IF EXISTS "visit lines write" ON public.install_visit_lines;
 --> statement-breakpoint
