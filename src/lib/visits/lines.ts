@@ -34,6 +34,8 @@ export type VisitLine = {
   unit_labour_cost_cents?: number | null;
   labour_rate_source?: "estimate" | "catalogue" | "manual" | null;
   labour_rate_id?: string | null;
+  /** Set in the drawer by "Use estimate rate": the manual rate is dropped and the line valued again when saved. */
+  clear_manual?: boolean;
 };
 
 /** Estimate line kinds that are not work a crew does unless the estimator gave them a quantity. */

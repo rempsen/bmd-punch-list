@@ -391,7 +391,7 @@ function DrawerBody({
     if (lines.some((l) => !Number.isFinite(Number(l.quantity)) || Number(l.quantity) < 0)) return setErr("Each work item needs a quantity of zero or more.");
     const cleanLines = lines.map((l, i) => ({ ...l, quantity: num(l.quantity), description: l.description.trim(), sort_order: i })).filter((l) => l.description || l.quantity > 0);
     // A rate entered by pricing staff is a change to save even when the crew's view of the lines is the same.
-    const ratesEdited = cleanLines.some((l) => l.labour_rate_source === "manual" && l.unit_labour_cost_cents != null);
+    const ratesEdited = cleanLines.some((l) => (l.labour_rate_source === "manual" && l.unit_labour_cost_cents != null) || l.clear_manual);
     const report = {
       tentative: f.tentative,
       report_to: f.reportTo,

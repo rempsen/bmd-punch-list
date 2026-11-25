@@ -13,6 +13,7 @@ import {
   type EstimateLabour,
   type LabourComponent,
 } from "./valuation";
+import { checkLinesInput, loadValuationContext, MAX_WORK_ORDER_LINES, type DbClient } from "./valuation-load";
 
 const labour = (o: Partial<LabourComponent>): LabourComponent => ({ unit_cost_cents: 115, cost_uom: "SF", purchase_uom: "SF", qty_per_driver: 1, waste_pct: 0, round_up: false, on_gross: false, labour_rate_id: "rate-lvt", ...o });
 
@@ -123,6 +124,72 @@ describe("valueLines", () => {
     expect(valueLines([line], { ...ctx, saved, canPrice: false })[0]).toMatchObject({ unit_labour_cost_cents: 115, labour_rate_source: "estimate" });
     // A rate claimed as "from estimate" by the browser is not trusted either: the estimate is read again.
     expect(valueLines([{ ...line, labour_rate_source: "estimate", id: undefined }], { ...ctx, canPrice: true })[0]!.unit_labour_cost_cents).toBe(115);
+  });
+  test("\"Use estimate rate\" drops a manual rate and values the line again; without view_pricing it is ignored", () => {
+    const line = { id: "saved-1", estimate_line_id: "lvt", description: "LVT", quantity: 500, uom: "SF", cost_code: "01-26", unit_labour_cost_cents: null, labour_rate_source: null, clear_manual: true };
+    const saved = [{ id: "saved-1", unit_labour_cost_cents: 130, labour_rate_source: "manual" as const, labour_rate_id: null }];
+    expect(valueLines([line], { ...ctx, saved, canPrice: true })[0]).toMatchObject({ unit_labour_cost_cents: 115, labour_rate_source: "estimate", labour_rate_id: "rate-lvt" });
+    expect(valueLines([line], { ...ctx, saved, canPrice: false })[0]).toMatchObject({ unit_labour_cost_cents: 130, labour_rate_source: "manual" });
+    // Cleared on a line whose estimate has no labour: the catalogue, else no rate — never the old manual figure.
+    const base = { ...line, id: "saved-2", estimate_line_id: "base", cost_code: "01-30", uom: "LF" };
+    expect(valueLines([base], { ...ctx, saved: [{ ...saved[0]!, id: "saved-2" }], canPrice: true })[0]).toMatchObject({ unit_labour_cost_cents: 175, labour_rate_source: "catalogue" });
+    const prep = { ...line, id: "saved-3", estimate_line_id: "prep", cost_code: null, uom: "LS" };
+    expect(valueLines([prep], { ...ctx, saved: [{ ...saved[0]!, id: "saved-3" }], canPrice: true })[0]).toMatchObject({ unit_labour_cost_cents: null, labour_rate_source: null });
+    // The flag itself is not written to the database.
+    expect(valueLines([line], { ...ctx, saved, canPrice: true })[0]).not.toHaveProperty("clear_manual");
+  });
+});
+
+describe("the save request", () => {
+  test("rejects more lines than a work order may hold instead of dropping the rest", () => {
+    const many = Array.from({ length: MAX_WORK_ORDER_LINES + 1 }, (_, i) => ({ description: `Line ${i}`, quantity: 1, uom: "EA" }));
+    expect(() => checkLinesInput(many)).toThrow("A work order can have at most 200 lines.");
+    expect(() => checkLinesInput(many.slice(1))).not.toThrow();
+    expect(() => checkLinesInput("nope")).toThrow("Lines must be a list.");
+  });
+});
+
+/** A stub client: each table answers from `replies` in turn; a reply may be an error. */
+function stubDb(replies: Record<string, { data?: unknown; error?: { message: string } }[]>): DbClient & { asked: string[] } {
+  const asked: string[] = [];
+  const from = (table: string) => {
+    asked.push(table);
+    const reply = replies[table]?.shift() ?? { data: [] };
+    const result = { data: reply.data ?? null, error: reply.error ?? null, then: (res: (v: unknown) => unknown) => Promise.resolve({ data: reply.data ?? null, error: reply.error ?? null }).then(res) };
+    const chain: Record<string, unknown> = {};
+    for (const m of ["select", "eq", "or", "order"]) chain[m] = () => Object.assign(chain, result);
+    return Object.assign(chain, result);
+  };
+  return { from, asked };
+}
+const versionRow = { id: "v1", status: "accepted", is_base: true };
+
+describe("loading what valuation needs", () => {
+  test("reads the accepted estimate's labour parts, the active rates and the saved lines", async () => {
+    const db = stubDb({
+      estimate_versions: [{ data: [{ id: "v0", status: "draft", is_base: true }, versionRow] }],
+      estimate_lines: [{ data: [{ id: "lvt", driver_qty: 2500, driver_uom: "SF", cost_code: "01-26", estimate_line_components: [{ kind: "material", unit_cost_cents: 300, sort_order: 0 }, { kind: "labour", unit_cost_cents: 115, cost_uom: "SF", purchase_uom: "SF", qty_per_driver: 1, labour_rate_id: "rate-lvt", not_applicable: false, sort_order: 1 }, { kind: "labour", unit_cost_cents: 999, not_applicable: true, sort_order: 2 }] }] }],
+      labour_rates: [{ data: [{ id: "cat-base", name: "Base", uom: "LF", unit_cost_cents: "175", cost_code: "01-30", active: true }] }],
+      install_visit_lines: [{ data: [{ id: "s1", unit_labour_cost_cents: "115", labour_rate_source: "estimate", labour_rate_id: "rate-lvt" }] }],
+    });
+    const ctx = await loadValuationContext(db, "p1", "visit-1");
+    expect(ctx.items).toEqual([{ estimate_line_id: "lvt", quantity: 2500, uom: "SF", cost_code: "01-26", labour_components: [expect.objectContaining({ unit_cost_cents: 115 })], labour_rate_id: "rate-lvt" }]);
+    expect(ctx.rates[0]!.unit_cost_cents).toBe(175);
+    expect(ctx.saved).toEqual([{ id: "s1", unit_labour_cost_cents: 115, labour_rate_source: "estimate", labour_rate_id: "rate-lvt" }]);
+    expect(estimateLabourUnitCents(ctx.items[0]!)).toBe(115);
+  });
+  test("a failed read of the estimate, its lines, the rates or the saved lines stops the save rather than valuing from half the facts", async () => {
+    const boom = { error: { message: "connection reset" } };
+    await expect(loadValuationContext(stubDb({ estimate_versions: [boom] }), "p1", "v")).rejects.toThrow("Could not read the approved estimate to value the work order: connection reset");
+    await expect(loadValuationContext(stubDb({ estimate_versions: [{ data: [versionRow] }], estimate_lines: [boom] }), "p1", "v")).rejects.toThrow("the estimate's lines");
+    await expect(loadValuationContext(stubDb({ estimate_versions: [{ data: [versionRow] }], labour_rates: [boom] }), "p1", "v")).rejects.toThrow("the catalogue's labour rates");
+    await expect(loadValuationContext(stubDb({ estimate_versions: [{ data: [versionRow] }], install_visit_lines: [boom] }), "p1", "v")).rejects.toThrow("the work order's saved lines");
+  });
+  test("no estimate yet is not an error: the lines fall back to the catalogue", async () => {
+    const db = stubDb({ estimate_versions: [{ data: [] }] });
+    const ctx = await loadValuationContext(db, "p1", "v");
+    expect(ctx.items).toEqual([]);
+    expect(db.asked).not.toContain("estimate_lines");
   });
 });
 

@@ -88,8 +88,10 @@ export function WorkItems({
   const setQty = (i: number, quantity: string) => onChange(lines.map((l, j) => (j === i ? { ...l, quantity } : l)));
   const setRate = (i: number, text: string) => {
     const cents = centsOf(text);
-    onChange(lines.map((l, j) => (j === i ? { ...l, unit_labour_cost_cents: cents, labour_rate_source: cents === null ? null : "manual" } : l)));
+    onChange(lines.map((l, j) => (j === i ? { ...l, unit_labour_cost_cents: cents, labour_rate_source: cents === null ? null : "manual", clear_manual: cents === null ? !!l.clear_manual : false } : l)));
   };
+  // "Use estimate rate": drop the entered rate; the line is valued again from the estimate (then the catalogue) when saved.
+  const revertToEstimateRate = (i: number) => onChange(lines.map((l, j) => (j === i ? { ...l, unit_labour_cost_cents: null, labour_rate_source: null, clear_manual: true } : l)));
   const remove = (i: number) => onChange(lines.filter((_, j) => j !== i));
   const itemOf = (l: VisitLine) => work.find((w) => w.estimate_line_id === l.estimate_line_id);
 
@@ -98,7 +100,7 @@ export function WorkItems({
   const valuationOf = (l: VisitLine): LineValuation | null => {
     if (!canPrice) return null;
     if (l.labour_rate_source === "manual" && l.unit_labour_cost_cents != null) return { unit_labour_cost_cents: l.unit_labour_cost_cents, labour_rate_source: "manual", labour_rate_id: null };
-    const saved = l.id ? values.data?.lines.get(l.id) : undefined;
+    const saved = l.id && !l.clear_manual ? values.data?.lines.get(l.id) : undefined;
     if (saved && saved.unit_labour_cost_cents !== null) return { unit_labour_cost_cents: saved.unit_labour_cost_cents, labour_rate_source: saved.labour_rate_source, labour_rate_id: saved.labour_rate_id };
     return valuationFor(l, items.data ?? [], rates.data ?? []);
   };
@@ -158,6 +160,11 @@ export function WorkItems({
                       <span>{v?.unit_labour_cost_cents == null ? "no rate" : `${dollars(v.unit_labour_cost_cents)}/${l.uom}`}</span>
                     )}
                     {v?.labour_rate_source && <span className="rounded bg-muted px-1 py-0.5 text-[10px]">{SOURCE_LABEL[v.labour_rate_source]}</span>}
+                    {canEdit && v?.labour_rate_source === "manual" && (
+                      <Button type="button" size="sm" variant="ghost" className="h-6 px-1.5 text-[11px]" onClick={() => revertToEstimateRate(i)}>
+                        Use estimate rate
+                      </Button>
+                    )}
                     <span className="w-24 text-right tabular-nums text-foreground">{value === null ? "no rate" : dollars(value)}</span>
                   </div>
                 )}

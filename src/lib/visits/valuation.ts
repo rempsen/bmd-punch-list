@@ -38,7 +38,7 @@ export type LineValuation = {
   labour_rate_id: string | null;
 };
 
-export type ValuedLine = VisitLine & Partial<LineValuation>;
+export type ValuedLine = VisitLine & Partial<LineValuation> & { clear_manual?: boolean };
 
 export const SOURCE_LABEL: Record<LabourRateSource, string> = { estimate: "from estimate", catalogue: "catalogue rate", manual: "entered" };
 
@@ -114,8 +114,9 @@ const hasRate = (l: Partial<LineValuation> | undefined): l is LineValuation & { 
 
 /**
  * The lines of a work order as they are to be saved. A line already saved (matched by id) keeps its stored rate; a rate
- * entered by pricing staff stays as entered (source "manual") when `canPrice`; every other line gets the rate the
- * estimate or catalogue gives it now. Rates typed without view_pricing are ignored.
+ * entered by pricing staff stays as entered (source "manual") when `canPrice`, and a line they cleared ("Use estimate
+ * rate", `clear_manual`) is valued again from the estimate, then the catalogue; every other line gets the rate the
+ * estimate or catalogue gives it now. Rates typed or cleared without view_pricing are ignored.
  */
 export function valueLines(
   lines: ValuedLine[],
@@ -123,7 +124,8 @@ export function valueLines(
 ): (VisitLine & LineValuation)[] {
   const savedById = new Map(ctx.saved.filter((s) => s.id).map((s) => [s.id!, s]));
   return lines.map((l) => {
-    const { unit_labour_cost_cents: given, labour_rate_source: givenSource, labour_rate_id: givenId, ...rest } = l;
+    const { unit_labour_cost_cents: given, labour_rate_source: givenSource, labour_rate_id: givenId, clear_manual, ...rest } = l;
+    if (ctx.canPrice && clear_manual) return { ...rest, ...valuationFor(l, ctx.items, ctx.rates) };
     if (ctx.canPrice && givenSource === "manual" && hasRate({ unit_labour_cost_cents: given ?? null }))
       return { ...rest, unit_labour_cost_cents: Math.round(given!), labour_rate_source: "manual", labour_rate_id: null };
     const was = l.id ? savedById.get(l.id) : undefined;
