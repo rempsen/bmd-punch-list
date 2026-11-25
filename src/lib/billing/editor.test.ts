@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { editorTotals, invoiceTotals, shapeBillLine, validateBill, requiresOverbillConfirmation, progressHelper, mayEditBill } from "./editor";
+import { editorTotals, invoiceTotals, shapeBillLine, validateBill, requiresOverbillConfirmation, progressHelper, mayEditBill, setLineAmount, lineAmount } from "./editor";
+import { renderBillPdf } from "./pdf";
 describe("bill editor", () => {
   const lines = [shapeBillLine({ description: "Tile", quantity: 3.5, unit: "SF", unitPriceCents: 10001, amountCents: 0 })];
   test("editor and PDF totals agree at the job's 7.5% holdback", () => {
@@ -15,4 +16,9 @@ describe("bill editor", () => {
   test("open-book jobs do not have a fixed-contract cap", () => { expect(requiresOverbillConfirmation(10001, 0, "progress", true)).toBe(false); });
   test("progress helper uses this bill's percentage of contract", () => { expect(progressHelper(10000000, 25).amountCents).toBe(2500000); });
   test("editing requires both job management and pricing", () => { expect(mayEditBill(true, true)).toBe(true); expect(mayEditBill(true, false)).toBe(false); expect(mayEditBill(false, true)).toBe(false); });
+  test("a typed amount stays exact, even when quantity cannot divide into cents", () => { const line = lines[0]; if (!line) throw new Error("Missing test line"); expect(lineAmount(setLineAmount(line, 10000))).toBe(10000); });
+  test("the rendered PDF has the editor total and no internal note", () => {
+    const doc = renderBillPdf({ number: "B01", kind: "progress", period_note: "Tile", lines: lines.map(l => ({ ...l, amountCents: lineAmount(l) })), holdback_pct: 7.5, gst_pct: 5, gross_cents: 35004, holdback_cents: 2625, net_cents: 32379, gst_cents: 1619, total_cents: 33998, issued_at: null, internal_notes: "office-only", client_notes: "client note" }, { project: { name: "Test job", number: null, address: null }, client: { name: "Test client", address: null }, gstPct: 5, position: { contractCents: 100000, billedCents: 35004 } }, { compress: false });
+    expect(doc.output()).toContain("339.98"); expect(doc.output()).toContain("client note"); expect(doc.output()).not.toContain("office-only");
+  });
 });

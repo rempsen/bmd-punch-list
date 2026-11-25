@@ -7,6 +7,12 @@ export function shapeBillLine(l: { description: string; amountCents: number; qua
   return { description: l.description, quantity: l.quantity ?? 1, unit: l.unit ?? "EA", unitPriceCents: l.unitPriceCents ?? l.amountCents, amountCents: l.amountCents };
 }
 export function lineAmount(l: Pick<BillLine, "quantity" | "unitPriceCents">) { return Math.round(l.quantity * l.unitPriceCents); }
+export function setLineAmount(line: BillLine, amountCents: number): BillLine {
+  const quantity = line.quantity > 0 ? line.quantity : 1;
+  const unitPriceCents = Math.round(amountCents / quantity);
+  // If a cents-only unit price cannot express the typed amount, use a one-unit lump sum.
+  return quantity * unitPriceCents === amountCents ? { ...line, unitPriceCents, amountCents } : { ...line, quantity: 1, unit: "LS", unitPriceCents: amountCents, amountCents };
+}
 export function editorTotals(lines: BillLine[], kind: BillKind, holdbackPct: number, gstPct: number) {
   return billTotals(lines.reduce((sum, l) => sum + lineAmount(l), 0), kind === "holdback_release" ? 0 : holdbackPct, gstPct);
 }

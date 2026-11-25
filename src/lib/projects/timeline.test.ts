@@ -2,6 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { buildTimeline } from "./timeline";
 
 describe("project activity", () => {
+  test("draft saves, issue and void are bill Activity events, not stage moves", () => {
+    const stages = ["Draft saved", "Issued", "Voided"].map((action, i) => ({ id: String(i), from_stage: "won" as const, to_stage: "won" as const, changed_by: "u1", changed_at: `2026-11-25T00:0${i}:00Z`, note: `B01 · ${action}` }));
+    const input = { stages, documents: [], quotes: [], bills: [] };
+    expect(buildTimeline(input, { showPrices: true }).map(e => e.kind)).toEqual(["bill", "bill", "bill"]);
+    expect(buildTimeline(input, { showPrices: false })).toEqual([]);
+  });
   test("stage moves, documents, quotes and bills in one list, newest first, with no prices for people who may not see them", () => {
     const input = {
       stages: [{ id: "e1", from_stage: null, to_stage: "opportunity" as const, changed_by: "u1", changed_at: "2026-11-01T15:00:00Z", note: null }, { id: "e2", from_stage: "estimating" as const, to_stage: "quote_out" as const, changed_by: "u1", changed_at: "2026-11-10T15:00:00Z", note: "Quote Q-26-041-R0 sent" }],
