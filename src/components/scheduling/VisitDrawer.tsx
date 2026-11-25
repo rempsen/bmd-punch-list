@@ -11,6 +11,7 @@ import { ArrivePingPill, OpenInArrivePing, StatusPill } from "@/components/visit
 import { WorkItems } from "@/components/visits/WorkItems";
 import { useProjectVisitLines } from "@/lib/visits/data";
 import { linesChanged, num, type VisitLine } from "@/lib/visits/lines";
+import { saveVisitLines } from "@/lib/visits/visits.functions";
 import { cancelVisitPush, pushVisit, rescheduleVisitPush } from "@/lib/arriveping/arriveping.functions";
 import { MAX_WORK_ORDER_MS } from "@/lib/arriveping/core";
 import { useAuth } from "@/lib/auth";
@@ -280,6 +281,7 @@ function DrawerBody({
   const techs = useTechnicians();
   const refresh = useRefreshSchedule();
   const ap = useVisitArrivePing();
+  const saveLinesFn = useServerFn(saveVisitLines);
   const [f, setF] = useState<Form>(() => formFor(visit, defaults));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -388,6 +390,8 @@ function DrawerBody({
     };
     if (lines.some((l) => !Number.isFinite(Number(l.quantity)) || Number(l.quantity) < 0)) return setErr("Each work item needs a quantity of zero or more.");
     const cleanLines = lines.map((l, i) => ({ ...l, quantity: num(l.quantity), description: l.description.trim(), sort_order: i })).filter((l) => l.description || l.quantity > 0);
+    // A rate entered by pricing staff is a change to save even when the crew's view of the lines is the same.
+    const ratesEdited = cleanLines.some((l) => l.labour_rate_source === "manual" && l.unit_labour_cost_cents != null);
     const report = {
       tentative: f.tentative,
       report_to: f.reportTo,
@@ -418,11 +422,11 @@ function DrawerBody({
           }
         }
         // The lines are replaced as a set; a change to them re-pushes the work order like a change to the notes.
-        const linesEdited = linesSeeded.current && linesChanged(savedLines, cleanLines);
+        const linesEdited = linesSeeded.current && (linesChanged(savedLines, cleanLines) || ratesEdited);
         if (linesEdited) {
-          // One transaction: a refused line leaves the saved ones in place.
-          const r = await db.rpc("install_visit_replace_lines" as never, { _visit: visit.id, _lines: cleanLines.map(({ id: _id, visit_id: _v, ...l }) => l) } as never);
-          if (r.error) throw new Error(r.error.message);
+          // One transaction, valued on the server: a saved line keeps its rate, a new one is valued from the estimate.
+          const r = await saveLinesFn({ data: { visitId: visit.id, lines: cleanLines.map(({ visit_id: _v, ...l }) => l) } });
+          if (!r.ok) throw new Error(r.message);
         }
         const sameTime = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
         const moved = !sameTime(patch.starts_at, visit.starts_at) || !sameTime(patch.ends_at, visit.ends_at);
@@ -489,8 +493,9 @@ function DrawerBody({
       if (ev.error) console.error(`install_visit_events: ${ev.error.message}`);
       // The lines go on the first day of a run: one work order's worth of work, however many days it takes.
       if (cleanLines.length) {
-        const l = await db.from("install_visit_lines" as never).insert(cleanLines.map((x) => ({ ...x, visit_id: id, project_id: f.project })) as never);
-        if (l.error) toast.error(`Work order saved, work items not saved: ${l.error.message}`);
+        // Valued on the server from the approved estimate's labour rates (or the catalogue's), whoever is creating it.
+        const l = await saveLinesFn({ data: { visitId: id, lines: cleanLines.map(({ id: _id, visit_id: _v, ...x }) => x) } });
+        if (!l.ok) toast.error(`Work order saved, work items not saved: ${l.message}`);
       }
       if (draftTasks.length) {
         const t = await db.from("visit_tasks").insert(

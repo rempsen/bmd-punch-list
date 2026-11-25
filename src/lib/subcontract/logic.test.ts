@@ -30,6 +30,18 @@ describe("rates", () => {
     expect(orderTotal(out)).toEqual({ subtotal_cents: 62500, uncosted: 3 });
     expect(uncostedLines(out)).toEqual(["Millwork base", "Carpet", "Prep"]);
   });
+  test("a line valued when the work order was made keeps that rate; the catalogue only fills a blank one", () => {
+    const valued: VisitLine[] = [
+      { ...lines[1]!, unit_labour_cost_cents: 115 }, // the estimate said $1.15/SF; the catalogue now says $1.25
+      { ...lines[0]!, unit_labour_cost_cents: null }, // no rate stored and none in the catalogue: stays null
+      { ...lines[2]!, unit_labour_cost_cents: "550" }, // stored as text by the API
+      { id: "l5", description: "Old carpet", quantity: 2, uom: "SY", cost_code: "01-26", sort_order: 5 }, // not valued: the catalogue's rate
+    ];
+    const out = orderFromWorkOrder(valued, rates);
+    expect(out.map((l) => l.unit_cost_cents)).toEqual([115, null, 550, 1100]);
+    expect(orderTotal(out)).toEqual({ subtotal_cents: 57500 + 22000 + 2200, uncosted: 1 });
+    expect(uncostedLines(out)).toEqual(["Millwork base"]);
+  });
 });
 
 describe("numbers and statuses", () => {

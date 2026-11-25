@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { verifyArrivePingSignature, webhookSetupError, AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, retryable, reschedulePayload, parseWorkOrderPhotos, photoStoragePath, offeredEventTypes, subscriptionEvents, AP_WEBHOOK_EVENTS } from "./core";
+import { verifyArrivePingSignature, webhookSetupError, AP_BASE, apWorkOrderUrl, siteAddress, visitPushProblem, wireIdempotencyKey, clientKey, clientPayload, describeApiError, existingFromConflict, idempotencyKey, parseJsonReply, parseMcpToolsList, pickKey, rescheduleKey, workOrderPayload, installerPayLines, retryable, reschedulePayload, parseWorkOrderPhotos, photoStoragePath, offeredEventTypes, subscriptionEvents, AP_WEBHOOK_EVENTS } from "./core";
 
 const visit = { id: "11111111-1111-1111-1111-111111111111", starts_at: "2026-12-01T14:00:00Z", ends_at: "2026-12-01T22:00:00Z", crew: "Brodie + 2", notes: "Level 2, rooms 201-212", site_contact: "Pat Client 204-555-0100" };
 const project = { id: "p1", name: "Test Take Off", number: "26-002", address: "Winnipeg, MB", client: "Brian & Gail Chornoboy" };
@@ -71,6 +71,28 @@ describe("work order payload", () => {
     expect(body["title"]).toBe("Test Take Off — Install");
     for (const key of ["address", "site_contact", "notes_for_crew"]) expect(body).not.toHaveProperty(key);
     expect(noNulls(body)).toBe(true);
+  });
+});
+
+describe("installer pay lines (not yet sent)", () => {
+  const lines = [
+    { estimate_line_id: "e1", description: " LVT ", quantity: 500, uom: "SF", unit_labour_cost_cents: 115 },
+    { estimate_line_id: "e2", description: "Carpet", quantity: "100", uom: "SY", unit_labour_cost_cents: 550 },
+    { estimate_line_id: "e3", description: "Base", quantity: 10, uom: "LF", unit_labour_cost_cents: null },
+    { estimate_line_id: "e4", description: "Prep", quantity: 1, uom: "LS" },
+  ];
+  test("each costed line pays the crew quantity × rate with no customer charge; lines with no rate are left out, never 0", () => {
+    expect(installerPayLines({ lines })).toEqual([
+      { description: "LVT", quantity: 500, uom: "SF", tech_pay_cents: 57500, charge_cents: 0 },
+      { description: "Carpet", quantity: 100, uom: "SY", tech_pay_cents: 55000, charge_cents: 0 },
+    ]);
+    expect(installerPayLines({ lines: null })).toEqual([]);
+  });
+  test("the work order payload does not carry pay yet: the live API's shape for charges is unverified", () => {
+    const body = workOrderPayload({ ...visit, lines }, project, "c");
+    expect(JSON.stringify(body)).not.toContain("tech_pay");
+    expect(JSON.stringify(body)).not.toContain("charge");
+    expect(body["notes_for_crew"]).toContain("- 500 SF LVT");
   });
 });
 

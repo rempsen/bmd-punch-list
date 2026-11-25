@@ -38,6 +38,13 @@ export const createSubcontractOrder = createServerFn({ method: "POST" })
     const { data: lines, error: le } = await sb.from("install_visit_lines").select("id,description,quantity,uom,cost_code,sort_order").eq("visit_id", visit.id).order("sort_order");
     if (le) return { ok: false, message: le.message };
     if (!lines?.length) return { ok: false, message: "Add what this work order covers (its lines from the estimate) before making a purchase order." };
+    // The rate each line was valued at (the estimate's labour rate when the work order was made) is readable only through
+    // this RPC, for people with view_pricing on the job; the order prefers it and falls back to the catalogue without it.
+    const { data: values } = await sb.rpc("work_order_values", { _project: visit.project_id });
+    const stored = new Map<string, number | null>();
+    for (const v of (values ?? []) as { line_id: string | null; unit_labour_cost_cents: number | string | null }[])
+      if (v.line_id) stored.set(v.line_id, v.unit_labour_cost_cents === null ? null : Number(v.unit_labour_cost_cents));
+    for (const l of lines as { id: string; unit_labour_cost_cents?: number | null }[]) l.unit_labour_cost_cents = stored.get(l.id) ?? null;
 
     const { data: rates } = await sb.from("labour_rates").select("id,name,uom,unit_cost_cents,cost_code,active").eq("active", true);
     const drafted: OrderLine[] = orderFromWorkOrder(lines as never, (rates ?? []) as never);
