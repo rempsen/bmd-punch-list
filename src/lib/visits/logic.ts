@@ -12,6 +12,9 @@ export type Visit = {
   arriveping_status: string | null;
   arriveping_assigned_to: string | null;
   arriveping_last_event_at: string | null;
+  /** When the crew accepted the work order in ArrivePing, and who; null until they do (and on visits read before this existed). */
+  accepted_at?: string | null;
+  accepted_by?: string | null;
   /** A run of days ("Day 2 of 3"): null on a single visit, and on visits read before runs existed. */
   run_day?: number | null;
   run_total?: number | null;
@@ -41,6 +44,7 @@ type EventRef = { jobId: string | null; visitId: string | null; at: string | nul
 export type ArrivePingEvent =
   | ({ kind: "status"; status: VisitStatus } & EventRef)
   | ({ kind: "assigned"; assignee: string | null } & EventRef)
+  | ({ kind: "accepted"; assignee: string | null } & EventRef)
   | ({ kind: "rescheduled"; startsAt: string; endsAt: string | null } & EventRef)
   /** A `workorder.status_changed` to a status BMD has no step for (paused, say): worth a line in Activity, nothing more. */
   | ({ kind: "note"; status: string; from: string | null } & EventRef);
@@ -80,6 +84,12 @@ export function parseArrivePingEvent(body: unknown): ArrivePingEvent | null {
   const at = pick("occurred_at", "timestamp", "at") ?? b["created_at"];
   const ref: EventRef = { jobId: job == null ? null : String(job), visitId, at: typeof at === "string" ? at : null };
 
+  if (name.endsWith("accepted")) {
+    // A dedicated acceptance event (`workorder.accepted` / `assignment.accepted`), when ArrivePing's catalogue has one.
+    const techs = techNames(raw("assigned_techs"));
+    const assignee = techs ?? personName(d["assigned_tech"]) ?? personName(raw("accepted_by")) ?? personName(raw("assigned_to")) ?? personName(raw("tech")) ?? personName(raw("assignee"));
+    return { kind: "accepted", assignee: assignee || null, ...ref };
+  }
   if (name.endsWith("assigned")) {
     // A full work order lists who is on it now, which is the truth for an assignment or an unassignment alike.
     const techs = techNames(raw("assigned_techs"));
@@ -163,7 +173,7 @@ export function scheduleRange(startsAt: string, endsAt: string | null, timeZone 
   return endsAt ? f.formatRange(new Date(startsAt), new Date(endsAt)) : f.format(new Date(startsAt));
 }
 
-export type InboundVisit = Pick<Visit, "status" | "crew" | "starts_at" | "ends_at" | "arriveping_job_id"> & { arriveping_status?: string | null; arriveping_assigned_to?: string | null; arriveping_last_event_at?: string | null };
+export type InboundVisit = Pick<Visit, "status" | "crew" | "starts_at" | "ends_at" | "arriveping_job_id"> & { arriveping_status?: string | null; arriveping_assigned_to?: string | null; arriveping_last_event_at?: string | null; accepted_at?: string | null; accepted_by?: string | null };
 export type InboundPlan =
   | { ok: true; patch: Record<string, string | null>; event: { status: string; note: string; at: string } }
   | { ok: false; reason: "no change" | "stale" };
@@ -200,13 +210,26 @@ export function applyInboundEvent(visit: InboundVisit, ev: ArrivePingEvent, now:
     return { ok: true, patch: { arriveping_status: ev.status, ...common }, event: { status: "note", note: `${apWord(ev.status)} in ArrivePing${was}`, at } };
   }
   if (behind) return { ok: false, reason: "stale" };
+  if (ev.kind === "accepted") {
+    // Acceptance is the crew taking the work order; the name is the event's, else whoever ArrivePing had on it.
+    const by = ev.assignee ?? visit.arriveping_assigned_to ?? null;
+    if (visit.accepted_at && (visit.accepted_by ?? null) === by) return { ok: false, reason: "no change" };
+    const assigned = by && !visit.arriveping_assigned_to ? { arriveping_assigned_to: by, ...(visit.status === "scheduled" ? { arriveping_status: "assigned" } : {}) } : {};
+    return {
+      ok: true,
+      patch: { accepted_at: at, accepted_by: by, ...assigned, ...common },
+      event: { status: "accepted", note: by ? `Accepted in ArrivePing by ${by}` : "Accepted in ArrivePing", at },
+    };
+  }
   if (ev.kind === "assigned") {
     if ((visit.arriveping_assigned_to ?? null) === ev.assignee) return { ok: false, reason: "no change" };
     // Only a visit that has not started takes ArrivePing's assignment as its status; once the crew is out, that status is live.
     const status = visit.status === "scheduled" ? { arriveping_status: ev.assignee ? "assigned" : "scheduled" } : {};
+    // Being named on the work order is the crew accepting it, until ArrivePing offers a dedicated acceptance event; an unassignment takes it back.
+    const accepted = ev.assignee ? { accepted_at: at, accepted_by: ev.assignee } : { accepted_at: null, accepted_by: null };
     return {
       ok: true,
-      patch: { arriveping_assigned_to: ev.assignee, ...status, ...common },
+      patch: { arriveping_assigned_to: ev.assignee, ...status, ...accepted, ...common },
       event: ev.assignee ? { status: "assigned", note: `Assigned to ${ev.assignee} in ArrivePing`, at } : { status: "unassigned", note: "Unassigned in ArrivePing", at },
     };
   }
@@ -305,6 +328,17 @@ export function arrivepingBadge(v: { arriveping_job_id: string | null; arrivepin
 }
 
 /** The ArrivePing pill to show beside the visit's own status, or null when there is none or it would only repeat that status ("On site" twice). */
+/** Where the crew's acceptance stands: grey until sent, amber once ArrivePing has it, green once a crew member accepted it. */
+export function acceptanceBadge(v: Pick<Visit, "arriveping_job_id" | "accepted_at" | "accepted_by" | "status">, timeZone = SCHEDULE_TZ): { tone: "green" | "amber" | "grey"; label: string } | null {
+  if (v.status === "cancelled") return null;
+  if (v.accepted_at) {
+    const when = new Intl.DateTimeFormat("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone }).format(new Date(v.accepted_at));
+    return { tone: "green", label: `Accepted${v.accepted_by ? ` by ${v.accepted_by}` : ""} · ${when}` };
+  }
+  if (v.arriveping_job_id) return { tone: "amber", label: "Sent — awaiting acceptance" };
+  return { tone: "grey", label: "Not sent" };
+}
+
 export function arrivepingPill(v: { status: VisitStatus; arriveping_job_id: string | null; arriveping_status: string | null; arriveping_assigned_to: string | null }): string | null {
   const badge = arrivepingBadge(v);
   return badge != null && v.arriveping_status === v.status && v.status !== "scheduled" ? null : badge;

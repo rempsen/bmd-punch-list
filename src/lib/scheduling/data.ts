@@ -206,6 +206,7 @@ export function useRefreshSchedule() {
       "sched-visits-range",
       "sched-visit",
       "visit-tasks",
+      "visit-lines",
       "visits",
       "visit-events",
       "technicians",
