@@ -11,9 +11,9 @@ import { store } from "../lib/store.js";
 import { PALETTE } from "../lib/takeoffConstants.ts";
 import { createSheetEngine, RENDER_SCALE, STANDARD_SCALES } from "../lib/bmd/engine.js";
 import { labelsToSave, mergeSheets, pickDrawings } from "../lib/bmd/drawings.js";
-import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, setShapeFinish, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
+import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, setShapeFinish, setShapeHeight, sheetKey, sheetShapes, updateCondition, wallRun } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
-import { parseFeet } from "../lib/bmd/feet.js";
+import { heightText, parseFeet, parseHeight } from "../lib/bmd/feet.js";
 import { pageSpans, graphSpans } from "../lib/pageSpans.ts";
 import { AutoReview, AutoRunPanel } from "../components/BmdAutoTakeoff.jsx";
 import { scanSheets, scheduleLine } from "../lib/bmd/autoScan.js";
@@ -28,6 +28,7 @@ const TOOLS = [
   { id: "room", label: "Click a room", hint: "Click inside a room and it is measured to its walls." },
   { id: "area", label: "Draw area", hint: "Click each corner. Double-click or press Enter to finish." },
   { id: "line", label: "Line", hint: "Click along the run (base, transitions). Double-click or press Enter to finish." },
+  { id: "wall", label: "Wall tile", hint: "Click along the wall the tile goes on: the two ends of a backsplash, or each corner of a tub surround. Double-click or press Enter, then type how high the tile goes." },
   { id: "count", label: "Count", hint: "Click each item to count it." },
   { id: "alike", label: "Count alike", hint: "Click two opposite corners of a box around one symbol (a drain, a threshold mark). Every symbol drawn the same way on this sheet is proposed as a count for you to check." },
   { id: "cut", label: "Cut out", hint: "Draw around an area to take out, such as a column or a void." },
@@ -52,6 +53,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const [newTag, setNewTag] = useState("");
   const [filter, setFilter] = useState("");
   const [calibrate, setCalibrate] = useState(null);  // null | {points: [], ask?: true, length?: string}
+  const [wallAsk, setWallAsk] = useState(null);      // a wall drawn and waiting for its height: null | {points, value, unit}
+  const [wallHeight, setWallHeight] = useState({ value: "", unit: "in" });   // the last height typed, offered for the next wall
   const [area, setArea] = useState("");              // the area name new measurements get ("Level 2"); blank for none
   const [scope, setScope] = useState("all");         // totals for "all" sheets or "sheet" (this one)
   const [renaming, setRenaming] = useState(null);    // null | {id, tag}
@@ -461,6 +464,12 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
 
   const finishDraft = () => {
     if (!dims || !doc) return;
+    if (tool === "wall") {
+      const pts = draft.filter((q, i, all) => i === 0 || Math.hypot(q[0] - all[i - 1][0], q[1] - all[i - 1][1]) > 0.5);   // a double-click lands twice on the last point
+      if (pts.length >= 2) setWallAsk({ points: pts, ...wallHeight });
+      setDraft([]);
+      return;
+    }
     const role = tool === "line" ? "linear" : tool === "cut" ? "deduct" : "floor_area";
     const min = role === "linear" ? 2 : 3;
     if (draft.length < min) { setDraft([]); return; }
@@ -470,6 +479,27 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       say(String(e?.message || e), "warn");
     }
     setDraft([]);
+  };
+
+  // A wall is a line on the plan and a typed height: length × height is the tile.
+  const applyWall = () => {
+    const ft = parseHeight(wallAsk.value, wallAsk.unit);
+    if (!(ft > 0)) return say("Type how high the tile goes, for example 18 with inches chosen, or 6' or 6' 6\".", "warn");
+    try {
+      const next = addShape(doc, { sheetId: current, conditionId: activeId, role: "surface_area", pointsPx: wallAsk.points, dims, heightFt: ft, method: "manual", area });
+      commit(next);
+      say(`${active.finish_tag}: ${wallRun(next.shapes[next.shapes.length - 1], dims, scale.upp).text} of wall.`, "good");
+      setWallHeight({ value: wallAsk.value, unit: wallAsk.unit });
+      setWallAsk(null);
+    } catch (e) {
+      say(String(e?.message || e), "warn");
+    }
+  };
+  const changeWallHeight = (shape, text) => {
+    const ft = parseHeight(text, "in");
+    if (!(ft > 0)) return say("Type the height in feet or inches, for example 18 in or 6 ft.", "warn");
+    if (Math.abs(ft - (Number(shape.height_ft) || 0)) < 0.0001) return;
+    commit(setShapeHeight(doc, shape.id, ft, dims));
   };
 
   const applyCalibration = () => {
@@ -503,6 +533,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   };
 
   const onClick = async (e) => {
+    if (wallAsk) return;
     if (!engine || !doc || drag.current?.moved) return;
     const [sx, sy] = pointer(e);
     const [ix, iy] = toImage(view, sx, sy);
@@ -637,7 +668,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   useEffect(() => {
     const onKey = (e) => {
       if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return;
-      if (e.key === "Escape") { setDraft([]); setCalibrate(null); setSelected(null); }
+      if (e.key === "Escape") { setDraft([]); setCalibrate(null); setWallAsk(null); setSelected(null); }
       else if (e.key === "Enter") finishDraft();
       else if (e.key === "Backspace" && draft.length) setDraft((d) => d.slice(0, -1));
       else if ((e.key === "Delete" || e.key === "Backspace") && selected && !readOnly) { commit(removeShape(doc, selected)); setSelected(null); }
@@ -649,7 +680,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
 
   const fit = () => { const box = wrap.current?.getBoundingClientRect(); if (box && dims) setView(fitView(dims, { w: box.width, h: box.height })); };
   const zoom = (f) => { const box = wrap.current?.getBoundingClientRect(); if (box) setView((v) => zoomAt(v, box.width / 2, box.height / 2, f)); };
-  const pickTool = (id) => { setTool(id); setDraft([]); setCalibrate(null); setSelected(null); };
+  const pickTool = (id) => { setTool(id); setDraft([]); setCalibrate(null); setWallAsk(null); setSelected(null); };
   const addFinish = () => {
     const tag = newTag.trim();
     if (!tag || !doc) return;
@@ -675,6 +706,14 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const scaleLabel = scale ? (STANDARD_SCALES.find((s) => Math.abs(s.upp - scale.upp) / scale.upp < 1e-6)?.label ?? (scale.source === "calibrated" ? "Set from a known length" : "Custom scale")) : null;
   const shown = sheets.filter((s) => !filter.trim() || `${s.label ?? ""} page ${s.page} ${s.file}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const selectedShape = selected ? shapes.find((s) => s.id === selected) : null;
+  // while a wall waits for its height: its length, wall by wall, and the area the height typed so far gives
+  const wallAskText = useMemo(() => {
+    if (!wallAsk || !dims || !scale) return "";
+    const ft = parseHeight(wallAsk.value, wallAsk.unit);
+    const probe = { verts_norm: wallAsk.points.map(([x, y]) => [x / dims.w, y / dims.h]), height_ft: ft > 0 ? ft : 0 };
+    const r = wallRun({ ...probe, computed: undefined }, dims, scale.upp);
+    return ft > 0 ? r.text : `${r.lengthsFt.length > 1 ? `${r.lengthsFt.map(heightText).join(" + ")} = ` : ""}${heightText(r.lengthsFt.reduce((n, l) => n + l, 0))} long`;
+  }, [wallAsk, dims, scale]);
   const selectedTag = selectedShape ? condById.get(selectedShape.condition_id)?.finish_tag ?? selectedShape.origin?.auto?.finish_tag ?? (isProposal(selectedShape) ? "No finish chosen" : "Measurement") : "";
   // Moves the selected measurement (and any cut-out made in it) to another finish. A proposal stays a proposal.
   const changeFinish = (conditionId) => {
@@ -687,6 +726,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   };
   const pts = (s) => (s.verts_norm || []).map(([nx, ny]) => [nx * dims.w, ny * dims.h]);
   const boxed = tool === "alike" && draft.length === 1 && hover ? [draft[0], [hover[0], draft[0][1]], hover, [draft[0][0], hover[1]]] : null;
+  const openTool = tool === "line" || tool === "wall";
   const liveDraft = boxed ?? (draft.length && hover ? [...draft, hover] : draft);
   const stroke = 2 / view.k;
   const advancedUrl = `?project=${encodeURIComponent(projectId)}&view=advanced`;
@@ -758,7 +798,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           {!readOnly && <button type="button" className="st-btn st-adddrawing" onClick={() => picker.current?.click()} disabled={!!adding || loadingSheets} title="Add PDF drawings to this project's Plans. You can also drop them anywhere on this screen.">{adding ?? "+ Add drawings"}</button>}
         </aside>
 
-        <main className="st-stage" ref={wrap} data-tool={calibrate ? "calibrate" : tool} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={() => setHover(null)} onClick={onClick} onDoubleClick={() => (tool === "area" || tool === "line" || tool === "cut") && finishDraft()}>
+        <main className="st-stage" ref={wrap} data-tool={calibrate ? "calibrate" : tool} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp} onMouseLeave={() => setHover(null)} onClick={onClick} onDoubleClick={() => (tool === "area" || tool === "line" || tool === "wall" || tool === "cut") && finishDraft()}>
           <canvas ref={canvas} className="st-canvas" />
           {dims && (
             <svg className="st-overlay" aria-hidden="true">
@@ -779,7 +819,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
                   if (s.measure_role === "deduct") return <path key={s.id} d={pathOf(p, true)} fill="#ffffff" fillOpacity="0.85" stroke={colour} strokeWidth={stroke} strokeDasharray={`${6 / view.k} ${4 / view.k}`} />;
                   return <path key={s.id} d={pathOf(p, true)} fill={c?.fill ?? colour} fillOpacity={on ? 0.5 : 0.32} stroke={colour} strokeWidth={(on ? 3.5 : 2) / view.k} strokeLinejoin="round" />;
                 })}
-                {liveDraft.length > 0 && <path d={pathOf(liveDraft, tool !== "line" && liveDraft.length > 2)} fill={tool === "line" ? "none" : active?.color ?? "#1b2d4f"} fillOpacity="0.15" stroke={active?.color ?? "#1b2d4f"} strokeWidth={stroke} strokeDasharray={`${5 / view.k} ${4 / view.k}`} />}
+                {wallAsk && <path d={pathOf(wallAsk.points, false)} fill="none" stroke={active?.color ?? "#1b2d4f"} strokeWidth={5 / view.k} strokeLinecap="round" strokeLinejoin="round" />}
+                {liveDraft.length > 0 && <path d={pathOf(liveDraft, !openTool && liveDraft.length > 2)} fill={openTool ? "none" : active?.color ?? "#1b2d4f"} fillOpacity="0.15" stroke={active?.color ?? "#1b2d4f"} strokeWidth={stroke} strokeDasharray={`${5 / view.k} ${4 / view.k}`} />}
                 {draft.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={4 / view.k} fill="#fff" stroke={active?.color ?? "#1b2d4f"} strokeWidth={stroke} />)}
                 {calibrate?.points.length === 2 && <path d={pathOf(calibrate.points, false)} fill="none" stroke="#1b2d4f" strokeWidth={stroke} />}
                 {calibrate?.points.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={5 / view.k} fill="#1b2d4f" />)}
@@ -805,7 +846,14 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
                 </select>
               )}
               {isProposal(selectedShape) && <span className="st-proposed">Proposed · {Math.round((selectedShape.origin.confidence ?? 0) * 100)}%</span>}
-              <span>{selectedShape.measure_role === "count" ? "1 counted" : selectedShape.measure_role === "linear" ? `${fmt(selectedShape.computed?.perimeter_lf)} LF` : `${fmt(selectedShape.computed?.area_sf)} SF${selectedShape.measure_role === "deduct" ? " taken out" : ` · ${fmt(selectedShape.computed?.perimeter_lf)} LF around`}`}</span>
+              {selectedShape.measure_role === "surface_area" && !readOnly && (
+                <label className="st-wall-height">
+                  High
+                  <input key={`${selectedShape.id}-${selectedShape.height_ft}`} className="st-input" defaultValue={heightText(selectedShape.height_ft)} aria-label="How high the tile goes on this wall" title={"Feet or inches, for example 18 in or 6' 6\""}
+                    onBlur={(e) => changeWallHeight(selectedShape, e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") e.target.blur(); }} />
+                </label>
+              )}
+              <span>{selectedShape.measure_role === "surface_area" ? wallRun(selectedShape, dims, scale?.upp ?? 0).text : selectedShape.measure_role === "count" ? "1 counted" : selectedShape.measure_role === "linear" ? `${fmt(selectedShape.computed?.perimeter_lf)} LF` : `${fmt(selectedShape.computed?.area_sf)} SF${selectedShape.measure_role === "deduct" ? " taken out" : ` · ${fmt(selectedShape.computed?.perimeter_lf)} LF around`}`}</span>
               {!readOnly && (
                 <input key={selectedShape.id} className="st-input st-area-input" list="st-areas" placeholder="Area, e.g. Level 2" defaultValue={selectedShape.label || ""} aria-label="Area this measurement belongs to"
                   onBlur={(e) => { if ((e.target.value.trim() || "") !== (selectedShape.label || "")) commit(setShapeArea(doc, selectedShape.id, e.target.value)); }}
@@ -814,6 +862,19 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
               {!readOnly && isProposal(selectedShape) && <button type="button" className="st-btn st-btn-primary" onClick={() => acceptIds([selectedShape.id])}>Accept</button>}
               {!readOnly && <button type="button" className="st-btn st-btn-danger" onClick={() => { commit(isProposal(selectedShape) ? removeProposals(doc, [selectedShape.id]) : removeShape(doc, selectedShape.id)); setSelected(null); }}>Remove</button>}
             </div>
+          )}
+          {wallAsk && (
+            <form className="st-ask st-ask-wall" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); applyWall(); }}>
+              <label htmlFor="st-wall-height">How high does the tile go?</label>
+              <input id="st-wall-height" className="st-input" autoFocus placeholder={"18 or 6' 6\""} value={wallAsk.value} onChange={(e) => setWallAsk({ ...wallAsk, value: e.target.value })} />
+              <select className="st-input st-unit" aria-label="Unit for a plain number" value={wallAsk.unit} onChange={(e) => setWallAsk({ ...wallAsk, unit: e.target.value })}>
+                <option value="in">inches</option>
+                <option value="ft">feet</option>
+              </select>
+              <button type="submit" className="st-btn st-btn-primary">Add wall tile</button>
+              <button type="button" className="st-btn" onClick={() => setWallAsk(null)}>Cancel</button>
+              <p className="st-ask-note">{wallAskText}</p>
+            </form>
           )}
           {calibrate?.ask && (
             <form className="st-ask" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); applyCalibration(); }}>
@@ -867,7 +928,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
                     <span className="st-swatch" style={{ background: t.colour }} />
                     <span className="st-finish-text">
                       <strong>{t.tag}</strong>
-                      <span>{[t.areaSf ? `${fmt(t.areaSf)} SF · ${fmt(t.areaSy)} SY` : null, t.lengthLf ? `${fmt(t.lengthLf)} LF` : null, t.count ? `${t.count} EA` : null].filter(Boolean).join(" · ") || "Nothing measured yet"}</span>
+                      <span>{[t.areaSf ? `${fmt(t.areaSf)} SF · ${fmt(t.areaSy)} SY` : null, t.wallSf ? `${fmt(t.wallSf)} SF wall` : null, t.lengthLf ? `${fmt(t.lengthLf)} LF` : null, t.count ? `${t.count} EA` : null].filter(Boolean).join(" · ") || "Nothing measured yet"}</span>
                     </span>
                   </button>
                   {on && !readOnly && (

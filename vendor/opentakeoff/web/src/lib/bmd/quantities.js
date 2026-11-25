@@ -26,7 +26,9 @@ export function takeoffQuantities(doc) {
     for (const s of counted) {
       if (s.condition_id !== c.id) continue;
       // automatic work rolls up by area (every Suite Type B together), never by each room's own name
-      const section = (s.origin?.method === "auto_v1" ? sectionOf(s) : shapeLabelValue(s).trim()) || own;
+      const named = (s.origin?.method === "auto_v1" ? sectionOf(s) : shapeLabelValue(s).trim()) || own;
+      // wall tile is its own line on the estimate: it is set at a different rate from the floor
+      const section = s.measure_role === "surface_area" ? (named ? `${named} walls` : "Walls") : named;
       if (!bySection.has(section)) bySection.set(section, []);
       bySection.get(section).push(s);
     }

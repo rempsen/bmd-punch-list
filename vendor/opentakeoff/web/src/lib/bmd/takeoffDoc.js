@@ -6,6 +6,9 @@
 import { computeShapeMetrics, recalibrateShapes } from "../shapeMetrics.js";
 import { conditionTotals } from "../totals.js";
 import { nextHatchId, nextPaletteColor } from "../takeoffConstants.ts";
+import { heightText } from "./feet.js";
+
+const NEED_HEIGHT = "Type how high the tile goes, in feet or inches.";
 
 const uid = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`}`;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -85,6 +88,12 @@ export function addShape(doc, m) {
   if (!scale && m.role !== "count") throw new Error("Set the scale for this sheet first.");
   const cond = (doc.conditions || []).find((c) => c.id === m.conditionId);
   if (!cond) throw new Error("Choose a finish to measure first.");
+  // Wall tile: a line along the wall on the plan, and how high the tile goes. Each wall keeps the height typed for it.
+  const wall = m.role === "surface_area";
+  // a double-click to finish lands twice on the last point: that is one corner, not a wall of no length
+  if (wall) m = { ...m, pointsPx: m.pointsPx.filter((p, i, all) => i === 0 || Math.hypot(p[0] - all[i - 1][0], p[1] - all[i - 1][1]) > 0.5) };
+  if (wall && m.pointsPx.length < 2) throw new Error("Click at least two points along the wall.");
+  if (wall && !(Number(m.heightFt) > 0) && (m.heightFt != null || !(Number(cond.height_ft) > 0))) throw new Error(NEED_HEIGHT);
   const shape = {
     id: uid("shp"),
     sheet_id: m.sheetId,
@@ -95,6 +104,7 @@ export function addShape(doc, m) {
     // A person made or accepted this on the simple screen, so it counts at once.
     origin: { method: m.method || "manual", reviewed: true, ...(m.seedPx ? { seed_norm: [m.seedPx[0] / m.dims.w, m.seedPx[1] / m.dims.h] } : {}), ...(m.confidence != null ? { confidence: m.confidence } : {}) },
   };
+  if (wall && Number(m.heightFt) > 0) { shape.height_ft = Number(m.heightFt); shape.height_override = true; }
   const area = String(m.area || "").trim();
   if (area) shape.label = area;
   shape.computed = computeShapeMetrics(shape, m.dims, scale?.upp ?? 0, cond);
@@ -142,6 +152,31 @@ export function setShapeFinish(doc, shapeId, conditionId, dims) {
     return next;
   };
   return { ...doc, shapes: doc.shapes.map((s) => (group(s) ? moved(s) : s)) };
+}
+
+/** Changes how high the tile goes on one wall and measures it again. An unknown id, or a shape that is not a wall, changes nothing. */
+export function setShapeHeight(doc, id, heightFt, dims) {
+  const old = (doc.shapes || []).find((s) => s.id === id);
+  if (!old || old.measure_role !== "surface_area") return doc;
+  if (!(Number(heightFt) > 0)) throw new Error(NEED_HEIGHT);
+  const cond = (doc.conditions || []).find((c) => c.id === old.condition_id);
+  const shape = { ...old, height_ft: Number(heightFt), height_override: true };
+  shape.computed = computeShapeMetrics(shape, dims, scaleFor(doc, old.sheet_id)?.upp ?? 0, cond);
+  return { ...doc, shapes: doc.shapes.map((s) => (s.id === id ? shape : s)) };
+}
+
+/**
+ * One wall run read back wall by wall: each straight length, the total, the height and the area, with the sum
+ * written out ("30 in + 5 ft + 30 in = 10 ft long × 6 ft high = 60.0 SF").
+ */
+export function wallRun(shape, dims, upp) {
+  const pts = (shape.verts_norm || []).map(([x, y]) => [x * dims.w, y * dims.h]);
+  const lengthsFt = pts.slice(1).map((p, i) => round2(Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]) * (upp || 0)));
+  const lengthFt = round2(shape.computed?.perimeter_lf ?? lengthsFt.reduce((n, l) => n + l, 0));
+  const heightFt = Number(shape.height_ft) || 0;
+  const areaSf = round2(shape.computed?.area_sf ?? lengthFt * heightFt);
+  const sum = lengthsFt.length > 1 ? `${lengthsFt.map(heightText).join(" + ")} = ` : "";
+  return { lengthsFt, lengthFt, heightFt, areaSf, text: `${sum}${heightText(lengthFt)} long × ${heightText(heightFt)} high = ${areaSf.toFixed(1)} SF` };
 }
 
 export function removeShape(doc, id) {

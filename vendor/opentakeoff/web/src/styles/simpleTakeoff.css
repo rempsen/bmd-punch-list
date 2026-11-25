@@ -206,3 +206,10 @@
 .st-base-actions p { margin: 0; }
 .st-base-areas tr.st-base-type th, .st-base-areas tr.st-base-type td { border-top: 0; padding-top: 1px; padding-bottom: 3px; color: var(--st-muted); font-size: 12px; }
 .st-base-areas tr.st-base-type th { padding-left: 30px; }
+
+/* BMD: wall tile (a line on the plan and a typed height) */
+.st-ask-wall .st-input { width: 110px; }
+.st-ask-wall .st-unit { width: 92px; }
+.st-ask-note { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--st-muted); font-variant-numeric: tabular-nums; }
+.st-wall-height { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--st-muted); }
+.st-wall-height .st-input { width: 92px; }
