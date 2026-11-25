@@ -13,8 +13,8 @@ function VisitRow({ v }: { v: Visit }) {
       <p className="font-medium">{range}</p>
       {people && <p className="truncate text-xs text-muted-foreground">{people}</p>}
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
-        <StatusPill label={crewLabel(v)} />
-        <AcceptancePill badge={acceptanceBadge(v)} />
+        <StatusPill label={crewLabel(v)} jobId={v.arriveping_job_id} />
+        <AcceptancePill badge={acceptanceBadge(v)} jobId={v.arriveping_job_id} />
         {v.arriveping_last_event_at && (
           <span className="text-xs text-muted-foreground">
             Updated {updatedAt(v.arriveping_last_event_at)}

@@ -820,7 +820,7 @@ function DrawerBody({
         <div className="space-y-2 rounded-md border border-border p-3">
           <p className="text-xs font-medium">ArrivePing</p>
           <div className="flex flex-wrap items-center gap-2">
-            <StatusPill label={VISIT_LABEL[visit.status]} />
+            <StatusPill label={VISIT_LABEL[visit.status]} jobId={visit.arriveping_job_id} />
             {pill ? <ArrivePingPill label={pill} /> : <ArrivePingPill label={visit.tentative ? "Tentative — not sent" : "Not sent"} />}
             {state === "pending" && (
               <ArrivePingPill label={`Pending in ArrivePing: ${techName ?? "crew"}`} />

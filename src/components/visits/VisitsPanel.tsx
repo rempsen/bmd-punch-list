@@ -261,9 +261,9 @@ export function VisitsPanel({
                     </p>
                   )}
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                    <StatusPill label={VISIT_LABEL[v.status]} />
+                    <StatusPill label={VISIT_LABEL[v.status]} jobId={v.arriveping_job_id} />
                     {ap && <ArrivePingPill label={ap} />}
-                    <AcceptancePill badge={acceptanceBadge(v)} />
+                    <AcceptancePill badge={acceptanceBadge(v)} jobId={v.arriveping_job_id} />
                     {v.status === "scheduled" && !v.tentative && <ConfirmationPill v={v} />}
                     {v.arriveping_job_id && <OpenInArrivePing jobId={v.arriveping_job_id} />}
                     <SubcontractOrderChip projectId={projectId} visitId={v.id} technicianSupplierId={(v as { technician_supplier_id?: string | null }).technician_supplier_id ?? null} canEdit={canEdit} />
