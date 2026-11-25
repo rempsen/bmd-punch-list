@@ -33,6 +33,8 @@ export interface DoorSeal {
   strike: Point;
   /** fitted swing radius, image px (the leaf width) */
   r: number;
+  /** BMD change: the curve strokes that draw this swing (indices into segs), so a caller can lift them out of the walls. */
+  arc?: number[];
 }
 
 // A swing sweeps a quarter turn, give or take how the drafter drew it. Below
@@ -112,7 +114,7 @@ export function findDoorSeals(
   const segLen = (i: number) => Math.hypot(segs[i * 4 + 2] - segs[i * 4], segs[i * 4 + 3] - segs[i * 4 + 1]);
 
   // ── chain contiguous curve chords into candidate swings ──────────────────
-  const arcs: Array<{ C: Point; P0: Point; P1: Point; r: number }> = [];
+  const arcs: Array<{ C: Point; P0: Point; P1: Point; r: number; idx: number[] }> = [];
   let chain: number[] = [];
   const flush = () => {
     const c = chain; chain = [];
@@ -128,7 +130,7 @@ export function findDoorSeals(
     let sweep = Math.abs(a1 - a0);
     if (sweep > Math.PI) sweep = 2 * Math.PI - sweep;
     if (sweep < SWEEP_MIN || sweep > SWEEP_MAX) return;
-    arcs.push({ C: [fit.cx, fit.cy], P0, P1, r: fit.r });
+    arcs.push({ C: [fit.cx, fit.cy], P0, P1, r: fit.r, idx: c });
   };
   for (let i = 0; i < n; i++) {
     if (segLen(i) < 0.5) continue;
@@ -158,11 +160,17 @@ export function findDoorSeals(
         if (inkNear(mo, E[0] + ux * t * pxPerFt, E[1] + uy * t * pxPerFt, 0.2 * pxPerFt)) sc++;
       }
       if (inkNear(mo, E[0], E[1], 0.3 * pxPerFt)) sc++;
+      // BMD change: a pair of doors strikes each other, not a wall. An end that meets the end of another swing of
+      // about the same size counts as striking.
+      for (const o of arcs) {
+        if (o === a || Math.abs(o.r - a.r) > 0.25 * a.r) continue;
+        if (Math.hypot(o.P0[0] - E[0], o.P0[1] - E[1]) <= 0.3 * pxPerFt || Math.hypot(o.P1[0] - E[0], o.P1[1] - E[1]) <= 0.3 * pxPerFt) { sc += 2; break; }
+      }
       return sc;
     };
     const s0 = score(a.P0), s1 = score(a.P1);
     if (Math.max(s0, s1) < 2) continue;      // strikes nothing: not a door
-    seals.push({ hinge: a.C, strike: s0 >= s1 ? a.P0 : a.P1, r: a.r });
+    seals.push({ hinge: a.C, strike: s0 >= s1 ? a.P0 : a.P1, r: a.r, arc: a.idx });
   }
   return seals;
 }
