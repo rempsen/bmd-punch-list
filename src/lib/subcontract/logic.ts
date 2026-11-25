@@ -1,12 +1,22 @@
 /**
  * Subcontractor purchase orders, pure rules: a work order's lines (500 SF of LVT, 10 LF of base) become a purchase
  * order to the subcontractor doing the work; the bill QuickBooks raises against that order, and its payment, move
- * the order on. Costs come from the catalogue's labour rates; a rate nobody has entered stays null, never 0.
+ * the order on. Costs are the work order's own valuation (the estimate's labour rate when it was made), else the
+ * catalogue's labour rates; a rate nobody has entered stays null, never 0.
  */
 
 export type SubcontractStatus = "draft" | "sent" | "billed" | "paid" | "cancelled";
 
-export type VisitLine = { id: string; description: string; quantity: number; uom: string; cost_code: string | null; sort_order?: number | null };
+export type VisitLine = {
+  id: string;
+  description: string;
+  quantity: number;
+  uom: string;
+  cost_code: string | null;
+  sort_order?: number | null;
+  /** The rate the work order was valued at when it was made (per `uom`); the purchase order prefers it to today's catalogue. */
+  unit_labour_cost_cents?: number | string | null;
+};
 export type LabourRate = { id: string; name: string; uom: string; unit_cost_cents: number | null; cost_code: string | null; active: boolean };
 export type OrderLine = { visit_line_id: string | null; description: string; quantity: number; uom: string; unit_cost_cents: number | null; cost_code: string | null; sort_order: number };
 
@@ -47,18 +57,29 @@ export function rateFor(line: Pick<VisitLine, "cost_code" | "uom">, rates: Labou
   return candidates.find((r) => norm(r.uom) === norm(line.uom)) ?? candidates[0]!;
 }
 
-/** Draft order lines from a work order's lines, costed from the catalogue where a rate exists. */
+/** The rate stored on a work-order line, when it has one; a blank or malformed one is no rate. */
+const storedRate = (l: Pick<VisitLine, "unit_labour_cost_cents">): number | null => {
+  if (l.unit_labour_cost_cents === null || l.unit_labour_cost_cents === undefined) return null;
+  const n = Number(l.unit_labour_cost_cents);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+};
+
+/**
+ * Draft order lines from a work order's lines: costed at the rate the work order was valued at (its snapshot of the
+ * estimate's labour rate), and from the catalogue only where a line has none.
+ */
 export function orderFromWorkOrder(lines: VisitLine[], rates: LabourRate[]): OrderLine[] {
   return [...lines]
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     .map((l, i) => {
-      const rate = rateFor(l, rates);
+      const stored = storedRate(l);
+      const rate = stored === null ? rateFor(l, rates) : null;
       return {
         visit_line_id: l.id,
         description: l.description,
         quantity: Number(l.quantity) || 0,
         uom: l.uom,
-        unit_cost_cents: rate?.unit_cost_cents ?? null,
+        unit_cost_cents: stored ?? rate?.unit_cost_cents ?? null,
         cost_code: l.cost_code,
         sort_order: i,
       };

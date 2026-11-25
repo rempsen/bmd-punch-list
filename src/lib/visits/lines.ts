@@ -14,6 +14,9 @@ export type WorkOrderItem = {
   uom: string | null;
   cost_code: string | null;
   sort_order: number;
+  /** The line's labour parts, for valuing work orders; null for people without view_pricing (see visits/valuation.ts). */
+  labour_components?: import("./valuation").LabourComponent[] | null;
+  labour_rate_id?: string | null;
 };
 
 /** A row of `install_visit_lines` (or a draft of one before the work order is saved). */
@@ -27,6 +30,12 @@ export type VisitLine = {
   uom: string;
   cost_code?: string | null;
   sort_order?: number;
+  /** The rate the line was valued at (whole cents per `uom`); readable only through `work_order_values`, so usually absent here. */
+  unit_labour_cost_cents?: number | null;
+  labour_rate_source?: "estimate" | "catalogue" | "manual" | null;
+  labour_rate_id?: string | null;
+  /** Set in the drawer by "Use estimate rate": the manual rate is dropped and the line valued again when saved. */
+  clear_manual?: boolean;
 };
 
 /** Estimate line kinds that are not work a crew does unless the estimator gave them a quantity. */

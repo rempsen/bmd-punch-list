@@ -123,6 +123,26 @@ export function workOrderPayload(visit: VisitForPush, project: ProjectForPush, c
   };
 }
 
+/** One line of what a work order pays its installer, in the shape ArrivePing's charges are expected to take. */
+export type InstallerPayLine = { description: string; quantity: number; uom: string; tech_pay_cents: number; charge_cents: number };
+
+/**
+ * What the crew is paid for each line of a work order (quantity × the rate it was valued at), as installer pay with no
+ * customer charge. Lines with no rate are left out rather than sent as 0.
+ *
+ * TODO: not yet sent. ArrivePing's live API shape for charges / installer pay is unverified and unknown fields may 422,
+ * so `workOrderPayload` does not carry this until it is confirmed — see status/outstanding-items-2026-11-24.md in the
+ * BMD ERP & Estimating project.
+ */
+export function installerPayLines(visit: Pick<VisitForPush, "lines">): InstallerPayLine[] {
+  return (visit.lines ?? [])
+    .filter((l) => l.unit_labour_cost_cents !== null && l.unit_labour_cost_cents !== undefined && Number.isFinite(Number(l.unit_labour_cost_cents)))
+    .map((l) => {
+      const quantity = Number(l.quantity) || 0;
+      return { description: l.description.trim(), quantity, uom: l.uom, tech_pay_cents: Math.round(Number(l.unit_labour_cost_cents) * quantity), charge_cents: 0 };
+    });
+}
+
 /** The body ArrivePing's PATCH /api/v1/workorders/{id} takes when BMD re-times a visit: the schedule, and the site contact and crew notes as they now stand. */
 export function reschedulePayload(visit: VisitForPush): Record<string, unknown> {
   const { start_at, end_at, site_contact, notes_for_crew } = workOrderPayload(visit, { id: "", name: "", number: null, address: null, client: null });

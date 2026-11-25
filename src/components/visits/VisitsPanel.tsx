@@ -7,8 +7,11 @@ import { VisitDrawer, type DrawerTarget } from "@/components/scheduling/VisitDra
 import { cancelVisitPush, fetchVisitPhotos, pushVisit, resendVisitPush } from "@/lib/arriveping/arriveping.functions";
 import { useSignedUrls } from "@/lib/photos";
 import { db, errText } from "@/lib/platform/db";
-import { usePendingVisitPushes, useProjectVisitLines, useProjectVisitPhotos, useProjectVisits, type VisitPhoto } from "@/lib/visits/data";
+import { useAuth } from "@/lib/auth";
+import { dollars } from "@/lib/estimating/data";
+import { usePendingVisitPushes, useProjectVisitLines, useProjectVisitPhotos, useProjectVisits, useWorkOrderItems, useWorkOrderValues, type VisitPhoto } from "@/lib/visits/data";
 import { lineSummary } from "@/lib/visits/lines";
+import { estimateLabourTotalCents, labourBudgetLine, uncostedText } from "@/lib/visits/valuation";
 import { AcceptancePill, ArrivePingPill, OpenInArrivePing, StatusPill } from "./visit-bits";
 import { ConfirmationPill, VisitTags } from "@/components/scheduling/schedule-bits";
 import { reportLine } from "@/lib/scheduling/assignments";
@@ -51,6 +54,25 @@ export function VisitsPanel({
   const { data: photos = [] } = useProjectVisitPhotos(projectId);
   const { data: lines = [] } = useProjectVisitLines(projectId);
   const { data: pendingPush } = usePendingVisitPushes(projectId);
+  // What the work orders pay installers, against the approved estimate's labour: pricing staff only.
+  const { canAny } = useAuth();
+  const canPrice = canAny("view_pricing");
+  const { data: values } = useWorkOrderValues(projectId, canPrice);
+  const { data: estimateItems } = useWorkOrderItems(projectId, canPrice);
+  const budget = useMemo(() => {
+    if (!canPrice || !values) return null;
+    const live = visits.filter((v) => v.status !== "cancelled");
+    let released = 0;
+    let uncosted = 0;
+    for (const v of live) {
+      const t = values.visits.get(v.id);
+      if (t) {
+        released += t.total_cents;
+        uncosted += t.uncosted;
+      }
+    }
+    return labourBudgetLine(released, uncosted, estimateLabourTotalCents(estimateItems ?? []));
+  }, [canPrice, values, visits, estimateItems]);
   const linesByVisit = useMemo(() => {
     const m = new Map<string, typeof lines>();
     for (const l of lines) m.set(l.visit_id, [...(m.get(l.visit_id) ?? []), l]);
@@ -216,6 +238,11 @@ export function VisitsPanel({
           </Button>
         )}
       </div>
+      {budget && visits.length > 0 && (
+        <p className="mt-1 text-xs text-muted-foreground" title="Installer pay on this job's work orders, against the approved estimate's labour">
+          {budget}
+        </p>
+      )}
       {isLoading ? (
         <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
       ) : isError ? (
@@ -234,6 +261,7 @@ export function VisitsPanel({
             const who = [v.crew, v.site_contact].filter(Boolean).join(" · ");
             const work = lineSummary(linesByVisit.get(v.id) ?? []);
             const pushPending = !!pendingPush?.has(v.id);
+            const worth = canPrice ? values?.visits.get(v.id) : undefined;
             return (
               <li
                 key={v.id}
@@ -251,6 +279,13 @@ export function VisitsPanel({
                   {work && (
                     <p className="truncate text-xs" title={work}>
                       {work}
+                      {worth && (
+                        <span className="text-muted-foreground">
+                          {" · "}
+                          {dollars(worth.total_cents)}
+                          {worth.uncosted > 0 && ` (${uncostedText(worth.uncosted)})`}
+                        </span>
+                      )}
                     </p>
                   )}
                   {who && <p className="truncate text-xs text-muted-foreground">{who}</p>}

@@ -207,6 +207,7 @@ export function useRefreshSchedule() {
       "sched-visit",
       "visit-tasks",
       "visit-lines",
+      "work-order-values",
       "visits",
       "visit-events",
       "technicians",
