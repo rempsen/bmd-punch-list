@@ -23,6 +23,7 @@ import {
   type VisitStatus,
 } from "@/lib/visits/logic";
 import { useArrivePingCheck } from "@/components/visits/useArrivePingCheck";
+import { SubcontractOrderChip } from "@/components/visits/SubcontractOrderChip";
 
 const SEE_SETTINGS = "see Company settings → Integrations.";
 
@@ -231,6 +232,7 @@ export function VisitsPanel({
                     {ap && <ArrivePingPill label={ap} />}
                     {v.status === "scheduled" && !v.tentative && <ConfirmationPill v={v} />}
                     {v.arriveping_job_id && <OpenInArrivePing jobId={v.arriveping_job_id} />}
+                    <SubcontractOrderChip projectId={projectId} visitId={v.id} technicianSupplierId={(v as { technician_supplier_id?: string | null }).technician_supplier_id ?? null} canEdit={canEdit} />
                   </div>
                   <VisitPhotos photos={photosByVisit.get(v.id) ?? []} />
                 </div>
