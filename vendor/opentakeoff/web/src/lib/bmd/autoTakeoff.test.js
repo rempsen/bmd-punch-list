@@ -386,7 +386,7 @@ describe("spaces inside a suite that carry only a name", () => {
     expect(report.inside).toMatchObject({ rooms: 1 });
     const suite = floorOf(doc, "201"), bath = doc.shapes.find((s) => s.label === "201 BATH");
     expect(bath).toMatchObject({ measure_role: "floor_area", condition_id: null });
-    expect(Math.abs(bath.computed.area_sf - 173.6)).toBeLessThan(4);
+    expect(Math.abs(bath.computed.area_sf - 166.7)).toBeLessThan(1);   // exactly the bathroom: its door swings into the suite, so the swing is the suite's floor (hard rule)
     expect(bath.origin).toMatchObject({ method: METHOD, reviewed: false });
     expect(bath.origin.auto).toMatchObject({ kind: "inside", room: "201", name: "BATH", of: suite.id, from: "none" });
     expect(bath.origin.auto.why).toContain("inside 201 SUITE");

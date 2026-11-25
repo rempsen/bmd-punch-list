@@ -25,7 +25,11 @@ const VISIT_SOURCE_SUFFIX: Record<string, string> = { arriveping: " · reported 
 /** Newest first. Without pricing access, amounts are left out and bills are not listed at all. */
 export function buildTimeline(input: Input, opts: { showPrices: boolean }): TimelineEntry[] {
   const out: TimelineEntry[] = [];
-  for (const e of input.stages) out.push({ id: `s-${e.id}`, at: e.changed_at, kind: "stage", by: e.changed_by, text: `${e.from_stage ? `Moved from ${stageLabel(e.from_stage)} to ${stageLabel(e.to_stage)}` : `Created in ${stageLabel(e.to_stage)}`}${e.note ? `. ${e.note}` : ""}` });
+  for (const e of input.stages) {
+    const billEvent = e.from_stage === e.to_stage && / · (Draft created|Draft saved|Issued|Voided)$/.test(e.note ?? "");
+    if (billEvent && !opts.showPrices) continue;
+    out.push({ id: `s-${e.id}`, at: e.changed_at, kind: billEvent ? "bill" : "stage", by: e.changed_by, text: billEvent ? e.note ?? "Bill updated" : `${e.from_stage ? `Moved from ${stageLabel(e.from_stage)} to ${stageLabel(e.to_stage)}` : `Created in ${stageLabel(e.to_stage)}`}${e.note ? `. ${e.note}` : ""}` });
+  }
   for (const d of input.documents) out.push({ id: `d-${d.id}`, at: d.created_at, kind: "document", by: d.uploaded_by, text: `${d.file_name} added to ${sectionLabel(d.section)}${d.version > 1 ? ` (version ${d.version})` : ""}` });
   for (const q of input.quotes) {
     if (q.sent_at) out.push({ id: `qs-${q.id}`, at: q.sent_at, kind: "quote", by: null, text: `Quote ${q.number} sent${q.recipients.length ? ` to ${q.recipients.join(", ")}` : ""}` });
