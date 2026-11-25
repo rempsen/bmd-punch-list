@@ -304,7 +304,11 @@ function DrawerBody({
     setLines(savedLines);
   }, [visit, allLines.data, savedLines]);
   useEffect(() => {
-    if (!visit) setF((x) => ({ ...x, rooms: new Set() }));
+    // A new work order's rooms and work items belong to the job picked; changing the job starts both over.
+    if (!visit) {
+      setF((x) => ({ ...x, rooms: new Set() }));
+      setLines([]);
+    }
   }, [f.project, visit]);
   // A new visit starts with the job's standard tasks; tasks the person typed are never replaced.
   const autoTasks = useRef<DraftTask[] | null>(null);
@@ -382,6 +386,7 @@ function DrawerBody({
       notes: f.notes.trim() || null,
       areas: areasFromSelection(f.rooms, allRooms),
     };
+    if (lines.some((l) => !Number.isFinite(Number(l.quantity)) || Number(l.quantity) < 0)) return setErr("Each work item needs a quantity of zero or more.");
     const cleanLines = lines.map((l, i) => ({ ...l, quantity: num(l.quantity), description: l.description.trim(), sort_order: i })).filter((l) => l.description || l.quantity > 0);
     const report = {
       tentative: f.tentative,
@@ -415,12 +420,9 @@ function DrawerBody({
         // The lines are replaced as a set; a change to them re-pushes the work order like a change to the notes.
         const linesEdited = linesSeeded.current && linesChanged(savedLines, cleanLines);
         if (linesEdited) {
-          const d = await db.from("install_visit_lines" as never).delete().eq("visit_id", visit.id);
-          if (d.error) throw new Error(d.error.message);
-          if (cleanLines.length) {
-            const ins = await db.from("install_visit_lines" as never).insert(cleanLines.map(({ id: _id, visit_id: _v, ...l }) => ({ ...l, visit_id: visit.id, project_id: visit.project_id })) as never);
-            if (ins.error) throw new Error(ins.error.message);
-          }
+          // One transaction: a refused line leaves the saved ones in place.
+          const r = await db.rpc("install_visit_replace_lines" as never, { _visit: visit.id, _lines: cleanLines.map(({ id: _id, visit_id: _v, ...l }) => l) } as never);
+          if (r.error) throw new Error(r.error.message);
         }
         const sameTime = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
         const moved = !sameTime(patch.starts_at, visit.starts_at) || !sameTime(patch.ends_at, visit.ends_at);
