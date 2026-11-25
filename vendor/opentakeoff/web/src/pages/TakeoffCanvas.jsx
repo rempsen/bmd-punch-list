@@ -2712,6 +2712,29 @@ export default function TakeoffCanvas() {
   // Chrome reflows need the same existing viewport refresh as a dock resize.
   // This does not change coordinates, scale, tile rendering, or stored geometry.
   useEffect(() => { scheduleSync(); }, [workspaceLayout, workspaceArrangement, workspaceNavigationOpen, workspaceControlsOpen, workspaceDetailsOpen, agentOpen, scheduleSync]);
+  // The canvas itself changing size (window resized, side panel of the host
+  // page opened, full screen toggled) used to leave the tiles and the promoted
+  // stage layer where they were until the next pan or zoom tick — the plan sat
+  // frozen for seconds and then jumped. Watch the container directly: keep the
+  // point at the centre of the view where it was, and resync at once.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let last = { w: el.clientWidth, h: el.clientHeight };
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth, h = el.clientHeight;
+      if (!w || !h) return;
+      const dw = w - last.w, dh = h - last.h;
+      last = { w, h };
+      if (!dw && !dh) return;
+      const t = tfRef.current;
+      tfRef.current = { ...t, x: t.x + dw / 2, y: t.y + dh / 2 };
+      applyTf();
+      scheduleSync();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [applyTf, scheduleSync]);
 
 
   // Primary recovery for a stalled tile fetch: a hidden tab can suspend

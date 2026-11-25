@@ -428,6 +428,89 @@ export type Database = {
           },
         ]
       }
+      calendar_feeds: {
+        Row: {
+          created_at: string
+          link_created_at: string | null
+          link_last_used_at: string | null
+          outlook_calendar_id: string | null
+          outlook_enabled: boolean
+          outlook_error: string | null
+          outlook_synced_at: string | null
+          project_id: string | null
+          scope: string
+          token_hash: string | null
+          updated_at: string
+          user_id: string
+          window_hits: number
+          window_started_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          link_created_at?: string | null
+          link_last_used_at?: string | null
+          outlook_calendar_id?: string | null
+          outlook_enabled?: boolean
+          outlook_error?: string | null
+          outlook_synced_at?: string | null
+          project_id?: string | null
+          scope?: string
+          token_hash?: string | null
+          updated_at?: string
+          user_id: string
+          window_hits?: number
+          window_started_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          link_created_at?: string | null
+          link_last_used_at?: string | null
+          outlook_calendar_id?: string | null
+          outlook_enabled?: boolean
+          outlook_error?: string | null
+          outlook_synced_at?: string | null
+          project_id?: string | null
+          scope?: string
+          token_hash?: string | null
+          updated_at?: string
+          user_id?: string
+          window_hits?: number
+          window_started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_feeds_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_outlook_events: {
+        Row: {
+          event_id: string
+          fingerprint: string
+          updated_at: string
+          user_id: string
+          visit_id: string
+        }
+        Insert: {
+          event_id: string
+          fingerprint: string
+          updated_at?: string
+          user_id: string
+          visit_id: string
+        }
+        Update: {
+          event_id?: string
+          fingerprint?: string
+          updated_at?: string
+          user_id?: string
+          visit_id?: string
+        }
+        Relationships: []
+      }
       catalogue_materials: {
         Row: {
           active: boolean
@@ -809,6 +892,182 @@ export type Database = {
         }
         Relationships: []
       }
+      crew_assignment_links: {
+        Row: {
+          cc: string[]
+          created_at: string
+          crew_key: string
+          crew_name: string
+          day: string
+          decline_reason: string | null
+          email: string
+          expires_at: string
+          id: string
+          responded_at: string | null
+          response: string | null
+          sent_at: string | null
+          sent_by: string | null
+          sent_by_name: string
+          token_hash: string
+          visit_ids: string[]
+        }
+        Insert: {
+          cc?: string[]
+          created_at?: string
+          crew_key: string
+          crew_name: string
+          day: string
+          decline_reason?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          responded_at?: string | null
+          response?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          sent_by_name?: string
+          token_hash: string
+          visit_ids: string[]
+        }
+        Update: {
+          cc?: string[]
+          created_at?: string
+          crew_key?: string
+          crew_name?: string
+          day?: string
+          decline_reason?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          responded_at?: string | null
+          response?: string | null
+          sent_at?: string | null
+          sent_by?: string | null
+          sent_by_name?: string
+          token_hash?: string
+          visit_ids?: string[]
+        }
+        Relationships: []
+      }
+      daily_log_photos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          log_id: string
+          project_id: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          log_id: string
+          project_id: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          log_id?: string
+          project_id?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_log_photos_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "daily_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_log_photos_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_logs: {
+        Row: {
+          author_id: string
+          author_name: string
+          created_at: string
+          id: string
+          latitude: number | null
+          log_date: string
+          longitude: number | null
+          next_steps: string
+          project_id: string
+          shared_with_client: boolean
+          temp_high_c: number | null
+          temp_low_c: number | null
+          temp_now_c: number | null
+          updated_at: string
+          weather_code: number | null
+          weather_conditions: string | null
+          weather_fetched_at: string | null
+          weather_place: string | null
+          weather_status: string
+          what_happened: string
+        }
+        Insert: {
+          author_id?: string
+          author_name?: string
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          log_date?: string
+          longitude?: number | null
+          next_steps?: string
+          project_id: string
+          shared_with_client?: boolean
+          temp_high_c?: number | null
+          temp_low_c?: number | null
+          temp_now_c?: number | null
+          updated_at?: string
+          weather_code?: number | null
+          weather_conditions?: string | null
+          weather_fetched_at?: string | null
+          weather_place?: string | null
+          weather_status?: string
+          what_happened?: string
+        }
+        Update: {
+          author_id?: string
+          author_name?: string
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          log_date?: string
+          longitude?: number | null
+          next_steps?: string
+          project_id?: string
+          shared_with_client?: boolean
+          temp_high_c?: number | null
+          temp_low_c?: number | null
+          temp_now_c?: number | null
+          updated_at?: string
+          weather_code?: number | null
+          weather_conditions?: string | null
+          weather_fetched_at?: string | null
+          weather_place?: string | null
+          weather_status?: string
+          what_happened?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deficiencies: {
         Row: {
           area: string
@@ -1184,6 +1443,69 @@ export type Database = {
           },
         ]
       }
+      estimate_changes: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          component_index: number | null
+          field: string
+          field_label: string
+          from_value: Json | null
+          id: string
+          line_id: string | null
+          line_label: string
+          reverted_at: string | null
+          reverted_by: string | null
+          to_value: Json | null
+          version_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          component_index?: number | null
+          field: string
+          field_label?: string
+          from_value?: Json | null
+          id?: string
+          line_id?: string | null
+          line_label?: string
+          reverted_at?: string | null
+          reverted_by?: string | null
+          to_value?: Json | null
+          version_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          component_index?: number | null
+          field?: string
+          field_label?: string
+          from_value?: Json | null
+          id?: string
+          line_id?: string | null
+          line_label?: string
+          reverted_at?: string | null
+          reverted_by?: string | null
+          to_value?: Json | null
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_changes_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_changes_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       estimate_import_rows: {
         Row: {
           decision: string
@@ -1299,6 +1621,11 @@ export type Database = {
           line_id: string
           not_applicable: boolean
           on_gross: boolean
+          order_uom: string | null
+          order_uom_factor: number | null
+          overridden_at: string | null
+          overridden_by: string | null
+          price_per: string
           pst_applies: boolean
           purchase_uom: string
           qty_per_driver: number
@@ -1320,6 +1647,11 @@ export type Database = {
           line_id: string
           not_applicable?: boolean
           on_gross?: boolean
+          order_uom?: string | null
+          order_uom_factor?: number | null
+          overridden_at?: string | null
+          overridden_by?: string | null
+          price_per?: string
           pst_applies?: boolean
           purchase_uom: string
           qty_per_driver?: number
@@ -1341,6 +1673,11 @@ export type Database = {
           line_id?: string
           not_applicable?: boolean
           on_gross?: boolean
+          order_uom?: string | null
+          order_uom_factor?: number | null
+          overridden_at?: string | null
+          overridden_by?: string | null
+          price_per?: string
           pst_applies?: boolean
           purchase_uom?: string
           qty_per_driver?: number
@@ -1388,6 +1725,7 @@ export type Database = {
           is_allowance: boolean
           kind: string
           margin_pct: number | null
+          markup_overridden: boolean
           markup_pct: number
           notes: string | null
           price_basis: string
@@ -1395,11 +1733,13 @@ export type Database = {
           section: string
           selection: string
           selection_group: string | null
+          sell_override_cents: number | null
           sort_order: number
           source: string
           subject_to_measure: boolean
           takeoff_condition_id: string | null
           tax_code: string
+          unit_cost_override_cents: number | null
           updated_at: string
           version_id: string
           waste_pct: number
@@ -1417,6 +1757,7 @@ export type Database = {
           is_allowance?: boolean
           kind?: string
           margin_pct?: number | null
+          markup_overridden?: boolean
           markup_pct?: number
           notes?: string | null
           price_basis?: string
@@ -1424,11 +1765,13 @@ export type Database = {
           section?: string
           selection?: string
           selection_group?: string | null
+          sell_override_cents?: number | null
           sort_order?: number
           source?: string
           subject_to_measure?: boolean
           takeoff_condition_id?: string | null
           tax_code?: string
+          unit_cost_override_cents?: number | null
           updated_at?: string
           version_id: string
           waste_pct?: number
@@ -1446,6 +1789,7 @@ export type Database = {
           is_allowance?: boolean
           kind?: string
           margin_pct?: number | null
+          markup_overridden?: boolean
           markup_pct?: number
           notes?: string | null
           price_basis?: string
@@ -1453,11 +1797,13 @@ export type Database = {
           section?: string
           selection?: string
           selection_group?: string | null
+          sell_override_cents?: number | null
           sort_order?: number
           source?: string
           subject_to_measure?: boolean
           takeoff_condition_id?: string | null
           tax_code?: string
+          unit_cost_override_cents?: number | null
           updated_at?: string
           version_id?: string
           waste_pct?: number
@@ -1499,8 +1845,12 @@ export type Database = {
           locked: boolean
           name: string
           project_id: string
+          section_markups: Json
           sort_order: number
           status: string
+          unlock_reason: string | null
+          unlocked_at: string | null
+          unlocked_by: string | null
         }
         Insert: {
           co_number?: number | null
@@ -1514,8 +1864,12 @@ export type Database = {
           locked?: boolean
           name: string
           project_id: string
+          section_markups?: Json
           sort_order?: number
           status?: string
+          unlock_reason?: string | null
+          unlocked_at?: string | null
+          unlocked_by?: string | null
         }
         Update: {
           co_number?: number | null
@@ -1529,8 +1883,12 @@ export type Database = {
           locked?: boolean
           name?: string
           project_id?: string
+          section_markups?: Json
           sort_order?: number
           status?: string
+          unlock_reason?: string | null
+          unlocked_at?: string | null
+          unlocked_by?: string | null
         }
         Relationships: [
           {
@@ -1803,19 +2161,31 @@ export type Database = {
           arriveping_status: string | null
           assigned_name: string | null
           assigned_user_id: string | null
+          assignment_link_id: string | null
+          assignment_sent_at: string | null
+          confirmation: string
+          confirmation_at: string | null
           created_at: string
           created_by: string | null
           crew: string | null
+          decline_reason: string | null
           ends_at: string | null
           id: string
           notes: string | null
           project_id: string
+          report_time: string | null
+          report_to: string
+          report_to_other: string | null
+          run_day: number | null
+          run_id: string | null
+          run_total: number | null
           scope: string | null
           site_contact: string | null
           source: string
           starts_at: string
           status: string
           technician_supplier_id: string | null
+          tentative: boolean
         }
         Insert: {
           areas?: Json
@@ -1825,19 +2195,31 @@ export type Database = {
           arriveping_status?: string | null
           assigned_name?: string | null
           assigned_user_id?: string | null
+          assignment_link_id?: string | null
+          assignment_sent_at?: string | null
+          confirmation?: string
+          confirmation_at?: string | null
           created_at?: string
           created_by?: string | null
           crew?: string | null
+          decline_reason?: string | null
           ends_at?: string | null
           id?: string
           notes?: string | null
           project_id: string
+          report_time?: string | null
+          report_to?: string
+          report_to_other?: string | null
+          run_day?: number | null
+          run_id?: string | null
+          run_total?: number | null
           scope?: string | null
           site_contact?: string | null
           source?: string
           starts_at: string
           status?: string
           technician_supplier_id?: string | null
+          tentative?: boolean
         }
         Update: {
           areas?: Json
@@ -1847,19 +2229,31 @@ export type Database = {
           arriveping_status?: string | null
           assigned_name?: string | null
           assigned_user_id?: string | null
+          assignment_link_id?: string | null
+          assignment_sent_at?: string | null
+          confirmation?: string
+          confirmation_at?: string | null
           created_at?: string
           created_by?: string | null
           crew?: string | null
+          decline_reason?: string | null
           ends_at?: string | null
           id?: string
           notes?: string | null
           project_id?: string
+          report_time?: string | null
+          report_to?: string
+          report_to_other?: string | null
+          run_day?: number | null
+          run_id?: string | null
+          run_total?: number | null
           scope?: string | null
           site_contact?: string | null
           source?: string
           starts_at?: string
           status?: string
           technician_supplier_id?: string | null
+          tentative?: boolean
         }
         Relationships: [
           {
@@ -1867,6 +2261,13 @@ export type Database = {
             columns: ["assigned_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_visits_assignment_link_id_fkey"
+            columns: ["assignment_link_id"]
+            isOneToOne: false
+            referencedRelation: "crew_assignment_links"
             referencedColumns: ["id"]
           },
           {
@@ -1999,6 +2400,205 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      job_material_checks: {
+        Row: {
+          checked_at: string
+          checked_by: string | null
+          checked_by_name: string | null
+          item_key: string
+          loaded: boolean
+          project_id: string
+        }
+        Insert: {
+          checked_at?: string
+          checked_by?: string | null
+          checked_by_name?: string | null
+          item_key: string
+          loaded?: boolean
+          project_id: string
+        }
+        Update: {
+          checked_at?: string
+          checked_by?: string | null
+          checked_by_name?: string | null
+          item_key?: string
+          loaded?: boolean
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_material_checks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_requests: {
+        Row: {
+          created_at: string
+          daily_log_id: string | null
+          id: string
+          needed_by: string | null
+          photo_path: string | null
+          project_id: string
+          quantity: string | null
+          requested_by: string
+          requested_by_name: string
+          status: string
+          status_at: string | null
+          status_by: string | null
+          status_by_name: string | null
+          status_reason: string | null
+          updated_at: string
+          what: string
+        }
+        Insert: {
+          created_at?: string
+          daily_log_id?: string | null
+          id?: string
+          needed_by?: string | null
+          photo_path?: string | null
+          project_id: string
+          quantity?: string | null
+          requested_by?: string
+          requested_by_name?: string
+          status?: string
+          status_at?: string | null
+          status_by?: string | null
+          status_by_name?: string | null
+          status_reason?: string | null
+          updated_at?: string
+          what: string
+        }
+        Update: {
+          created_at?: string
+          daily_log_id?: string | null
+          id?: string
+          needed_by?: string | null
+          photo_path?: string | null
+          project_id?: string
+          quantity?: string | null
+          requested_by?: string
+          requested_by_name?: string
+          status?: string
+          status_at?: string | null
+          status_by?: string | null
+          status_by_name?: string | null
+          status_reason?: string | null
+          updated_at?: string
+          what?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_requests_daily_log_id_fkey"
+            columns: ["daily_log_id"]
+            isOneToOne: false
+            referencedRelation: "daily_logs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_requests_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_templates: {
+        Row: {
+          contact_roles: string[]
+          created_at: string
+          created_by: string | null
+          default_stage: string
+          id: string
+          job_type: string | null
+          kind: string
+          name: string
+          notes: string | null
+          other_scope: string | null
+          scopes: string[]
+          updated_at: string
+          visit_tasks: string[]
+        }
+        Insert: {
+          contact_roles?: string[]
+          created_at?: string
+          created_by?: string | null
+          default_stage?: string
+          id?: string
+          job_type?: string | null
+          kind?: string
+          name: string
+          notes?: string | null
+          other_scope?: string | null
+          scopes?: string[]
+          updated_at?: string
+          visit_tasks?: string[]
+        }
+        Update: {
+          contact_roles?: string[]
+          created_at?: string
+          created_by?: string | null
+          default_stage?: string
+          id?: string
+          job_type?: string | null
+          kind?: string
+          name?: string
+          notes?: string | null
+          other_scope?: string | null
+          scopes?: string[]
+          updated_at?: string
+          visit_tasks?: string[]
+        }
+        Relationships: []
+      }
+      job_tools: {
+        Row: {
+          checked: boolean
+          checked_at: string | null
+          checked_by_name: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          project_id: string
+          sort_order: number
+        }
+        Insert: {
+          checked?: boolean
+          checked_at?: string | null
+          checked_by_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          project_id: string
+          sort_order?: number
+        }
+        Update: {
+          checked?: boolean
+          checked_at?: string | null
+          checked_by_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          project_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_tools_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       knowledge_items: {
         Row: {
@@ -2422,6 +3022,216 @@ export type Database = {
           },
         ]
       }
+      open_book_labour: {
+        Row: {
+          amount_cents: number | null
+          bill_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string
+          hours: number
+          id: string
+          project_id: string
+          rate_cents: number
+          rate_name: string | null
+          source_ref: string | null
+          work_date: string
+          work_date_end: string | null
+        }
+        Insert: {
+          amount_cents?: number | null
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description: string
+          hours: number
+          id?: string
+          project_id: string
+          rate_cents: number
+          rate_name?: string | null
+          source_ref?: string | null
+          work_date: string
+          work_date_end?: string | null
+        }
+        Update: {
+          amount_cents?: number | null
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          hours?: number
+          id?: string
+          project_id?: string
+          rate_cents?: number
+          rate_name?: string | null
+          source_ref?: string | null
+          work_date?: string
+          work_date_end?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_book_labour_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "progress_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_book_labour_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      open_book_materials: {
+        Row: {
+          amount_cents: number
+          bill_id: string | null
+          created_at: string
+          created_by: string | null
+          document_id: string | null
+          id: string
+          invoice_date: string
+          invoice_number: string
+          markup_note: string | null
+          markup_pct: number | null
+          project_id: string
+          supplier_id: string | null
+          supplier_name: string
+        }
+        Insert: {
+          amount_cents: number
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          id?: string
+          invoice_date: string
+          invoice_number: string
+          markup_note?: string | null
+          markup_pct?: number | null
+          project_id: string
+          supplier_id?: string | null
+          supplier_name: string
+        }
+        Update: {
+          amount_cents?: number
+          bill_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_id?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          markup_note?: string | null
+          markup_pct?: number | null
+          project_id?: string
+          supplier_id?: string | null
+          supplier_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_book_materials_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "progress_bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_book_materials_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "project_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_book_materials_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_book_materials_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      open_book_terms: {
+        Row: {
+          holdback_applies: boolean
+          labour_rate_cents: number | null
+          materials_markup_pct: number | null
+          named_rates: Json
+          project_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          holdback_applies?: boolean
+          labour_rate_cents?: number | null
+          materials_markup_pct?: number | null
+          named_rates?: Json
+          project_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          holdback_applies?: boolean
+          labour_rate_cents?: number | null
+          materials_markup_pct?: number | null
+          named_rates?: Json
+          project_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_book_terms_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      person_rates: {
+        Row: {
+          billable_rate_cents: number | null
+          hourly_cost_cents: number | null
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          billable_rate_cents?: number | null
+          hourly_cost_cents?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          billable_rate_cents?: number | null
+          hourly_cost_cents?: number | null
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_rates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pick_lists: {
         Row: {
           active: boolean
@@ -2559,6 +3369,7 @@ export type Database = {
           lines: Json
           net_cents: number
           number: string
+          open_book: Json | null
           period_note: string | null
           project_id: string
           qbo_invoice_id: string | null
@@ -2580,6 +3391,7 @@ export type Database = {
           lines?: Json
           net_cents: number
           number: string
+          open_book?: Json | null
           period_note?: string | null
           project_id: string
           qbo_invoice_id?: string | null
@@ -2601,6 +3413,7 @@ export type Database = {
           lines?: Json
           net_cents?: number
           number?: string
+          open_book?: Json | null
           period_note?: string | null
           project_id?: string
           qbo_invoice_id?: string | null
@@ -2860,6 +3673,45 @@ export type Database = {
         }
         Relationships: []
       }
+      project_person_rates: {
+        Row: {
+          billable_rate_cents: number | null
+          project_id: string
+          updated_at: string
+          updated_by: string | null
+          user_id: string
+        }
+        Insert: {
+          billable_rate_cents?: number | null
+          project_id: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id: string
+        }
+        Update: {
+          billable_rate_cents?: number | null
+          project_id?: string
+          updated_at?: string
+          updated_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_person_rates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_person_rates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_scopes: {
         Row: {
           created_at: string
@@ -3011,11 +3863,13 @@ export type Database = {
           companycam_project_id: string | null
           companycam_project_url: string | null
           companycam_sync_enabled: boolean
+          contract_type: string
           created_at: string
           estimated_value_cents: number | null
           holdback_pct: number
           id: string
           job_type: string | null
+          kind: string
           lost_note: string | null
           lost_reason: string | null
           name: string
@@ -3029,6 +3883,7 @@ export type Database = {
           province: string | null
           stage: Database["public"]["Enums"]["project_stage"]
           stage_entered_at: string
+          standard_tasks: string[]
           start_date: string | null
           street: string | null
           target_date: string | null
@@ -3046,11 +3901,13 @@ export type Database = {
           companycam_project_id?: string | null
           companycam_project_url?: string | null
           companycam_sync_enabled?: boolean
+          contract_type?: string
           created_at?: string
           estimated_value_cents?: number | null
           holdback_pct?: number
           id?: string
           job_type?: string | null
+          kind?: string
           lost_note?: string | null
           lost_reason?: string | null
           name: string
@@ -3064,6 +3921,7 @@ export type Database = {
           province?: string | null
           stage?: Database["public"]["Enums"]["project_stage"]
           stage_entered_at?: string
+          standard_tasks?: string[]
           start_date?: string | null
           street?: string | null
           target_date?: string | null
@@ -3081,11 +3939,13 @@ export type Database = {
           companycam_project_id?: string | null
           companycam_project_url?: string | null
           companycam_sync_enabled?: boolean
+          contract_type?: string
           created_at?: string
           estimated_value_cents?: number | null
           holdback_pct?: number
           id?: string
           job_type?: string | null
+          kind?: string
           lost_note?: string | null
           lost_reason?: string | null
           name?: string
@@ -3099,6 +3959,7 @@ export type Database = {
           province?: string | null
           stage?: Database["public"]["Enums"]["project_stage"]
           stage_entered_at?: string
+          standard_tasks?: string[]
           start_date?: string | null
           street?: string | null
           target_date?: string | null
@@ -3487,6 +4348,33 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_settings: {
+        Row: {
+          assignment_cc: string[]
+          holidays: Json
+          id: number
+          updated_at: string
+          updated_by: string | null
+          workdays: number[]
+        }
+        Insert: {
+          assignment_cc?: string[]
+          holidays?: Json
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+          workdays?: number[]
+        }
+        Update: {
+          assignment_cc?: string[]
+          holidays?: Json
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+          workdays?: number[]
+        }
+        Relationships: []
+      }
       scope_keywords: {
         Row: {
           active: boolean
@@ -3671,6 +4559,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      standard_tools: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: []
       }
       suppliers: {
         Row: {
@@ -4265,6 +5174,173 @@ export type Database = {
         }
         Relationships: []
       }
+      time_entries: {
+        Row: {
+          adjust_reason: string | null
+          adjusted_at: string | null
+          adjusted_by: string | null
+          approved_at: string | null
+          approved_by: string | null
+          clock_in_at: string
+          clock_out_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          in_accuracy_m: number | null
+          in_lat: number | null
+          in_lng: number | null
+          note_in: string | null
+          note_out: string | null
+          original: Json | null
+          out_accuracy_m: number | null
+          out_lat: number | null
+          out_lng: number | null
+          project_id: string
+          qbo_attempts: number
+          qbo_error: string | null
+          qbo_sent_at: string | null
+          qbo_time_activity_id: string | null
+          rounded_minutes: number | null
+          source: string
+          user_id: string
+        }
+        Insert: {
+          adjust_reason?: string | null
+          adjusted_at?: string | null
+          adjusted_by?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          clock_in_at: string
+          clock_out_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          in_accuracy_m?: number | null
+          in_lat?: number | null
+          in_lng?: number | null
+          note_in?: string | null
+          note_out?: string | null
+          original?: Json | null
+          out_accuracy_m?: number | null
+          out_lat?: number | null
+          out_lng?: number | null
+          project_id: string
+          qbo_attempts?: number
+          qbo_error?: string | null
+          qbo_sent_at?: string | null
+          qbo_time_activity_id?: string | null
+          rounded_minutes?: number | null
+          source?: string
+          user_id: string
+        }
+        Update: {
+          adjust_reason?: string | null
+          adjusted_at?: string | null
+          adjusted_by?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          clock_in_at?: string
+          clock_out_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          in_accuracy_m?: number | null
+          in_lat?: number | null
+          in_lng?: number | null
+          note_in?: string | null
+          note_out?: string | null
+          original?: Json | null
+          out_accuracy_m?: number | null
+          out_lat?: number | null
+          out_lng?: number | null
+          project_id?: string
+          qbo_attempts?: number
+          qbo_error?: string | null
+          qbo_sent_at?: string | null
+          qbo_time_activity_id?: string | null
+          rounded_minutes?: number | null
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_qbo_people: {
+        Row: {
+          linked_at: string
+          linked_by: string | null
+          qbo_id: string
+          qbo_name: string | null
+          qbo_type: string
+          user_id: string
+        }
+        Insert: {
+          linked_at?: string
+          linked_by?: string | null
+          qbo_id: string
+          qbo_name?: string | null
+          qbo_type: string
+          user_id: string
+        }
+        Update: {
+          linked_at?: string
+          linked_by?: string | null
+          qbo_id?: string
+          qbo_name?: string | null
+          qbo_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_qbo_people_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_settings: {
+        Row: {
+          id: number
+          overtime_daily_minutes: number
+          overtime_weekly_minutes: number
+          rounding_minutes: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          overtime_daily_minutes?: number
+          overtime_weekly_minutes?: number
+          rounding_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          overtime_daily_minutes?: number
+          overtime_weekly_minutes?: number
+          rounding_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       user_access: {
         Row: {
           all_jobs: boolean
@@ -4511,6 +5587,7 @@ export type Database = {
         }
         Returns: string
       }
+      activate_assignment_link: { Args: { _link: string }; Returns: number }
       active_super_count: { Args: never; Returns: number }
       add_member_by_email: {
         Args: {
@@ -4602,6 +5679,16 @@ export type Database = {
           detail: Json
         }[]
       }
+      approved_hours_for_job: {
+        Args: { _project: string }
+        Returns: {
+          approved: boolean
+          hours: number
+          id: string
+          person_name: string
+          work_date: string
+        }[]
+      }
       assistant_allowed: { Args: never; Returns: boolean }
       bmd_staff: {
         Args: never
@@ -4629,6 +5716,19 @@ export type Database = {
           id: string
         }[]
       }
+      bmd_today: { Args: never; Returns: string }
+      calendar_feed_link: { Args: { _on: boolean }; Returns: string }
+      calendar_feed_read: { Args: { _hash: string }; Returns: Json }
+      calendar_feed_revoke: { Args: { _user: string }; Returns: undefined }
+      calendar_feed_save: {
+        Args: { _project: string; _scope: string }
+        Returns: undefined
+      }
+      calendar_user_sees_job: {
+        Args: { _project: string; _user: string }
+        Returns: boolean
+      }
+      calendar_visits_for: { Args: { _user: string }; Returns: Json }
       can_project_documents: {
         Args: { _project: string; _write: boolean }
         Returns: boolean
@@ -4658,6 +5758,15 @@ export type Database = {
         Returns: string
       }
       create_job: { Args: { _job: Json }; Returns: string }
+      create_open_book_bill: {
+        Args: {
+          _labour: string[]
+          _materials: string[]
+          _period_note?: string
+          _project: string
+        }
+        Returns: string
+      }
       create_pipeline_project: { Args: { _p: Json }; Returns: string }
       create_progress_bill: {
         Args: {
@@ -4672,6 +5781,7 @@ export type Database = {
         Args: { _address: string; _client: string; _name: string }
         Returns: string
       }
+      create_project_from_form: { Args: { _p: Json }; Returns: string }
       create_quote: {
         Args: { _project: string; _version_ids: string[] }
         Returns: string
@@ -4756,6 +5866,27 @@ export type Database = {
         }
         Returns: undefined
       }
+      job_crew_can: { Args: { _project: string }; Returns: boolean }
+      job_material_list: {
+        Args: { _project: string }
+        Returns: {
+          coverage_per_purchase_unit: number
+          description: string
+          driver_qty: number
+          driver_uom: string
+          item_key: string
+          line_description: string
+          purchase_uom: string
+          qty_per_driver: number
+          round_up: boolean
+          section: string
+          sort_a: number
+          sort_b: number
+          sort_c: number
+          waste_pct: number
+        }[]
+      }
+      job_office_can: { Args: { _project: string }; Returns: boolean }
       job_people: {
         Args: { _project: string }
         Returns: {
@@ -4764,6 +5895,15 @@ export type Database = {
           user_id: string
         }[]
       }
+      job_site_counts: {
+        Args: { _project: string }
+        Returns: {
+          logs_this_week_all: number
+          logs_this_week_job: number
+          open_requests: number
+        }[]
+      }
+      job_site_path_project: { Args: { _name: string }; Returns: string }
       knowledge_path_item: { Args: { _name: string }; Returns: string }
       list_users: {
         Args: { _project: string }
@@ -4805,6 +5945,15 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
         }[]
       }
+      open_book_approved_hours: { Args: { _project: string }; Returns: Json }
+      open_book_jobs: {
+        Args: never
+        Returns: {
+          billed_cents: number
+          project_id: string
+        }[]
+      }
+      person_display_name: { Args: { _user: string }; Returns: string }
       photo_path_project: { Args: { _name: string }; Returns: string }
       project_directory: {
         Args: { _project: string }
@@ -4824,6 +5973,12 @@ export type Database = {
           role: Database["public"]["Enums"]["app_role"]
         }[]
       }
+      project_qbo_links: {
+        Args: never
+        Returns: {
+          project_id: string
+        }[]
+      }
       project_suggested_crews: {
         Args: { _project: string }
         Returns: {
@@ -4832,11 +5987,17 @@ export type Database = {
         }[]
       }
       quote_issue_block: { Args: { _id: string }; Returns: string }
+      relock_estimate_version: { Args: { _id: string }; Returns: undefined }
       remove_member: {
         Args: { _project: string; _user_id: string }
         Returns: undefined
       }
+      renumber_visit_run: { Args: { _run: string }; Returns: undefined }
       reset_role_permissions: { Args: never; Returns: undefined }
+      respond_to_assignment: {
+        Args: { _answer: string; _reason?: string; _token_hash: string }
+        Returns: string
+      }
       retry_mirror: { Args: { _id: string }; Returns: undefined }
       revise_quote: { Args: { _id: string }; Returns: string }
       revoke_quote_link: { Args: { _quote: string }; Returns: undefined }
@@ -4976,6 +6137,28 @@ export type Database = {
       sync_mark_reviewed: { Args: { _id: string }; Returns: undefined }
       sync_send_lock: { Args: never; Returns: string }
       sync_send_unlock: { Args: { _token: string }; Returns: undefined }
+      time_clock_access: { Args: never; Returns: boolean }
+      time_clocked_in: {
+        Args: { _project: string }
+        Returns: {
+          clock_in_at: string
+          full_name: string
+          user_id: string
+        }[]
+      }
+      time_people: {
+        Args: never
+        Returns: {
+          clocks: boolean
+          email: string
+          full_name: string
+          id: string
+        }[]
+      }
+      unlock_estimate_version: {
+        Args: { _id: string; _reason: string }
+        Returns: undefined
+      }
       user_has_capability: {
         Args: { _capability: string; _user: string }
         Returns: boolean
@@ -5018,6 +6201,7 @@ export type Database = {
         | "quote_out"
         | "won"
         | "in_progress"
+        | "warranty"
         | "closed"
         | "lost"
       responsible_party: "bmd" | "trade" | "client" | "unassigned"
@@ -5186,6 +6370,7 @@ export const Constants = {
         "quote_out",
         "won",
         "in_progress",
+        "warranty",
         "closed",
         "lost",
       ],

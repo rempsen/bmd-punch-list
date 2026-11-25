@@ -552,6 +552,7 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
                         ["showUnitPrices", "Unit prices"],
                         ["showLineAmounts", "A price on each line"],
                         ["showGroupSubtotals", display.groupBy === "material" ? "A total for each material" : "A subtotal for each section"],
+                        ["showAreas", "Base broken out by area (suites, common areas, washrooms)"],
                       ] as const
                     ).map(([key, label]) => (
                       <label key={key} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
@@ -664,6 +665,12 @@ function QuoteEditor({ quote, onClose, onChanged }: { quote: QuoteRow; onClose: 
                 </ul>
                 <p className="mt-1">On the Estimate tab, accept the new quantity or stop the line following the takeoff, then come back.</p>
               </div>
+            )}
+            {ctx && ctx.areasMissing.length > 0 && (
+              <p role="note" className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+                The by-area breakdown is left off {ctx.areasMissing.length === 1 ? "one line" : `${ctx.areasMissing.length} lines`} because the areas no longer add up to the line's quantity: {ctx.areasMissing.slice(0, 4).join("; ")}
+                {ctx.areasMissing.length > 4 ? "…" : ""}. On the Estimate tab, accept the takeoff's quantity for it.
+              </p>
             )}
             {ctx && ctx.unknown.length > 0 && (
               <div role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BillList, type Bill } from "@/components/billing/BillList";
 import { OpenBookBilling } from "@/components/billing/OpenBookBilling";
+import { SubcontractOrdersList } from "@/components/billing/SubcontractOrdersList";
 import { useAuth } from "@/lib/auth";
 import { billTotals, billingPosition, checkNewBill, releaseTotals, type BillKind } from "@/lib/billing/calc";
 import { useContractType } from "@/lib/billing/data";
@@ -21,7 +22,12 @@ const toCents = (s: string) => Math.round(Number(s.replace(/[$,\s]/g, "")) * 100
 export function BillingTab({ projectId }: { projectId: string }) {
   const { data: contractType } = useContractType(projectId);
   if (!contractType) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  return contractType === "open_book" ? <OpenBookBilling projectId={projectId} /> : <FixedPriceBilling projectId={projectId} />;
+  return (
+    <div className="space-y-6">
+      {contractType === "open_book" ? <OpenBookBilling projectId={projectId} /> : <FixedPriceBilling projectId={projectId} />}
+      <SubcontractOrdersList projectId={projectId} />
+    </div>
+  );
 }
 
 /** Bills against the contract: materials and progress with holdback kept back, then the holdback on its own invoice. */

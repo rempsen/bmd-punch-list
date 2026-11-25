@@ -1,8 +1,8 @@
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { crewLabel, crewStatusGroups, updatedAt, visitRange, type Visit } from "@/lib/visits/logic";
+import { acceptanceBadge, crewLabel, crewStatusGroups, updatedAt, visitRange, type Visit } from "@/lib/visits/logic";
 import { useProjectVisits } from "@/lib/visits/data";
-import { OpenInArrivePing, StatusPill } from "./visit-bits";
+import { AcceptancePill, OpenInArrivePing, StatusPill } from "./visit-bits";
 import { useArrivePingCheck } from "@/components/visits/useArrivePingCheck";
 
 function VisitRow({ v }: { v: Visit }) {
@@ -14,6 +14,7 @@ function VisitRow({ v }: { v: Visit }) {
       {people && <p className="truncate text-xs text-muted-foreground">{people}</p>}
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
         <StatusPill label={crewLabel(v)} />
+        <AcceptancePill badge={acceptanceBadge(v)} />
         {v.arriveping_last_event_at && (
           <span className="text-xs text-muted-foreground">
             Updated {updatedAt(v.arriveping_last_event_at)}

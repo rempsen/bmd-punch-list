@@ -1,5 +1,6 @@
 /** ArrivePing: where it lives, how we name our calls to it, and what we send. Pure: no env, no network. */
 import { reportLine } from "@/lib/scheduling/assignments";
+import { workBlock, type VisitLine } from "@/lib/visits/lines";
 
 export const AP_BASE = "https://arriveping.com";
 export const AP_MCP = `${AP_BASE}/api/mcp`;
@@ -39,6 +40,8 @@ export type VisitForPush = {
   report_to?: string | null;
   report_to_other?: string | null;
   report_time?: string | null;
+  /** The estimate items this work order covers; they lead the crew's notes as a "Work:" block. */
+  lines?: VisitLine[] | null;
 };
 
 /** Why a visit must not go to ArrivePing at all, or null when it may. Every send checks this one rule. */
@@ -105,7 +108,8 @@ export function workOrderPayload(visit: VisitForPush, project: ProjectForPush, c
   const crew = filled(visit.crew);
   // "Report to: Shop for 7:00 a.m." leads, when the visit carries it (visits read before it existed do not).
   const report = visit.report_to !== undefined ? reportLine(visit) : null;
-  const notes = [report, crew ? `Crew: ${crew}` : null, filled(visit.notes)].filter(Boolean).join("\n");
+  const work = visit.lines?.length ? workBlock(visit.lines) : null;
+  const notes = [work, report, crew ? `Crew: ${crew}` : null, filled(visit.notes)].filter(Boolean).join("\n");
   return {
     external_source: EXTERNAL_SOURCE,
     external_ref: visit.id,
@@ -336,6 +340,8 @@ export async function verifyArrivePingSignature(secret: string, rawBody: string,
 /** The integration events BMD wants: who is on a job, when it is, and where the crew is. `subscriptionEvents` trims this to what ArrivePing offers. */
 export const AP_WEBHOOK_EVENTS = [
   "workorder.assigned",
+  "workorder.accepted",
+  "assignment.accepted",
   "workorder.unassigned",
   "workorder.rescheduled",
   "workorder.enroute",
@@ -373,12 +379,16 @@ export function offeredEventTypes(json: unknown): string[] | null {
   return null;
 }
 
+/** Events only subscribed to when ArrivePing's catalogue lists them: `status_changed` (the live API refused it, 422) and the
+ *  dedicated acceptance events, which the catalogue may not have (acceptance is then read from `workorder.assigned`). */
+export const AP_OPTIONAL_EVENTS = ["workorder.status_changed", "workorder.accepted", "assignment.accepted"] as const;
+
 /** The events to subscribe to: the ones BMD wants that ArrivePing offers. With no usable list (`null`), everything BMD wants
- *  except `workorder.status_changed`, which the live API has refused (422). A readable list that offers none of BMD's
+ *  except the optional ones above. A readable list that offers none of BMD's
  *  events is a real answer, not a gap: the result is empty and the caller reports it instead of guessing. */
 export function subscriptionEvents(offered: string[] | null): string[] {
   const wanted = [...AP_WEBHOOK_EVENTS] as string[];
-  if (!offered) return wanted.filter((e) => e !== "workorder.status_changed");
+  if (!offered) return wanted.filter((e) => !(AP_OPTIONAL_EVENTS as readonly string[]).includes(e));
   const have = new Set(offered);
   return wanted.filter((e) => have.has(e));
 }

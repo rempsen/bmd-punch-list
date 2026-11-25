@@ -115,6 +115,35 @@ export function reshapeShape(doc, id, pointsPx, dims, origin = {}) {
   return { ...doc, shapes: doc.shapes.map((s) => (s.id === id ? shape : s)) };
 }
 
+/**
+ * Moves a measurement to another finish (a room marked CPT-1 that should be LVT-1). A room moves with every cut-out
+ * made in it; choosing one of those cut-outs moves its room the same way, because totals take a room's area net of
+ * its cut-outs. Each moved shape is measured again at the new finish: a wall takes the new finish's height unless
+ * someone set its height by hand. Outline, area name and how it was made stay.
+ * An unknown measurement, or the finish it already has, changes nothing.
+ */
+export function setShapeFinish(doc, shapeId, conditionId, dims) {
+  const cond = (doc.conditions || []).find((c) => c.id === conditionId);
+  if (!cond) throw new Error("Choose a finish that is on this takeoff.");
+  const picked = (doc.shapes || []).find((s) => s.id === shapeId);
+  if (!picked) return doc;
+  const root = (picked.cuts_shape_id && doc.shapes.find((s) => s.id === picked.cuts_shape_id)) || picked;
+  const group = (s) => s.id === root.id || s.cuts_shape_id === root.id;
+  if (doc.shapes.every((s) => !group(s) || s.condition_id === conditionId)) return doc;
+  const upp = scaleFor(doc, root.sheet_id)?.upp ?? 0;
+  const moved = (s) => {
+    const next = { ...s, condition_id: conditionId };
+    // The full workspace stores the height a wall was drawn at; it follows the new finish unless set by hand.
+    if (s.measure_role === "surface_area" && s.height_override !== true) {
+      if (Number(cond.height_ft) > 0) next.height_ft = Number(cond.height_ft);
+      else delete next.height_ft;
+    }
+    if (dims) next.computed = computeShapeMetrics(next, dims, upp, cond);
+    return next;
+  };
+  return { ...doc, shapes: doc.shapes.map((s) => (group(s) ? moved(s) : s)) };
+}
+
 export function removeShape(doc, id) {
   return { ...doc, shapes: (doc.shapes || []).filter((s) => s.id !== id && s.cuts_shape_id !== id) };
 }

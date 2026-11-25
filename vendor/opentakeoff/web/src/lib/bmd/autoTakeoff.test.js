@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { createRoomFinder } from "./roomParts.js";
 import { baseRuns } from "./baseFromRoom.js";
-import { LIMITS, METHOD, applyDecisions, pickScheduleRows, runSheet, runSummary, sheetChoice } from "./autoTakeoff.js";
-import { acceptProposals, idsAbove, idsOnSheet, isProposal, proposalsIn, removeProposals, reviewCount, reviewList, setProposalFinish } from "./autoReview.js";
+import { LIMITS, METHOD, applyDecisions, areaGroup, pickScheduleRows, runSheet, runSummary, sheetChoice } from "./autoTakeoff.js";
+import { acceptBase, acceptProposals, baseByGroup, idsAbove, idsOnSheet, isProposal, proposalsIn, removeProposals, reviewCount, reviewList, setProposalFinish } from "./autoReview.js";
 import { takeoffQuantities } from "./quantities.js";
 import { finishTotals } from "./takeoffDoc.js";
 
@@ -111,8 +111,12 @@ describe("runSheet", () => {
     expect(lf).toBeGreaterThan(73.3 - 3 - 1.5);
     expect(lf).toBeLessThan(73.3 - 1.5);
     expect(b[0].origin.confidence).toBeGreaterThan(0);
-    expect(baseOf(doc, "103")).toEqual([]);                  // no schedule row, so no base finish: none proposed
-    expect(report.base).toMatchObject({ rooms: 2, notDeducted: 1 });
+    const c = baseOf(doc, "103");                             // no schedule row: the base is still measured, with no finish chosen
+    expect(c.length).toBeGreaterThan(0);
+    expect(c[0]).toMatchObject({ measure_role: "linear", condition_id: null });
+    expect(c[0].origin.auto).toMatchObject({ kind: "base", from: "none", group: "common" });
+    expect(c[0].origin.auto.why).toContain("gives no base");
+    expect(report.base).toMatchObject({ rooms: 3 });
   });
   test("with no schedule and no tag in the room, the room is proposed with no finish, rated low", async () => {
     const { doc, report } = await run({ schedule: { rows: [], reader: null }, spans: SPANS.filter((s) => s.str !== "LVT-1") });
@@ -256,17 +260,17 @@ describe("reviewList", () => {
     const { doc } = await run();
     const list = reviewList(doc, [{ key: "other#1", label: "A-000", page: 1 }, { key: SHEET.key, label: "A-100", page: 4 }]);
     expect(list.length).toBe(1);
-    expect(list[0]).toMatchObject({ sheetKey: SHEET.key, sheetLabel: "A-100", count: 5 });
-    expect(reviewCount(doc.shapes)).toBe(5);   // three floors and two rooms' base, however many lines the base is drawn as
-    expect(reviewCount(acceptProposals(doc, [floorOf(doc, "101").id]).doc.shapes)).toBe(4);
-    expect(list[0].groups.map((g) => [g.finish, g.isNew, g.items.length])).toEqual([["CPT-1", false, 1], ["LVT-1", false, 1], ["PORC", true, 1], ["RB-1", false, 2]]);
-    const base = list[0].groups[3].items;
+    expect(list[0]).toMatchObject({ sheetKey: SHEET.key, sheetLabel: "A-100", count: 6 });
+    expect(reviewCount(doc.shapes)).toBe(6);   // three floors and three rooms' base, however many lines the base is drawn as
+    expect(reviewCount(acceptProposals(doc, [floorOf(doc, "101").id]).doc.shapes)).toBe(5);
+    expect(list[0].groups.map((g) => [g.finish, g.isNew, g.items.length])).toEqual([[null, false, 1], ["CPT-1", false, 1], ["LVT-1", false, 1], ["PORC", true, 1], ["RB-1", false, 2]]);
+    const base = list[0].groups[4].items;
     expect(base[0].confidence).toBeLessThanOrEqual(base[1].confidence);
     const b102 = base.find((i) => i.room === "102");
     expect(b102).toMatchObject({ kind: "base", unit: "LF", from: "schedule" });
     expect(b102.ids.length).toBe(baseOf(doc, "102").length);
     expect(b102.qty).toBeCloseTo(baseOf(doc, "102").reduce((n, s) => n + s.computed.perimeter_lf, 0), 1);
-    const office = list[0].groups[0].items[0];
+    const office = list[0].groups[1].items[0];
     expect(office).toMatchObject({ kind: "floor", room: "101", name: "OFFICE", unit: "SF", finish: "CPT-1", from: "schedule" });
     expect(office.qty).toBe(floorOf(doc, "101").computed.area_sf);
   });
@@ -344,7 +348,7 @@ describe("runSummary", () => {
     const lines = runSummary([skipped, ran]);
     expect(lines[0]).toBe("No scale could be read on A-100; set it and run again.");
     expect(lines.join("\n")).toContain("1 tagged room could not be measured (000 PATIO)");
-    expect(lines.join("\n")).toContain("door openings could not be told on 1 room");
+    expect(lines.join("\n")).toContain("door openings could not be told on 2 rooms");
     expect(LIMITS).toContain("strongest on drawings exported from CAD");
   });
 });
@@ -456,5 +460,77 @@ describe("transitions where two floor finishes meet", () => {
     const lines = runSummary([report]).join(" ");
     expect(lines).toContain("1 space inside a tagged room was found by its name");
     expect(lines).toContain("1 opening where two floor finishes meet");
+  });
+});
+
+describe("base is measured for every room and broken out by area", () => {
+  test("which area a room belongs to", () => {
+    expect(["SUITE TYPE A", "UNIT 4", "GUEST ROOM", "APT B"].map((n) => areaGroup(n))).toEqual(["suite", "suite", "suite", "suite"]);
+    expect(["W/C", "STAFF WASHROOM", "BATH", "ENSUITE", "UNIVERSAL W.C.", "SHOWER"].map((n) => areaGroup(n))).toEqual(Array(6).fill("washroom"));
+    expect(["CORRIDOR", "LOBBY", "KITCHEN", "STORAGE", "", "BATHHOUSE OFFICE"].map((n) => areaGroup(n))).toEqual(Array(6).fill("common"));
+    expect(areaGroup("BEDROOM", "SUITE TYPE A")).toBe("suite");     // a space inside a suite
+    expect(areaGroup("CLOSET", "CORRIDOR")).toBe("common");
+    expect(areaGroup("BATH", "SUITE TYPE A")).toBe("washroom");     // a washroom is a washroom wherever it is
+  });
+  test("the bathroom inside the suite gets base too, with no finish assumed; the suite and corridor keep the schedule's", async () => {
+    const { doc, report } = await suiteRun();
+    const bath = doc.shapes.find((s) => s.label === "201 BATH");
+    const b = doc.shapes.filter((s) => s.origin?.auto?.kind === "base" && s.origin.auto.of === bath.id);
+    expect(b.length).toBeGreaterThan(0);
+    expect(b[0]).toMatchObject({ measure_role: "linear", condition_id: null, label: "201 BATH" });
+    expect(b[0].origin.auto).toMatchObject({ group: "washroom", from: "none", room: "201", name: "BATH" });
+    expect(baseOf(doc, "200")[0].origin.auto).toMatchObject({ group: "common", from: "schedule" });
+    expect(doc.shapes.find((s) => s.origin?.auto?.kind === "base" && s.origin.auto.of === floorOf(doc, "201").id).origin.auto).toMatchObject({ group: "suite", from: "schedule" });
+    expect(report.base.rooms).toBe(3);
+    expect(report.base.byGroup.washroom).toBeGreaterThan(30);
+  });
+  test("a bedroom inside a suite takes the suite's base", async () => {
+    const { doc } = await suiteRun({ spans: SUITE_SPANS.map((s) => (s.str === "BATH" ? { ...s, str: "BEDROOM" } : s)) });
+    const bed = doc.shapes.find((s) => s.label === "201 BEDROOM");
+    const b = doc.shapes.find((s) => s.origin?.auto?.kind === "base" && s.origin.auto.of === bed.id);
+    expect(b.condition_id).toBe("c2");
+    expect(b.origin.auto).toMatchObject({ group: "suite", from: "schedule" });
+    expect(b.origin.auto.why).toContain("201 SUITE");
+  });
+  test("the base by area: suites, common areas and washrooms, proposed and accepted", async () => {
+    const { doc } = await suiteRun();
+    const g = baseByGroup(doc);
+    expect(g.map((x) => [x.group, x.label, x.rooms])).toEqual([["suite", "Suites", 1], ["common", "Common areas", 1], ["washroom", "Washrooms", 1]]);
+    for (const x of g) { expect(x.proposedLf).toBeGreaterThan(30); expect(x.acceptedLf).toBe(0); expect(x.ids.length).toBeGreaterThan(0); }
+    expect(g[2].needFinish).toBe(g[2].ids.length);
+    expect(g[0].needFinish).toBe(0);
+    const total = doc.shapes.filter((s) => s.origin?.auto?.kind === "base").reduce((n, s) => n + s.computed.perimeter_lf, 0);
+    expect(g.reduce((n, x) => n + x.proposedLf, 0)).toBeCloseTo(total, 0);
+    // accept the suites and common areas, leave the washrooms out
+    const next = acceptProposals(doc, [...g[0].ids, ...g[1].ids]).doc;
+    const after = baseByGroup(next);
+    expect(after[0]).toMatchObject({ proposedLf: 0, rooms: 0 });
+    expect(after[0].acceptedLf).toBeCloseTo(g[0].proposedLf, 1);
+    expect(after[2].proposedLf).toBeCloseTo(g[2].proposedLf, 1);
+    expect(takeoffQuantities(next).rows.reduce((n, r) => n + r.lf, 0)).toBeCloseTo(g[0].proposedLf + g[1].proposedLf, 0);
+  });
+  test("base proposed before areas were recorded is sorted by its room's name", () => {
+    const old = (name) => ({ id: name, sheet_id: "s", condition_id: "c2", measure_role: "linear", computed: { perimeter_lf: 10 }, origin: { method: METHOD, reviewed: false, auto: { kind: "base", of: `f-${name}`, room: "1", name } } });
+    expect(baseByGroup({ conditions: [], shapes: [old("SUITE TYPE B"), old("W/C"), old("LOBBY")] }).map((x) => x.proposedLf)).toEqual([10, 10, 10]);
+  });
+  test("the summary breaks the base out", async () => {
+    const { report } = await suiteRun();
+    expect(runSummary([report]).join(" ")).toMatch(/base by area: suites [\d.,]+ LF, common areas [\d.,]+ LF, washrooms [\d.,]+ LF/);
+  });
+});
+
+describe("accepting the base for the ticked areas in one step", () => {
+  test("with a finish chosen, every line takes it; without one, lines with no finish are left and counted", async () => {
+    const { doc } = await suiteRun();
+    const wash = baseByGroup(doc)[2];
+    const none = acceptBase(doc, wash.ids, null);
+    expect(none).toMatchObject({ accepted: 0, needFinish: wash.ids.length });
+    expect(none.doc).toBe(doc);
+    const all = baseByGroup(doc).flatMap((g) => g.ids);
+    const out = acceptBase(doc, all, "c2");
+    expect(out).toMatchObject({ accepted: all.length, needFinish: 0 });
+    expect(out.doc.shapes.filter((s) => all.includes(s.id)).every((s) => s.condition_id === "c2" && s.origin.reviewed === true)).toBe(true);
+    expect(baseByGroup(out.doc).map((g) => g.proposedLf)).toEqual([0, 0, 0]);
+    expect(baseByGroup(out.doc)[2].acceptedLf).toBeCloseTo(wash.proposedLf, 1);
   });
 });

@@ -63,8 +63,56 @@ export function AutoRunPanel({ phase, rows, reading, schedule, askAi, onAskAi, o
   );
 }
 
+/**
+ * Base by area. Base is measured for every room; here the person says which areas take it. Tick the areas that get
+ * base, optionally give them all one finish, and accept; the base in the areas left unticked can be removed.
+ */
+function BaseByArea({ base, conditions, readOnly, onAccept, onRemove }) {
+  const [off, setOff] = useState(() => new Set());   // the areas unticked
+  const [finish, setFinish] = useState("");
+  const waiting = base.filter((g) => g.ids.length);
+  if (!base.some((g) => g.ids.length || g.acceptedLf)) return null;
+  const ticked = waiting.filter((g) => !off.has(g.group)), unticked = waiting.filter((g) => off.has(g.group));
+  const tickedLf = ticked.reduce((n, g) => n + g.proposedLf, 0), need = ticked.reduce((n, g) => n + g.needFinish, 0);
+  return (
+    <section className="st-base-areas" aria-label="Base by area">
+      <h3>Base by area</h3>
+      <p className="st-sub">Base is measured around every room. Tick the areas that take it.</p>
+      <table>
+        <thead><tr><th scope="col">Area</th><th scope="col">To review</th><th scope="col">Accepted</th></tr></thead>
+        <tbody>
+          {base.map((g) => (
+            <tr key={g.group}>
+              <th scope="row">
+                <label>
+                  <input type="checkbox" disabled={readOnly || !g.ids.length} checked={g.ids.length > 0 && !off.has(g.group)} onChange={() => setOff((s) => { const n = new Set(s); if (n.has(g.group)) n.delete(g.group); else n.add(g.group); return n; })} />
+                  {g.label}
+                </label>
+              </th>
+              <td>{g.ids.length ? `${fmt(g.proposedLf)} LF · ${g.rooms} room${g.rooms === 1 ? "" : "s"}` : "—"}</td>
+              <td>{g.acceptedLf ? `${fmt(g.acceptedLf)} LF` : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot><tr><th scope="row">All areas</th><td>{fmt(base.reduce((n, g) => n + g.proposedLf, 0))} LF</td><td>{fmt(base.reduce((n, g) => n + g.acceptedLf, 0))} LF</td></tr></tfoot>
+      </table>
+      {!readOnly && waiting.length > 0 && (
+        <div className="st-base-actions">
+          <select className="st-input st-big" value={finish} onChange={(e) => setFinish(e.target.value)} aria-label="The base finish for the ticked areas">
+            <option value="">Base finish: as proposed</option>
+            {conditions.map((c) => <option key={c.id} value={c.id}>All ticked take {c.finish_tag}</option>)}
+          </select>
+          {need > 0 && !finish && <p className="st-sub">{need} line{need === 1 ? " has" : "s have"} no base finish yet. Pick one above to accept {need === 1 ? "it" : "them"} too.</p>}
+          <button type="button" className="st-btn st-btn-primary st-big" disabled={!ticked.length} onClick={() => onAccept(ticked.flatMap((g) => g.ids), finish || null)}>Accept base for ticked areas ({fmt(tickedLf)} LF)</button>
+          {unticked.length > 0 && <button type="button" className="st-btn st-btn-danger st-big" onClick={() => onRemove(unticked.flatMap((g) => g.ids))}>Remove base in {unticked.map((g) => g.label.toLowerCase()).join(" and ")}</button>}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** The review list: proposals by sheet, then finish, lowest confidence first. */
-export function AutoReview({ list, conditions, summary, readOnly, selected, onJump, onAccept, onRemove, onFinish, onAcceptAbove, onAcceptSheet, onClose, above }) {
+export function AutoReview({ list, conditions, summary, readOnly, selected, onJump, onAccept, onRemove, onFinish, onAcceptAbove, onAcceptSheet, onClose, above, base = [], onBaseAccept, onBaseRemove }) {
   const [open, setOpen] = useState(null);   // the item whose "why" and choices are shown
   const total = list.reduce((n, s) => n + s.count, 0);
   return (
@@ -80,6 +128,7 @@ export function AutoReview({ list, conditions, summary, readOnly, selected, onJu
           <ul>{summary.map((line, i) => <li key={i}>{line}</li>)}</ul>
         </div>
       )}
+      <BaseByArea base={base} conditions={conditions} readOnly={readOnly} onAccept={onBaseAccept} onRemove={onBaseRemove} />
       {total === 0 && <p className="st-sub">Nothing is waiting for review. Run the automatic takeoff to propose measurements.</p>}
       {total > 0 && !readOnly && (
         <button type="button" className="st-btn st-big st-review-all" disabled={!above} onClick={onAcceptAbove}>{above ? `Accept all above 80% (${above})` : "Nothing is rated above 80%"}</button>

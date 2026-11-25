@@ -4,7 +4,7 @@
 // it is not counted in totals and is not sent to the estimate. Accepting changes `reviewed` and nothing about the
 // outline. Each function here returns a new document, so one press is one undo step.
 import { addCondition } from "./takeoffDoc.js";
-import { METHOD } from "./autoTakeoff.js";
+import { AREA_GROUPS, METHOD, areaGroup } from "./autoTakeoff.js";
 
 export const isProposal = (s) => s?.origin?.method === METHOD && s.origin.reviewed === false;
 export const proposalsIn = (doc) => (doc?.shapes || []).filter(isProposal);
@@ -120,10 +120,47 @@ export function setProposalFinish(doc, shapeIds, conditionId) {
 /** Removes proposals. Removing a room's floor proposal removes its base, the spaces found inside it and its transitions too. */
 export function removeProposals(doc, shapeIds) {
   const want = new Set(shapeIds);
-  return { ...doc, shapes: (doc.shapes || []).filter((s) => !(isProposal(s) && (want.has(s.id) || (s.origin.auto?.of && want.has(s.origin.auto.of)) || (s.origin.auto?.between || []).some((id) => want.has(id))))) };
+  // what hangs off a removed proposal goes too, and what hangs off that (a suite, the bathroom inside it, its base)
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const s of doc.shapes || []) {
+      if (want.has(s.id) || !isProposal(s)) continue;
+      const a = s.origin.auto || {};
+      if ((a.of && want.has(a.of)) || (a.between || []).some((id) => want.has(id))) { want.add(s.id); grew = true; }
+    }
+  }
+  return { ...doc, shapes: (doc.shapes || []).filter((s) => !(isProposal(s) && want.has(s.id))) };
 }
 
 /** The proposals rated above a confidence (0 to 1) that have a finish. */
 export const idsAbove = (doc, min) => proposalsIn(doc).filter((s) => (s.origin.confidence ?? 0) > min && (s.condition_id || s.origin.auto?.finish_tag)).map((s) => s.id);
 /** The proposals on one sheet. */
 export const idsOnSheet = (doc, sheetKey) => proposalsIn(doc).filter((s) => s.sheet_id === sheetKey).map((s) => s.id);
+
+/**
+ * The automatic takeoff's base, broken out by area: suites, common areas and washrooms, always in that order.
+ * `proposedLf` and `rooms` are what is still waiting (with `ids`, and `needFinish`: how many of those lines have no
+ * finish yet); `acceptedLf` is what has been accepted and counts.
+ * @returns {{group: string, label: string, proposedLf: number, acceptedLf: number, rooms: number, ids: string[], needFinish: number}[]}
+ */
+export function baseByGroup(doc) {
+  const out = new Map(AREA_GROUPS.map(([group, label]) => [group, { group, label, proposedLf: 0, acceptedLf: 0, rooms: new Set(), ids: [], needFinish: 0 }]));
+  for (const s of doc?.shapes || []) {
+    const a = s?.origin?.auto;
+    if (s?.origin?.method !== METHOD || a?.kind !== "base") continue;
+    const g = out.get(a.group) ?? out.get(areaGroup(a.name));
+    const lf = s.computed?.perimeter_lf || 0;
+    if (s.origin.reviewed === false) {
+      g.proposedLf += lf; g.ids.push(s.id); g.rooms.add(a.of ?? s.id);
+      if (!s.condition_id && !a.finish_tag) g.needFinish++;
+    } else g.acceptedLf += lf;
+  }
+  return [...out.values()].map((g) => ({ ...g, proposedLf: round2(g.proposedLf), acceptedLf: round2(g.acceptedLf), rooms: g.rooms.size }));
+}
+
+/** Accepts base lines in one step, first giving them all one finish when `conditionId` is given. */
+export function acceptBase(doc, shapeIds, conditionId = null, now) {
+  const withFinish = conditionId ? setProposalFinish(doc, shapeIds, conditionId) : doc;
+  const out = acceptProposals(withFinish, shapeIds, now);
+  return out.accepted ? out : { ...out, doc };
+}

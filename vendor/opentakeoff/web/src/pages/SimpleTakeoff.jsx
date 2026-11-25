@@ -11,14 +11,14 @@ import { store } from "../lib/store.js";
 import { PALETTE } from "../lib/takeoffConstants.ts";
 import { createSheetEngine, RENDER_SCALE, STANDARD_SCALES } from "../lib/bmd/engine.js";
 import { labelsToSave, mergeSheets, pickDrawings } from "../lib/bmd/drawings.js";
-import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
+import { addCondition, addShape, finishTotals, removeCondition, removeShape, renameCondition, reshapeShape, scaleFor, setScale, setShapeArea, setShapeFinish, sheetKey, sheetShapes, updateCondition } from "../lib/bmd/takeoffDoc.js";
 import { fitView, nearShape, toImage, zoomAt } from "../lib/bmd/view.js";
 import { parseFeet } from "../lib/bmd/feet.js";
 import { pageSpans, graphSpans } from "../lib/pageSpans.ts";
 import { AutoReview, AutoRunPanel } from "../components/BmdAutoTakeoff.jsx";
 import { scanSheets, scheduleLine } from "../lib/bmd/autoScan.js";
 import { applyDecisions, runSheet, runSummary } from "../lib/bmd/autoTakeoff.js";
-import { acceptProposals, idsAbove, idsOnSheet, isProposal, removeProposals, reviewCount, reviewList, setProposalFinish } from "../lib/bmd/autoReview.js";
+import { acceptProposals, idsAbove, idsOnSheet, isProposal, removeProposals, reviewCount, reviewList, setProposalFinish, acceptBase, baseByGroup } from "../lib/bmd/autoReview.js";
 import { symbolProposals } from "../lib/bmd/symbolCount.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -264,6 +264,28 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     void store.saveAnnotations(next);
   }, [current]);   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── the stage changing size (window resized, a panel opened, full screen) ──
+  // The picture is drawn for one box size. Without this, a resize stretched the
+  // old bitmap into the new box while the measurements stayed put, and the
+  // sheet looked frozen until the next pan or zoom redrew it. Keep the point at
+  // the centre of the view where it was; the view change redraws at once.
+  useEffect(() => {
+    const el = wrap.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let last = null;
+    const ro = new ResizeObserver(() => {
+      const box = el.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      if (last) {
+        const dw = box.width - last.w, dh = box.height - last.h;
+        if (dw || dh) setView((v) => ({ ...v, x: v.x + dw / 2, y: v.y + dh / 2 }));
+      }
+      last = { w: box.width, h: box.height };
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // ── draw the visible part of the sheet, sharp at the current zoom ──
   useEffect(() => {
     if (!engine || !canvas.current || !wrap.current) return;
@@ -288,6 +310,9 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
       task.promise.then(() => {
         c.width = w;
         c.height = h;
+        // The bitmap's own size in CSS px: a stage that changes size later must not stretch this picture.
+        c.style.width = `${box.width}px`;
+        c.style.height = `${box.height}px`;
         c.style.transform = "";
         c.dataset.k = String(view.k);
         c.dataset.x = String(view.x);
@@ -393,6 +418,7 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   };
   const proposalCount = useMemo(() => (doc ? reviewCount(doc.shapes) : 0), [doc]);
   const review = useMemo(() => (reviewing && doc ? reviewList(doc, sheets) : []), [reviewing, doc, sheets]);
+  const baseAreas = useMemo(() => (reviewing && doc ? baseByGroup(doc) : []), [reviewing, doc]);
   const acceptIds = (ids) => {
     if (!doc || !ids.length) return;
     const out = acceptProposals(doc, ids);
@@ -400,6 +426,15 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
     const left = out.needFinish ? ` ${out.needFinish} ${out.needFinish === 1 ? "has" : "have"} no finish chosen and ${out.needFinish === 1 ? "was" : "were"} left. Choose a finish first.` : "";
     say(out.accepted ? `Accepted ${out.accepted} measurement${out.accepted === 1 ? "" : "s"}. ${out.accepted === 1 ? "It now counts" : "They now count"} in the totals and the estimate. Undo takes that back.${left}` : `Nothing was accepted.${left}`, out.accepted ? "good" : "warn");
     if (selected && ids.includes(selected)) setSelected(null);
+  };
+  const acceptBaseIds = (ids, conditionId) => {
+    if (!doc || !ids.length) return;
+    try {
+      const out = acceptBase(doc, ids, conditionId);
+      if (out.accepted) commit(out.doc);
+      const left = out.needFinish ? ` ${out.needFinish} line${out.needFinish === 1 ? " has" : "s have"} no base finish and ${out.needFinish === 1 ? "was" : "were"} left. Pick the finish the ticked areas take, then accept again.` : "";
+      say(out.accepted ? `Base accepted for the ticked areas. It now counts in the totals and the estimate. Undo takes that back.${left}` : `Nothing was accepted.${left}`, out.accepted && !out.needFinish ? "good" : "warn");
+    } catch (e) { say(String(e?.message || e), "warn"); }
   };
   const removeIds = (ids) => { if (!doc) return; commit(removeProposals(doc, ids)); if (selected && ids.includes(selected)) setSelected(null); };
   const chooseFinish = (ids, conditionId) => { try { commit(setProposalFinish(doc, ids, conditionId)); } catch (e) { say(String(e?.message || e), "warn"); } };
@@ -640,6 +675,16 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
   const scaleLabel = scale ? (STANDARD_SCALES.find((s) => Math.abs(s.upp - scale.upp) / scale.upp < 1e-6)?.label ?? (scale.source === "calibrated" ? "Set from a known length" : "Custom scale")) : null;
   const shown = sheets.filter((s) => !filter.trim() || `${s.label ?? ""} page ${s.page} ${s.file}`.toLowerCase().includes(filter.trim().toLowerCase()));
   const selectedShape = selected ? shapes.find((s) => s.id === selected) : null;
+  const selectedTag = selectedShape ? condById.get(selectedShape.condition_id)?.finish_tag ?? selectedShape.origin?.auto?.finish_tag ?? (isProposal(selectedShape) ? "No finish chosen" : "Measurement") : "";
+  // Moves the selected measurement (and any cut-out made in it) to another finish. A proposal stays a proposal.
+  const changeFinish = (conditionId) => {
+    if (!selectedShape || !doc || !conditionId || conditionId === selectedShape.condition_id) return;
+    try {
+      const moved = setShapeFinish(doc, selectedShape.id, conditionId, dims);
+      commit(isProposal(selectedShape) ? setProposalFinish(moved, [selectedShape.id], conditionId) : moved);
+      say(`Changed to ${condById.get(conditionId)?.finish_tag ?? "the new finish"}. The totals follow.`);
+    } catch (err) { say(String(err?.message || err), "warn"); }
+  };
   const pts = (s) => (s.verts_norm || []).map(([nx, ny]) => [nx * dims.w, ny * dims.h]);
   const boxed = tool === "alike" && draft.length === 1 && hover ? [draft[0], [hover[0], draft[0][1]], hover, [draft[0][0], hover[1]]] : null;
   const liveDraft = boxed ?? (draft.length && hover ? [...draft, hover] : draft);
@@ -752,7 +797,13 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           )}
           {selectedShape && (
             <div className="st-selected" onClick={(e) => e.stopPropagation()}>
-              <strong>{condById.get(selectedShape.condition_id)?.finish_tag ?? selectedShape.origin?.auto?.finish_tag ?? (isProposal(selectedShape) ? "No finish chosen" : "Measurement")}</strong>
+              {readOnly || !(doc?.conditions ?? []).length ? <strong>{selectedTag}</strong> : (
+                <select className="st-input st-finish-select" aria-label="Finish for this measurement" title="Change the finish this measurement counts toward"
+                  value={condById.has(selectedShape.condition_id) ? selectedShape.condition_id : ""} onChange={(e) => changeFinish(e.target.value)}>
+                  {!condById.has(selectedShape.condition_id) && <option value="" disabled>{selectedTag}</option>}
+                  {(doc?.conditions ?? []).map((c) => <option key={c.id} value={c.id}>{c.finish_tag}</option>)}
+                </select>
+              )}
               {isProposal(selectedShape) && <span className="st-proposed">Proposed · {Math.round((selectedShape.origin.confidence ?? 0) * 100)}%</span>}
               <span>{selectedShape.measure_role === "count" ? "1 counted" : selectedShape.measure_role === "linear" ? `${fmt(selectedShape.computed?.perimeter_lf)} LF` : `${fmt(selectedShape.computed?.area_sf)} SF${selectedShape.measure_role === "deduct" ? " taken out" : ` · ${fmt(selectedShape.computed?.perimeter_lf)} LF around`}`}</span>
               {!readOnly && (
@@ -784,7 +835,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
           <aside className="st-finishes st-finishes-review" aria-label="Review proposals">
             <AutoReview list={review} conditions={doc?.conditions ?? []} summary={summary} readOnly={readOnly} selected={selected} above={doc ? idsAbove(doc, 0.8).length : 0}
               onJump={jumpTo} onAccept={(it) => acceptIds(it.ids)} onRemove={(it) => removeIds(it.ids)} onFinish={(it, id) => chooseFinish(it.ids, id)}
-              onAcceptAbove={() => acceptIds(idsAbove(doc, 0.8))} onAcceptSheet={(key) => acceptIds(idsOnSheet(doc, key))} onClose={() => setReviewing(false)} />
+              onAcceptAbove={() => acceptIds(idsAbove(doc, 0.8))} onAcceptSheet={(key) => acceptIds(idsOnSheet(doc, key))} onClose={() => setReviewing(false)}
+              base={baseAreas} onBaseAccept={acceptBaseIds} onBaseRemove={removeIds} />
           </aside>
         )}
         <aside className="st-finishes" aria-label="Measuring" hidden={reviewing}>
@@ -810,7 +862,8 @@ export default function SimpleTakeoff({ projectId, readOnly, saveState }) {
               const on = t.id === activeId;
               return (
                 <li key={t.id} className={on ? "st-on" : ""}>
-                  <button type="button" className="st-finish" onClick={() => setActiveId(t.id)} aria-pressed={on}>
+                  <button type="button" className="st-finish" onClick={() => { setActiveId(t.id); if (selectedShape && !readOnly) changeFinish(t.id); }} aria-pressed={on}
+                    title={selectedShape && !readOnly ? "Move the selected measurement to this finish" : undefined}>
                     <span className="st-swatch" style={{ background: t.colour }} />
                     <span className="st-finish-text">
                       <strong>{t.tag}</strong>

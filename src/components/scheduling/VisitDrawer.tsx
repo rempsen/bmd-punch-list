@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { TechnicianPicker } from "@/components/scheduling/TechnicianPicker";
 import { ArrivePingPill, OpenInArrivePing, StatusPill } from "@/components/visits/visit-bits";
+import { WorkItems } from "@/components/visits/WorkItems";
+import { useProjectVisitLines } from "@/lib/visits/data";
+import { linesChanged, num, type VisitLine } from "@/lib/visits/lines";
 import { cancelVisitPush, pushVisit, rescheduleVisitPush } from "@/lib/arriveping/arriveping.functions";
 import { MAX_WORK_ORDER_MS } from "@/lib/arriveping/core";
 import { useAuth } from "@/lib/auth";
@@ -138,13 +141,13 @@ export function useVisitArrivePing() {
     try {
       const r = await rescheduleFn({ data: { visitId: v.id, previousStartsAt: v.starts_at, previousEndsAt: v.ends_at } });
       if (r.push?.outcome === "failed")
-        toast.warning(`Visit saved. ArrivePing wasn't updated — ${SEE_SETTINGS}`, { description: r.push.error });
+        toast.warning(`Work order saved. ArrivePing wasn't updated — ${SEE_SETTINGS}`, { description: r.push.error });
       else if (quiet) return;
-      else if (r.push?.outcome === "sent") toast.success("Visit saved. ArrivePing updated.");
-      else toast.success("Visit saved.");
+      else if (r.push?.outcome === "sent") toast.success("Work order saved. ArrivePing updated.");
+      else toast.success("Work order saved.");
     } catch (e) {
-      if (v.arriveping_job_id) toast.warning(`Visit saved. ArrivePing wasn't updated — ${SEE_SETTINGS}`, { description: errText(e) });
-      else if (!quiet) toast.success("Visit saved.");
+      if (v.arriveping_job_id) toast.warning(`Work order saved. ArrivePing wasn't updated — ${SEE_SETTINGS}`, { description: errText(e) });
+      else if (!quiet) toast.success("Work order saved.");
     } finally {
       refresh();
     }
@@ -155,7 +158,7 @@ export function useVisitArrivePing() {
       if (r.outcome === "failed")
         toast.warning(`Couldn't send to ArrivePing — ${SEE_SETTINGS}`, { description: r.error });
       else if (r.outcome === "skipped" && r.reason === "tentative") {
-        if (!quiet) toast.info("Tentative visits are not sent to ArrivePing. Clear Tentative on the visit first.");
+        if (!quiet) toast.info("Tentative work orders are not sent to ArrivePing. Clear Tentative on the visit first.");
       } else if (!quiet)
         if (r.outcome === "sent") toast.success("Sent to ArrivePing.");
         else toast.info("Already in ArrivePing.");
@@ -176,7 +179,7 @@ export function useVisitArrivePing() {
   }) => {
     const next = applyVisitEvent(v, "cancelled");
     if (!next) {
-      toast.error("That visit is already past that point.");
+      toast.error("That work order is already past that point.");
       return false;
     }
     try {
@@ -206,7 +209,7 @@ export function useVisitArrivePing() {
       });
     else
       toast.success(
-        told ? "Visit cancelled. ArrivePing asked to cancel too." : "Marked cancelled.",
+        told ? "Work order cancelled. ArrivePing asked to cancel too." : "Marked cancelled.",
       );
     refresh();
     return true;
@@ -239,7 +242,7 @@ export function VisitDrawer({
     <Sheet open={!!target} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
         <SheetHeader>
-          <SheetTitle>{editId ? "Install visit" : "Schedule a visit"}</SheetTitle>
+          <SheetTitle>{editId ? "Work order" : "New work order"}</SheetTitle>
         </SheetHeader>
         {target &&
           (editId && !visit.data ? (
@@ -290,6 +293,16 @@ function DrawerBody({
   const savedTasks = useVisitTasks(visit ? [visit.id] : []);
   const [draftTasks, setDraftTasks] = useState<DraftTask[]>([]);
   const [newTask, setNewTask] = useState("");
+  // The estimate items this work order covers. An existing work order's lines are read once; a new one starts empty.
+  const allLines = useProjectVisitLines(visit?.project_id ?? f.project ?? "");
+  const savedLines = useMemo(() => (visit ? (allLines.data ?? []).filter((l) => l.visit_id === visit.id) : []), [allLines.data, visit]);
+  const [lines, setLines] = useState<VisitLine[]>([]);
+  const linesSeeded = useRef(false);
+  useEffect(() => {
+    if (!visit || linesSeeded.current || !allLines.data) return;
+    linesSeeded.current = true;
+    setLines(savedLines);
+  }, [visit, allLines.data, savedLines]);
   useEffect(() => {
     if (!visit) setF((x) => ({ ...x, rooms: new Set() }));
   }, [f.project, visit]);
@@ -369,6 +382,7 @@ function DrawerBody({
       notes: f.notes.trim() || null,
       areas: areasFromSelection(f.rooms, allRooms),
     };
+    const cleanLines = lines.map((l, i) => ({ ...l, quantity: num(l.quantity), description: l.description.trim(), sort_order: i })).filter((l) => l.description || l.quantity > 0);
     const report = {
       tentative: f.tentative,
       report_to: f.reportTo,
@@ -398,13 +412,24 @@ function DrawerBody({
             followers.push(other);
           }
         }
+        // The lines are replaced as a set; a change to them re-pushes the work order like a change to the notes.
+        const linesEdited = linesSeeded.current && linesChanged(savedLines, cleanLines);
+        if (linesEdited) {
+          const d = await db.from("install_visit_lines" as never).delete().eq("visit_id", visit.id);
+          if (d.error) throw new Error(d.error.message);
+          if (cleanLines.length) {
+            const ins = await db.from("install_visit_lines" as never).insert(cleanLines.map(({ id: _id, visit_id: _v, ...l }) => ({ ...l, visit_id: visit.id, project_id: visit.project_id })) as never);
+            if (ins.error) throw new Error(ins.error.message);
+          }
+        }
         const sameTime = (a: string | null, b: string | null) => (a == null || b == null ? a == b : Date.parse(a) === Date.parse(b));
         const moved = !sameTime(patch.starts_at, visit.starts_at) || !sameTime(patch.ends_at, visit.ends_at);
         const retyped =
           (patch.site_contact ?? null) !== (visit.site_contact ?? null) ||
           (patch.notes ?? null) !== (visit.notes ?? null) ||
           (patch.crew ?? null) !== (visit.crew ?? null) ||
-          reportChanged;
+          reportChanged ||
+          linesEdited;
         refresh();
         onClose();
         for (const other of followers) await ap.reschedule(other, true);
@@ -413,8 +438,8 @@ function DrawerBody({
         if (was.tentative && !f.tentative && !visit.arriveping_job_id && visit.status === "scheduled") {
           if (moved) await ap.reschedule(visit, true);
           const sent = await ap.send(visit.id, true);
-          if (sent === "sent") toast.success("Visit confirmed and sent to ArrivePing.");
-          else if (sent !== "failed") toast.success("Visit saved.");
+          if (sent === "sent") toast.success("Work order confirmed and sent to ArrivePing.");
+          else if (sent !== "failed") toast.success("Work order saved.");
           return;
         }
         // The schedule, contact and notes travel to ArrivePing; the saved visit stands whatever ArrivePing says.
@@ -425,15 +450,15 @@ function DrawerBody({
         if (followers.length) return;
         toast.success(
           f.tentative
-            ? "Visit saved as tentative. Not sent to ArrivePing."
+            ? "Work order saved as tentative. Not sent to ArrivePing."
             : row.assigned_user_id || row.assigned_name
               ? assignmentState(
                   { ...row, arriveping_assigned_to: visit.arriveping_assigned_to },
                   techName,
                 ) === "confirmed"
-                ? "Visit saved."
-                : "Visit saved. Crew pending in ArrivePing."
-              : "Visit saved.",
+                ? "Work order saved."
+                : "Work order saved. Crew pending in ArrivePing."
+              : "Work order saved.",
         );
         return;
       }
@@ -460,6 +485,11 @@ function DrawerBody({
         })),
       );
       if (ev.error) console.error(`install_visit_events: ${ev.error.message}`);
+      // The lines go on the first day of a run: one work order's worth of work, however many days it takes.
+      if (cleanLines.length) {
+        const l = await db.from("install_visit_lines" as never).insert(cleanLines.map((x) => ({ ...x, visit_id: id, project_id: f.project })) as never);
+        if (l.error) toast.error(`Work order saved, work items not saved: ${l.error.message}`);
+      }
       if (draftTasks.length) {
         const t = await db.from("visit_tasks").insert(
           draftTasks.map((d, i) => ({
@@ -469,9 +499,9 @@ function DrawerBody({
             sort: i,
           })),
         );
-        if (t.error) toast.error(`Visit saved, tasks not saved: ${t.error.message}`);
+        if (t.error) toast.error(`Work order saved, tasks not saved: ${t.error.message}`);
       }
-      const what = made.length > 1 ? `${made.length} days scheduled` : "Visit scheduled";
+      const what = made.length > 1 ? `${made.length} days scheduled` : "Work order created";
       if (f.tentative) {
         toast.success(`${what} as tentative. Not sent to ArrivePing until Tentative is cleared.`);
         return;
@@ -590,11 +620,11 @@ function DrawerBody({
         )}
         {plan.length > 1 ? (
           <p className="text-xs text-muted-foreground">
-            {plan.length} visits, one per workday: {plan.map((d) => shortDay(d.day)).join(", ")}. Each can be changed on its own afterwards.
+            {plan.length} work orders, one per workday: {plan.map((d) => shortDay(d.day)).join(", ")}. Each can be changed on its own afterwards.
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            One visit per day — ArrivePing takes up to 24 hours per work order.
+            One work order per day — ArrivePing takes up to 24 hours per work order.
           </p>
         )}
         {offDay && (
@@ -720,6 +750,8 @@ function DrawerBody({
           </span>
         </label>
       </fieldset>
+
+      <WorkItems projectId={f.project || null} visitId={visit?.id ?? null} lines={lines} onChange={setLines} canEdit={canEdit && !ro} />
 
       <div className="space-y-2">
         <p className="text-xs font-medium">
@@ -866,7 +898,7 @@ function DrawerBody({
       <div className="flex gap-2">
         {!ro && (
           <Button disabled={busy} onClick={() => void save()}>
-            {busy ? "Saving…" : visit ? "Save" : "Schedule"}
+            {busy ? "Saving…" : visit ? "Save" : "Create work order"}
           </Button>
         )}
         <Button variant="ghost" onClick={onClose}>

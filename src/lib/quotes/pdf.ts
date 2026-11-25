@@ -130,7 +130,10 @@ export function renderQuotePdf(snap: QuoteSnapshot, opts: { compress?: boolean; 
       if (g.lines.length === 0 && g.subtotalCents == null) continue;
       need(30);
       row(`${g.name}${g.quantity ? `  (${g.quantity})` : ""}`, g.subtotalCents != null ? `$${money(g.subtotalCents)}` : "", { bold: true });
-      for (const l of g.lines) row(`${l.text}${l.note ? `  (${l.note})` : ""}`, l.amountCents != null ? `$${money(l.amountCents)}` : "", { indent: 12, size: 9 });
+      for (const l of g.lines) {
+        row(`${l.text}${l.note ? `  (${l.note})` : ""}`, l.amountCents != null ? `$${money(l.amountCents)}` : "", { indent: 12, size: 9 });
+        if (l.areas) row(l.areas, "", { indent: 24, size: 8 });
+      }
       y += 4;
     }
   };
