@@ -95,7 +95,7 @@ export function BillEditor({ bill, bills, projectId, onPdf, onClose }: { bill: B
   return <Sheet open onOpenChange={open => { if (!open) onClose(); }}>
     <SheetContent className="w-full overflow-y-auto sm:max-w-5xl">
       <SheetHeader><SheetTitle>{editable ? "Bill editor" : "Bill details"} · {saved.number}</SheetTitle><SheetDescription>{BILL_TYPES[type]} · <span className="rounded bg-muted px-2 py-1 capitalize">{saved.status}</span></SheetDescription></SheetHeader>
-      <fieldset disabled={!editable || busy} className="mt-6 space-y-5">
+      <fieldset disabled={!editable || busy} className="mt-6 min-w-0 space-y-5">
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="text-xs font-medium">Kind<select aria-label="Bill kind" className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={type} disabled={saved.kind === "holdback_release"} onChange={e => setType(e.target.value as BillType)}>{Object.entries(BILL_TYPES).filter(([k]) => saved.kind === "holdback_release" ? k === "holdback" : k !== "holdback").map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
           <label className="text-xs font-medium sm:col-span-2">Description<Input value={description} onChange={e => setDescription(e.target.value)} /></label>
