@@ -204,3 +204,5 @@
 .st-base-areas input[type="checkbox"] { width: 18px; height: 18px; }
 .st-base-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .st-base-actions p { margin: 0; }
+.st-base-areas tr.st-base-type th, .st-base-areas tr.st-base-type td { border-top: 0; padding-top: 1px; padding-bottom: 3px; color: var(--st-muted); font-size: 12px; }
+.st-base-areas tr.st-base-type th { padding-left: 30px; }

@@ -12,6 +12,9 @@ import { computeShapeMetrics } from "../shapeMetrics.js";
 import { scaleFor, setScale } from "./takeoffDoc.js";
 import { findRoomNames, findRoomTags, finishTagsInRoom, pointInRing, ringHoldsTag, roomKey, seedPoints } from "./roomTags.js";
 import { distToRing, sharedLength } from "./baseFromRoom.js";
+import { AREA_GROUPS, areaGroup, areaSection } from "./areaSection.js";
+
+export { AREA_GROUPS, areaGroup, areaSection };
 import { matchFinish, scheduleRowFor } from "./roomSchedule.js";
 
 export const METHOD = "auto_v1";
@@ -22,19 +25,6 @@ export const LIMITS_SHORT = "Strongest on drawings exported from CAD; scanned sh
 
 const WALL_FT = 1.5;   // two outlines this close are either side of one wall
 const TRANSITION_TAG = /^(TR|TS|TRANS|TRANSITION|T-?STRIP|T-?MOLD|REDUCER|RD)[ -]?\d*[A-Z]?$/i;
-
-const WASHROOM = /(^|[^A-Z])(BATH(ROOM)?|W\.?\/?C\.?|WASHROOM|WR|ENSUITE|EN-SUITE|POWDER( ROOM)?|TOILETS?|SHOWERS?|LAV(ATORY)?|RESTROOM|TUB ROOM)([^A-Z]|$)/;
-const SUITE = /(^|[^A-Z])(SUITE|UNIT|APT\.?|APARTMENT|GUEST ?ROOM|DWELLING)([^A-Z]|$)/;
-export const AREA_GROUPS = [["suite", "Suites"], ["common", "Common areas"], ["washroom", "Washrooms"]];
-/**
- * Which area a room's base is counted under: "suite", "common" or "washroom". A washroom is a washroom wherever
- * it is; any other space takes the area of the room it is inside (`parentName`), if any.
- */
-export function areaGroup(name, parentName = "") {
-  const n = String(name ?? "").toUpperCase();
-  if (WASHROOM.test(n)) return "washroom";
-  return SUITE.test(n) || SUITE.test(String(parentName ?? "").toUpperCase()) ? "suite" : "common";
-}
 
 const uid = (prefix) => `${prefix}-${globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`}`;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -168,7 +158,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
 
   // Base is measured for every room, whatever its finish: the quantity is the takeoff, and which areas take which
   // base (or none) is the person's choice afterwards, by area: suites, common areas, washrooms.
-  const proposeBase = async (m, { code, source, group }) => {
+  const proposeBase = async (m, { code, source, group, section }) => {
     const b = await engine.baseAlong(m.ring, upp);
     m.gaps = b.deducted ? b.gaps ?? [] : [];
     if (!b.runs.length) return;
@@ -179,7 +169,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
       : `${source ? `${source} gives no base for this room` : schedule.rows.length ? "The room finish schedule has no row for this room, so it gives no base for it" : "No room finish schedule was read, so nothing gives a base finish"}. The base is measured; choose what it takes, or leave it out.`;
     m.baseFactor = b.deducted && b.openings ? 0.95 : 0.8;
     for (const line of b.runs) {
-      m.base.push(proposal(doc, { sheetId: sheet.key, role: "linear", pointsPx: line, dims, upp, cond: fin?.cond ?? null, label: m.name, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: m.floor.origin.confidence, proposed_ts: ts, auto: { run: runId, kind: "base", of: m.floor.id, room: m.tag.number, name: m.tag.name, group, from: fin ? "schedule" : "none", why: bwhy, notes: bnotes, openings: b.openings, openings_deducted: b.deducted && b.openings > 0, ...(fin && !fin.cond ? { finish_tag: fin.tag } : {}) } } }));
+      m.base.push(proposal(doc, { sheetId: sheet.key, role: "linear", pointsPx: line, dims, upp, cond: fin?.cond ?? null, label: m.name, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: m.floor.origin.confidence, proposed_ts: ts, auto: { run: runId, kind: "base", of: m.floor.id, room: m.tag.number, name: m.tag.name, group, section, from: fin ? "schedule" : "none", why: bwhy, notes: bnotes, openings: b.openings, openings_deducted: b.deducted && b.openings > 0, ...(fin && !fin.cond ? { finish_tag: fin.tag } : {}) } } }));
     }
     shapes.push(...m.base);
     report.base.rooms++;
@@ -254,7 +244,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
     if (r.note) notes.push(r.note);
     if (r.fixtures?.length) notes.push(`${r.fixtures.length === 1 ? "1 area under a cabinet or fixture was" : `${r.fixtures.length} areas under cabinets or fixtures were`} left out (${fmt(round2((r.withFixtures?.areaSf ?? r.areaSf) - r.areaSf))} SF).`);
 
-    const auto = { run: runId, kind: "floor", room: tag.number, name: tag.name, from, why: whyFinish, notes, ...(floorFinish && !floorFinish.cond ? { finish_tag: floorFinish.tag } : {}), ...(row?.areaSf ? { schedule_sf: row.areaSf } : {}) };
+    const auto = { run: runId, kind: "floor", room: tag.number, name: tag.name, group: areaGroup(tag.name), section: areaSection(areaGroup(tag.name), tag.name), from, why: whyFinish, notes, ...(floorFinish && !floorFinish.cond ? { finish_tag: floorFinish.tag } : {}), ...(row?.areaSf ? { schedule_sf: row.areaSf } : {}) };
     const floor = proposal(doc, { sheetId: sheet.key, role: "floor_area", pointsPx: r.pointsPx, dims, upp, cond: floorFinish?.cond ?? null, label: name, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: clamp(conf), seed_norm: [seed[0] / dims.w, seed[1] / dims.h], proposed_ts: ts, auto } });
     shapes.push(floor);
     const mine = { tag, name, ring: r.pointsPx, floor, row, printed, conf, base: [], baseFactor: 1, inside: 0, insideSf: 0, gaps: null };
@@ -265,7 +255,7 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
     if (from === "none") report.unassigned.push({ shapeId: floor.id, room: tag.number, name: tag.name, texts: textsIn(spans, r.pointsPx), row: row ?? null });
 
     // 4. base: along the walls of every room, door openings left out where the drawing shows them
-    await proposeBase(mine, { code: row?.base ?? null, source: row ? `Room finish schedule, row ${row.number}` : null, group: areaGroup(tag.name) });
+    await proposeBase(mine, { code: row?.base ?? null, source: row ? `Room finish schedule, row ${row.number}` : null, group: areaGroup(tag.name), section: areaSection(areaGroup(tag.name), tag.name) });
     if (made.length % 8 === 0) onDoc(withShapes(doc, shapes));   // ratings are settled at the end of the sheet
     await pause();
   }
@@ -301,14 +291,14 @@ export async function runSheet({ doc, sheet, engine, spans, schedule = { rows: [
       const from = fin ? "tag" : "none";
       const conf = Math.min(r.confidence ?? 0.7, fin ? 0.6 : 0.5);
       const notes = r.note ? [r.note] : [];
-      const auto = { run: runId, kind: "inside", room: parent.tag.number, name: nm.name, of: parent.floor.id, from, why, notes, ...(fin && !fin.cond ? { finish_tag: fin.tag } : {}) };
+      const group = areaGroup(nm.name, parent.tag.name), section = areaSection(group, parent.tag.name);
+      const auto = { run: runId, kind: "inside", room: parent.tag.number, name: nm.name, group, section, of: parent.floor.id, from, why, notes, ...(fin && !fin.cond ? { finish_tag: fin.tag } : {}) };
       const floor = proposal(doc, { sheetId: sheet.key, role: "floor_area", pointsPx: r.pointsPx, dims, upp, cond: fin?.cond ?? null, label, origin: { method: METHOD, actor: "auto", reviewed: false, confidence: clamp(conf), seed_norm: [cx / dims.w, cy / dims.h], proposed_ts: ts, auto } });
       shapes.push(floor);
       const sub = { tag: { number: parent.tag.number, name: nm.name }, name: label, ring: r.pointsPx, floor, row: null, printed: null, conf, base: [], baseFactor: 1, inside: 0, insideSf: 0, gaps: null, sub: true };
       made.push(sub);
       // its base: a washroom's is never assumed; any other space inside takes the base of the room it is part of
-      const group = areaGroup(nm.name, parent.tag.name);
-      await proposeBase(sub, { code: group === "washroom" ? null : parent.row?.base ?? null, source: parent.row ? `Room finish schedule, row ${parent.row.number} (${suite}, which this space is inside)` : null, group });
+      await proposeBase(sub, { code: group === "washroom" ? null : parent.row?.base ?? null, source: parent.row ? `Room finish schedule, row ${parent.row.number} (${suite}, which this space is inside)` : null, group, section });
       parent.inside++;
       parent.insideSf = round2(parent.insideSf + r.areaSf);
       report.inside.rooms++;

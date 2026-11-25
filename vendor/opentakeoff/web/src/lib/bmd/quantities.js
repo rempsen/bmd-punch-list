@@ -6,6 +6,7 @@
 import { conditionTotals } from "../totals.js";
 import { shapeLabelValue } from "../shapeLabels.js";
 import { baseTagOf } from "../variants.ts";
+import { sectionOf } from "./areaSection.js";
 
 /**
  * @returns {{conditions: {key: string, tag: string, variant: boolean, colour: string}[], rows: {key: string, section: string, floor_sf: number, wall_sf: number, border_sf: number, lf: number, ea: number}[]}}
@@ -24,7 +25,8 @@ export function takeoffQuantities(doc) {
     const bySection = new Map();
     for (const s of counted) {
       if (s.condition_id !== c.id) continue;
-      const section = shapeLabelValue(s).trim() || own;
+      // automatic work rolls up by area (every Suite Type B together), never by each room's own name
+      const section = (s.origin?.method === "auto_v1" ? sectionOf(s) : shapeLabelValue(s).trim()) || own;
       if (!bySection.has(section)) bySection.set(section, []);
       bySection.get(section).push(s);
     }

@@ -81,7 +81,7 @@ function BaseByArea({ base, conditions, readOnly, onAccept, onRemove }) {
       <table>
         <thead><tr><th scope="col">Area</th><th scope="col">To review</th><th scope="col">Accepted</th></tr></thead>
         <tbody>
-          {base.map((g) => (
+          {base.flatMap((g) => [
             <tr key={g.group}>
               <th scope="row">
                 <label>
@@ -91,8 +91,15 @@ function BaseByArea({ base, conditions, readOnly, onAccept, onRemove }) {
               </th>
               <td>{g.ids.length ? `${fmt(g.proposedLf)} LF · ${g.rooms} room${g.rooms === 1 ? "" : "s"}` : "—"}</td>
               <td>{g.acceptedLf ? `${fmt(g.acceptedLf)} LF` : "—"}</td>
-            </tr>
-          ))}
+            </tr>,
+            ...(g.types.length > 1 || (g.types.length === 1 && g.types[0].label !== g.label) ? g.types : []).map((t) => (
+              <tr key={`${g.group}:${t.label}`} className="st-base-type">
+                <th scope="row">{t.label}</th>
+                <td>{t.proposedLf ? `${fmt(t.proposedLf)} LF · ${t.rooms} room${t.rooms === 1 ? "" : "s"}` : "—"}</td>
+                <td>{t.acceptedLf ? `${fmt(t.acceptedLf)} LF` : "—"}</td>
+              </tr>
+            )),
+          ])}
         </tbody>
         <tfoot><tr><th scope="row">All areas</th><td>{fmt(base.reduce((n, g) => n + g.proposedLf, 0))} LF</td><td>{fmt(base.reduce((n, g) => n + g.acceptedLf, 0))} LF</td></tr></tfoot>
       </table>

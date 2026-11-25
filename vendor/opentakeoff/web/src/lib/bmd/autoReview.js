@@ -5,6 +5,7 @@
 // outline. Each function here returns a new document, so one press is one undo step.
 import { addCondition } from "./takeoffDoc.js";
 import { AREA_GROUPS, METHOD, areaGroup } from "./autoTakeoff.js";
+import { areaSection } from "./areaSection.js";
 
 export const isProposal = (s) => s?.origin?.method === METHOD && s.origin.reviewed === false;
 export const proposalsIn = (doc) => (doc?.shapes || []).filter(isProposal);
@@ -140,22 +141,31 @@ export const idsOnSheet = (doc, sheetKey) => proposalsIn(doc).filter((s) => s.sh
 /**
  * The automatic takeoff's base, broken out by area: suites, common areas and washrooms, always in that order.
  * `proposedLf` and `rooms` are what is still waiting (with `ids`, and `needFinish`: how many of those lines have no
- * finish yet); `acceptedLf` is what has been accepted and counts.
+ * finish yet); `acceptedLf` is what has been accepted and counts. `types`: for suites, the same figures per suite type.
  * @returns {{group: string, label: string, proposedLf: number, acceptedLf: number, rooms: number, ids: string[], needFinish: number}[]}
  */
 export function baseByGroup(doc) {
-  const out = new Map(AREA_GROUPS.map(([group, label]) => [group, { group, label, proposedLf: 0, acceptedLf: 0, rooms: new Set(), ids: [], needFinish: 0 }]));
+  const out = new Map(AREA_GROUPS.map(([group, label]) => [group, { group, label, proposedLf: 0, acceptedLf: 0, rooms: new Set(), ids: [], needFinish: 0, types: new Map() }]));
   for (const s of doc?.shapes || []) {
     const a = s?.origin?.auto;
     if (s?.origin?.method !== METHOD || a?.kind !== "base") continue;
     const g = out.get(a.group) ?? out.get(areaGroup(a.name));
     const lf = s.computed?.perimeter_lf || 0;
+    // suites are listed by type: every Suite Type B together, every Suite Type D together
+    let t = null;
+    if (g.group === "suite") {
+      const label = (typeof a.section === "string" && a.section.trim()) || areaSection("suite", a.name);
+      if (!g.types.has(label)) g.types.set(label, { label, proposedLf: 0, acceptedLf: 0, rooms: new Set() });
+      t = g.types.get(label);
+    }
     if (s.origin.reviewed === false) {
       g.proposedLf += lf; g.ids.push(s.id); g.rooms.add(a.of ?? s.id);
+      if (t) { t.proposedLf += lf; t.rooms.add(a.of ?? s.id); }
       if (!s.condition_id && !a.finish_tag) g.needFinish++;
-    } else g.acceptedLf += lf;
+    } else { g.acceptedLf += lf; if (t) t.acceptedLf += lf; }
   }
-  return [...out.values()].map((g) => ({ ...g, proposedLf: round2(g.proposedLf), acceptedLf: round2(g.acceptedLf), rooms: g.rooms.size }));
+  const tidy = (x) => ({ ...x, proposedLf: round2(x.proposedLf), acceptedLf: round2(x.acceptedLf), rooms: x.rooms.size });
+  return [...out.values()].map((g) => ({ ...tidy(g), types: [...g.types.values()].map(tidy).sort((p, q) => p.label.localeCompare(q.label, undefined, { numeric: true })) }));
 }
 
 /** Accepts base lines in one step, first giving them all one finish when `conditionId` is given. */

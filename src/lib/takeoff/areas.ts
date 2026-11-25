@@ -10,23 +10,42 @@ import { db } from "@/lib/platform/db";
 import { GENERAL } from "./quantities";
 
 export type AreaKey = "suite" | "common" | "washroom" | "other";
-export type Areas = Record<AreaKey, number>;
-export type AreaRow = { condition_key: string; section: string; area: AreaKey; lf: number };
-export const AREA_LABEL: Record<AreaKey, string> = { suite: "Suites", common: "Common areas", washroom: "Washrooms", other: "Other" };
-const ORDER: AreaKey[] = ["suite", "common", "washroom", "other"];
+/** One part of a breakdown: "Suite Type B", "Common areas", "Washrooms", or "Other" for work with no area recorded. */
+export type AreaPart = { label: string; area: AreaKey; qty: number };
+export type Areas = AreaPart[];
+export type AreaRow = { condition_key: string; section: string; area: AreaKey; label: string; lf: number };
+const RANK: Record<AreaKey, number> = { suite: 0, common: 1, washroom: 2, other: 3 };
 
-type Shape = { condition_id?: string | null; measure_role?: string; label?: string | null; computed?: { perimeter_lf?: number } | null; origin?: { method?: string; reviewed?: boolean; auto?: { kind?: string; group?: string; name?: string } | null } | null };
+type Auto = { kind?: string; group?: string; section?: string; room?: string; name?: string };
+type Shape = { condition_id?: string | null; measure_role?: string; label?: string | null; computed?: { perimeter_lf?: number } | null; origin?: { method?: string; reviewed?: boolean; auto?: Auto | null } | null };
 type Doc = { conditions?: { id: string; finish_tag?: string | null; multiplier?: number | null }[]; shapes?: Shape[] } | null | undefined;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const zero = (): Areas => ({ suite: 0, common: 0, washroom: 0, other: 0 });
 const VARIANT_SEP = " – ";
-// The same reading of a room's name the takeoff uses, for base accepted before the area was recorded on it.
+// The same reading of a room's name, and the same roll-up, as the takeoff's own (vendor/…/lib/bmd/areaSection.js).
+// Kept in step by the shared cases in both test files.
 const WASHROOM = /(^|[^A-Z])(BATH(ROOM)?|W\.?\/?C\.?|WASHROOM|WR|ENSUITE|EN-SUITE|POWDER( ROOM)?|TOILETS?|SHOWERS?|LAV(ATORY)?|RESTROOM|TUB ROOM)([^A-Z]|$)/;
 const SUITE = /(^|[^A-Z])(SUITE|UNIT|APT\.?|APARTMENT|GUEST ?ROOM|DWELLING)([^A-Z]|$)/;
-const fromName = (name: string): AreaKey => (WASHROOM.test(name) ? "washroom" : SUITE.test(name) ? "suite" : "common");
+const groupOf = (a: Auto): Exclude<AreaKey, "other"> => {
+  if (a.group === "suite" || a.group === "common" || a.group === "washroom") return a.group;
+  const n = String(a.name ?? "").toUpperCase();
+  return WASHROOM.test(n) ? "washroom" : SUITE.test(n) ? "suite" : "common";
+};
+const title = (s: string) => s.trim().replace(/\s+/g, " ").split(" ").map((w) => (w.length <= 2 || /[\d.]/.test(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())).join(" ");
+/** The estimate section for an area: suites under their own type ("Suite Type B"), else "Common areas" or "Washrooms". */
+export function areaSection(group: Exclude<AreaKey, "other">, suiteName = ""): string {
+  if (group === "washroom") return "Washrooms";
+  if (group !== "suite") return "Common areas";
+  const n = title(suiteName);
+  return !n || /^(suite|unit|apt\.?|apartment)s?$/i.test(n) || !SUITE.test(n.toUpperCase()) ? "Suites" : n;
+}
+const areaLabel = (a: Auto): string => (typeof a.section === "string" && a.section.trim() ? a.section.trim() : areaSection(groupOf(a), groupOf(a) === "suite" ? String(a.name ?? "") : ""));
 
-/** Accepted lines (base, borders, anything measured in LF) by takeoff finish, section and area. Proposals are left out. */
+/**
+ * Accepted lines (base, borders, anything measured in LF) by takeoff finish, estimate section and area.
+ * Automatic base rolls up by area, never by each room's own name, exactly as the takeoff's saved quantities do.
+ * Proposals are left out.
+ */
 export function docAreaRows(doc: Doc): AreaRow[] {
   const out = new Map<string, AreaRow>();
   const conds = new Map((doc?.conditions ?? []).map((c) => [c.id, c]));
@@ -36,12 +55,20 @@ export function docAreaRows(doc: Doc): AreaRow[] {
     if (!c) continue;
     const tag = String(c.finish_tag ?? "");
     const i = tag.indexOf(VARIANT_SEP);
-    const section = String(s.label ?? "").trim() || (i === -1 ? "" : tag.slice(i + VARIANT_SEP.length).trim());
-    const a = s.origin?.auto;
-    const base = s.origin?.method === "auto_v1" && a?.kind === "base";
-    const area: AreaKey = !base ? "other" : a?.group === "suite" || a?.group === "common" || a?.group === "washroom" ? a.group : fromName(String(a?.name ?? "").toUpperCase());
-    const key = `${s.condition_id}\n${section}\n${area}`;
-    const row = out.get(key) ?? { condition_key: s.condition_id, section, area, lf: 0 };
+    const own = i === -1 ? "" : tag.slice(i + VARIANT_SEP.length).trim();
+    const typed = String(s.label ?? "").trim();
+    const a = s.origin?.method === "auto_v1" ? s.origin.auto : null;
+    const base = a?.kind === "base";
+    let section = typed;
+    if (a && (a.kind === "transition" || a.kind === "count")) section = typed === String(a.room ?? "").trim() ? "" : typed;
+    else if (a) {
+      const roomName = [a.room, a.name].map((x) => String(x ?? "").trim()).filter(Boolean).join(" ");
+      if (!typed || typed === roomName) section = areaLabel(a);
+    }
+    const area: AreaKey = base ? groupOf(a!) : "other";
+    const label = base ? areaLabel(a!) : "Other";
+    const key = `${s.condition_id}\n${section || own}\n${label}`;
+    const row = out.get(key) ?? { condition_key: s.condition_id, section: section || own, area, label, lf: 0 };
     row.lf = round2(row.lf + (Number(s.computed?.perimeter_lf) || 0) * (Number(c.multiplier) || 1));
     out.set(key, row);
   }
@@ -49,6 +76,12 @@ export function docAreaRows(doc: Doc): AreaRow[] {
 }
 
 export type FinishAreas = Record<string, { total: Areas; bySection: Record<string, Areas> }>;
+const add = (list: Areas, r: AreaRow) => {
+  const p = list.find((x) => x.label === r.label);
+  if (p) p.qty = round2(p.qty + r.lf);
+  else list.push({ label: r.label, area: r.area, qty: r.lf });
+};
+const sorted = (list: Areas) => list.sort((a, b) => RANK[a.area] - RANK[b.area] || a.label.localeCompare(b.label, undefined, { numeric: true }));
 
 /** The rows per job finish. `links` says which finish each takeoff finish is (the takeoff's saved quantities carry it). */
 export function areasByFinish(rows: AreaRow[], links: { condition_key: string; finish_id: string }[]): FinishAreas {
@@ -57,44 +90,42 @@ export function areasByFinish(rows: AreaRow[], links: { condition_key: string; f
   for (const r of rows) {
     const f = finishOf.get(r.condition_key);
     if (!f) continue;
-    const t = (out[f] ??= { total: zero(), bySection: {} });
-    const s = (t.bySection[r.section.trim() || GENERAL] ??= zero());
-    t.total[r.area] = round2(t.total[r.area] + r.lf);
-    s[r.area] = round2(s[r.area] + r.lf);
+    const t = (out[f] ??= { total: [], bySection: {} });
+    add(t.total, r);
+    add((t.bySection[r.section.trim() || GENERAL] ??= []), r);
   }
+  for (const t of Object.values(out)) { sorted(t.total); Object.values(t.bySection).forEach(sorted); }
   return out;
 }
 
 type Line = { id: string; finish_id: string | null; source: string; detached: boolean; driver_qty: number; driver_uom: string; section: string };
 const follows = (l: Line) => l.source === "takeoff" && !!l.finish_id && !l.detached;
+const sortedIn = (a: Areas) => a.some((p) => p.area !== "other" && p.qty > 0);
 
 /**
- * Where a line's LF is, by area. Only for a line that follows the takeoff in LF, and only when at least some of it
- * is sorted into suites, common areas or washrooms. Lines split by section each take their own section, by the same
- * rule their quantity follows. `matches` is false when the areas no longer add up to the line's quantity (the
- * takeoff changed, or the quantity was typed over).
+ * Where a line's LF is, by area: each suite type, common areas, washrooms. Only for a line that follows the takeoff
+ * in LF. A line that is itself one area (its section is "Suite Type B") needs none. Lines split by section each take
+ * their own section, by the same rule their quantity follows. `matches` is false when the areas no longer add up to
+ * the line's quantity (the takeoff changed, or the quantity was typed over).
  */
 export function lineAreas(line: Line, lines: Line[], areas: FinishAreas): { areas: Areas; matches: boolean } | null {
   if (!follows(line) || line.driver_uom !== "LF") return null;
   const t = areas[line.finish_id!];
   if (!t) return null;
   const split = lines.some((x) => follows(x) && x.finish_id === line.finish_id && t.bySection[x.section]);
-  const a = split ? t.bySection[line.section] : t.total;
-  if (!a || a.suite + a.common + a.washroom <= 0) return null;
-  const sum = ORDER.reduce((n, k) => n + a[k], 0);
-  return { areas: { ...a }, matches: Math.abs(sum - line.driver_qty) <= 0.05 };
+  const a = (split ? t.bySection[line.section] : t.total)?.filter((p) => p.qty > 0);
+  if (!a || !sortedIn(a) || (split && a.length < 2)) return null;
+  return { areas: a.map((p) => ({ ...p })), matches: Math.abs(a.reduce((n, p) => n + p.qty, 0) - line.driver_qty) <= 0.05 };
 }
 
 const qty = (n: number) => n.toLocaleString("en-CA", { maximumFractionDigits: 1 });
-/** The breakdown as labelled quantities, in a fixed order, empty areas left out. Empty when nothing is sorted into an area. */
+/** The breakdown as labelled quantities for a quote. Empty when nothing is sorted into an area. */
 export function areaParts(a: Areas): { label: string; qty: number }[] {
-  if (a.suite + a.common + a.washroom <= 0) return [];
-  return ORDER.filter((k) => a[k] > 0).map((k) => ({ label: AREA_LABEL[k], qty: a[k] }));
+  return sortedIn(a) ? a.filter((p) => p.qty > 0).map((p) => ({ label: p.label, qty: p.qty })) : [];
 }
-export const partsText = (parts: { label: string; qty: number }[]): string => parts.map((p) => `${p.label} ${qty(p.qty)} LF`).join(" · ");
 export function areasText(a: Areas): string | null {
   const parts = areaParts(a);
-  return parts.length ? partsText(parts) : null;
+  return parts.length ? parts.map((p) => `${p.label} ${qty(p.qty)} LF`).join(" · ") : null;
 }
 
 /** The job's accepted LF by finish and area, read from its takeoff. */

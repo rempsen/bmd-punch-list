@@ -211,7 +211,7 @@ describe("proposals do not count until accepted", () => {
     expect(now.origin).toMatchObject({ reviewed: true, method: METHOD, accepted_ts: "2026-11-24T13:00:00.000Z" });
     expect(now.verts_norm).toEqual(a.verts_norm);
     const q = takeoffQuantities(out.doc);
-    expect(q.rows).toEqual([{ key: "c1", section: "101 OFFICE", floor_sf: a.computed.area_sf, wall_sf: 0, border_sf: 0, lf: 0, ea: 0 }]);
+    expect(q.rows).toEqual([{ key: "c1", section: "Common areas", floor_sf: a.computed.area_sf, wall_sf: 0, border_sf: 0, lf: 0, ea: 0 }]);
     expect(proposalsIn(out.doc).length).toBe(doc.shapes.length - 1);
     expect(doc.shapes.find((s) => s.id === a.id).origin.reviewed).toBe(false);   // the document before is untouched: undo puts it back
   });
@@ -532,5 +532,40 @@ describe("accepting the base for the ticked areas in one step", () => {
     expect(out.doc.shapes.filter((s) => all.includes(s.id)).every((s) => s.condition_id === "c2" && s.origin.reviewed === true)).toBe(true);
     expect(baseByGroup(out.doc).map((g) => g.proposedLf)).toEqual([0, 0, 0]);
     expect(baseByGroup(out.doc)[2].acceptedLf).toBeCloseTo(wash.proposedLf, 1);
+  });
+});
+
+describe("every proposal records its area and the estimate section it rolls up under", () => {
+  test("a suite, the spaces inside it, and a corridor", async () => {
+    const spans = SUITE_SPANS.map((s) => (s.str === "SUITE" ? { ...s, str: "SUITE TYPE B", x: s.x - 28, w: 96 } : s));
+    const { doc } = await suiteRun({ spans, schedule: { reader: "BMD", rows: SUITE_SCHEDULE.rows.map((r) => (r.number === "201" ? { ...r, name: "SUITE TYPE B" } : r)) } });
+    const suite = floorOf(doc, "201"), bath = doc.shapes.find((s) => s.label === "201 BATH");
+    expect(suite.origin.auto).toMatchObject({ name: "SUITE TYPE B", group: "suite", section: "Suite Type B" });
+    expect(bath.origin.auto).toMatchObject({ group: "washroom", section: "Washrooms" });
+    expect(floorOf(doc, "200").origin.auto).toMatchObject({ group: "common", section: "Common areas" });
+    const baseFor = (id) => doc.shapes.find((s) => s.origin?.auto?.kind === "base" && s.origin.auto.of === id).origin.auto;
+    expect(baseFor(suite.id)).toMatchObject({ group: "suite", section: "Suite Type B" });
+    expect(baseFor(bath.id)).toMatchObject({ group: "washroom", section: "Washrooms" });
+    // accepted, the estimate gets one section per area, not one per room
+    const all = acceptBase(doc, doc.shapes.filter((s) => s.origin?.auto?.kind === "base").map((s) => s.id), "c2").doc;
+    expect(takeoffQuantities(all).rows.filter((r) => r.lf > 0).map((r) => r.section).sort()).toEqual(["Common areas", "Suite Type B", "Washrooms"]);
+  });
+  test("a bedroom inside Suite Type B goes under Suite Type B", async () => {
+    const spans = SUITE_SPANS.map((s) => (s.str === "SUITE" ? { ...s, str: "SUITE TYPE B", x: s.x - 28, w: 96 } : s.str === "BATH" ? { ...s, str: "BEDROOM" } : s));
+    const { doc } = await suiteRun({ spans });
+    expect(doc.shapes.find((s) => s.label === "201 BEDROOM").origin.auto).toMatchObject({ group: "suite", section: "Suite Type B" });
+  });
+});
+
+describe("the Base by area card lists suites by type", () => {
+  test("each suite type with its own LF, under Suites", () => {
+    const b = (id, name, lf, reviewed) => ({ id, sheet_id: "s", condition_id: "c2", measure_role: "linear", computed: { perimeter_lf: lf }, origin: { method: METHOD, reviewed, auto: { kind: "base", of: `f-${id}`, room: id, name, group: "suite", section: `Suite ${name.slice(6)}`.replace("TYPE", "Type") } } });
+    const g = baseByGroup({ conditions: [], shapes: [b("101", "SUITE TYPE B", 100, false), b("103", "SUITE TYPE B", 50, false), b("102", "SUITE TYPE D", 70, false), b("104", "SUITE TYPE D", 30, true)] })[0];
+    expect(g).toMatchObject({ group: "suite", proposedLf: 220, acceptedLf: 30, rooms: 3 });
+    expect(g.types).toEqual([{ label: "Suite Type B", proposedLf: 150, acceptedLf: 0, rooms: 2 }, { label: "Suite Type D", proposedLf: 70, acceptedLf: 30, rooms: 1 }]);
+  });
+  test("common areas and washrooms have no types", async () => {
+    const { doc } = await suiteRun();
+    expect(baseByGroup(doc).slice(1).map((x) => x.types)).toEqual([[], []]);
   });
 });
