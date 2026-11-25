@@ -158,6 +158,12 @@ export function buildComponents(input: { template: TemplateInput; finishMaterial
         };
       }
 
+      // An extra priced in a unit the line is not measured in (a Schluter edge by the LF on a wall tiled by the SF):
+      // it keeps its own unit and its own quantity, and each line is asked whether it has one.
+      if (c.cost_uom && !fits(driver, c.cost_uom)) {
+        issues.push(`${c.label}: answer yes or no on the line.`);
+        return { ...common, kind: "fixed", unit_cost_cents: c.unit_cost_cents, cost_uom: c.cost_uom, purchase_uom: c.cost_uom, coverage_per_purchase_unit: null, qty_per_driver: 0, waste_pct: 0, round_up: false, pst_applies: c.pst_applies };
+      }
       if (c.unit_cost_cents == null) issues.push(`${c.label} has no amount yet.`);
       const uom = c.cost_uom && fits(driver, c.cost_uom) ? c.cost_uom : driver;
       return { ...common, kind: "fixed", unit_cost_cents: c.unit_cost_cents, cost_uom: uom, purchase_uom: uom, coverage_per_purchase_unit: null, waste_pct: 0, round_up: false, pst_applies: c.pst_applies };
@@ -228,14 +234,26 @@ function priceOrdered(c: SnapComponent, line: LineInput, pstPct: number) {
   return { ...r, costCents: Math.round(r.costCents * (c.pst_applies ? 1 + pstPct / 100 : 1)) };
 }
 
+/**
+ * An extra asked about on each line: a fixed part priced in a unit the line is not measured in.
+ * "ask" until someone answers; "yes" once it has a quantity; "no" when it is marked not needed. Null for any other part.
+ */
+export function extraQuestion(c: SnapComponent, driver: Uom): "ask" | "yes" | "no" | null {
+  if (c.kind !== "fixed" || fits(driver, c.cost_uom)) return null;
+  return c.not_applicable ? "no" : c.qty_per_driver > 0 ? "yes" : "ask";
+}
+
 export function priceEstimateLine(line: LineInput, components: SnapComponent[], rates: { pstPct: number }): PricedEstimateLine {
-  const live = components.map((c) => !c.not_applicable && c.unit_cost_cents != null);
-  const unknownLabels = components.filter((c) => !c.not_applicable && c.unit_cost_cents == null).map((c) => c.label);
+  const extra = components.map((c) => extraQuestion(c, line.driver_uom));
+  const asking = extra.map((e) => e === "ask");
+  const live = components.map((c, i) => !c.not_applicable && !asking[i] && c.unit_cost_cents != null);
+  // an unanswered extra is an unknown cost, not a zero one
+  const unknownLabels = components.flatMap((c, i) => (asking[i] ? [`${c.label}: yes or no?`] : !c.not_applicable && c.unit_cost_cents == null ? [c.label] : []));
   let priced: PricedComponent[] = [];
   let orders: PricedEstimateLine["orders"] = components.map(() => null);
   let error: string | null = null;
   try {
-    const plain = components.map((c, i) => live[i] && !ordered(c));
+    const plain = components.map((c, i) => live[i] && !ordered(c) && !extra[i]);
     const p = priceLine(
       { driverQty: line.driver_qty, driverUom: line.driver_uom, markupPct: 0, taxCode: line.tax_code, components: components.filter((_, i) => plain[i]).map(toCalc) },
       rates,
@@ -244,6 +262,8 @@ export function priceEstimateLine(line: LineInput, components: SnapComponent[], 
     priced = components.map((c, i) => {
       if (plain[i]) return p.components[k++]!;
       if (!live[i]) return { purchaseQty: 0, costCents: 0 };
+      // an extra has its own quantity in its own unit: it does not follow the line's quantity
+      if (extra[i]) return { purchaseQty: c.qty_per_driver, costCents: Math.round(c.unit_cost_cents! * c.qty_per_driver * (c.pst_applies ? 1 + rates.pstPct / 100 : 1)) };
       const o = priceOrdered(c, line, rates.pstPct);
       orders[i] = { orderQty: o.orderQty, costUnitQty: o.costUnitQty };
       return { purchaseQty: o.orderQty, costCents: o.costCents };

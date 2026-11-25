@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ImportDialog } from "./ImportDialog";
 import { ScopeProposals } from "./ScopeProposals";
-import { areasText, lineAreas, useTakeoffAreas } from "@/lib/takeoff/areas";
+import { areasText, lineAreas, useTakeoffAreas, useTakeoffWalls } from "@/lib/takeoff/areas";
+import { edgeText, lineWallEdges, type WallEdges } from "@/lib/takeoff/walls";
 import { finishLinks, offerQty, offerUom, takeoffOffers, totalsByFinish, useTakeoffQuantities, type Offer } from "@/lib/takeoff/quantities";
 import { ArrowLeftRight, ChevronDown, ChevronRight, ClipboardPaste, Copy, GripVertical, History, LockOpen, Plus, RefreshCw, Trash2, TriangleAlert, Upload, X } from "lucide-react";
 import { ChangesSheet, keyCommit, TypedBadge, UnlockDialog, UnlockedBar } from "@/components/estimate/editing";
@@ -45,7 +46,7 @@ import {
   type EstVersion,
   type SaveItem,
 } from "@/lib/estimating/data";
-import { changeLineUnit, costInUnit, costTarget, lineFromFinish, lineWasteShown, partChoices, partFor, sectionChoices, setLineWaste, setPartCoverage, setPartWaste, simpleLine, unitChoices, wasteApplies, type PartKind } from "@/lib/estimating/lines";
+import { changeLineUnit, costInUnit, costTarget, lineFromFinish, lineWasteShown, partChoices, partFor, sectionChoices, setLineWaste, setPartCoverage, setPartWaste, simpleLine, unitChoices, wasteApplies, type PartKind, answerExtra, extrasOf, templateForOffer } from "@/lib/estimating/lines";
 import type { CatalogueView } from "@/lib/estimating/assemble";
 import type { LabourRate, Material } from "@/lib/catalogue/data";
 import type { Uom } from "@/lib/estimating/calc";
@@ -77,6 +78,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   // Base by area (suites, common areas, washrooms) under each line that follows the takeoff in LF. A view setting,
   // remembered on this computer; it never changes a quantity or a price.
   const { data: takeoffAreas } = useTakeoffAreas(projectId, canSee);
+  const { data: takeoffWalls } = useTakeoffWalls(projectId, canSee);
   const [byArea, setByArea] = useState(true);
   useEffect(() => {
     try {
@@ -249,7 +251,8 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   /** A new line for something measured in the takeoff. It follows the takeoff until the estimator says otherwise. */
   const lineForOffer = (o: Offer, versionId: string, markupPct: number): SaveItem => {
     const finish = finishes.find((f) => f.id === o.finishId)!;
-    const template = templates.find((t) => t.id === finish.assembly_template_id) ?? null;
+    // Walls measured in the takeoff are priced with the wall tile assembly: wall install labour and its Schluter question.
+    const template = templateForOffer(templates.find((t) => t.id === finish.assembly_template_id) ?? null, o.section, templates);
     const uom = offerUom(o.measure, template?.driver_uom ?? null);
     const qty = offerQty(o.measure, uom);
     // The assembly prices the line when its unit fits what was measured. Otherwise the line goes on unpriced: an unknown cost is not zero.
@@ -581,6 +584,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                           key={l.id}
                           line={l}
                           areas={byArea ? lineAreas(l, active.lines, takeoffAreas ?? {}) : null}
+                          wallEdges={lineWallEdges(l, active.lines, takeoffWalls ?? {})}
                           priced={sum.priced[l.id]!}
                           editable={editable}
                           expanded={open.has(l.id)}
@@ -779,6 +783,7 @@ const BY_AREA_KEY = "bmd.estimate.byArea";
 function LineRows({
   line,
   areas,
+  wallEdges,
   priced,
   editable,
   expanded,
@@ -808,6 +813,7 @@ function LineRows({
 }: {
   line: EstLine;
   areas: ReturnType<typeof lineAreas>;
+  wallEdges: WallEdges | null;
   priced: ReturnType<typeof versionSummary>["priced"][string];
   editable: boolean;
   expanded: boolean;
@@ -850,6 +856,31 @@ function LineRows({
     onSave({}, [...line.components, partFor(kind, pick, line.driver_uom, catalogue, next)]);
     onOpen();
     toast.success(pick ? `${pick.name} added to ${line.description || "the line"}` : `Added. Type its cost in the list below the line.`);
+  };
+  // Extras asked about on each line (a Schluter edge on wall tile): yes with its own LF and cost per LF, or no.
+  const extras = extrasOf(line.components, line.driver_uom);
+  const [typingExtra, setTypingExtra] = useState<number | null>(null);   // Yes was pressed with no takeoff length to offer: the LF box is open
+  const answer = (index: number, yes: boolean, qty = 0) => {
+    try {
+      onSave({}, answerExtra(line.components, index, yes, qty));
+      setTypingExtra(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  };
+  const sayYes = (x: (typeof extras)[number]) => {
+    if (x.qty > 0) return answer(x.index, true, x.qty);
+    if (wallEdges && x.uom === "LF") {
+      answer(x.index, true, wallEdges.allLf);
+      return void toast.success(`${x.label}: ${wallEdges.allLf.toLocaleString("en-CA")} LF from the takeoff (the top and both ends of each run). Change it if only some edges are exposed.`, { duration: 8000 });
+    }
+    setTypingExtra(x.index);
+  };
+  const commitExtraQty = (x: (typeof extras)[number], raw: string) => {
+    const n = Number(raw.replace(/,/g, ""));
+    if (raw.trim() === "" && x.state !== "yes") return setTypingExtra(null);
+    if (!Number.isFinite(n) || n <= 0) return void toast.error(`Enter how many ${x.uom}, above zero. Choose No if there is none.`);
+    if (n !== x.qty || x.state !== "yes") answer(x.index, true, n);
   };
   const commitCost = (i: number, raw: string) => {
     const c = line.components[i]!;
@@ -982,6 +1013,37 @@ function LineRows({
               </span>
             )}
           </div>
+          {extras.map((x) => {
+            const open = x.state === "yes" || typingExtra === x.index;
+            const cost = priced.components[x.index]?.costCents ?? 0;
+            return (
+              <div key={x.index} role="group" aria-label={`Does it have a ${x.label}?`} className={cn("mx-2 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border px-2 py-1.5 text-xs", x.state === "ask" ? "border-amber-300 bg-amber-50 text-amber-950" : "border-border bg-muted/40")}>
+                <span className="font-medium">Does it have a {x.label}?</span>
+                {editable ? (
+                  <span className="inline-flex overflow-hidden rounded-md border border-input bg-background">
+                    <button type="button" aria-pressed={x.state === "yes"} onClick={() => sayYes(x)} className={cn("h-8 min-w-11 px-3 font-medium", x.state === "yes" && "bg-primary text-primary-foreground")}>
+                      Yes
+                    </button>
+                    <button type="button" aria-pressed={x.state === "no"} onClick={() => answer(x.index, false)} className={cn("h-8 min-w-11 border-l border-input px-3 font-medium", x.state === "no" && "bg-primary text-primary-foreground")}>
+                      No
+                    </button>
+                  </span>
+                ) : (
+                  <span className="font-medium">{x.state === "yes" ? "Yes" : x.state === "no" ? "No" : "Not answered"}</span>
+                )}
+                {open && (
+                  <>
+                    <input key={`${line.id}-xq-${x.index}-${x.qty}-${line.row_version}`} aria-label={`${x.label}: how many ${x.uom}`} disabled={!editable} autoFocus={typingExtra === x.index} inputMode="decimal" defaultValue={x.qty > 0 ? x.qty : ""} placeholder={x.uom} onBlur={(e) => commitExtraQty(x, e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className="h-8 w-20 rounded-md border border-input bg-background px-2 text-right tabular-nums" />
+                    <span>{x.uom} at $</span>
+                    <input key={`${line.id}-xc-${x.index}-${x.unitCostCents}-${line.row_version}`} aria-label={`${x.label}: cost per ${x.uom}`} disabled={!editable} inputMode="decimal" defaultValue={x.unitCostCents == null ? "" : (x.unitCostCents / 100).toFixed(2)} placeholder="cost" onBlur={(e) => commitCost(x.index, e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className="h-8 w-20 rounded-md border border-input bg-background px-2 text-right tabular-nums" />
+                    <span>per {x.uom}</span>
+                    {x.state === "yes" && (x.unitCostCents == null ? <span className="font-medium text-amber-700">cost missing</span> : <span className="tabular-nums">= {dollars(cost)} carried in this line</span>)}
+                  </>
+                )}
+                {x.state !== "no" && wallEdges && x.uom === "LF" && <span className="basis-full text-muted-foreground">{edgeText(wallEdges)}</span>}
+              </div>
+            );
+          })}
           {areas && (
             <p className="px-2 text-xs text-muted-foreground">
               By area: {areasText(areas.areas)}

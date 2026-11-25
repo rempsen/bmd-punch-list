@@ -195,3 +195,34 @@ export function partFor(kind: PartKind, pick: PartChoice | null, driver: Uom, ca
 const USUAL_SECTIONS = ["Flooring", "Window coverings", "Prep", "General"];
 /** Sections a line can be moved to: the ones already on this price, then the usual ones. */
 export const sectionChoices = (inUse: string[]): string[] => [...new Set([...inUse, ...USUAL_SECTIONS])];
+
+// ── Extras asked about on each line (a Schluter edge on wall tile) ─────────────────────────────────────
+export { extraQuestion } from "./assemble";
+import { extraQuestion as question } from "./assemble";
+
+/** The yes-or-no extras on a line, with where each stands. */
+export function extrasOf(components: SnapComponent[], driver: Uom): { index: number; label: string; uom: Uom; state: "ask" | "yes" | "no"; qty: number; unitCostCents: number | null }[] {
+  return components.flatMap((c, index) => {
+    const state = question(c, driver);
+    return state ? [{ index, label: c.label, uom: c.cost_uom, state, qty: c.qty_per_driver, unitCostCents: c.unit_cost_cents }] : [];
+  });
+}
+
+/** Answers an extra: Yes with how much of it there is (in its own unit), or No. */
+export function answerExtra(components: SnapComponent[], index: number, yes: boolean, qty = 0): SnapComponent[] {
+  if (yes && !(qty > 0)) throw new Error(`Type how many ${components[index]?.cost_uom ?? "units"} there are.`);
+  return components.map((c, i) => (i !== index ? c : yes ? { ...c, not_applicable: false, qty_per_driver: Math.round(qty * 100) / 100 } : { ...c, not_applicable: true }));
+}
+
+const WALLS = /(^|\s)walls$/i;
+/** True for the sections the takeoff gives wall tile: "Walls", "Suite Type B walls". */
+export const isWallSection = (section: string): boolean => WALLS.test(section.trim());
+
+/**
+ * The assembly a line added from the takeoff is priced with. Walls take the wall tile assembly (wall install labour,
+ * and its Schluter question) whatever the finish is set up as; everything else keeps the finish's own.
+ */
+export function templateForOffer<T extends { category: string; active: boolean }>(finishTemplate: T | null, section: string, templates: T[]): T | null {
+  if (!isWallSection(section)) return finishTemplate;
+  return templates.find((t) => t.active && t.category === "wall_tile") ?? finishTemplate;
+}

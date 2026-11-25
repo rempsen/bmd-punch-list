@@ -5,9 +5,11 @@
  * of the takeoff, per finish and section, so the estimate and the quote can show where a line's LF comes from.
  * Quantities only: nothing here knows a cost or a price.
  */
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import { GENERAL } from "./quantities";
+import { wallEdgesByFinish } from "./walls";
 
 export type AreaKey = "suite" | "common" | "washroom" | "other";
 /** One part of a breakdown: "Suite Type B", "Common areas", "Washrooms", or "Other" for work with no area recorded. */
@@ -128,20 +130,33 @@ export function areasText(a: Areas): string | null {
   return parts.length ? parts.map((p) => `${p.label} ${qty(p.qty)} LF`).join(" · ") : null;
 }
 
-/** The job's accepted LF by finish and area, read from its takeoff. */
-export function useTakeoffAreas(projectId: string | null, enabled = true) {
+type Raw = { doc: Doc; links: { condition_key: string; finish_id: string }[] };
+/** The job's takeoff measurements and which job finish each takeoff finish is. Read once and shared. */
+function useTakeoffRaw(projectId: string | null, enabled: boolean) {
   return useQuery({
-    queryKey: ["takeoff-areas", projectId],
+    queryKey: ["takeoff-raw", projectId],
     enabled: !!projectId && enabled,
     staleTime: 30_000,
-    queryFn: async (): Promise<FinishAreas> => {
+    queryFn: async (): Promise<Raw> => {
       const [tk, links] = await Promise.all([
         db.from("project_takeoffs").select("conditions:doc->conditions,shapes:doc->shapes").eq("project_id", projectId!).maybeSingle(),
         db.from("takeoff_quantities").select("condition_key,finish_id").eq("project_id", projectId!),
       ]);
       if (tk.error) throw tk.error;
       if (links.error) throw links.error;
-      return areasByFinish(docAreaRows(tk.data as Doc), (links.data ?? []) as { condition_key: string; finish_id: string }[]);
+      return { doc: tk.data as Doc, links: (links.data ?? []) as Raw["links"] };
     },
   });
+}
+
+/** The job's accepted LF by finish and area, read from its takeoff. */
+export function useTakeoffAreas(projectId: string | null, enabled = true) {
+  const { data } = useTakeoffRaw(projectId, enabled);
+  return { data: useMemo(() => (data ? areasByFinish(docAreaRows(data.doc), data.links) : undefined), [data]) };
+}
+
+/** The edges of the job's tiled walls by finish, read from its takeoff. */
+export function useTakeoffWalls(projectId: string | null, enabled = true) {
+  const { data } = useTakeoffRaw(projectId, enabled);
+  return { data: useMemo(() => (data ? wallEdgesByFinish(data.doc as Parameters<typeof wallEdgesByFinish>[0], data.links) : undefined), [data]) };
 }
