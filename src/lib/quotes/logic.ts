@@ -20,17 +20,19 @@ export type QuoteDisplay = {
   showUnitPrices: boolean;
   showLineAmounts: boolean;
   showGroupSubtotals: boolean;
+  /** Under a base line, where its LF is: suites, common areas, washrooms. Off unless switched on. */
+  showAreas: boolean;
 };
 export function displayFor(p: Presentation): QuoteDisplay {
   const all = p === "itemised";
-  return { groupBy: "section", showLines: true, showQuantities: true, showUnitPrices: all, showLineAmounts: all, showGroupSubtotals: p !== "lump_sum" };
+  return { groupBy: "section", showLines: true, showQuantities: true, showUnitPrices: all, showLineAmounts: all, showGroupSubtotals: p !== "lump_sum", showAreas: false };
 }
 /** A saved display setting, with anything missing or malformed taken from the preset. */
 export function normalizeDisplay(raw: Partial<Record<keyof QuoteDisplay, unknown>> | null | undefined, preset: Presentation): QuoteDisplay {
   const d = displayFor(preset);
   if (!raw || typeof raw !== "object") return d;
-  const flag = (k: Exclude<keyof QuoteDisplay, "groupBy">) => (typeof raw[k] === "boolean" ? (raw[k] as boolean) : d[k]);
-  return { groupBy: raw.groupBy === "material" || raw.groupBy === "section" ? raw.groupBy : d.groupBy, showLines: flag("showLines"), showQuantities: flag("showQuantities"), showUnitPrices: flag("showUnitPrices"), showLineAmounts: flag("showLineAmounts"), showGroupSubtotals: flag("showGroupSubtotals") };
+  const flag = (k: Exclude<keyof QuoteDisplay, "groupBy" | "showAreas">) => (typeof raw[k] === "boolean" ? (raw[k] as boolean) : d[k]);
+  return { groupBy: raw.groupBy === "material" || raw.groupBy === "section" ? raw.groupBy : d.groupBy, showLines: flag("showLines"), showQuantities: flag("showQuantities"), showUnitPrices: flag("showUnitPrices"), showLineAmounts: flag("showLineAmounts"), showGroupSubtotals: flag("showGroupSubtotals"), showAreas: raw.showAreas === true };
 }
 
 /** The company's details when nothing has been saved under Company settings → Quotes. Quotes read the saved details from their snapshot. */
@@ -68,6 +70,8 @@ export type SnapLine = {
   group: string | null;
   allowance: boolean;
   subjectToMeasure: boolean;
+  /** Where the line's quantity is, by area ("Suites", 1248.5). Only on a quote with the by-area switch on. */
+  areas?: { label: string; qty: number }[];
 };
 export type SnapVersion = {
   id: string;
@@ -111,17 +115,18 @@ export type QuoteSnapshot = {
   versions: SnapVersion[];
 };
 
-export type SnapshotInput = Omit<QuoteSnapshot, "versions" | "terms" | "gstPct" | "hstPct" | "display" | "drawings" | "company" | "attention" | "remarks" | "footer" | "conditions"> & { branding?: Branding; attention?: string | null; remarks?: string | null; drawings?: string[]; versions: EstVersion[]; rates: Rates; display?: QuoteDisplay; materialOf?: Record<string, string> };
+export type SnapshotInput = Omit<QuoteSnapshot, "versions" | "terms" | "gstPct" | "hstPct" | "display" | "drawings" | "company" | "attention" | "remarks" | "footer" | "conditions"> & { branding?: Branding; attention?: string | null; remarks?: string | null; drawings?: string[]; versions: EstVersion[]; rates: Rates; display?: QuoteDisplay; materialOf?: Record<string, string>; /** Per line id: where its quantity is, by area. Used only when the display's by-area switch is on. */ areasOf?: Record<string, { label: string; qty: number }[]> };
 
 export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
   const { versions, rates, ...head } = input;
   const brand = head.branding ?? brandingFrom(null);
+  const display = normalizeDisplay(head.display, head.presentation);
   return {
     number: head.number,
     date: head.date,
     validityDays: head.validityDays,
     presentation: head.presentation,
-    display: normalizeDisplay(head.display, head.presentation),
+    display,
     preparedBy: { name: head.preparedBy.name, email: head.preparedBy.email },
     project: { name: head.project.name, number: head.project.number, address: head.project.address },
     client: { name: head.client.name, address: head.client.address },
@@ -158,6 +163,7 @@ export function buildSnapshot(input: SnapshotInput): QuoteSnapshot {
           group: l.selection_group,
           allowance: l.is_allowance,
           subjectToMeasure: l.subject_to_measure,
+          ...(display.showAreas && head.areasOf?.[l.id]?.length ? { areas: head.areasOf[l.id]!.map((a) => ({ label: a.label, qty: a.qty })) } : {}),
         });
       }
       const sv: SnapVersion = { id: v.id, name: v.name, description: v.description, sections, subtotalCents: 0, taxByCode: {}, taxCents: 0, totalCents: 0 };
@@ -272,7 +278,7 @@ export async function issueQuoteFlow(deps: IssueDeps, input: IssueInput): Promis
 export const money = (cents: number) => (cents / 100).toLocaleString("en-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 
-export type LayoutLine = { line: SnapLine; text: string; amountCents: number | null; note: string | null };
+export type LayoutLine = { line: SnapLine; text: string; amountCents: number | null; note: string | null; /** "Suites 1,248.5 LF · Common areas …", or null. */ areas: string | null };
 export type LayoutGroup = { name: string; quantity: string | null; subtotalCents: number | null; lines: LayoutLine[] };
 const OTHER = "Other items";
 const qtyText = (n: number, uom: string) => `${n.toLocaleString("en-CA", { maximumFractionDigits: 2 })} ${uom}`;
@@ -307,7 +313,7 @@ export function layoutVersion(v: SnapVersion, display: QuoteDisplay, included: S
           const qty = display.showQuantities && measuredLine ? ` · ${qtyText(l.qty, l.uom)}` : "";
           const unit = display.showUnitPrices && measuredLine ? (l.unitPriceExact === false ? ` about $${money(l.unitPriceCents)} per ${l.uom}` : ` @ $${money(l.unitPriceCents)}`) : "";
           const flags = [l.selection === "optional" ? "optional, not in the total" : null, l.selection === "choose_one" ? `choose one${l.group ? ` (${l.group})` : ""}` : null, l.allowance ? "allowance" : null, l.subjectToMeasure ? "subject to final measure" : null].filter(Boolean);
-          return { line: l, text: `${l.description}${qty}${unit}`, amountCents: display.showLineAmounts || l.selection !== "required" ? l.sellCents : null, note: flags.length ? flags.join("; ") : null };
+          return { line: l, text: `${l.description}${qty}${unit}`, amountCents: display.showLineAmounts || l.selection !== "required" ? l.sellCents : null, note: flags.length ? flags.join("; ") : null, areas: display.showAreas && l.areas?.length ? l.areas.map((a) => `${a.label} ${a.qty.toLocaleString("en-CA", { maximumFractionDigits: 1 })} ${l.uom}`).join(" · ") : null };
         }),
     };
   });

@@ -5,6 +5,7 @@ import type { Rates } from "@/lib/estimating/worksheet";
 import { categoryLabel } from "@/lib/catalogue/logic";
 import { brandingFrom, SETTINGS_COLS, type Branding, type SettingsRow } from "./branding";
 import { buildSnapshot, normalizeDisplay, rollupByCostCode, unknownCostLabels, type Presentation, type QuoteDisplay, type QuoteKind, type QuoteSnapshot } from "./logic";
+import { areaParts, areasByFinish, docAreaRows, lineAreas } from "@/lib/takeoff/areas";
 
 export type QuoteStatus = "draft" | "sent" | "accepted" | "declined" | "superseded";
 export type QuoteRow = {
@@ -105,6 +106,26 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
     const labels = Object.fromEntries(((lab ?? []) as { sheet_key: string; label: string }[]).map((r) => [r.sheet_key, r.label]));
     drawingSheets = chosenDrawings(chosen, (tk as { doc: TakeoffDoc } | null)?.doc, labels);
   }
+  // Base broken out by area, when the quote asks for it: each LF line that follows the takeoff, from the takeoff's
+  // accepted lines. A line whose areas do not add up to its quantity gets none, and is named so the office can see why.
+  const display = normalizeDisplay(quote.display, quote.presentation);
+  const areasOf: Record<string, { label: string; qty: number }[]> = {};
+  const areasMissing: string[] = [];
+  if (display.showAreas) {
+    const [{ data: tk }, { data: links }] = await Promise.all([
+      sb.from("project_takeoffs").select("conditions:doc->conditions,shapes:doc->shapes").eq("project_id", quote.project_id).maybeSingle(),
+      sb.from("takeoff_quantities").select("condition_key,finish_id").eq("project_id", quote.project_id),
+    ]);
+    const areas = areasByFinish(docAreaRows(tk as Parameters<typeof docAreaRows>[0]), (links ?? []) as { condition_key: string; finish_id: string }[]);
+    for (const v of versions) {
+      for (const l of v.lines) {
+        const a = lineAreas(l, v.lines, areas);
+        if (!a) continue;
+        if (a.matches) areasOf[l.id] = areaParts(a.areas);
+        else areasMissing.push(l.description);
+      }
+    }
+  }
   const date = todayInWinnipeg();
   const branding = await loadBranding(sb);
   const snapshot = buildSnapshot({
@@ -115,8 +136,9 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
     date,
     validityDays: quote.validity_days,
     presentation: quote.presentation,
-    display: normalizeDisplay(quote.display, quote.presentation),
+    display,
     materialOf,
+    areasOf,
     preparedBy,
     project: { name: project.name, number: project.project_number, address: project.address },
     client: { name: project.client?.name ?? "", address: project.client?.billing_address ?? null },
@@ -133,6 +155,7 @@ export async function loadQuoteContext(sb: Sb, quoteId: string, preparedBy: { na
     snapshot,
     rollup: versions.map((v) => ({ versionId: v.id, ...rollupByCostCode(v, rates) })),
     unknown: unknownCostLabels(versions, rates),
+    areasMissing,
     drawingSheets,
     versions,
     fileName: quoteFileName(quote.number, project.name, date),

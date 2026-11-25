@@ -137,7 +137,7 @@ export function PublicQuote({ view, logo, onSave, onAccept }: Props) {
                   {g.subtotalCents != null && <span className="tabular-nums">${money(g.subtotalCents)}</span>}
                 </div>
                 <ul>
-                  {g.lines.map(({ line: l, text, amountCents }) => {
+                  {g.lines.map(({ line: l, text, amountCents, areas }) => {
                     const members = l.selection === "choose_one" ? (groups.get(l.group ?? l.id) ?? []) : [];
                     const picked = l.selection === "choose_one" && withDefaults(v)[l.id] === "yes";
                     return (
@@ -146,6 +146,7 @@ export function PublicQuote({ view, logo, onSave, onAccept }: Props) {
                           {text}
                           {l.allowance && <span className="text-muted-foreground"> · allowance</span>}
                           {l.subjectToMeasure && <span className="text-muted-foreground"> · subject to final measure</span>}
+                          {areas && <span className="block text-xs text-muted-foreground">{areas}</span>}
                         </span>
                         {l.selection === "optional" && (
                           <span role="group" aria-label={`${l.description}: include?`} className="flex overflow-hidden rounded-md border border-input">
