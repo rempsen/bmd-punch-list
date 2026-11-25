@@ -115,7 +115,8 @@ describe("applying an ArrivePing event to a visit", () => {
   test("the acceptance badge: not sent, awaiting, accepted", () => {
     expect(acceptanceBadge({ ...v, arriveping_job_id: null })).toEqual({ tone: "grey", label: "Not sent" });
     expect(acceptanceBadge(v)).toEqual({ tone: "amber", label: "Sent — awaiting acceptance" });
-    expect(acceptanceBadge({ ...v, accepted_at: "2026-12-01T14:05:00Z", accepted_by: "Brodie" })).toEqual({ tone: "green", label: "Accepted by Brodie · Dec 1, 9:05 a.m." });
+    // A summer date: Winnipeg is CDT (UTC−5) whatever a runtime's tz data says about the winter, so the label is the same everywhere.
+    expect(acceptanceBadge({ ...v, accepted_at: "2026-07-01T14:05:00Z", accepted_by: "Brodie" })).toEqual({ tone: "green", label: "Accepted by Brodie · Jul 1, 9:05 a.m." });
     expect(acceptanceBadge({ ...v, status: "cancelled" })).toBeNull();
   });
   test("a repeated assignment, or one for a finished visit, changes nothing", () => {
