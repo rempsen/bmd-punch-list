@@ -2,14 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { cleanPages, highlightSnippet, textKind } from "./text";
 
 describe("what can be read for text", () => {
-  test("PDFs and plain-text files are read; images and Office files wait for OCR or a converter", () => {
+  test("PDF, text and Office formats are supported; images remain files", () => {
     expect(textKind("application/pdf", "A-101.PDF")).toBe("pdf");
     expect(textKind(null, "plans.pdf")).toBe("pdf");
     expect(textKind("text/plain", "notes.txt")).toBe("text");
     expect(textKind("text/markdown", "README.md")).toBe("text");
-    expect(textKind(null, "quantities.csv")).toBe("text");
+    expect(textKind(null, "quantities.csv")).toBe("csv");
     expect(textKind("image/jpeg", "site.jpg")).toBe("none");
-    expect(textKind("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "spec.docx")).toBe("none");
+    expect(textKind("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "spec.docx")).toBe("docx");
   });
 });
 

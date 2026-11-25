@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { isOfficeFile, needsIndex } from "@/lib/documents/index-status";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -68,20 +69,21 @@ export function DocumentSearch({ projectId, docs, onOpen }: { projectId: string;
 export function TextIndexStatus({ projectId, docs, onChanged }: { projectId: string; docs: DocRow[]; onChanged: () => void }) {
   const total = docs.length;
   const indexed = docs.filter((d) => d.text_status && d.text_status !== "pending").length;
-  const pending = docs.filter((d) => !d.text_status || d.text_status === "pending").length;
+  const remaining = docs.filter(needsIndex);
+  const pending = remaining.length;
+  const autoIndexed = useRef(new Set<string>());
   const [progress, setProgress] = useState<{ done: number; of: number; current: string } | null>(null);
 
-  const run = async () => {
-    const { data, error } = await db.rpc("document_text_backlog", { _project: projectId });
-    if (error) return void setProgress({ done: 0, of: 0, current: `Could not list documents: ${errText(error)}` });
-    const rows = (data ?? []) as TextBacklogRow[];
+  const run = async (rows: TextBacklogRow[] = remaining) => {
     for (let i = 0; i < rows.length; i++) {
-      const r = rows[i]!;
+      const r = rows[i];
+      if (!r) continue;
       setProgress({ done: i, of: rows.length, current: r.file_name });
       try {
         const { data: blob, error: dl } = await supabase.storage.from(BUCKET).download(r.storage_path);
         if (dl || !blob) throw new Error(dl?.message ?? "download failed");
-        await indexDocumentFile(r.id, blob, r.mime, r.file_name);
+        const status = await indexDocumentFile(r.id, blob, r.mime, r.file_name);
+        if (status === "failed") setProgress({ done: i, of: rows.length, current: `${r.file_name}: failed — retry available` });
       } catch (e) {
         console.error(`[documents] ${r.file_name}: ${e instanceof Error ? e.message : String(e)}`);
       }
@@ -90,6 +92,13 @@ export function TextIndexStatus({ projectId, docs, onChanged }: { projectId: str
     setProgress({ done: rows.length, of: rows.length, current: "" });
     onChanged();
   };
+
+  useEffect(() => {
+    if (!docs.length || autoIndexed.current.has(projectId)) return;
+    autoIndexed.current.add(projectId);
+    const office = docs.filter((d) => isOfficeFile(d) && needsIndex(d) && d.text_status !== "failed");
+    if (office.length) void run(office);
+  }, [projectId, docs]);
 
   return (
     <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">

@@ -81,8 +81,8 @@ export function conversationTitle(message: string): string {
   return t.length > 80 ? `${t.slice(0, 77).trimEnd()}…` : t || "Conversation";
 }
 
-type DocHit = { document_id: string; file_name: string; page: number };
-type KnowledgeHit = { item_id: string; kind: string; title: string; file_name: string | null; page: number | null };
+type DocHit = { document_id: string; file_name: string; page: number; page_label?: string | null };
+type KnowledgeHit = { item_id: string; kind: string; title: string; file_name: string | null; page: number | null; page_label?: string | null };
 
 /** The sources shown under an answer: every document page and knowledge item a lookup returned, once each, in order. */
 export function sourcesFrom(results: { name: string; value: unknown }[]): Source[] {
@@ -97,12 +97,12 @@ export function sourcesFrom(results: { name: string; value: unknown }[]): Source
     if (!Array.isArray(r.value) && !(r.value && typeof r.value === "object")) continue;
     if (r.name === "search_documents" || r.name === "read_document_page") {
       const hits = (Array.isArray(r.value) ? r.value : [r.value]) as Partial<DocHit>[];
-      for (const h of hits) if (h.document_id && h.file_name && h.page) add({ kind: "document", label: `${h.file_name}, p. ${h.page}`, documentId: h.document_id, page: h.page }, `d:${h.document_id}:${h.page}`);
+      for (const h of hits) if (h.document_id && h.file_name && h.page) add({ kind: "document", label: `${h.file_name}, ${h.page_label ?? `p. ${h.page}`}`, documentId: h.document_id, page: h.page }, `d:${h.document_id}:${h.page}`);
     } else if (r.name === "search_knowledge" || r.name === "read_knowledge_page") {
       const hits = (Array.isArray(r.value) ? r.value : [r.value]) as Partial<KnowledgeHit>[];
       for (const h of hits) {
         if (!h.item_id) continue;
-        const label = h.kind === "file" ? `${h.file_name ?? h.title ?? "Knowledge file"}${h.page ? `, p. ${h.page}` : ""}` : `Memory: ${h.title ?? ""}`;
+        const label = h.kind === "file" ? `${h.file_name ?? h.title ?? "Knowledge file"}${h.page ? `, ${h.page_label ?? `p. ${h.page}`}` : ""}` : `Memory: ${h.title ?? ""}`;
         add({ kind: "knowledge", label, itemId: h.item_id, ...(h.page ? { page: h.page } : {}) }, `k:${h.item_id}:${h.page ?? ""}`);
       }
     } else if (r.name === "company_details") add({ kind: "record", label: "Company settings" }, "r:company");

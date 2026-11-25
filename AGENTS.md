@@ -32,3 +32,7 @@
 ## Bill editing
 - Fixed-price and open-book bill lists share BillEditor; draft writes use a job-authorized transactional RPC so issue, totals, over-billing confirmation and Activity remain consistent.
 - Editor and invoice PDF share billing/editor.ts totals; legacy invoices retain saved totals, while edited invoices store their GST rate and detailed line quantities/prices.
+
+## Search indexing
+- Knowledge and project uploads/retries use the shared index queue; Word/Excel/CSV/text extract from stored files on the server, while PDF keeps its browser worker because the established reader is browser-only.
+- Page storage uses existing Knowledge/document page tables and access rules; Office citation labels and extraction errors are metadata rather than separate search stores.

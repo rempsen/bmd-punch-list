@@ -1,3 +1,4 @@
+import { visibleKnowledgeHits } from "./knowledge-access";
 /**
  * The assistant's lookups. Each one runs with the asker's own Supabase client, so row-level security decides what comes
  * back: a person without pricing access gets no costs, and documents are only those they can open. Nothing here writes.
@@ -164,46 +165,52 @@ export function lookupsFor(sb: Sb, opts: { canPrice: boolean }): Lookups {
       const hits = must(await sb.rpc("search_document_pages", { _project: pid, _q: q, _limit: 20 })) as Record<string, unknown>[] | null;
       if (!hits?.length) return [];
       const ids = [...new Set(hits.map((h) => h["document_id"] as string))];
+      const pageRows = must(await sb.from("document_pages").select("document_id,page,page_label").in("document_id", ids)) as { document_id: string; page: number; page_label: string | null }[];
+      const pageLabels = new Map(pageRows.map((p) => [`${p.document_id}:${p.page}`, p.page_label]));
       const docs = must(await sb.from("project_documents").select("id,project_id,created_at,project:projects(name,project_number)").in("id", ids)) as Record<string, unknown>[];
       const byId = new Map(docs.map((d) => [d["id"] as string, d]));
       return hits.map((h) => {
         const d = byId.get(h["document_id"] as string);
         const proj = d?.["project"] as { name?: string; project_number?: string | null } | null | undefined;
-        return { document_id: h["document_id"], file_name: h["file_name"], section: h["section"], version: h["version"], page: h["page"], snippet: String(h["snippet"] ?? "").replace(/<\/?b>/g, ""), project: proj ? `${proj.project_number ? `${proj.project_number} ` : ""}${proj.name ?? ""}`.trim() : null, project_id: d?.["project_id"] ?? null, uploaded: d?.["created_at"] ?? null };
+        return { document_id: h["document_id"], file_name: h["file_name"], section: h["section"], version: h["version"], page: h["page"], page_label: pageLabels.get(`${h["document_id"]}:${h["page"]}`) ?? null, snippet: String(h["snippet"] ?? "").replace(/<\/?b>/g, ""), project: proj ? `${proj.project_number ? `${proj.project_number} ` : ""}${proj.name ?? ""}`.trim() : null, project_id: d?.["project_id"] ?? null, uploaded: d?.["created_at"] ?? null };
       });
     },
 
     read_document_page: async (args) => {
       const did = id(args["document_id"], "document_id");
       const pg = page(args["page"]);
-      const row = must(await sb.from("document_pages").select("page,text,document:project_documents(file_name,section,created_at,text_pages)").eq("document_id", did).eq("page", pg).maybeSingle()) as Record<string, unknown> | null;
+      const row = must(await sb.from("document_pages").select("page,text,page_label,document:project_documents(file_name,section,created_at,text_pages)").eq("document_id", did).eq("page", pg).maybeSingle()) as Record<string, unknown> | null;
       if (!row) throw new Error("No such page, or the document is not one the asker can read");
       const d = row["document"] as { file_name?: string; section?: string; created_at?: string; text_pages?: number | null } | null;
-      return { document_id: did, file_name: d?.file_name ?? null, section: d?.section ?? null, uploaded: d?.created_at ?? null, pages: d?.text_pages ?? null, page: pg, text: row["text"] };
+      return { document_id: did, file_name: d?.file_name ?? null, section: d?.section ?? null, uploaded: d?.created_at ?? null, pages: d?.text_pages ?? null, page: pg, page_label: row["page_label"] ?? null, text: row["text"] };
     },
 
     search_knowledge: async (args) => {
       const q = str(args["q"]);
       if (!q) throw new Error("q is required");
       const hits = must(await sb.rpc("search_knowledge", { _q: q, _limit: 20 })) as Record<string, unknown>[] | null;
-      const rows = hits ?? [];
+      const rows = visibleKnowledgeHits(hits ?? [], opts.canPrice);
       if (!rows.length) return [];
+      const fileIds = [...new Set(rows.filter((h) => h["kind"] === "file").map((h) => h["item_id"] as string))];
+      const pageRows = fileIds.length ? must(await sb.from("knowledge_pages").select("item_id,page,page_label").in("item_id", fileIds)) as { item_id: string; page: number; page_label: string | null }[] : [];
+      const pageLabels = new Map(pageRows.map((p) => [`${p.item_id}:${p.page}`, p.page_label]));
       const memoryIds = rows.filter((h) => h["kind"] === "memory").map((h) => h["item_id"] as string);
       const bodies = memoryIds.length ? (must(await sb.from("knowledge_items").select("id,body,updated_at").in("id", memoryIds)) as { id: string; body: string | null; updated_at: string }[]) : [];
       const bodyOf = new Map(bodies.map((b) => [b.id, b]));
       return rows.map((h) => {
         const b = bodyOf.get(h["item_id"] as string);
-        return { item_id: h["item_id"], kind: h["kind"], title: h["title"], folder: h["folder"], file_name: h["file_name"], visibility: h["visibility"], page: h["page"], ...(h["kind"] === "memory" ? { text: b?.body ?? null, updated: b?.updated_at ?? null } : { snippet: String(h["snippet"] ?? "").replace(/<\/?b>/g, "") }) };
+        return { item_id: h["item_id"], kind: h["kind"], title: h["title"], folder: h["folder"], file_name: h["file_name"], visibility: h["visibility"], page: h["page"], page_label: pageLabels.get(`${h["item_id"]}:${h["page"]}`) ?? null, ...(h["kind"] === "memory" ? { text: b?.body ?? null, updated: b?.updated_at ?? null } : { snippet: String(h["snippet"] ?? "").replace(/<\/?b>/g, "") }) };
       });
     },
 
     read_knowledge_page: async (args) => {
       const iid = id(args["item_id"], "item_id");
       const pg = page(args["page"]);
-      const row = must(await sb.from("knowledge_pages").select("page,text,item:knowledge_items(title,file_name,kind,folder,text_pages,updated_at)").eq("item_id", iid).eq("page", pg).maybeSingle()) as Record<string, unknown> | null;
+      const row = must(await sb.from("knowledge_pages").select("page,text,page_label,item:knowledge_items(title,file_name,kind,folder,text_pages,updated_at,visibility)").eq("item_id", iid).eq("page", pg).maybeSingle()) as Record<string, unknown> | null;
       if (!row) throw new Error("No such page, or the file is not one the asker can read");
-      const k = row["item"] as { title?: string; file_name?: string | null; kind?: string; folder?: string | null; text_pages?: number | null; updated_at?: string } | null;
-      return { item_id: iid, kind: k?.kind ?? "file", title: k?.title ?? null, file_name: k?.file_name ?? null, folder: k?.folder ?? null, pages: k?.text_pages ?? null, updated: k?.updated_at ?? null, page: pg, text: row["text"] };
+      const k = row["item"] as { title?: string; file_name?: string | null; kind?: string; folder?: string | null; text_pages?: number | null; updated_at?: string; visibility?: string } | null;
+      if (k?.visibility === "pricing_only" && !opts.canPrice) throw new Error("Pricing-only file is not accessible");
+      return { item_id: iid, kind: k?.kind ?? "file", title: k?.title ?? null, file_name: k?.file_name ?? null, folder: k?.folder ?? null, pages: k?.text_pages ?? null, updated: k?.updated_at ?? null, page: pg, page_label: row["page_label"] ?? null, text: row["text"] };
     },
   };
 }

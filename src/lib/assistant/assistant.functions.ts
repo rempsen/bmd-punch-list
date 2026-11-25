@@ -1,3 +1,4 @@
+import { validateIndexPages } from "@/lib/documents/text.functions";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Turn } from "@/lib/ai/tools";
@@ -100,34 +101,17 @@ export const askAssistant = createServerFn({ method: "POST" })
     return { conversationId, answer: result.answer, sources: result.sources, lookups: result.lookups, model: result.model };
   });
 
-/** Stores the page text of a Knowledge file, read in the browser. Only someone who may change that item can store its text. */
+/** PDF pages use the same permission check and storage path as server-extracted files. */
 export const storeKnowledgeText = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { itemId: string; pages: string[]; status: "done" | "no_text" | "failed" }) => {
-    if (!d || !UUID.test(d.itemId ?? "") || !Array.isArray(d.pages) || !["done", "no_text", "failed"].includes(d.status)) throw new Error("Invalid request");
-    if (d.pages.length > 5000 || d.pages.some((p) => typeof p !== "string" || p.length > 20_000)) throw new Error("Too much text for one file");
-    if (d.pages.reduce((n, p) => n + p.length, 0) > 3 * 1024 * 1024) throw new Error("Too much text for one file");
+  .inputValidator((d: { itemId: string; pages: string[]; status: "done" | "no_text" | "failed"; labels?: string[]; reason?: string }) => {
+    if (!d || !UUID.test(d.itemId ?? "") || !["done", "no_text", "failed"].includes(d.status)) throw new Error("Invalid request");
+    validateIndexPages(d);
     return d;
   })
   .handler(async ({ data, context }) => {
-    const sb = context.supabase as unknown as Sb;
-    const { data: item, error } = await sb.from("knowledge_items").select("id,visibility").eq("id", data.itemId).maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!item) throw new Error("Knowledge item not found");
-    const { data: ok } = await sb.rpc("can_write_knowledge", { _visibility: (item as { visibility: string }).visibility });
-    if (ok !== true) throw new Error("Not allowed");
+    const { authorizeIndex, saveIndex } = await import("@/lib/documents/index.server");
+    await authorizeIndex(context.supabase, "knowledge", data.itemId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const admin = supabaseAdmin as any;
-    const del = await admin.from("knowledge_pages").delete().eq("item_id", data.itemId);
-    if (del.error) throw new Error(del.error.message);
-    const rows = data.pages.map((text, i) => ({ item_id: data.itemId, page: i + 1, text })).filter((r) => r.text.length > 0);
-    for (let i = 0; i < rows.length; i += 200) {
-      const { error: e } = await admin.from("knowledge_pages").insert(rows.slice(i, i + 200));
-      if (e) throw new Error(e.message);
-    }
-    const status = data.status === "failed" ? "failed" : rows.length ? "done" : "no_text";
-    const { error: uErr } = await admin.from("knowledge_items").update({ text_status: status, text_pages: data.pages.length, updated_at: new Date().toISOString() }).eq("id", data.itemId);
-    if (uErr) throw new Error(uErr.message);
-    return { pages: rows.length, status };
+    return saveIndex(supabaseAdmin, "knowledge", data.itemId, data.pages, data.labels, data.status === "failed" ? (data.reason ?? "Could not read file text").slice(0, 500) : null);
   });

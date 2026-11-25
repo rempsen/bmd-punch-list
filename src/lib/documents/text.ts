@@ -1,20 +1,17 @@
-/**
- * Page text for every project document, so people (and later the assistant) can search inside plans, specs and
- * vendor quotes. Reading happens in the browser: pdf.js already runs there, and the server cannot run it.
- *
- * Later stages: OCR for scanned pages (the takeoff workspace has an on-device engine) and a converter for Word and
- * Excel files. Until then those documents are marked "no text" so they are easy to find.
- */
+/** Shared text formats and sanitisation; PDFs retain their browser reader. */
 export type TextStatus = "done" | "no_text";
-export type TextKind = "pdf" | "text" | "none";
+export type TextKind = "pdf" | "text" | "docx" | "spreadsheet" | "csv" | "none";
 
-export const PAGE_CHARS = 20_000;
+export const PAGE_CHARS = 1024 * 1024;
 export const TOTAL_CHARS = 3 * 1024 * 1024;
 
 export function textKind(mime: string | null, name: string): TextKind {
   const ext = name.toLowerCase().split(".").pop() ?? "";
   if (mime === "application/pdf" || ext === "pdf") return "pdf";
-  if (mime === "text/plain" || mime === "text/markdown" || mime === "text/csv" || ["txt", "md", "markdown", "csv"].includes(ext)) return "text";
+  if (ext === "docx" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "docx";
+  if (["xlsx", "xls"].includes(ext) || ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"].includes(mime ?? "")) return "spreadsheet";
+  if (ext === "csv") return "csv";
+  if (mime === "text/plain" || mime === "text/markdown" || ["txt", "md", "markdown"].includes(ext)) return "text";
   return "none";
 }
 
@@ -22,12 +19,12 @@ export function textKind(mime: string | null, name: string): TextKind {
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
 
 /** Page text as it will be stored: trimmed, control characters removed, capped per page and in total. Page numbers are kept. */
-export function cleanPages(raw: string[]): { pages: string[]; status: TextStatus; truncated: boolean } {
+export function cleanPages(raw: string[], pageChars = 20_000): { pages: string[]; status: TextStatus; truncated: boolean } {
   const pages: string[] = [];
   let total = 0;
   let truncated = false;
   for (const p of raw) {
-    const text = p.replace(CONTROL, "").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim().slice(0, PAGE_CHARS);
+    const text = p.replace(CONTROL, "").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim().slice(0, pageChars);
     if (total + text.length > TOTAL_CHARS) {
       truncated = true;
       break;
@@ -43,6 +40,7 @@ export async function pagesFromFile(file: Blob, mime: string | null, name: strin
   const kind = textKind(mime, name);
   if (kind === "none") return { pages: [], status: "no_text", truncated: false };
   if (kind === "text") return cleanPages([await file.text()]);
+  if (kind !== "pdf") throw new Error("Office files are read by the shared server indexer");
   const { pdfTextPages } = await import("@/lib/estimating/pdf-text");
   return cleanPages(await pdfTextPages(await file.arrayBuffer()));
 }
@@ -53,9 +51,9 @@ export function highlightSnippet(snippet: string): { text: string; mark: boolean
   const re = /<b>(.*?)<\/b>/gs;
   let last = 0;
   for (const m of snippet.matchAll(re)) {
-    if (m.index! > last) out.push({ text: snippet.slice(last, m.index), mark: false });
+    if (m.index > last) out.push({ text: snippet.slice(last, m.index), mark: false });
     out.push({ text: m[1] ?? "", mark: true });
-    last = m.index! + m[0].length;
+    last = m.index + m[0].length;
   }
   if (last < snippet.length) out.push({ text: snippet.slice(last), mark: false });
   return out;
@@ -64,23 +62,8 @@ export function highlightSnippet(snippet: string): { text: string; mark: boolean
 export type DocSearchHit = { document_id: string; file_name: string; section: string; version: number; page: number; rank: number; snippet: string };
 export type TextBacklogRow = { id: string; file_name: string; section: string; mime: string | null; size_bytes: number; storage_path: string };
 
-/**
- * Reads a file's text in the browser and stores it. Never throws: a failure marks the document "failed" so the
- * backlog button can try again later, and the upload that triggered it is unaffected.
- */
+/** Enqueue an upload or retry without interrupting the upload on extraction failures. */
 export async function indexDocumentFile(documentId: string, file: Blob, mime: string | null, name: string): Promise<TextStatus | "failed"> {
-  const { storeDocumentText, markDocumentText } = await import("./text.functions");
-  try {
-    const r = await pagesFromFile(file, mime, name);
-    if (r.status === "no_text") {
-      await markDocumentText({ data: { documentId, status: "no_text" } });
-      return "no_text";
-    }
-    const s = await storeDocumentText({ data: { documentId, pages: r.pages, status: r.status } });
-    return s.status;
-  } catch (e) {
-    console.error(`[documents] text of ${name} not indexed: ${e instanceof Error ? e.message : String(e)}`);
-    await markDocumentText({ data: { documentId, status: "failed" } }).catch(() => {});
-    return "failed";
-  }
+  const { enqueueFile } = await import("./index-queue");
+  return enqueueFile("document", documentId, file, mime, name);
 }

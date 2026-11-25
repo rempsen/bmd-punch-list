@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { indexStatus, needsIndex, isOfficeFile } from "@/lib/documents/index-status";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, FileText, Pencil, Plus, StickyNote, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SettingsBox } from "@/components/settings/SettingsBox";
 import { useAuth } from "@/lib/auth";
-import { deleteKnowledge, knowledgeFileUrl, saveMemory, setKnowledgeFolder, setKnowledgeVisibility, uploadKnowledgeFile, useKnowledge, VISIBILITY, type KnowledgeItem, type Visibility } from "@/lib/assistant/data";
+import { deleteKnowledge, indexKnowledgeFile, knowledgeFileUrl, saveMemory, setKnowledgeFolder, setKnowledgeVisibility, uploadKnowledgeFile, useKnowledge, VISIBILITY, type KnowledgeItem, type Visibility } from "@/lib/assistant/data";
 import { formatBytes } from "@/lib/documents/logic";
 import { errText } from "@/lib/platform/db";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,8 @@ export function KnowledgePanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [uploadFolder, setUploadFolder] = useState("");
   const [uploadVisibility, setUploadVisibility] = useState<Visibility>("all_staff");
+  const autoIndexed = useRef(false);
+  const remaining = items.filter((i) => i.kind === "file" && needsIndex(i));
   const fileInput = useRef<HTMLInputElement>(null);
 
   const folders = useMemo(() => {
@@ -56,6 +59,25 @@ export function KnowledgePanel() {
       await run(`upload-${file.name}`, () => uploadKnowledgeFile(file, { folder: uploadFolder || null, visibility: uploadVisibility }), `${file.name} added to Knowledge`);
     }
   };
+
+  const indexRemaining = async (list = remaining) => {
+    await run("index", async () => {
+      let indexed = 0;
+      let failed = 0;
+      for (const item of list) {
+        try { const status = await indexKnowledgeFile(item); if (status === "done") indexed++; else if (status === "failed") failed++; }
+        catch (e) { failed++; toast.error(errText(e)); }
+        await refresh();
+      }
+      toast.info(`Indexed ${indexed} files${failed ? `; ${failed} failed — see each file for details` : ""}`);
+    });
+  };
+  useEffect(() => {
+    if (!canWrite || isLoading || autoIndexed.current || !items.length) return;
+    autoIndexed.current = true;
+    const office = items.filter((i) => i.kind === "file" && isOfficeFile(i) && needsIndex(i) && i.text_status !== "failed");
+    if (office.length) void indexRemaining(office);
+  }, [canWrite, isLoading, items]);
 
   return (
     <div className="space-y-4">
@@ -96,7 +118,6 @@ export function KnowledgePanel() {
               ref={fileInput}
               type="file"
               multiple
-              accept=".pdf,.txt,.md,.markdown,.csv,.doc,.docx,.xls,.xlsx"
               className="hidden"
               onChange={(e) => {
                 if (e.target.files?.length) void upload(e.target.files);
@@ -105,6 +126,8 @@ export function KnowledgePanel() {
             />
           </div>
         )}
+        <p className="mt-3 text-xs text-muted-foreground">PDF, Word, Excel, CSV, Markdown and text files are searchable.</p>
+        {canWrite && remaining.length > 0 && <Button size="sm" variant="outline" className="mt-3" disabled={busy === "index"} onClick={() => void indexRemaining()}>{busy === "index" ? "Indexing…" : `Index remaining (${remaining.length})`}</Button>}
       </SettingsBox>
 
       {editing && (
@@ -139,7 +162,7 @@ export function KnowledgePanel() {
                     <p className="text-xs text-muted-foreground">
                       {it.file_name}
                       {it.size_bytes ? ` · ${formatBytes(it.size_bytes)}` : ""}
-                      {it.text_status === "done" ? ` · ${it.text_pages ?? 0} page${it.text_pages === 1 ? "" : "s"} searchable` : it.text_status === "no_text" ? " · no text found" : it.text_status === "failed" ? " · text not read" : " · reading text…"}
+                      {` · ${indexStatus(it)}`}
                     </p>
                   )}
                   <p className="mt-1 text-xs text-muted-foreground">Updated {new Date(it.updated_at).toLocaleDateString("en-CA", { day: "numeric", month: "short", year: "numeric" })}</p>

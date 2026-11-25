@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { db } from "@/lib/platform/db";
 import { safeFileName } from "@/lib/documents/logic";
-import { pagesFromFile } from "@/lib/documents/text";
+import { enqueueFile } from "@/lib/documents/index-queue";
 import type { LookupRecord } from "./prompt";
 
 export type Visibility = "all_staff" | "pricing_only";
@@ -28,6 +28,7 @@ export type KnowledgeItem = {
   size_bytes: number | null;
   text_status: "pending" | "done" | "no_text" | "failed";
   text_pages: number | null;
+  text_error: string | null;
   visibility: Visibility;
   created_at: string;
   updated_at: string;
@@ -62,11 +63,12 @@ export async function deleteConversation(id: string) {
   if (error) throw error;
 }
 
-export const KNOWLEDGE_COLS = "id,kind,title,body,folder,file_name,storage_path,mime,size_bytes,text_status,text_pages,visibility,created_at,updated_at";
+export const KNOWLEDGE_COLS = "id,kind,title,body,folder,file_name,storage_path,mime,size_bytes,text_status,text_pages,text_error,visibility,created_at,updated_at";
 export function useKnowledge(enabled = true) {
   return useQuery({
     queryKey: ["knowledge"],
     enabled,
+    refetchInterval: (q) => (q.state.data as KnowledgeItem[] | undefined)?.some((i) => i.kind === "file" && i.text_status === "pending") ? 2000 : false,
     queryFn: async () => {
       const { data, error } = await db.from("knowledge_items").select(KNOWLEDGE_COLS).order("folder", { nullsFirst: true }).order("updated_at", { ascending: false });
       if (error) throw error;
@@ -100,12 +102,10 @@ export async function deleteKnowledge(item: KnowledgeItem) {
   if (error) throw error;
 }
 
-/** Which uploads are accepted: PDF, text, Markdown, CSV, Word and Excel. Only PDF and text are read for search today. */
+/** Which uploads are accepted: PDF, text, Markdown, CSV, Word and Excel. Supported text formats share one queue. Other files are retained without search. */
 export function checkKnowledgeFile(file: File): string | null {
   if (file.size <= 0) return "That file is empty.";
   if (file.size > KNOWLEDGE_MAX_BYTES) return "Knowledge files are limited to 50 MB.";
-  const ext = file.name.toLowerCase().split(".").pop() ?? "";
-  if (!["pdf", "txt", "md", "markdown", "csv", "doc", "docx", "xls", "xlsx"].includes(ext)) return "Upload a PDF, text, Markdown, CSV, Word or Excel file.";
   return null;
 }
 
@@ -122,14 +122,7 @@ export async function uploadKnowledgeFile(file: File, opts: { folder: string | n
     await db.from("knowledge_items").delete().eq("id", id);
     throw new Error(up.error.message);
   }
-  const { storeKnowledgeText } = await import("./assistant.functions");
-  try {
-    const r = await pagesFromFile(file, file.type || null, file.name);
-    await storeKnowledgeText({ data: { itemId: id, pages: r.pages, status: r.status } });
-  } catch (e) {
-    console.error(`[knowledge] text of ${file.name} not indexed: ${e instanceof Error ? e.message : String(e)}`);
-    await storeKnowledgeText({ data: { itemId: id, pages: [], status: "failed" } }).catch(() => {});
-  }
+  await enqueueFile("knowledge", id, file, file.type || null, file.name);
 }
 
 export async function knowledgeFileUrl(item: KnowledgeItem): Promise<string> {
@@ -137,4 +130,11 @@ export async function knowledgeFileUrl(item: KnowledgeItem): Promise<string> {
   const { data, error } = await supabase.storage.from(KNOWLEDGE_BUCKET).createSignedUrl(item.storage_path, 3600);
   if (error || !data) throw new Error(error?.message ?? "Could not open the file");
   return data.signedUrl;
+}
+
+export async function indexKnowledgeFile(item: KnowledgeItem) {
+  if (!item.storage_path || !item.file_name) throw new Error("This item has no file");
+  const { data: blob, error } = await supabase.storage.from(KNOWLEDGE_BUCKET).download(item.storage_path);
+  if (error || !blob) throw new Error(error?.message ?? "Could not download file");
+  return enqueueFile("knowledge", item.id, blob, item.mime, item.file_name);
 }

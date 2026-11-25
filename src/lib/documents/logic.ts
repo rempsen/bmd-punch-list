@@ -24,8 +24,10 @@ export type DocRow = {
   note: string | null;
   mirror_status: string;
   mirror_error: string | null;
-  /** Whether the page text has been read for search: pending, done, no_text (scanned/image/Office) or failed. */
+  /** Whether the page text has been read for search: pending, done, no_text (scanned/image) or failed. */
   text_status?: "pending" | "done" | "no_text" | "failed";
+  text_pages?: number | null;
+  text_error?: string | null;
   created_at: string;
 };
 

@@ -1,4 +1,4 @@
-# Billing fixes
-- [x] Restore missing subcontractor orders and verify live reads; fail soft inside panel.
-- [x] Add shared draft editor/read-only bill view, totals, validation, permissions and Activity.
-- [x] Run billing tests, verify saved bill flow, inspect preview errors and commit.
+# Knowledge search
+- [ ] Shared Word/Excel/CSV extractors and queue with citations.
+- [ ] Knowledge and Documents statuses, retry controls and upload integration.
+- [ ] Backfill existing files; verify pricing isolation, tests and commit.

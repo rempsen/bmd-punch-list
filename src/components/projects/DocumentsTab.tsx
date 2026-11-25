@@ -1,3 +1,4 @@
+import { indexStatus } from "@/lib/documents/index-status";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Download, FileText, Image as ImageIcon, Pause, Play, RotateCw, Upload, X } from "lucide-react";
 import { toast } from "sonner";
@@ -318,7 +319,7 @@ function Entry({
               uploader(d.uploaded_by),
               d.note,
               d.mirror_status === "done" ? "In OneDrive" : d.mirror_status === "failed" ? "OneDrive copy failed" : null,
-              d.text_status === "no_text" ? "scanned — no text yet" : d.text_status === "failed" ? "text not read" : null,
+              indexStatus(d),
             ]
               .filter(Boolean)
               .join(" · ")}

@@ -1286,18 +1286,21 @@ export type Database = {
         Row: {
           document_id: string
           page: number
+          page_label: string | null
           text: string
           tsv: unknown
         }
         Insert: {
           document_id: string
           page: number
+          page_label?: string | null
           text: string
           tsv?: unknown
         }
         Update: {
           document_id?: string
           page?: number
+          page_label?: string | null
           text?: string
           tsv?: unknown
         }
@@ -2106,9 +2109,12 @@ export type Database = {
           estimate_line_id: string | null
           finish_id: string | null
           id: string
+          labour_rate_id: string | null
+          labour_rate_source: string | null
           project_id: string
           quantity: number
           sort_order: number
+          unit_labour_cost_cents: number | null
           uom: string
           visit_id: string
         }
@@ -2119,9 +2125,12 @@ export type Database = {
           estimate_line_id?: string | null
           finish_id?: string | null
           id?: string
+          labour_rate_id?: string | null
+          labour_rate_source?: string | null
           project_id: string
           quantity?: number
           sort_order?: number
+          unit_labour_cost_cents?: number | null
           uom?: string
           visit_id: string
         }
@@ -2132,9 +2141,12 @@ export type Database = {
           estimate_line_id?: string | null
           finish_id?: string | null
           id?: string
+          labour_rate_id?: string | null
+          labour_rate_source?: string | null
           project_id?: string
           quantity?: number
           sort_order?: number
+          unit_labour_cost_cents?: number | null
           uom?: string
           visit_id?: string
         }
@@ -2151,6 +2163,13 @@ export type Database = {
             columns: ["finish_id"]
             isOneToOne: false
             referencedRelation: "project_finishes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "install_visit_lines_labour_rate_id_fkey"
+            columns: ["labour_rate_id"]
+            isOneToOne: false
+            referencedRelation: "labour_rates"
             referencedColumns: ["id"]
           },
           {
@@ -2689,6 +2708,7 @@ export type Database = {
           mime: string | null
           size_bytes: number | null
           storage_path: string | null
+          text_error: string | null
           text_pages: number | null
           text_status: string
           title: string
@@ -2707,6 +2727,7 @@ export type Database = {
           mime?: string | null
           size_bytes?: number | null
           storage_path?: string | null
+          text_error?: string | null
           text_pages?: number | null
           text_status?: string
           title: string
@@ -2725,6 +2746,7 @@ export type Database = {
           mime?: string | null
           size_bytes?: number | null
           storage_path?: string | null
+          text_error?: string | null
           text_pages?: number | null
           text_status?: string
           title?: string
@@ -2738,18 +2760,21 @@ export type Database = {
         Row: {
           item_id: string
           page: number
+          page_label: string | null
           text: string
           tsv: unknown
         }
         Insert: {
           item_id: string
           page: number
+          page_label?: string | null
           text: string
           tsv?: unknown
         }
         Update: {
           item_id?: string
           page?: number
+          page_label?: string | null
           text?: string
           tsv?: unknown
         }
@@ -3604,6 +3629,7 @@ export type Database = {
           section: Database["public"]["Enums"]["document_section"]
           size_bytes: number
           storage_path: string
+          text_error: string | null
           text_indexed_at: string | null
           text_pages: number | null
           text_status: string
@@ -3624,6 +3650,7 @@ export type Database = {
           section: Database["public"]["Enums"]["document_section"]
           size_bytes: number
           storage_path: string
+          text_error?: string | null
           text_indexed_at?: string | null
           text_pages?: number | null
           text_status?: string
@@ -3644,6 +3671,7 @@ export type Database = {
           section?: Database["public"]["Enums"]["document_section"]
           size_bytes?: number
           storage_path?: string
+          text_error?: string | null
           text_indexed_at?: string | null
           text_pages?: number | null
           text_status?: string
@@ -6082,6 +6110,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      install_visit_replace_lines: {
+        Args: { _lines: Json; _visit: string }
+        Returns: undefined
+      }
       is_active: { Args: { _user_id: string }; Returns: boolean }
       is_my_assignment: {
         Args: { _assigned_to: string; _trade: string }
@@ -6429,11 +6461,25 @@ export type Database = {
           finish_id: string
           finish_tag: string
           kind: string
+          labour_components: Json
+          labour_rate_id: string
           quantity: number
           section: string
           sort_order: number
           uom: string
           version_status: string
+        }[]
+      }
+      work_order_values: {
+        Args: { _project: string }
+        Returns: {
+          labour_rate_id: string
+          labour_rate_source: string
+          line_id: string
+          line_value_cents: number
+          uncosted: number
+          unit_labour_cost_cents: number
+          visit_id: string
         }[]
       }
     }
