@@ -19,7 +19,7 @@ export function SubcontractOrdersList({ projectId }: { projectId: string }) {
   const canPrice = canAny("view_pricing");
   const canCheck = isSuperAdmin || canAny("manage_projects");
   const qc = useQueryClient();
-  const { data: orders = [], isLoading, error } = useSubcontractOrders(projectId);
+  const { data: orders = [], isLoading, error } = useSubcontractOrders(projectId, canPrice);
   const readBack = useServerFn(subcontractReadBack);
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

@@ -29,7 +29,7 @@ export function SubcontractOrderDrawer({ orderId, projectId, canEdit, onClose }:
   const { canAny } = useAuth();
   const canPrice = canAny("view_pricing");
   const qc = useQueryClient();
-  const { data: orders = [] } = useSubcontractOrders(projectId);
+  const { data: orders = [] } = useSubcontractOrders(projectId, canPrice);
   const order = orders.find((o) => o.id === orderId) ?? null;
   const lines = useSubcontractOrderLines(orderId, canPrice);
   const update = useServerFn(updateSubcontractOrder);

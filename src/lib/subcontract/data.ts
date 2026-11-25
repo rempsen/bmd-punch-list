@@ -5,17 +5,31 @@ import type { OrderLine, SubcontractOrder } from "./logic";
 export type SubcontractOrderRow = SubcontractOrder & { supplier: { name: string } | null };
 export type SubcontractOrderLineRow = OrderLine & { id: string };
 
-const COLS = "id,project_id,visit_id,supplier_id,po_number,status,subtotal_cents,notes,qbo_po_id,qbo_po_sent_at,qbo_bill_id,qbo_bill_total_cents,billed_at,paid_at,created_at,supplier:suppliers(name)";
+// The money columns (subtotal_cents, qbo_bill_total_cents) are not readable through the table at all; pricing staff
+// get them from the subcontract_order_totals RPC and they are merged in below.
+const COLS = "id,project_id,visit_id,supplier_id,po_number,status,notes,qbo_po_id,qbo_po_sent_at,qbo_bill_id,billed_at,paid_at,created_at,supplier:suppliers(name)";
 
-/** A job's subcontractor purchase orders, oldest first. Shared by the work-order cards and the Billing tab. */
-export function useSubcontractOrders(projectId: string, enabled = true) {
+/**
+ * A job's subcontractor purchase orders, oldest first. Shared by the work-order cards and the Billing tab.
+ * Pass `canPrice` (view_pricing) to get the totals; without it they come back as 0 / null.
+ */
+export function useSubcontractOrders(projectId: string, canPrice: boolean, enabled = true) {
   return useQuery({
-    queryKey: ["subcontract-orders", projectId],
+    queryKey: ["subcontract-orders", projectId, canPrice],
     enabled,
     queryFn: async () => {
       const { data, error } = await db.from("subcontract_orders").select(COLS).eq("project_id", projectId).order("created_at");
       if (error) throw error;
-      return ((data ?? []) as unknown as SubcontractOrderRow[]).map((o) => ({ ...o, subtotal_cents: Number(o.subtotal_cents), qbo_bill_total_cents: o.qbo_bill_total_cents === null ? null : Number(o.qbo_bill_total_cents) }));
+      const totals = new Map<string, { subtotal_cents: number; qbo_bill_total_cents: number | null }>();
+      if (canPrice) {
+        const { data: t, error: te } = await db.rpc("subcontract_order_totals", { _project: projectId });
+        if (te) throw te;
+        for (const r of (t ?? []) as { order_id: string; subtotal_cents: number | string; qbo_bill_total_cents: number | string | null }[])
+          totals.set(r.order_id, { subtotal_cents: Number(r.subtotal_cents), qbo_bill_total_cents: r.qbo_bill_total_cents === null ? null : Number(r.qbo_bill_total_cents) });
+      }
+      return ((data ?? []) as unknown as Omit<SubcontractOrderRow, "subtotal_cents" | "qbo_bill_total_cents">[]).map(
+        (o): SubcontractOrderRow => ({ ...o, subtotal_cents: 0, qbo_bill_total_cents: null, ...totals.get(o.id) }),
+      );
     },
   });
 }

@@ -17,7 +17,7 @@ const uuid = (v: unknown, what: string) => {
 export const createSubcontractOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { visitId: string }) => ({ visitId: uuid(d?.visitId, "The work order") }))
-  .handler(async ({ data, context }): Promise<Result<{ orderId: string; uncosted: string[] }>> => {
+  .handler(async ({ data, context }): Promise<Result<{ orderId: string; uncosted: string[]; existing: boolean }>> => {
     const sb = asSb(context);
     if (!(await canManage(sb))) return { ok: false, message: "You don't have permission to create purchase orders." };
     const { orderFromWorkOrder, orderTotal, poNumber, uncostedLines } = await import("./logic");
@@ -47,20 +47,25 @@ export const createSubcontractOrder = createServerFn({ method: "POST" })
     const { count } = await sb.from("subcontract_orders").select("id", { count: "exact", head: true }).eq("project_id", visit.project_id);
     let seq = (count ?? 0) + 1;
     let inserted: { id: string } | null = null;
-    // The number is unique across jobs; a clash (two people at once) just takes the next one.
+    // The number is unique across jobs; a clash on it (two people at once) just takes the next one. A clash on the
+    // work order (subcontract_orders_one_open_per_visit) means someone else just made this order: hand back theirs.
     for (let tries = 0; tries < 5 && !inserted; tries++, seq++) {
       const { data: row, error: ie } = await sb
         .from("subcontract_orders")
         .insert({ project_id: visit.project_id, visit_id: visit.id, supplier_id: supplier.id, po_number: poNumber(project ?? { project_number: null, id: visit.project_id }, seq), subtotal_cents })
         .select("id")
         .maybeSingle();
+      if (ie && /one_open_per_visit/.test(ie.message)) {
+        const { data: theirs } = await sb.from("subcontract_orders").select("id").eq("visit_id", visit.id).neq("status", "cancelled").maybeSingle();
+        if (theirs) return { ok: true, orderId: theirs.id, uncosted: [], existing: true };
+      }
       if (ie && !/duplicate|unique/i.test(ie.message)) return { ok: false, message: ie.message };
       inserted = row ?? null;
     }
     if (!inserted) return { ok: false, message: "Could not give the purchase order a number; try again." };
     const { error: ole } = await sb.from("subcontract_order_lines").insert(drafted.map((l) => ({ ...l, order_id: inserted!.id })));
     if (ole) return { ok: false, message: `The order was made but its lines were not saved: ${ole.message}` };
-    return { ok: true, orderId: inserted.id, uncosted: uncostedLines(drafted) };
+    return { ok: true, orderId: inserted.id, uncosted: uncostedLines(drafted), existing: false };
   });
 
 type LineInput = { id?: string | undefined; description: string; quantity: number; uom: string; unit_cost_cents: number | null; cost_code: string | null; visit_line_id?: string | null };
@@ -80,12 +85,7 @@ export const updateSubcontractOrder = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<Result<{ subtotal_cents: number }>> => {
     const sb = asSb(context);
     if (!(await canManage(sb))) return { ok: false, message: "You don't have permission to edit purchase orders." };
-    const { orderTotal } = await import("./logic");
-    const { data: order } = await sb.from("subcontract_orders").select("id,status").eq("id", data.orderId).maybeSingle();
-    if (!order) return { ok: false, message: "That purchase order could not be found." };
-    if (order.status !== "draft") return { ok: false, message: "Only a draft can be changed; this one has been sent." };
     const rows = data.lines.map((l, i) => ({
-      order_id: order.id,
       visit_line_id: l.visit_line_id ?? null,
       description: l.description.trim(),
       quantity: Number(l.quantity),
@@ -94,16 +94,11 @@ export const updateSubcontractOrder = createServerFn({ method: "POST" })
       cost_code: l.cost_code || null,
       sort_order: i,
     }));
-    const { error: de } = await sb.from("subcontract_order_lines").delete().eq("order_id", order.id);
-    if (de) return { ok: false, message: de.message };
-    if (rows.length) {
-      const { error: ie } = await sb.from("subcontract_order_lines").insert(rows);
-      if (ie) return { ok: false, message: ie.message };
-    }
-    const { subtotal_cents } = orderTotal(rows);
-    const { error: ue } = await sb.from("subcontract_orders").update({ subtotal_cents, notes: data.notes }).eq("id", order.id);
-    if (ue) return { ok: false, message: ue.message };
-    return { ok: true, subtotal_cents };
+    // One transaction in the database: the old lines go, the new ones land and the subtotal is recomputed together
+    // (the function checks manage_projects on the order's job and that the order is still a draft).
+    const { data: total, error } = (await sb.rpc("subcontract_replace_lines", { _order: data.orderId, _lines: rows, _notes: data.notes })) as { data: unknown; error?: { message: string } | null };
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, subtotal_cents: Number(total ?? 0) };
   });
 
 /** Creates the purchase order in QuickBooks for the subcontractor (vendor) and marks the order sent. */
@@ -118,7 +113,7 @@ export const sendSubcontractOrder = createServerFn({ method: "POST" })
     const sb = asSb(context);
     if (!(await canManage(sb))) return { ok: false, message: "You don't have permission to send purchase orders." };
     const { subcontractPoLines, uncostedLines } = await import("./logic");
-    const { data: order } = await sb.from("subcontract_orders").select("id,project_id,visit_id,supplier_id,po_number,status,subtotal_cents,notes").eq("id", data.orderId).maybeSingle();
+    const { data: order } = await sb.from("subcontract_orders").select("id,project_id,visit_id,supplier_id,po_number,status,notes").eq("id", data.orderId).maybeSingle();
     if (!order) return { ok: false, message: "That purchase order could not be found." };
     if (order.status !== "draft") return { ok: false, message: `Purchase order ${order.po_number} is already ${order.status}.` };
     const { data: lines } = await sb.from("subcontract_order_lines").select("visit_line_id,description,quantity,uom,unit_cost_cents,cost_code,sort_order").eq("order_id", order.id).order("sort_order");
@@ -141,6 +136,23 @@ export const sendSubcontractOrder = createServerFn({ method: "POST" })
     const { data: project } = await admin.from("projects").select("name,project_number").eq("id", order.project_id).maybeSingle();
     const { data: visit } = order.visit_id ? await admin.from("install_visits").select("starts_at").eq("id", order.visit_id).maybeSingle() : { data: null };
 
+    // Claim the draft before anything goes to QuickBooks: only one send owns an order at a time, so a double click or
+    // two people cannot create two purchase orders. A claim older than 10 minutes is a crashed send and may be retaken.
+    const stale = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: claimed, error: ce } = await admin
+      .from("subcontract_orders")
+      .update({ sending_since: new Date().toISOString() })
+      .eq("id", order.id)
+      .eq("status", "draft")
+      .or(`sending_since.is.null,sending_since.lt.${stale}`)
+      .select("id");
+    if (ce) return { ok: false, message: ce.message };
+    if (!claimed?.length) return { ok: false, message: `Purchase order ${order.po_number} is already being sent.` };
+    const release = async (patch: Record<string, unknown>) => {
+      const { error: re } = await admin.from("subcontract_orders").update({ ...patch, sending_since: null }).eq("id", order.id);
+      if (re) console.error("[qbo] could not release the subcontract send claim", re.message);
+    };
+
     const log = async (outcome: "sent" | "failed", detail: Record<string, unknown>, externalId?: string) => {
       const { error: e } = await admin.from("sync_log").insert({ direction: "out", system: "quickbooks", kind: "purchase_order", bmd_id: order.id, external_id: externalId ?? null, label: `Sub PO ${order.po_number} · ${supplier.name}`, outcome, detail: { ...detail, by: context.userId } });
       if (e) console.error("[qbo] could not log subcontract purchase order", e.message);
@@ -148,6 +160,7 @@ export const sendSubcontractOrder = createServerFn({ method: "POST" })
 
     let poId: string | null = null;
     let docNumber: string | null = null;
+    let saved = false;
     try {
       const q = qbo();
       const auth = await q.getAccessToken();
@@ -166,26 +179,35 @@ export const sendSubcontractOrder = createServerFn({ method: "POST" })
         PrivateNote: `BMD subcontract PO ${order.po_number}`.slice(0, 4000),
         ...(data.email ? { POEmail: { Address: data.email } } : {}),
       };
-      const res = await q.post("purchaseorder", body, auth);
-      const po = res["PurchaseOrder"] as { Id?: string; DocNumber?: string } | undefined;
+      // If an earlier send created the purchase order but failed before saving its id here, adopt it rather than
+      // making a second one: the vendor's PO with this exact number is ours.
+      const vendorId = String(link.external_id);
+      const existing = (await q.queryAll("PurchaseOrder", auth, `VendorRef = '${vendorId.replace(/'/g, "\\'")}' AND DocNumber = '${order.po_number.replace(/'/g, "\\'")}'`)).find(
+        (p) => String(p["DocNumber"] ?? "") === order.po_number,
+      ) as { Id?: string; DocNumber?: string } | undefined;
+      const po = existing ?? ((await q.post("purchaseorder", body, auth))["PurchaseOrder"] as { Id?: string; DocNumber?: string } | undefined);
       poId = po?.Id ? String(po.Id) : null;
       docNumber = po?.DocNumber ? String(po.DocNumber) : poId;
       if (!poId) throw new Error("QuickBooks did not return the purchase order.");
       const sentAt = new Date().toISOString();
-      const { error: ue } = await admin.from("subcontract_orders").update({ qbo_po_id: poId, qbo_po_sent_at: sentAt, status: "sent" as SubcontractStatus }).eq("id", order.id);
-      if (ue) throw new Error(`Purchase order ${docNumber} was created in QuickBooks but not saved here: ${ue.message}`);
+      const { error: ue } = await admin.from("subcontract_orders").update({ qbo_po_id: poId, qbo_po_sent_at: sentAt, status: "sent" as SubcontractStatus, sending_since: null }).eq("id", order.id);
+      if (ue) throw new Error(`Purchase order ${docNumber} was created in QuickBooks but not saved here: ${ue.message}. Send again to pick it up.`);
+      saved = true;
       let emailed = false;
       if (data.email) {
         await q.post(`purchaseorder/${encodeURIComponent(poId)}/send?sendTo=${encodeURIComponent(data.email)}`, undefined, auth);
         emailed = true;
         if (!supplier.email) await admin.from("suppliers").update({ email: data.email }).eq("id", supplier.id);
       }
-      await log("sent", { po_number: order.po_number, qbo_doc_number: docNumber, email: data.email || null }, poId);
+      await log("sent", { po_number: order.po_number, qbo_doc_number: docNumber, adopted: !!existing, email: data.email || null }, poId);
       return { ok: true, poNumber: order.po_number, qboDocNumber: docNumber, emailed };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       await log("failed", { error: message, po_number: order.po_number }, poId ?? undefined);
-      if (poId) return { ok: false, message: `Purchase order ${docNumber} was created in QuickBooks but not emailed: ${message}` };
+      // Nothing reached QuickBooks (or its id was not saved): the order goes back to a plain draft and the next send
+      // adopts whatever QuickBooks already has. A saved order that only failed to email stays sent.
+      await release(saved ? {} : { status: "draft" as SubcontractStatus });
+      if (saved) return { ok: false, message: `Purchase order ${docNumber} was created in QuickBooks but not emailed: ${message}` };
       return { ok: false, message };
     }
   });

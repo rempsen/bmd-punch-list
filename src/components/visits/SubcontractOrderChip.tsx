@@ -26,7 +26,7 @@ export function SubcontractOrderChip({ projectId, visitId, technicianSupplierId,
   const { canAny } = useAuth();
   const showMoney = canAny("view_pricing");
   const qc = useQueryClient();
-  const { data: orders = [] } = useSubcontractOrders(projectId);
+  const { data: orders = [] } = useSubcontractOrders(projectId, showMoney);
   const create = useServerFn(createSubcontractOrder);
   const cancel = useServerFn(cancelSubcontractOrder);
   const [open, setOpen] = useState<string | null>(null);

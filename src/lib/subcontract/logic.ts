@@ -106,11 +106,15 @@ export function billMatchesOrder(
     const lines = bill["Line"];
     if (Array.isArray(lines) && lines.some((l) => l && typeof l === "object" && linked((l as Record<string, unknown>)["LinkedTxn"]))) return true;
   }
-  const needle = order.po_number.trim().toLowerCase();
+  const needle = order.po_number.trim();
   if (!needle) return false;
-  for (const key of ["DocNumber", "PrivateNote", "Memo"]) {
+  // The document number must be the PO number itself; in free text the number must stand on its own, so
+  // "26-002-SUB-10" never matches "26-002-SUB-100".
+  if (typeof bill["DocNumber"] === "string" && bill["DocNumber"].trim().toUpperCase() === needle.toUpperCase()) return true;
+  const alone = new RegExp(`(^|[^0-9A-Za-z-])${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^0-9A-Za-z-]|$)`, "i");
+  for (const key of ["PrivateNote", "Memo"]) {
     const v = bill[key];
-    if (typeof v === "string" && v.toLowerCase().includes(needle)) return true;
+    if (typeof v === "string" && alone.test(v)) return true;
   }
   return false;
 }

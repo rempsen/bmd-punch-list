@@ -54,9 +54,21 @@ describe("QuickBooks", () => {
     expect(billMatchesOrder({ LinkedTxn: [{ TxnId: "77", TxnType: "PurchaseOrder" }] }, order)).toBe(true);
     expect(billMatchesOrder({ Line: [{ LinkedTxn: [{ TxnId: "77", TxnType: "PurchaseOrder" }] }] }, order)).toBe(true);
     expect(billMatchesOrder({ LinkedTxn: [{ TxnId: "78", TxnType: "PurchaseOrder" }] }, order)).toBe(false);
-    expect(billMatchesOrder({ DocNumber: "inv 991 / 26-002-sub-01" }, order)).toBe(true);
+    expect(billMatchesOrder({ DocNumber: "26-002-sub-01" }, order)).toBe(true);
+    expect(billMatchesOrder({ DocNumber: "inv 991 / 26-002-SUB-01" }, order)).toBe(false);
     expect(billMatchesOrder({ PrivateNote: "PO 26-002-SUB-01" }, { qbo_po_id: null, po_number: "26-002-SUB-01" })).toBe(true);
+    expect(billMatchesOrder({ Memo: "Job 26-002 · PO 26-002-SUB-01, week 2" }, order)).toBe(true);
     expect(billMatchesOrder({ PrivateNote: "something else" }, order)).toBe(false);
+  });
+  test("the PO number in free text must stand on its own: -10 is not -100, -1 or 26-002-SUB-10A", () => {
+    const ten = { qbo_po_id: null, po_number: "26-002-SUB-10" };
+    expect(billMatchesOrder({ PrivateNote: "PO 26-002-SUB-10" }, ten)).toBe(true);
+    expect(billMatchesOrder({ PrivateNote: "(26-002-SUB-10)" }, ten)).toBe(true);
+    expect(billMatchesOrder({ PrivateNote: "PO 26-002-SUB-100" }, ten)).toBe(false);
+    expect(billMatchesOrder({ PrivateNote: "PO 26-002-SUB-10A" }, ten)).toBe(false);
+    expect(billMatchesOrder({ PrivateNote: "PO 26-002-SUB-1" }, ten)).toBe(false);
+    expect(billMatchesOrder({ Memo: "PO X26-002-SUB-10" }, ten)).toBe(false);
+    expect(billMatchesOrder({ DocNumber: "26-002-SUB-100" }, ten)).toBe(false);
   });
   test("amounts come back as cents and lines go out with the account and a real cost", () => {
     expect(qboCents("625.00")).toBe(62500);
