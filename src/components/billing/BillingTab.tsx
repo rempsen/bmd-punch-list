@@ -8,7 +8,7 @@ import { OpenBookBilling } from "@/components/billing/OpenBookBilling";
 import { SubcontractOrdersList } from "@/components/billing/SubcontractOrdersList";
 import { useAuth } from "@/lib/auth";
 import { billTotals, billingPosition, checkNewBill, releaseTotals, type BillKind } from "@/lib/billing/calc";
-import { useContractType } from "@/lib/billing/data";
+import { useContractType, useBillPermission } from "@/lib/billing/data";
 import { renderBillPdf } from "@/lib/billing/pdf";
 import { useTaxSettings } from "@/lib/catalogue/data";
 import { dollars } from "@/lib/estimating/data";
@@ -34,7 +34,7 @@ export function BillingTab({ projectId }: { projectId: string }) {
 function FixedPriceBilling({ projectId }: { projectId: string }) {
   const { canAny } = useAuth();
   const canSee = canAny("view_pricing");
-  const canBill = canAny("send_quotes");
+  const { data: canBill = false } = useBillPermission(projectId);
   const qc = useQueryClient();
   const { data: quotes = [] } = useQuotes(projectId, canSee);
   const { data: tax } = useTaxSettings(canSee);
@@ -42,7 +42,7 @@ function FixedPriceBilling({ projectId }: { projectId: string }) {
     queryKey: ["bills", projectId],
     enabled: canSee,
     queryFn: async () => {
-      const { data, error: e } = await db.from("progress_bills").select("id,number,kind,period_note,lines,gross_cents,holdback_pct,holdback_cents,net_cents,gst_cents,total_cents,status,issued_at,created_at").eq("project_id", projectId).order("seq");
+      const { data, error: e } = await db.from("progress_bills").select("id,number,kind,period_note,lines,gross_cents,holdback_pct,holdback_cents,net_cents,gst_cents,total_cents,status,issued_at,created_at,bill_date,due_date,terms,client_notes,internal_notes,bill_type,gst_pct").eq("project_id", projectId).order("seq");
       if (e) throw e;
       return ((data ?? []) as Bill[]).map((b) => ({ ...b, holdback_pct: Number(b.holdback_pct) }));
     },
@@ -212,6 +212,7 @@ function FixedPriceBilling({ projectId }: { projectId: string }) {
       ) : (
         <BillList
           bills={bills}
+          projectId={projectId}
           canBill={canBill}
           busy={busy}
           onPdf={pdf}

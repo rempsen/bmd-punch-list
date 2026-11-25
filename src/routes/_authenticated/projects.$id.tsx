@@ -63,7 +63,7 @@ const TABS = [
 type TabKey = (typeof TABS)[number]["key"];
 
 export const Route = createFileRoute("/_authenticated/projects/$id")({
-  head: () => ({ meta: [{ title: "Project — BMD Projects" }] }),
+  head: () => ({ meta: [{ title: "Project workspace — BMD Projects" }, { name: "description", content: "Manage job documents, estimates, quotes, installation and billing with BMD Materials." }, { property: "og:title", content: "Project workspace — BMD Projects" }, { property: "og:description", content: "Review BMD job records, installation and billing in one project workspace." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }),
   validateSearch: (s: Record<string, unknown>): { tab?: TabKey | undefined } => ({
     tab: TABS.some((t) => t.key === s["tab"]) ? (s["tab"] as TabKey) : undefined,
   }),

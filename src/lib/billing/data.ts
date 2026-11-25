@@ -2,6 +2,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "@/lib/platform/db";
 import { NO_TERMS, type ContractType, type LabourEntry, type MaterialEntry, type NamedRate, type Terms } from "./openBook";
+import { mayEditBill } from "./editor";
+
+export function useBillPermission(projectId: string) {
+  return useQuery({ queryKey: ["bill-permissions", projectId], queryFn: async () => {
+    const [manage, price] = await Promise.all([db.rpc("has_capability", { _capability: "manage_projects", _project: projectId }), db.rpc("has_capability", { _capability: "view_pricing", _project: projectId })]);
+    return mayEditBill(manage.data === true && !manage.error, price.data === true && !price.error);
+  }});
+}
 
 /** A job's contract type. Anything unreadable counts as fixed price, which is what every job was before. */
 export function useContractType(projectId: string | null | undefined) {

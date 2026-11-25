@@ -28,3 +28,7 @@
 ## Vercel
 - The Vercel project is on **Pro** (from 24 Nov 2026). PR preview builds are no longer capped at 100 a day, so a red "Vercel" status on a PR is a real build failure: read the build log and fix it, rather than waiting a day or pushing again.
 - Vercel only builds previews. Production publishes through Lovable.
+
+## Bill editing
+- Fixed-price and open-book bill lists share BillEditor; draft writes use a job-authorized transactional RPC so issue, totals, over-billing confirmation and Activity remain consistent.
+- Editor and invoice PDF share billing/editor.ts totals; legacy invoices retain saved totals, while edited invoices store their GST rate and detailed line quantities/prices.
