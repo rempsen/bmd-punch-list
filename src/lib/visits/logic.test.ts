@@ -90,14 +90,37 @@ describe("applying an ArrivePing event to a visit", () => {
     const ev = { kind: "status" as const, status: "arrived" as const, jobId: "AP-77", visitId: null, at: "yesterday-ish" };
     expect(applyInboundEvent(v, ev, now)).toMatchObject({ patch: { arriveping_last_event_at: now }, event: { at: now } });
   });
-  test("an assignment names the tech, and marks a scheduled visit assigned", () => {
+  test("an assignment names the tech and marks a scheduled visit assigned, but is not an acceptance", () => {
     const ev = { kind: "assigned" as const, assignee: "Brodie", jobId: "AP-77", visitId: null, at: null };
-    expect(applyInboundEvent(v, ev, now)).toEqual({ ok: true, patch: { arriveping_assigned_to: "Brodie", arriveping_status: "assigned", accepted_at: now, accepted_by: "Brodie", arriveping_last_event_at: now }, event: { status: "assigned", note: "Assigned to Brodie in ArrivePing", at: now } });
+    expect(applyInboundEvent(v, ev, now)).toEqual({ ok: true, patch: { arriveping_assigned_to: "Brodie", arriveping_status: "assigned", arriveping_last_event_at: now }, event: { status: "assigned", note: "Assigned to Brodie in ArrivePing", at: now } });
+  });
+  test("ArrivePing's own assignment webhook is not taken for the tech accepting (Dan, 24 Nov: assigned at 7:42, not yet accepted)", () => {
+    const body = { id: "evt_1", type: "workorder.assigned", created_at: "2026-11-25T00:42:15Z", data: { id: "e7b73bdb", status: "assigned", assigned_tech: { id: "t1", name: "Dan Rosenblat" }, external_ref: null } };
+    const ev = parseArrivePingEvent(body)!;
+    expect(ev).toMatchObject({ kind: "assigned", assignee: "Dan Rosenblat" });
+    const plan = applyInboundEvent({ ...v, arriveping_job_id: "e7b73bdb" }, ev, now);
+    expect(plan.ok && plan.patch).not.toHaveProperty("accepted_at");
+  });
+  test("the tech accepting is read from an accepted event, a status changed to accepted, or a work order that reads accepted", () => {
+    expect(parseArrivePingEvent({ type: "workorder.accepted", data: { id: "W1", assigned_tech: { name: "Dan Rosenblat" } } })).toMatchObject({ kind: "accepted", assignee: "Dan Rosenblat", jobId: "W1" });
+    expect(parseArrivePingEvent({ event: "accepted", bookingId: "W1", tech: "Dan Rosenblat" })).toMatchObject({ kind: "accepted", assignee: "Dan Rosenblat", jobId: "W1" });
+    expect(parseArrivePingEvent({ type: "workorder.status_changed", data: { id: "W1", status: "accepted", assigned_tech: { name: "Dan Rosenblat" } }, changes: { status: { from: "assigned", to: "accepted" } } })).toMatchObject({ kind: "accepted", assignee: "Dan Rosenblat" });
+    expect(parseArrivePingEvent({ type: "workorder.updated", data: { id: "W1", status: "accepted", assigned_tech: { name: "Dan Rosenblat" } } })).toMatchObject({ kind: "accepted", assignee: "Dan Rosenblat" });
+    // pulled fresh, a work order that reads accepted records the acceptance
+    const r = reconcileWithWorkOrder({ ...v, arriveping_assigned_to: "Dan Rosenblat" }, { status: "accepted", assigned_tech: { name: "Dan Rosenblat" } }, now);
+    expect(r.patch).toMatchObject({ accepted_at: now, accepted_by: "Dan Rosenblat" });
+    // ...and one that only reads assigned does not
+    expect(reconcileWithWorkOrder(v, { status: "assigned", assigned_tech: { name: "Dan Rosenblat" } }, now).patch).not.toHaveProperty("accepted_at");
+  });
+  test("a different tech assigned has to accept again; the same tech re-sent keeps their acceptance", () => {
+    const accepted = { ...v, arriveping_assigned_to: "Brodie", accepted_at: "2026-11-30T15:00:00.000Z", accepted_by: "Brodie" };
+    expect(applyInboundEvent(accepted, { kind: "assigned", assignee: "Sam", jobId: "AP-77", visitId: null, at: null }, now)).toMatchObject({ patch: { arriveping_assigned_to: "Sam", accepted_at: null, accepted_by: null } });
+    expect(applyInboundEvent(accepted, { kind: "assigned", assignee: "Brodie", jobId: "AP-77", visitId: null, at: null }, now)).toEqual({ ok: false, reason: "no change" });
   });
   test("a reassignment while the crew is out keeps ArrivePing's live status as it is", () => {
     const ev = { kind: "assigned" as const, assignee: "Sam", jobId: "AP-77", visitId: null, at: null };
     const r = applyInboundEvent({ ...v, status: "en_route", arriveping_assigned_to: "Brodie" }, ev, now);
-    expect(r).toEqual({ ok: true, patch: { arriveping_assigned_to: "Sam", accepted_at: now, accepted_by: "Sam", arriveping_last_event_at: now }, event: { status: "assigned", note: "Assigned to Sam in ArrivePing", at: now } });
+    expect(r).toEqual({ ok: true, patch: { arriveping_assigned_to: "Sam", arriveping_last_event_at: now }, event: { status: "assigned", note: "Assigned to Sam in ArrivePing", at: now } });
   });
   test("an unassignment clears the tech and puts a scheduled visit back to scheduled", () => {
     const ev = { kind: "assigned" as const, assignee: null, jobId: "AP-77", visitId: null, at: null };
@@ -112,9 +135,10 @@ describe("applying an ArrivePing event to a visit", () => {
     // A named acceptance on a visit nobody was assigned to also records the assignment.
     expect(applyInboundEvent(v, { ...ev, assignee: "Sam" }, now)).toMatchObject({ patch: { accepted_by: "Sam", arriveping_assigned_to: "Sam", arriveping_status: "assigned" } });
   });
-  test("the acceptance badge: not sent, awaiting, accepted", () => {
+  test("the acceptance badge: not sent, awaiting, assigned (orange), accepted (green)", () => {
     expect(acceptanceBadge({ ...v, arriveping_job_id: null })).toEqual({ tone: "grey", label: "Not sent" });
-    expect(acceptanceBadge(v)).toEqual({ tone: "amber", label: "Sent — awaiting acceptance" });
+    expect(acceptanceBadge(v)).toEqual({ tone: "amber", label: "Sent — awaiting assignment" });
+    expect(acceptanceBadge({ ...v, arriveping_assigned_to: "Dan Rosenblat" })).toEqual({ tone: "orange", label: "Dan Rosenblat has been assigned" });
     // A summer date: Winnipeg is CDT (UTC−5) whatever a runtime's tz data says about the winter, so the label is the same everywhere.
     expect(acceptanceBadge({ ...v, accepted_at: "2026-07-01T14:05:00Z", accepted_by: "Brodie" })).toEqual({ tone: "green", label: "Accepted by Brodie · Jul 1, 9:05 a.m." });
     expect(acceptanceBadge({ ...v, status: "cancelled" })).toBeNull();
@@ -320,7 +344,7 @@ describe("the ArrivePing pill beside the visit's status", () => {
   });
   test("shown when it adds something", () => {
     expect(arrivepingPill(v)).toBe("Scheduled in ArrivePing");
-    expect(arrivepingPill({ ...v, arriveping_status: "assigned", arriveping_assigned_to: "Brodie" })).toBe("Assigned to Brodie");
+    expect(arrivepingPill({ ...v, arriveping_status: "assigned", arriveping_assigned_to: "Brodie" })).toBeNull();   // the acceptance pill already says who is assigned
     expect(arrivepingPill({ ...v, status: "cancelled", arriveping_status: "cancel_requested" })).toBe("Cancel requested");
   });
 });

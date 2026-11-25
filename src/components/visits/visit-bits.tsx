@@ -34,11 +34,13 @@ export function OpenInArrivePing({ jobId }: { jobId: string }) {
 }
 
 /** Where the crew's acceptance of the work order stands: green once accepted, amber while ArrivePing has it, grey until sent. */
-export function AcceptancePill({ badge }: { badge: { tone: "green" | "amber" | "grey"; label: string } | null }) {
+export function AcceptancePill({ badge }: { badge: { tone: "green" | "orange" | "amber" | "grey"; label: string } | null }) {
   if (!badge) return null;
   const tone =
     badge.tone === "green"
       ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+      : badge.tone === "orange"
+        ? "border-orange-300 bg-orange-50 text-orange-700"
       : badge.tone === "amber"
         ? "border-amber-300 bg-amber-50 text-amber-800"
         : "border-border text-muted-foreground";
