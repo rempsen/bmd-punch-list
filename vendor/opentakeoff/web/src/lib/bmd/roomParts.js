@@ -455,7 +455,11 @@ export function classifyLinework({ segs, meta, lum = null, dashed = null, subpat
             for (const l of lens) { const k = lens.filter((m) => same(m, l)).length; if (k > c1) { c1 = k; l1 = l; } }
             const rest = lens.filter((m) => !same(m, l1));
             let c2 = 0; for (const l of rest) c2 = Math.max(c2, rest.filter((m) => same(m, l)).length);
-            if ((c1 + c2) / lens.length >= 0.7) {
+            // ...and real gaps between them: a grid or section line is drawn as dashes, even when two dash series
+            // overlap so the gaps are a pixel or two. A wall split where other walls meet it has pieces that touch.
+            let gaps = 0, reach = -Infinity;
+            for (const p of run) { if (reach > -Infinity && p.lo > reach + 0.75) gaps++; reach = Math.max(reach, p.hi); }
+            if ((c1 + c2) / lens.length >= 0.7 && gaps >= Math.max(4, Math.floor(run.length / 4))) {
               let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
               for (const p of run) { kind[p.i] = KIND.GRID; for (const k of [0, 2]) { x0 = Math.min(x0, segs[p.i * 4 + k]); x1 = Math.max(x1, segs[p.i * 4 + k]); y0 = Math.min(y0, segs[p.i * 4 + k + 1]); y1 = Math.max(y1, segs[p.i * 4 + k + 1]); } }
               const step = Math.max(1, Math.floor(run.length / 24));

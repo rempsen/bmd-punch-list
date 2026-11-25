@@ -354,3 +354,20 @@ describe("callouts (hard rule): a section marker on a wall is part of the room's
     expect([...s.kinds().slice(before)].filter((k) => k === KIND.WALL)).toEqual([]);   // nothing of the callout is taken for a wall
   });
 });
+
+describe("grid and section lines are told from walls by their gaps", () => {
+  test("a long wall exported as equal touching pieces is still a wall", () => {
+    const s = sheet(), L = RX - 40 * FT, P = 5 * FT;   // ends at the room's right side
+    // a 60 ft wall (both faces) in twelve touching 5 ft pieces, with the room's other walls
+    for (let k = 0; k < 12; k++) { s.line(L + k * P, RY, L + (k + 1) * P, RY, { w: 3 }); s.line(L + k * P, RY - 9, L + (k + 1) * P, RY - 9, { w: 3 }); }
+    s.line(RX, RY, RX, RY + RH, { w: 3 }).line(RX + RW, RY, RX + RW, RY + RH, { w: 3 }).line(RX, RY + RH, RX + RW, RY + RH, { w: 3 });
+    const k = s.kinds();
+    expect([...k.slice(0, 24)].every((v) => v === KIND.WALL)).toBe(true);
+    near(s.finder().roomAt(...CENTRE, UPP).areaSf, 200);
+  });
+  test("a line of repeating dashes with gaps between them is a grid line", () => {
+    const s = sheet();
+    for (let k = 0; k < 20; k++) { const x = RX - 20 * FT + k * 3 * FT; s.line(x, RY + 60, x + 2.5 * FT, RY + 60, { w: 3 }); }
+    expect([...s.kinds().slice(0, 20)].every((v) => v === KIND.GRID || v === KIND.DASH)).toBe(true);   // markup either way, never a wall
+  });
+});
