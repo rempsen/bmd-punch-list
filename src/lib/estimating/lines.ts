@@ -1,6 +1,6 @@
 import type { Template } from "@/lib/catalogue/data";
-import { buildComponents, simpleComponent, type CatalogueView, type SnapComponent } from "./assemble";
-import type { Uom } from "./calc";
+import { buildComponents, extraQuestion as question, simpleComponent, type CatalogueView, type CatMaterial as CatM, type SnapComponent, type TemplateInput as TplIn } from "./assemble";
+import { ownQty as own, type Uom } from "./calc";
 import type { Finish, LineKind, SaveItem } from "./data";
 
 /** Whether a part's waste is in its cost: materials always, labour and plain costs only when paid on the wasted quantity. */
@@ -198,7 +198,6 @@ export const sectionChoices = (inUse: string[]): string[] => [...new Set([...inU
 
 // ── Extras asked about on each line (a Schluter edge on wall tile) ─────────────────────────────────────
 export { extraQuestion } from "./assemble";
-import { extraQuestion as question } from "./assemble";
 
 /** The yes-or-no extras on a line, with where each stands. */
 export function extrasOf(components: SnapComponent[], driver: Uom): { index: number; label: string; uom: Uom; state: "ask" | "yes" | "no"; qty: number; unitCostCents: number | null }[] {
@@ -225,4 +224,38 @@ export const isWallSection = (section: string): boolean => WALLS.test(section.tr
 export function templateForOffer<T extends { category: string; active: boolean }>(finishTemplate: T | null, section: string, templates: T[]): T | null {
   if (!isWallSection(section)) return finishTemplate;
   return templates.find((t) => t.active && t.category === "wall_tile") ?? finishTemplate;
+}
+
+// ── Choosing the item for an extra, and repairing lines built before it was asked about ───────────────────
+
+/** Tile trims a person can choose for an extra priced in `uom`: active items of the Tile trim category in that unit. */
+export function trimChoices<T extends { category: string; cost_uom: string; active: boolean }>(materials: T[], uom: string): T[] {
+  return materials.filter((m) => m.active && m.category === "tile_trim" && m.cost_uom === uom);
+}
+
+/** Puts a catalogue item (one Schluter SKU) on an extra. Its price, waste and PST come from the catalogue; the answer is kept. */
+export function pickExtraSku(components: SnapComponent[], index: number, m: CatM): SnapComponent[] {
+  const c = components[index];
+  if (!c) return components;
+  if (m.cost_uom !== c.cost_uom) throw new Error(`${m.name} is priced per ${m.cost_uom}. Choose one priced per ${c.cost_uom}.`);
+  return components.map((x, i) =>
+    i !== index ? x : { ...x, kind: "material", source: "catalogue", catalogue_material_id: m.id, unit_cost_cents: m.unit_cost_cents, purchase_uom: m.purchase_uom === m.cost_uom ? m.purchase_uom : m.cost_uom, waste_pct: m.default_waste_pct, pst_applies: m.pst_applies, cost_overridden: false, overridden_by: null, overridden_at: null },
+  );
+}
+
+/**
+ * A line built before its assembly's extra was asked about carries that part in the line's own unit, with nothing to
+ * answer. It is rebuilt from the assembly as a question; a part someone already gave a quantity, or answered, is left.
+ */
+export function repairExtras(components: SnapComponent[], template: TplIn, finishMaterialId: string | null, catalogue: CatalogueView, driver: Uom): { components: SnapComponent[]; fixed: number } {
+  const fresh = buildComponents({ template, finishMaterialId, catalogue }).components;
+  let fixed = 0;
+  const next = components.map((c) => {
+    if (c.kind === "labour" || c.qty_per_driver !== 0 || c.not_applicable || own(driver, c.cost_uom, c.coverage_per_purchase_unit)) return c;
+    const want = fresh.find((f) => f.sort_order === c.sort_order && (f.label === c.label || (!!f.catalogue_material_id && f.catalogue_material_id === c.catalogue_material_id)) && own(driver, f.cost_uom));
+    if (!want) return c;
+    fixed++;
+    return { ...want, unit_cost_cents: c.cost_overridden ? c.unit_cost_cents : want.unit_cost_cents, cost_overridden: c.cost_overridden && c.unit_cost_cents != null };
+  });
+  return fixed ? { components: next, fixed } : { components, fixed: 0 };
 }

@@ -1,3 +1,4 @@
+import { ownQty } from "@/lib/estimating/calc";
 /** Pure rules for material order lines: statuses, grouping and what an estimate seeds. No I/O. */
 
 export const MATERIAL_STATUSES = ["to_order", "on_order", "received", "on_site"] as const;
@@ -56,6 +57,7 @@ export function poBlock(rows: { supplier_id: string | null; status: string; qbo_
 // ── Seeding from an estimate version (same rule as the database's seed_material_orders) ───────────────────────
 export type SeedComponent = {
   kind: string;
+  source?: string | null;
   not_applicable?: boolean | null;
   catalogue_material_id: string | null;
   label?: string | null;
@@ -84,9 +86,12 @@ export function seedRows(lines: SeedLine[]): SeedRow[] {
     if ((l.selection ?? "required") !== "required") continue;
     for (const c of l.components) {
       if (c.kind !== "material" || c.not_applicable) continue;
-      const d = (l.driver_qty ?? 0) * (c.qty_per_driver ?? 1) * (1 + (c.waste_pct ?? 0) / 100);
+      // a part with its own quantity (a Schluter edge by the LF on a wall tiled by the SF) is ordered by that quantity
+      const own = c.source !== "finish_material" && ownQty(l.driver_uom ?? "", c.cost_uom ?? c.purchase_uom, c.coverage_per_purchase_unit);
+      const d = (own ? 1 : (l.driver_qty ?? 0)) * (c.qty_per_driver ?? 1) * (1 + (c.waste_pct ?? 0) / 100);
       let q: number;
-      if (c.coverage_per_purchase_unit && c.coverage_per_purchase_unit > 0) q = d / c.coverage_per_purchase_unit;
+      if (own) q = d;
+      else if (c.coverage_per_purchase_unit && c.coverage_per_purchase_unit > 0) q = d / c.coverage_per_purchase_unit;
       else q = convert(d, l.driver_uom, c.purchase_uom);
       if (c.round_up) q = Math.ceil(q - 1e-9);
       if (!(q > 0)) continue;

@@ -6149,6 +6149,7 @@ export type Database = {
           sort_a: number
           sort_b: number
           sort_c: number
+          source: string
           waste_pct: number
         }[]
       }

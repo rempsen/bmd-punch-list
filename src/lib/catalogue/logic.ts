@@ -2,7 +2,7 @@ import type { Uom } from "@/lib/estimating/calc";
 
 export type Category =
   | "carpet_broadloom" | "carpet_tile" | "lvp" | "lvt" | "sheet_vinyl" | "rubber" | "floor_tile" | "wall_tile" | "wall_base"
-  | "transitions" | "adhesive" | "underlay" | "prep" | "window_coverings" | "other";
+  | "transitions" | "tile_trim" | "adhesive" | "underlay" | "prep" | "window_coverings" | "other";
 
 export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "carpet_broadloom", label: "Carpet (broadloom)" },
@@ -15,6 +15,7 @@ export const CATEGORIES: { value: Category; label: string }[] = [
   { value: "wall_tile", label: "Wall tile" },
   { value: "wall_base", label: "Wall base" },
   { value: "transitions", label: "Transitions" },
+  { value: "tile_trim", label: "Tile trim (Schluter)" },
   { value: "adhesive", label: "Adhesive" },
   { value: "underlay", label: "Underlay" },
   { value: "prep", label: "Prep" },
@@ -58,6 +59,7 @@ const CATEGORY_WORDS: [RegExp, Category][] = [
   [/\blvt\b|vinyl tile/i, "lvt"],
   [/sheet|pvc roll/i, "sheet_vinyl"],
   [/rubber\s*(floor|tile|roll)|^rubber$/i, "rubber"],
+  [/schluter|jolly|rondec|quadec|dilex|tile\s*(edge|trim)|edge\s*profile/i, "tile_trim"],
   [/wall\s*tile/i, "wall_tile"],
   [/tile|porcelain|ceramic/i, "floor_tile"],
   [/base/i, "wall_base"],

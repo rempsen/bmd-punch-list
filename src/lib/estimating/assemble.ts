@@ -3,7 +3,7 @@
  * The stored rows are a snapshot: catalogue changes never alter a saved line until Refresh prices is applied.
  * A null unit cost means "not known yet". It is never priced as zero without being reported.
  */
-import { convert, priceLine, type Component, type PricedComponent, type TaxCode, type Uom } from "./calc";
+import { convert, ownQty, priceLine, type Component, type PricedComponent, type TaxCode, type Uom } from "./calc";
 import { overrideCost, priceOrderPart } from "./overrides";
 
 export type CatMaterial = {
@@ -113,6 +113,28 @@ export function buildComponents(input: { template: TemplateInput; finishMaterial
 
       if (c.source === "finish_material" || c.source === "catalogue") {
         const m = c.source === "finish_material" ? finish : c.catalogue_material_id ? (catalogue.materials[c.catalogue_material_id] ?? null) : null;
+        // A material with its own quantity (a Schluter edge by the LF on a wall tiled by the SF): asked about on each line.
+        // The finish's own material never is: one priced in another unit is a mistake in the set-up, and is reported.
+        const extraUom = c.source !== "catalogue" ? null : m ? (ownQty(driver, m.cost_uom, m.coverage_per_purchase_unit) ? m.cost_uom : null) : c.cost_uom && ownQty(driver, c.cost_uom) ? c.cost_uom : null;
+        if (extraUom) {
+          issues.push(`${c.label}: answer yes or no on the line.`);
+          if (!m) issues.push(`${c.label}: no catalogue item chosen.`);
+          else if (m.unit_cost_cents == null) issues.push(`${m.name} has no price yet.`);
+          return {
+            ...common,
+            kind: "material",
+            label: c.label,   // the question keeps its name ("Schluter edge"); the SKU is the catalogue item
+            catalogue_material_id: m?.id ?? null,
+            unit_cost_cents: m?.unit_cost_cents ?? null,
+            cost_uom: extraUom,
+            purchase_uom: m && fits(m.cost_uom, m.purchase_uom) ? m.purchase_uom : extraUom,
+            coverage_per_purchase_unit: null,
+            qty_per_driver: 0,
+            waste_pct: c.waste_pct ?? (m ? m.default_waste_pct : 0),
+            round_up: false,
+            pst_applies: m ? m.pst_applies : true,
+          };
+        }
         if (!m) {
           issues.push(c.source === "finish_material" ? `${c.label}: no material chosen for this finish.` : `${c.label}: no catalogue item chosen.`);
           return { ...common, kind: "material", unit_cost_cents: null, cost_uom: driver, purchase_uom: driver, coverage_per_purchase_unit: null, waste_pct: wasteOf(c, null), round_up: false, pst_applies: true };
@@ -239,8 +261,15 @@ function priceOrdered(c: SnapComponent, line: LineInput, pstPct: number) {
  * "ask" until someone answers; "yes" once it has a quantity; "no" when it is marked not needed. Null for any other part.
  */
 export function extraQuestion(c: SnapComponent, driver: Uom): "ask" | "yes" | "no" | null {
-  if (c.kind !== "fixed" || fits(driver, c.cost_uom)) return null;
+  if (c.kind === "labour" || c.source === "finish_material" || !ownQty(driver, c.cost_uom, c.coverage_per_purchase_unit)) return null;
   return c.not_applicable ? "no" : c.qty_per_driver > 0 ? "yes" : "ask";
+}
+
+/** An extra answered Yes: its own quantity, with waste on a material, at its unit cost, with PST when it applies. */
+function priceExtra(c: SnapComponent, pstPct: number) {
+  const waste = c.kind === "material" ? 1 + c.waste_pct / 100 : 1;
+  const qty = c.qty_per_driver * waste;
+  return { purchaseQty: round2(c.round_up ? Math.ceil(qty - 1e-9) : qty), costCents: Math.round((c.unit_cost_cents ?? 0) * qty * (c.pst_applies ? 1 + pstPct / 100 : 1)) };
 }
 
 export function priceEstimateLine(line: LineInput, components: SnapComponent[], rates: { pstPct: number }): PricedEstimateLine {
@@ -263,7 +292,7 @@ export function priceEstimateLine(line: LineInput, components: SnapComponent[], 
       if (plain[i]) return p.components[k++]!;
       if (!live[i]) return { purchaseQty: 0, costCents: 0 };
       // an extra has its own quantity in its own unit: it does not follow the line's quantity
-      if (extra[i]) return { purchaseQty: c.qty_per_driver, costCents: Math.round(c.unit_cost_cents! * c.qty_per_driver * (c.pst_applies ? 1 + rates.pstPct / 100 : 1)) };
+      if (extra[i]) return priceExtra(c, rates.pstPct);
       const o = priceOrdered(c, line, rates.pstPct);
       orders[i] = { orderQty: o.orderQty, costUnitQty: o.costUnitQty };
       return { purchaseQty: o.orderQty, costCents: o.costCents };
@@ -275,7 +304,11 @@ export function priceEstimateLine(line: LineInput, components: SnapComponent[], 
   }
   const partsCostCents = priced.reduce((s, c) => s + c.costCents, 0);
   const costOverridden = line.unit_cost_override_cents != null;
-  const costCents = costOverridden ? overrideCost(line.driver_qty, line.unit_cost_override_cents!) : partsCostCents;
+  // A cost typed over the line replaces its parts, but not its extras: a Schluter edge answered Yes is carried on top,
+  // and one not answered (or with no price) still stops the line being complete.
+  const extrasCostCents = priced.reduce((s, c, i) => s + (extra[i] ? c.costCents : 0), 0);
+  const extraUnknown = components.flatMap((c, i) => (asking[i] ? [`${c.label}: yes or no?`] : extra[i] === "yes" && c.unit_cost_cents == null ? [c.label] : []));
+  const costCents = costOverridden ? overrideCost(line.driver_qty, line.unit_cost_override_cents!) + extrasCostCents : partsCostCents;
   const sellOverridden = line.price_basis !== "fixed_sell" && line.sell_override_cents != null;
   const sellCents =
     line.price_basis === "fixed_sell"
@@ -290,8 +323,8 @@ export function priceEstimateLine(line: LineInput, components: SnapComponent[], 
     sellCents,
     marginPct: sellCents === 0 ? 0 : round2(((sellCents - costCents) / sellCents) * 100),
     markupPct: costCents === 0 ? 0 : round2(((sellCents - costCents) / costCents) * 100),
-    unknown: !costOverridden && unknownLabels.length > 0,
-    unknownLabels: costOverridden ? [] : unknownLabels,
+    unknown: costOverridden ? extraUnknown.length > 0 : unknownLabels.length > 0,
+    unknownLabels: costOverridden ? extraUnknown : unknownLabels,
     components: priced,
     error: costOverridden ? null : error,
     partsCostCents,

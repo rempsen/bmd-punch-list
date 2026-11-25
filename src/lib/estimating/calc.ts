@@ -45,6 +45,22 @@ export function convert(qty: number, from: Uom, to: Uom): number {
   throw new Error(`Cannot convert ${from} to ${to}`);
 }
 
+const MEASURED = new Set(["SF", "SY", "LF", "EA"]);
+/**
+ * A part with its own quantity: priced in a measured unit that does not convert to the line's (a Schluter edge by the
+ * LF on a wall tiled by the SF), with no coverage to size it by. Its quantity is its own, not so much per unit of the line.
+ * Kept in step with the database's seed_material_orders.
+ */
+export function ownQty(driver: string, uom: string | null | undefined, coverage?: number | null): boolean {
+  if (!uom || (coverage != null && Number(coverage) > 0) || !MEASURED.has(driver) || !MEASURED.has(uom)) return false;
+  try {
+    convert(1, driver as Uom, uom as Uom);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 export type PricedComponent = { purchaseQty: number; costCents: number };
 export type PricedLine = { costCents: number; sellCents: number; marginPct: number; components: PricedComponent[] };
 

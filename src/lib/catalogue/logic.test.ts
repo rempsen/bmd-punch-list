@@ -56,7 +56,7 @@ describe("parseMaterialRows", () => {
   test("categories cover the design's list", () => {
     expect(CATEGORIES.map((c) => c.value)).toEqual([
       "carpet_broadloom", "carpet_tile", "lvp", "lvt", "sheet_vinyl", "rubber", "floor_tile", "wall_tile", "wall_base",
-      "transitions", "adhesive", "underlay", "prep", "window_coverings", "other",
+      "transitions", "tile_trim", "adhesive", "underlay", "prep", "window_coverings", "other",
     ]);
   });
 });
@@ -102,5 +102,16 @@ describe("typing a cost straight into the catalogue table", () => {
   test("anything that is not an amount is refused", () => {
     expect(costEdit("abc", 175)).toEqual({ kind: "invalid" });
     expect(costEdit("-4", null)).toEqual({ kind: "invalid" });
+  });
+});
+
+describe("Schluter in a supplier price list", () => {
+  test("each profile comes in as Tile trim, priced per LF, with its own SKU", () => {
+    const out = parseMaterialRows([
+      { Name: "Schluter Jolly 10 mm satin anodized aluminum", "Item #": "A100AE", Unit: "LF", Price: "4.85" },
+      { Name: "Rondec 12.5 mm brushed stainless", "Item #": "RO125EB", Unit: "lin ft", Price: "9.10" },
+      { Name: "Porcelain tile 12x24", Unit: "SF", Price: "3.20" },
+    ]);
+    expect(out.rows.map((r) => [r.category, r.sku ?? null, r.cost_uom, r.unit_cost_cents])).toEqual([["tile_trim", "A100AE", "LF", 485], ["tile_trim", "RO125EB", "LF", 910], ["floor_tile", null, "SF", 320]]);
   });
 });

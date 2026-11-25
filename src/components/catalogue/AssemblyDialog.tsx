@@ -8,7 +8,7 @@ import { DeleteButton } from "@/components/catalogue/fields";
 import { Input } from "@/components/ui/input";
 import { centsToInput, saveTemplate, type CostCode, type LabourRate, type Material, type Template, type TemplateComponent } from "@/lib/catalogue/data";
 import { CATEGORIES, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
-import type { Uom } from "@/lib/estimating/calc";
+import { ownQty, type Uom } from "@/lib/estimating/calc";
 import { errText } from "@/lib/platform/db";
 
 type Row = Omit<TemplateComponent, "unit_cost_cents" | "qty_per_driver" | "waste_pct"> & { price: string; qty: string; waste: string };
@@ -79,7 +79,8 @@ export function AssemblyDialog({
         catalogue_material_id: r.source === "catalogue" ? r.catalogue_material_id : null,
         labour_rate_id: r.source === "labour_rate" ? r.labour_rate_id : null,
         unit_cost_cents: price,
-        cost_uom: r.source === "fixed" ? (r.cost_uom ?? driver) : null,
+        // a catalogue part with no item chosen yet keeps the unit it is priced in (a Schluter edge per LF)
+        cost_uom: r.source === "fixed" ? (r.cost_uom ?? driver) : r.source === "catalogue" && !r.catalogue_material_id ? (r.cost_uom ?? null) : null,
         qty_per_driver: qty,
         waste_pct: w,
         round_up: r.round_up,
@@ -154,18 +155,40 @@ export function AssemblyDialog({
                     </select>
                   </F>
                   <div className="sm:col-span-4">
-                    {r.source === "catalogue" && (
-                      <F label="Catalogue item">
-                        <select className={selectCls} value={r.catalogue_material_id ?? ""} onChange={(e) => patch(i, { catalogue_material_id: e.target.value || null })}>
-                          <option value="">Choose on each estimate</option>
-                          {materials.filter((m) => m.active || m.id === r.catalogue_material_id).map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name}
-                            </option>
-                          ))}
-                        </select>
-                      </F>
-                    )}
+                    {r.source === "catalogue" && (() => {
+                      const chosen = materials.find((m) => m.id === r.catalogue_material_id) ?? null;
+                      const unit = chosen?.cost_uom ?? r.cost_uom ?? null;
+                      const asked = !!unit && ownQty(driver, unit, chosen?.coverage_per_purchase_unit ?? null);
+                      return (
+                        <div className="grid grid-cols-3 gap-3">
+                          <F label="Catalogue item" className="col-span-2">
+                            <select className={selectCls} value={r.catalogue_material_id ?? ""} onChange={(e) => patch(i, { catalogue_material_id: e.target.value || null })}>
+                              <option value="">Choose on each estimate</option>
+                              {materials.filter((m) => m.active || m.id === r.catalogue_material_id).map((m) => (
+                                <option key={m.id} value={m.id}>
+                                  {m.name} (per {m.cost_uom})
+                                </option>
+                              ))}
+                            </select>
+                          </F>
+                          <F label="Priced per">
+                            {chosen ? (
+                              <p className="pt-2.5 text-sm">{chosen.cost_uom}</p>
+                            ) : (
+                              <select className={selectCls} value={r.cost_uom ?? ""} onChange={(e) => patch(i, { cost_uom: (e.target.value || null) as Uom | null })}>
+                                <option value="">Same as the assembly</option>
+                                {(["SF", "SY", "LF", "EA"] as const).map((u) => (
+                                  <option key={u} value={u}>
+                                    {u}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </F>
+                          {asked && <p className="col-span-3 text-xs text-muted-foreground">Priced per {unit} on an assembly measured in {driver}: each estimate line asks "Does it have a {r.label.trim() || "this"}?" yes or no, with its own {unit}.</p>}
+                        </div>
+                      );
+                    })()}
                     {r.source === "labour_rate" && (
                       <F label="Labour rate">
                         <select className={selectCls} value={r.labour_rate_id ?? ""} onChange={(e) => patch(i, { labour_rate_id: e.target.value || null })}>

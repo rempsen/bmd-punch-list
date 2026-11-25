@@ -1,5 +1,5 @@
 /** Pure rules for daily logs, crew requests and the crew's lists. No I/O. */
-import { priceLine, type Uom } from "@/lib/estimating/calc";
+import { priceLine, type Uom, ownQty } from "@/lib/estimating/calc";
 import { SCHEDULE_TZ } from "@/lib/visits/logic";
 
 // ── Daily logs ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -107,6 +107,8 @@ export type MaterialRaw = {
   coverage_per_purchase_unit: number | null;
   round_up: boolean;
   purchase_uom: string;
+  /** Where the part came from in the assembly; a part with its own quantity is never the finish's own material. */
+  source?: string | null;
 };
 
 /**
@@ -115,6 +117,11 @@ export type MaterialRaw = {
  */
 export function orderQuantity(r: MaterialRaw): number | null {
   const coverage = r.coverage_per_purchase_unit == null ? null : Number(r.coverage_per_purchase_unit);
+  // a part with its own quantity (a Schluter edge by the LF on a wall tiled by the SF): that quantity, with its waste
+  if (r.source && r.source !== "finish_material" && ownQty(r.driver_uom, r.purchase_uom, coverage)) {
+    const q = Number(r.qty_per_driver) * (1 + Number(r.waste_pct) / 100);
+    return Math.round((r.round_up ? Math.ceil(q - 1e-9) : q) * 100) / 100;
+  }
   try {
     const priced = priceLine(
       {

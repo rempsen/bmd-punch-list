@@ -72,3 +72,18 @@ describe("purchase order body", () => {
     expect(() => purchaseOrderBody("v1", [{ description: "Trim", quantity: 1, unit: "", unit_cost_cents: 0, qboItemId: null }], { accountId: null })).toThrow();
   });
 });
+
+describe("a part with its own quantity (a Schluter edge on wall tile) is ordered by its own length", () => {
+  const edge = { kind: "material", source: "catalogue", catalogue_material_id: "jolly", label: "Schluter Jolly", qty_per_driver: 22, waste_pct: 10, coverage_per_purchase_unit: null, round_up: false, purchase_uom: "LF", cost_uom: "LF", unit_cost_cents: 500 };
+  const wall = (c: Partial<typeof edge>) => ({ id: "L1", description: "WT-1 walls", driver_qty: 600, driver_uom: "SF", components: [{ ...edge, ...c }] });
+  it("22 LF with 10% waste is 24.2 LF to order, whatever the wall's SF", () => {
+    expect(seedRows([wall({})])).toEqual([{ estimate_line_id: "L1", catalogue_item_id: "jolly", description: "Schluter Jolly", quantity: 24.2, unit: "LF", unit_cost_cents: 500 }]);
+  });
+  it("the finish's own material in another unit is not guessed at as its own quantity", () => {
+    expect(seedRows([wall({ source: "finish_material", qty_per_driver: 1 })])[0]?.quantity).not.toBe(1.1);
+  });
+  it("not answered yet, or answered No: nothing to order", () => {
+    expect(seedRows([wall({ qty_per_driver: 0 })])).toEqual([]);
+    expect(seedRows([{ ...wall({}), components: [{ ...edge, not_applicable: true }] }])).toEqual([]);
+  });
+});

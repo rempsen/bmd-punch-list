@@ -204,3 +204,14 @@ describe("open requests across every job", () => {
     expect(openRequestsByJob([r("x", "open", null)], {})).toEqual([{ projectId: "x", name: "Job", count: 1, soonest: null }]);
   });
 });
+
+describe("the crew's material list: a part with its own quantity", () => {
+  test("a Schluter edge answered Yes with 22 LF shows 24.2 LF (10% waste), not 22 LF per SF of wall", () => {
+    const r = { item_key: "k", section: "Walls", description: "Schluter Jolly", line_description: "WT-1", driver_qty: 600, driver_uom: "SF", qty_per_driver: 22, waste_pct: 10, coverage_per_purchase_unit: null, round_up: false, purchase_uom: "LF", source: "catalogue" };
+    expect(orderQuantity(r)).toBe(24.2);
+    expect(orderQuantity({ ...r, round_up: true })).toBe(25);
+    expect(orderQuantity({ ...r, qty_per_driver: 0 })).toBe(0);
+    // the finish's own material in the wrong unit is a set-up mistake: no guess
+    expect(orderQuantity({ ...r, source: "finish_material" })).toBeNull();
+  });
+});

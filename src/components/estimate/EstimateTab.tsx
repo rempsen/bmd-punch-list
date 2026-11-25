@@ -46,7 +46,7 @@ import {
   type EstVersion,
   type SaveItem,
 } from "@/lib/estimating/data";
-import { changeLineUnit, costInUnit, costTarget, lineFromFinish, lineWasteShown, partChoices, partFor, sectionChoices, setLineWaste, setPartCoverage, setPartWaste, simpleLine, unitChoices, wasteApplies, type PartKind, answerExtra, extrasOf, templateForOffer } from "@/lib/estimating/lines";
+import { changeLineUnit, costInUnit, costTarget, lineFromFinish, lineWasteShown, partChoices, partFor, sectionChoices, setLineWaste, setPartCoverage, setPartWaste, simpleLine, unitChoices, wasteApplies, type PartKind, answerExtra, extrasOf, pickExtraSku, repairExtras, templateForOffer, trimChoices } from "@/lib/estimating/lines";
 import type { CatalogueView } from "@/lib/estimating/assemble";
 import type { LabourRate, Material } from "@/lib/catalogue/data";
 import type { Uom } from "@/lib/estimating/calc";
@@ -384,6 +384,28 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                 </li>
               ))}
             </ul>
+          </div>
+        );
+      })()}
+      {canEdit && !active.locked && (() => {
+        // Lines built before their assembly's extra was asked about (the Schluter edge in the line's own unit)
+        const stale = active.lines.flatMap((l) => {
+          const finish = l.finish_id ? finishes.find((f) => f.id === l.finish_id) : null;
+          const template = finish ? templateForOffer(templates.find((t) => t.id === finish.assembly_template_id) ?? null, l.section, templates) : null;
+          if (!finish || !template) return [];
+          const r = repairExtras(l.components, template, finish.catalogue_material_id, catalogue, l.driver_uom);
+          return r.fixed ? [{ line: l, components: r.components }] : [];
+        });
+        if (!stale.length) return null;
+        return (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            <p className="min-w-0 flex-1">
+              {stale.length === 1 ? "1 line was" : `${stale.length} lines were`} added before the Schluter edge was asked about, so the edge is in the wrong unit: {stale.slice(0, 4).map((s) => s.line.description).join("; ")}
+              {stale.length > 4 ? "…" : ""}. Fix {stale.length === 1 ? "it" : "them"} to ask yes or no per LF.
+            </p>
+            <Button size="sm" className="h-9" disabled={busy} onClick={() => void save(stale.map((s) => ({ id: s.line.id, row_version: s.line.row_version, line: {}, components: s.components })), `${stale.length === 1 ? "1 line" : `${stale.length} lines`} fixed`)}>
+              Fix {stale.length === 1 ? "it" : `all ${stale.length}`}
+            </Button>
           </div>
         );
       })()}
@@ -1031,12 +1053,31 @@ function LineRows({
                 ) : (
                   <span className="font-medium">{x.state === "yes" ? "Yes" : x.state === "no" ? "No" : "Not answered"}</span>
                 )}
+                {open && line.components[x.index]!.kind === "material" && (() => {
+                  const part = line.components[x.index]!;
+                  const choices = trimChoices(materials, x.uom);
+                  const current = part.catalogue_material_id ? materials.find((m) => m.id === part.catalogue_material_id) : null;
+                  if (!editable) return <span className="font-medium">{current?.name ?? "No item chosen"}</span>;
+                  if (!choices.length && !current) return <span className="text-muted-foreground">No tile trims in Materials yet. Add each Schluter SKU there under Tile trim, priced per {x.uom}.</span>;
+                  return (
+                    <select aria-label={`Which ${x.label}`} value={part.catalogue_material_id ?? ""} onChange={(e) => {
+                      const m = e.target.value ? catalogue.materials[e.target.value] : null;
+                      if (!m) return;
+                      try { onSave({}, pickExtraSku(line.components, x.index, m)); } catch (err) { toast.error(err instanceof Error ? err.message : String(err)); }
+                    }} className="h-8 max-w-56 rounded-md border border-input bg-background px-1">
+                      <option value="" disabled>Choose the item…</option>
+                      {current && !choices.some((c) => c.id === current.id) && <option value={current.id}>{current.name}</option>}
+                      {choices.map((m) => <option key={m.id} value={m.id}>{[m.name, m.sku].filter(Boolean).join(" · ")}</option>)}
+                    </select>
+                  );
+                })()}
                 {open && (
                   <>
                     <input key={`${line.id}-xq-${x.index}-${x.qty}-${line.row_version}`} aria-label={`${x.label}: how many ${x.uom}`} disabled={!editable} autoFocus={typingExtra === x.index} inputMode="decimal" defaultValue={x.qty > 0 ? x.qty : ""} placeholder={x.uom} onBlur={(e) => commitExtraQty(x, e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className="h-8 w-20 rounded-md border border-input bg-background px-2 text-right tabular-nums" />
                     <span>{x.uom} at $</span>
                     <input key={`${line.id}-xc-${x.index}-${x.unitCostCents}-${line.row_version}`} aria-label={`${x.label}: cost per ${x.uom}`} disabled={!editable} inputMode="decimal" defaultValue={x.unitCostCents == null ? "" : (x.unitCostCents / 100).toFixed(2)} placeholder="cost" onBlur={(e) => commitCost(x.index, e.target.value)} onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()} className="h-8 w-20 rounded-md border border-input bg-background px-2 text-right tabular-nums" />
                     <span>per {x.uom}</span>
+                    {line.components[x.index]!.waste_pct > 0 && line.components[x.index]!.kind === "material" && <span>+ {line.components[x.index]!.waste_pct}% waste</span>}
                     {x.state === "yes" && (x.unitCostCents == null ? <span className="font-medium text-amber-700">cost missing</span> : <span className="tabular-nums">= {dollars(cost)} carried in this line</span>)}
                   </>
                 )}
