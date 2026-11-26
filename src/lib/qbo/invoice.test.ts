@@ -67,6 +67,17 @@ describe("client record over QuickBooks customer", () => {
   test("phone and address compare without punctuation or spacing", () => {
     expect(customerChanges({ name: "hyatt centric", email: "OLD@x.com", phone: "(204) 555-0100", billing_address: "141 Brunel Road,  Mississauga ON, L4Z1X3" }, qbo).body).toBeNull();
   });
+  test("BMD's own address shape: street, city, province and postal code", () => {
+    expect(parseAddress("780 Bradford Street, Winnipeg, MB R3H 0N5")).toEqual({ Line1: "780 Bradford Street", City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R3H 0N5" });
+    expect(parseAddress("302 Keewaitin, Winnipeg, MB")).toEqual({ Line1: "302 Keewaitin", City: "Winnipeg", CountrySubDivisionCode: "MB" });
+    expect(parseAddress("200-100 Paquin Road, Winnipeg, MB R2J3V4")).toEqual({ Line1: "200-100 Paquin Road", City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R2J 3V4" });
+  });
+  test("the same address written differently is not a change", () => {
+    const q = { Id: "416", SyncToken: "1", DisplayName: "BMD MATERIALS - HOUSE", BillAddr: { Line1: "780 Bradford Street", City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R3H 0N5" } };
+    expect(customerChanges({ name: "BMD MATERIALS - HOUSE", email: null, phone: null, billing_address: "780 Bradford Street, Winnipeg, MB R3H 0N5" }, q).body).toBeNull();
+    const q2 = { ...q, BillAddr: { Line1: "780 Bradford Street", City: "Winnipeg", CountrySubDivisionCode: "Manitoba", PostalCode: "R3H0N5" } };
+    expect(customerChanges({ name: "BMD MATERIALS - HOUSE", email: null, phone: null, billing_address: "780 Bradford Street, Winnipeg, MB R3H 0N5" }, q2).body).toBeNull();
+  });
   test("an address that is not in the usual shape goes on the first line", () => {
     expect(parseAddress("Somewhere rural")).toEqual({ Line1: "Somewhere rural" });
   });
