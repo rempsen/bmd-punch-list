@@ -2,7 +2,7 @@
 // the quotation PDF and the QuickBooks roll-up so all three always agree.
 // Money is integer cents. Quantities are rounded to 2 decimals for display.
 
-export type Uom = "SF" | "SY" | "LF" | "EA" | "carton" | "roll" | "pail" | "hour" | "LS";
+export type Uom = "SF" | "SY" | "LF" | "EA" | "carton" | "roll" | "bag" | "pail" | "hour" | "LS";
 export type TaxCode = "GST" | "HST" | "EXEMPT" | "ZERO";
 
 export type Component = {

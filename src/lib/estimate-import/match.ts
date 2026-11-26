@@ -56,7 +56,7 @@ export function normaliseAlias(text: string): string {
 export function normaliseUom(u: string | null | undefined): string | null {
   if (!u) return null;
   const s = u.trim().toLowerCase().replace(/[.\s]/g, "");
-  const map: Record<string, string> = { sf: "SF", sqft: "SF", ft2: "SF", sy: "SY", sqyd: "SY", yd2: "SY", lf: "LF", lft: "LF", ea: "EA", each: "EA", pc: "EA", hr: "hour", hour: "hour", ls: "LS", lot: "LS" };
+  const map: Record<string, string> = { sf: "SF", sqft: "SF", ft2: "SF", sy: "SY", sqyd: "SY", yd2: "SY", lf: "LF", lft: "LF", ft: "LF", feet: "LF", ea: "EA", each: "EA", pc: "EA", hr: "hour", hour: "hour", ls: "LS", lot: "LS" };
   return map[s] ?? u.trim();
 }
 
@@ -144,8 +144,8 @@ export function fuzzyCandidates(line: ImportedLine, catalogue: CatalogueEntry[],
       reasons.push(normaliseUom(e.unit) === lineUom ? `same unit (${lineUom})` : `unit converts ${e.unit}→${lineUom}`);
     }
     if (sameUnit && line.material_unit_cost != null && e.material_unit_cost != null && e.material_unit_cost > 0) {
-      const cat = convertPrice(e.material_unit_cost, e.unit, lineUom)!;
-      if (Math.abs(line.material_unit_cost - cat) <= cat * PRICE_BONUS_BAND) {
+      const cat = convertPrice(e.material_unit_cost, e.unit, lineUom);
+      if (cat != null && Math.abs(line.material_unit_cost - cat) <= cat * PRICE_BONUS_BAND) {
         score += 0.1;
         reasons.push(`price within 25% ($${cat.toFixed(2)}/${lineUom})`);
       }
@@ -176,6 +176,17 @@ export function matchLine(line: ImportedLine, catalogue: CatalogueEntry[], alias
 }
 
 export type CostDelta = { imported: number; catalogue: number; delta: number; pct: number };
+
+/** Display the real price, and its equivalent in the imported line's unit. Labour-only candidates remain priced. */
+export function candidateLabel(candidate: Pick<Candidate, "name" | "uom" | "material_unit_cost" | "labour_unit_cost">, lineUnit: string | null): string {
+  const price = candidate.material_unit_cost ?? candidate.labour_unit_cost;
+  if (price == null) return `${candidate.name} · no price`;
+  const from = normaliseUom(candidate.uom) ?? candidate.uom;
+  const to = normaliseUom(lineUnit) ?? from;
+  const converted = convertPrice(price, from, to);
+  const original = `$${price.toFixed(2)}/${from}`;
+  return `${candidate.name} · ${original}${converted != null && from !== to ? ` = $${converted.toFixed(2)}/${to}` : ""}${candidate.material_unit_cost == null ? " (labour)" : ""}`;
+}
 export type PriceDelta = { uom: string | null; material: CostDelta | null; labour: CostDelta | null; needs_verification: boolean };
 
 /** Per-unit difference (imported − catalogue) in the imported line's unit. Flags > 15% off the catalogue price. */

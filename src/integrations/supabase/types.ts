@@ -322,6 +322,7 @@ export type Database = {
           id: string
           name: string
           sort_order: number
+          unit_correction: Json | null
         }
         Insert: {
           active?: boolean
@@ -333,6 +334,7 @@ export type Database = {
           id?: string
           name: string
           sort_order?: number
+          unit_correction?: Json | null
         }
         Update: {
           active?: boolean
@@ -344,6 +346,7 @@ export type Database = {
           id?: string
           name?: string
           sort_order?: number
+          unit_correction?: Json | null
         }
         Relationships: [
           {
@@ -590,6 +593,7 @@ export type Database = {
           purchase_uom: string
           sku: string | null
           supplier_id: string | null
+          unit_correction: Json | null
           unit_cost_cents: number | null
           uom_confirmed: boolean
           updated_at: string
@@ -615,6 +619,7 @@ export type Database = {
           purchase_uom?: string
           sku?: string | null
           supplier_id?: string | null
+          unit_correction?: Json | null
           unit_cost_cents?: number | null
           uom_confirmed?: boolean
           updated_at?: string
@@ -640,6 +645,7 @@ export type Database = {
           purchase_uom?: string
           sku?: string | null
           supplier_id?: string | null
+          unit_correction?: Json | null
           unit_cost_cents?: number | null
           uom_confirmed?: boolean
           updated_at?: string
@@ -3006,6 +3012,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          unit_correction: Json | null
           unit_cost_cents: number | null
           uom: string
           uom_confirmed: boolean
@@ -3016,6 +3023,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          unit_correction?: Json | null
           unit_cost_cents?: number | null
           uom?: string
           uom_confirmed?: boolean
@@ -3026,6 +3034,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          unit_correction?: Json | null
           unit_cost_cents?: number | null
           uom?: string
           uom_confirmed?: boolean

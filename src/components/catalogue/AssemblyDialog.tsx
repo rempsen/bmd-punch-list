@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DeleteButton } from "@/components/catalogue/fields";
 import { Input } from "@/components/ui/input";
 import { centsToInput, saveTemplate, type CostCode, type LabourRate, type Material, type Template, type TemplateComponent } from "@/lib/catalogue/data";
-import { CATEGORIES, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
+import { CATEGORIES, defaultUnit, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
 import { ownQty, type Uom } from "@/lib/estimating/calc";
 import { errText } from "@/lib/platform/db";
 
@@ -48,7 +48,7 @@ export function AssemblyDialog({
 }) {
   const [name, setName] = useState(template?.name ?? "");
   const [category, setCategory] = useState<Category>(template?.category ?? "other");
-  const [driver, setDriver] = useState<Uom>(template?.driver_uom ?? "SF");
+  const [driver, setDriver] = useState<Uom>(template?.driver_uom ?? defaultUnit(template?.category ?? "other"));
   const [costCode, setCostCode] = useState<string | null>(template?.cost_code ?? null);
   const [waste, setWaste] = useState(String(template?.default_waste_pct ?? 0));
   const [active, setActive] = useState(template?.active ?? true);
@@ -117,7 +117,7 @@ export function AssemblyDialog({
               <Input className="h-11" value={name} onChange={(e) => setName(e.target.value)} />
             </F>
             <F label="Category">
-              <select className={selectCls} value={category} onChange={(e) => setCategory(e.target.value as Category)}>
+              <select className={selectCls} value={category} onChange={(e) => { const category = e.target.value as Category; setCategory(category); if (!template && category === "carpet_broadloom") setDriver("SY"); }}>
                 {CATEGORIES.map((c) => (
                   <option key={c.value} value={c.value}>
                     {c.label}

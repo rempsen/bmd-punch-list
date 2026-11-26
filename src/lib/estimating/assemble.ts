@@ -85,7 +85,7 @@ export type LineInput = {
   markup_overridden?: boolean;
 };
 
-const PACKED: Uom[] = ["carton", "roll", "pail", "EA"];
+const PACKED: Uom[] = ["carton", "roll", "bag", "pail", "EA"];
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 function fits(from: Uom, to: Uom): boolean {

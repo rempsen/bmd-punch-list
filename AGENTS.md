@@ -44,3 +44,5 @@
 ## Estimate import
 - `src/lib/estimate-import/parse.ts` reads XLSX/CSV/PDF into rows; `commit.ts` turns reviewed rows into estimate lines; `commit_estimate_import` saves them as one version in one transaction and `undo_estimate_import` removes them while nobody has edited them. Why: the review screen, the tests and the database agree on one set of numbers.
 - Kept-imported lines type the file's extended costs onto the line and stay priced by markup; a file's separate materials tax becomes PST on the material part. Why: the lines add up to the file to the cent and still respond to edits; BMD lines carry GST only.
+- Review-unit edits live inside the saved decision and overlay the immutable parsed row; shared pure helpers handle conversions, product defaults and candidate labels. Why: reopening, totals and commits must use the same edited numbers without changing catalogue records.
+- Catalogue unit corrections retain before/after values on each affected entry and append to the existing sync activity log; insert triggers enforce category units for non-form imports. Why: corrections are auditable and QuickBooks imports share the same defaults.

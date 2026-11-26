@@ -60,7 +60,8 @@ export function takeoffOffers(lines: FollowLine[], totals: FinishTotals, finishe
 }
 
 /** The unit a new line is priced in: the assembly's own when it fits what was measured, otherwise what was measured. */
-export function offerUom(m: Measure, templateUom: string | null): "SF" | "SY" | "LF" | "EA" {
+export function offerUom(m: Measure, templateUom: string | null, category?: string): "SF" | "SY" | "LF" | "EA" {
+  if (category === "carpet_broadloom" && m.sf > 0) return "SY";
   if ((templateUom === "SF" || templateUom === "SY") && m.sf > 0) return templateUom;
   if (templateUom === "LF" && m.lf > 0) return "LF";
   if (templateUom === "EA" && m.ea > 0) return "EA";

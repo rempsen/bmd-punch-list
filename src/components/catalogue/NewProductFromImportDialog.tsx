@@ -7,24 +7,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { addAlias, useRefreshAliases } from "@/lib/catalogue/aliases";
 import { saveLabourRate, saveMaterial, saveTemplate, useCostCodes, useRefreshCatalogue, useSuppliers, type Material } from "@/lib/catalogue/data";
 import { useScopeKeywords } from "@/lib/documents/scope-data";
-import { guessCategory, normaliseUom, type ImportedLine } from "@/lib/estimate-import/match";
+import { convertPrice, type ImportedLine } from "@/lib/estimate-import/match";
+import { productDefaults } from "@/lib/estimate-import/product-defaults";
 import type { Uom } from "@/lib/estimating/calc";
-import { UOMS } from "@/lib/catalogue/logic";
+import { db } from "@/lib/platform/db";
 import { pushCatalogueItemToQbo, type ItemPushResult, type QboItemPreview } from "@/lib/qbo/item.functions";
 import { errText } from "@/lib/platform/db";
 
 const cents = (d: number | null) => (d == null || !Number.isFinite(d) ? null : Math.round(d * 100));
-const asUom = (u: string | null): Uom => {
-  const n = normaliseUom(u);
-  return (UOMS as string[]).includes(n ?? "") ? (n as Uom) : "SF";
-};
-
-/** The catalogue form's starting values for an imported line. Supplier stays blank. */
-export function productDefaults(line: ImportedLine, keywords: Parameters<typeof guessCategory>[1]): Partial<Material> {
-  const unit = asUom(line.uom);
-  return { name: line.description.trim(), category: guessCategory(`${line.description} ${line.detail ?? ""}`, keywords), cost_uom: unit, purchase_uom: unit, unit_cost_cents: cents(line.material_unit_cost), supplier_id: null, price_source: "Imported estimate", pst_applies: true, active: true };
-}
-
 export type CreatedProduct = { materialId: string; labourRateId: string | null; assemblyId: string | null; aliasId: string };
 type State = { busy: boolean; created: CreatedProduct | null; qbo: ItemPushResult | null; error: string | null };
 
@@ -43,7 +33,7 @@ export function useCreateProductFromImport() {
   const finish = useCallback(async (line: ImportedLine, materialId: string, material: { name: string; category: Material["category"]; cost_uom: Uom }): Promise<CreatedProduct> => {
     let labourRateId: string | null = null;
     let assemblyId: string | null = null;
-    const labourCents = cents(line.labour_unit_cost);
+    const labourCents = cents(line.labour_unit_cost == null ? null : convertPrice(line.labour_unit_cost, line.uom, material.cost_uom));
     if (labourCents != null) {
       labourRateId = await saveLabourRate(null, { name: `Install – ${material.name}`.slice(0, 200), uom: material.cost_uom, unit_cost_cents: labourCents, cost_code: null, active: true, uom_confirmed: true });
       assemblyId = await saveTemplate(null, { name: `${material.name} – supply & install`.slice(0, 200), category: material.category, driver_uom: material.cost_uom, cost_code: null, default_waste_pct: 0, sort_order: 99, active: true }, [
@@ -99,7 +89,10 @@ export function NewProductFromImportDialog({ line, onClose, onCreated }: { line:
 
   const saved = async (materialId: string) => {
     try {
-      const p = await finish(line, materialId, { name: defaults.name ?? line.description, category: defaults.category ?? "other", cost_uom: (defaults.cost_uom ?? "SF") as Uom });
+      const { data: material, error } = await db.from("catalogue_materials").select("name,category,cost_uom").eq("id", materialId).single();
+      if (error) throw new Error(error.message);
+      if (!material) throw new Error("The saved product could not be read");
+      const p = await finish(line, materialId, material as { name: string; category: Material["category"]; cost_uom: Uom });
       setCreated(p);
       onCreated?.(p);
     } catch (e) {

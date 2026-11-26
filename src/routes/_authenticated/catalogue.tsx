@@ -46,7 +46,7 @@ import { pullSummary } from "@/components/settings/QuickBooksPanel";
 import { qboPullProducts } from "@/lib/qbo/qbo.functions";
 
 export const Route = createFileRoute("/_authenticated/catalogue")({
-  head: () => ({ meta: [{ title: "Catalogue — BMD Projects" }] }),
+  head: () => ({ meta: [{ title: "Catalogue — BMD Projects" }, { name: "description", content: "Manage BMD Materials products, assemblies, suppliers and pricing units." }, { property: "og:title", content: "Catalogue — BMD Projects" }, { property: "og:description", content: "BMD's flooring and tile catalogue, assemblies and labour pricing." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary_large_image" }] }),
   component: CataloguePage,
 });
 

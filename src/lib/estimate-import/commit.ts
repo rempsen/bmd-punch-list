@@ -17,7 +17,7 @@ import { convertPrice, type Candidate } from "./match";
 import type { ImportOptions, ParsedFields, ParsedRow } from "./types";
 
 export type DecisionAction = "keep_imported" | "catalogue" | "new_product" | "skip";
-export type Decision = { action: DecisionAction; candidate?: Candidate; keepPrice?: boolean };
+export type Decision = { action: DecisionAction; candidate?: Candidate; keepPrice?: boolean; reviewed?: ParsedFields; unitNote?: string };
 export type GroupStrategy = "groups" | "map" | "single";
 export type PayloadContext = { options: ImportOptions; category: string; catalogue: CatalogueView; templates: Template[] };
 
@@ -85,7 +85,7 @@ export function payloadPrice(item: SaveItem, rates: { pstPct: number }) {
 }
 
 export function rowToPayload(row: ParsedRow, decision: Decision, ctx: PayloadContext, rates: { pstPct: number } = { pstPct: 7 }): SaveItem {
-  const p = row.parsed;
+  const p = decision.reviewed ?? row.parsed;
   if (!p || row.kind !== "item" || decision.action === "skip") throw new Error("This row is not an included item");
   const { qty, uom } = lineUnit(p);
   const markup = markupOf(p, ctx.options);
@@ -109,9 +109,10 @@ export function rowToPayload(row: ParsedRow, decision: Decision, ctx: PayloadCon
   }
 
   const importedLabour = p.labour_unit_cost;
-  if (c!.catalogue_item_id) {
-    const m = ctx.catalogue.materials[c!.catalogue_item_id];
-    if (!m) throw new Error(`${p.description}: ${c!.name} is no longer in the catalogue`);
+  if (!c) throw new Error("Choose a catalogue candidate");
+  if (c.catalogue_item_id) {
+    const m = ctx.catalogue.materials[c.catalogue_item_id];
+    if (!m) throw new Error(`${p.description}: ${c.name} is no longer in the catalogue`);
     if (!m.coverage_per_purchase_unit) {
       try { convert(1, uom, m.cost_uom); } catch { throw new Error(`${p.description}: cannot convert ${uom} to ${m.cost_uom}`); }
     }
@@ -120,7 +121,9 @@ export function rowToPayload(row: ParsedRow, decision: Decision, ctx: PayloadCon
       template: { driver_uom: uom, default_waste_pct: waste, components: [{ kind: "material", label: m.name, source: "catalogue", catalogue_material_id: m.id, labour_rate_id: null, unit_cost_cents: null, cost_uom: m.cost_uom, qty_per_driver: 1, waste_pct: waste, round_up: false, pst_applies: m.pst_applies, on_gross: false, sort_order: 1 }] },
       finishMaterialId: null, catalogue: ctx.catalogue,
     });
-    let mat = built[0]!;
+    let mat = built[0];
+    if (!mat) throw new Error(`${p.description}: no material part was built`);
+    mat = partInLineUnit(mat, uom);
     if (decision.keepPrice && p.material_unit_cost != null) {
       // The file's own extended material cost, carried on the line's unit, so no unit conversion rounds it.
       const material = p.material_total ?? (p.total_qty ?? (p.qty ?? 0) * (1 + (waste ?? 0) / 100)) * p.material_unit_cost;
@@ -136,10 +139,9 @@ export function rowToPayload(row: ParsedRow, decision: Decision, ctx: PayloadCon
     return decision.keepPrice ? keepFileSell(item, fileSell(p, ctx.options), rates) : item;
   }
 
-  const tpl = ctx.templates.find((t) => t.id === c!.assembly_id);
-  if (!tpl) throw new Error(`${p.description}: the assembly ${c!.name} is no longer in the catalogue`);
-  let driverQty: number;
-  try { driverQty = convert(qty, uom, tpl.driver_uom); } catch { throw new Error(`${p.description}: cannot convert ${uom} to ${tpl.driver_uom}`); }
+  const tpl = ctx.templates.find((t) => t.id === c.assembly_id);
+  if (!tpl) throw new Error(`${p.description}: the assembly ${c.name} is no longer in the catalogue`);
+  try { convert(qty, uom, tpl.driver_uom); } catch { throw new Error(`${p.description}: cannot convert ${uom} to ${tpl.driver_uom}`); }
   const { components } = buildComponents({ template: tpl, finishMaterialId: null, catalogue: ctx.catalogue });
   if (decision.keepPrice) {
     // The file's own extended costs on the file's own unit, so converting units and rounding a per-unit price cannot move the total.
@@ -154,8 +156,18 @@ export function rowToPayload(row: ParsedRow, decision: Decision, ctx: PayloadCon
     checked(kept, p, rates);
     return keepFileSell(kept, fileSell(p, ctx.options), rates);
   }
-  const item: SaveItem = { line: { ...base, driver_qty: r2(driverQty * 10000) / 10000, driver_uom: tpl.driver_uom, waste_pct: tpl.default_waste_pct, unit_cost_override_cents: null }, components };
+  const rebased = components.map((part) => partInLineUnit({ ...part, coverage_per_purchase_unit: part.coverage_per_purchase_unit == null ? null : convert(part.coverage_per_purchase_unit, tpl.driver_uom, uom) }, uom));
+  const item: SaveItem = { line: { ...base, driver_qty: qty, driver_uom: uom, waste_pct: tpl.default_waste_pct, unit_cost_override_cents: null }, components: rebased };
   return checked(item, p, rates);
+}
+
+/** Area-priced snapshots use the reviewed unit, not the catalogue unit. Fractional cents remain in the multiplier. */
+export function partInLineUnit(part: SnapComponent, unit: Uom): SnapComponent {
+  if (part.coverage_per_purchase_unit != null || convertPrice(1, part.cost_uom, unit) == null) return part;
+  const exact = part.unit_cost_cents == null ? null : convertPrice(part.unit_cost_cents, part.cost_uom, unit);
+  const rounded = exact == null ? null : exact > 0 ? Math.max(1, Math.round(exact)) : 0;
+  return { ...part, cost_uom: unit, purchase_uom: unit, unit_cost_cents: rounded,
+    qty_per_driver: rounded && exact != null ? part.qty_per_driver * exact / rounded : part.qty_per_driver };
 }
 
 /** Markup when it reproduces the file's selling price to within 2¢; otherwise the file's price is kept as a fixed sell. */

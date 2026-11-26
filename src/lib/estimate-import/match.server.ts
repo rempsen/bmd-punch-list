@@ -1,5 +1,5 @@
 /** Server side of import matching: loads the catalogue and aliases, asks the AI for weak lines, writes aliases. */
-import { STRONG_SCORE, aiMatchPrompt, AI_MATCH_SYSTEM, fuzzyCandidates, matchLine, normaliseAlias, parseAiMatch, type AliasRow, type Candidate, type CatalogueEntry, type ImportedLine, type MatchResult } from "./match";
+import { STRONG_SCORE, aiMatchPrompt, AI_MATCH_SYSTEM, convertPrice, fuzzyCandidates, matchLine, normaliseAlias, parseAiMatch, type AliasRow, type Candidate, type CatalogueEntry, type ImportedLine, type MatchResult } from "./match";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = any;
@@ -9,14 +9,14 @@ const dollars = (c: number | null | undefined) => (c == null ? null : Number(c) 
 export async function loadCatalogue(sb: Sb): Promise<{ catalogue: CatalogueEntry[]; aliases: AliasRow[] }> {
   const [mats, labour, tpls, comps, aliases] = await Promise.all([
     sb.from("catalogue_materials").select("id,name,category,cost_uom,unit_cost_cents,manufacturer,product_line,colour").eq("active", true),
-    sb.from("labour_rates").select("id,unit_cost_cents"),
+    sb.from("labour_rates").select("id,uom,unit_cost_cents"),
     sb.from("assembly_templates").select("id,name,category,driver_uom").eq("active", true),
-    sb.from("assembly_template_components").select("template_id,kind,source,catalogue_material_id,labour_rate_id,unit_cost_cents,qty_per_driver"),
+    sb.from("assembly_template_components").select("template_id,kind,source,catalogue_material_id,labour_rate_id,unit_cost_cents,cost_uom,qty_per_driver"),
     sb.from("catalogue_aliases").select("alias_norm,catalogue_item_id,assembly_id"),
   ]);
   for (const r of [mats, labour, tpls, comps, aliases]) if (r.error) throw new Error(r.error.message);
-  const matCost = new Map<string, number | null>((mats.data ?? []).map((m: { id: string; unit_cost_cents: number | null }) => [m.id, m.unit_cost_cents]));
-  const labCost = new Map<string, number | null>((labour.data ?? []).map((l: { id: string; unit_cost_cents: number | null }) => [l.id, l.unit_cost_cents]));
+  const matCost = new Map<string, { cost_uom: string; unit_cost_cents: number | null }>((mats.data ?? []).map((m: { id: string; cost_uom: string; unit_cost_cents: number | null }) => [m.id, m]));
+  const labCost = new Map<string, { uom: string; unit_cost_cents: number | null }>((labour.data ?? []).map((l: { id: string; uom: string; unit_cost_cents: number | null }) => [l.id, l]));
   const catalogue: CatalogueEntry[] = (mats.data ?? []).map((m: { id: string; name: string; category: string; cost_uom: string; unit_cost_cents: number | null; manufacturer: string | null; product_line: string | null; colour: string | null }) => ({
     kind: "item" as const, id: m.id, name: m.name, description: [m.manufacturer, m.product_line, m.colour].filter(Boolean).join(" · ") || null,
     category: m.category, unit: m.cost_uom, material_unit_cost: dollars(m.unit_cost_cents), labour_unit_cost: null,
@@ -24,11 +24,16 @@ export async function loadCatalogue(sb: Sb): Promise<{ catalogue: CatalogueEntry
   for (const t of (tpls.data ?? []) as { id: string; name: string; category: string; driver_uom: string }[]) {
     let mat: number | null = null;
     let lab: number | null = null;
-    for (const c of (comps.data ?? []) as { template_id: string; kind: string; source: string; catalogue_material_id: string | null; labour_rate_id: string | null; unit_cost_cents: number | null; qty_per_driver: number }[]) {
+    for (const c of (comps.data ?? []) as { template_id: string; kind: string; source: string; catalogue_material_id: string | null; labour_rate_id: string | null; unit_cost_cents: number | null; cost_uom: string | null; qty_per_driver: number }[]) {
       if (c.template_id !== t.id) continue;
-      const cents = c.source === "catalogue" ? matCost.get(c.catalogue_material_id ?? "") : c.source === "labour_rate" ? labCost.get(c.labour_rate_id ?? "") : c.source === "fixed" ? c.unit_cost_cents : null;
+      const material = matCost.get(c.catalogue_material_id ?? "");
+      const labour = labCost.get(c.labour_rate_id ?? "");
+      const cents = c.source === "catalogue" ? material?.unit_cost_cents : c.source === "labour_rate" ? labour?.unit_cost_cents : c.source === "fixed" ? c.unit_cost_cents : null;
       if (cents == null) continue;
-      const v = (Number(cents) / 100) * Number(c.qty_per_driver ?? 1);
+      const unit = c.source === "catalogue" ? material?.cost_uom : c.source === "labour_rate" ? labour?.uom : c.cost_uom ?? t.driver_uom;
+      const price = convertPrice(Number(cents) / 100, unit ?? null, t.driver_uom);
+      if (price == null) continue;
+      const v = price * Number(c.qty_per_driver ?? 1);
       if (c.kind === "labour") lab = (lab ?? 0) + v;
       else mat = (mat ?? 0) + v;
     }

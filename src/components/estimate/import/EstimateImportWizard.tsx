@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -20,7 +20,8 @@ import { commitImportLines, loadReview, saveImportDecision, saveRowMatch, type R
 import { categoryFor, payloadPrice, reconciliation, rowToPayload, type Decision, type GroupStrategy } from "@/lib/estimate-import/commit";
 import { fileTarget } from "@/lib/estimate-import/parse";
 import { rememberTemplate } from "@/lib/estimate-import/templates";
-import { convertPrice, priceDelta, type Candidate } from "@/lib/estimate-import/match";
+import { candidateLabel, convertPrice, priceDelta, type Candidate } from "@/lib/estimate-import/match";
+import { changeReviewUnit, reviewedRow, REVIEW_UNITS } from "@/lib/estimate-import/review-units";
 import { MAPPING_FIELDS, type ImportOptions, type Mapping, type MappingField } from "@/lib/estimate-import/types";
 
 const money = (n: number) => n.toLocaleString("en-CA", { style: "currency", currency: "CAD" });
@@ -58,6 +59,8 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
   const [saveLayout, setSaveLayout] = useState(false);
   const [layoutName, setLayoutName] = useState("");
   const [newRow, setNewRow] = useState<string | null>(null);
+  const saves = useRef(new Map<string, Promise<void>>());
+  const [saving, setSaving] = useState(0);
   const { canAny } = useAuth();
   const qc = useQueryClient();
   const { data: versions = [] } = useEstimate(projectId);
@@ -67,7 +70,7 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
   const confirmFn = useServerFn(confirmMatch);
   const readOnly = imp ? imp.status === "committed" || imp.status === "discarded" : !!importId;
 
-  const items = useMemo(() => imp?.rows.filter((r) => r.kind === "item" && r.parsed) ?? [], [imp]);
+  const items = useMemo(() => imp?.rows.filter((r) => r.kind === "item" && r.parsed).map((r) => reviewedRow(r, decisions[r.id])) ?? [], [imp, decisions]);
   const groups = useMemo(() => [...new Set(items.map((r) => r.group_name ?? "General"))], [items]);
   const sections = useMemo(() => [...new Set(versions.flatMap((v) => v.lines.map((l) => l.section)))], [versions]);
   const hasBase = versions.some((v) => v.is_base && v.kind === "estimate");
@@ -136,9 +139,23 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
     });
 
   const choose = (row: ReviewRow, d: Decision) => {
-    setDecisions((cur) => ({ ...cur, [row.id]: d }));
+    const previous = decisions[row.id];
+    const next = { ...(previous?.reviewed ? { reviewed: previous.reviewed, ...(previous.unitNote ? { unitNote: previous.unitNote } : {}) } : {}), ...d };
+    setDecisions((cur) => ({ ...cur, [row.id]: next }));
     setAck(false);
-    void saveImportDecision(row.id, d).catch((e: unknown) => setError(`Could not save the choice for ${row.parsed?.description ?? "a line"}: ${e instanceof Error ? e.message : String(e)}`));
+    setSaving((n) => n + 1);
+    const pending = (saves.current.get(row.id) ?? Promise.resolve()).catch(() => undefined).then(() => saveImportDecision(row.id, next));
+    saves.current.set(row.id, pending);
+    void pending.catch((e: unknown) => setError(`Could not save the choice for ${row.parsed?.description ?? "a line"}: ${e instanceof Error ? e.message : String(e)}`)).finally(() => setSaving((n) => n - 1));
+  };
+  const changeUnit = (row: ReviewRow, unit: string) => {
+    if (!row.parsed) return;
+    let result = changeReviewUnit(row.parsed, unit);
+    if (result.needsConfirmation) {
+      if (!window.confirm(`There is no fixed conversion from ${row.parsed.uom} to ${unit}. Keep the numbers and relabel this line?`)) return;
+      result = changeReviewUnit(row.parsed, unit, true);
+    }
+    choose(row, { ...(decisions[row.id] ?? { action: "keep_imported" }), reviewed: result.fields, unitNote: result.note });
   };
   const applyCandidate = async (row: ReviewRow, c: Candidate, keepPrice: boolean, action: "catalogue" | "new_product" = "catalogue") => {
     if (!row.parsed) return;
@@ -176,6 +193,7 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
   const commit = () =>
     execute(async () => {
       if (!imp || !rates) return;
+      await Promise.all(saves.current.values());
       const payload = included.map((r) => ({ ...rowToPayload(r, decisions[r.id]!, ctxFor(r), rates), import_row_id: r.id, decision: decisions[r.id] }));
       const versionId = await commitImportLines(imp.id, payload, append, ack, preview.sell);
       await qc.invalidateQueries({ queryKey: ["estimate", projectId] });
@@ -336,7 +354,7 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
                     </thead>
                     <tbody>
                       {groups.map((g) => (
-                        <GroupRows key={g} label={g} rows={items.filter((r) => (r.group_name ?? "General") === g)} decisions={decisions} readOnly={readOnly} busy={busy} canCatalogue={canAny("manage_catalogue")} choose={choose} use={(r, c, keep) => void execute(() => applyCandidate(r, c, keep))} onNew={setNewRow} />
+                        <GroupRows key={g} label={g} rows={items.filter((r) => (r.group_name ?? "General") === g)} decisions={decisions} readOnly={readOnly} busy={busy} canCatalogue={canAny("manage_catalogue")} choose={choose} changeUnit={changeUnit} use={(r, c, keep) => void execute(() => applyCandidate(r, c, keep))} onNew={setNewRow} />
                       ))}
                     </tbody>
                   </table>
@@ -399,12 +417,12 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
             </Button>
           )}
           {!readOnly && step === 3 && (
-            <Button disabled={busy || preview.issues.length > 0 || !rec.allowed || included.length === 0} onClick={() => setStep(4)}>
+            <Button disabled={busy || saving > 0 || preview.issues.length > 0 || !rec.allowed || included.length === 0} onClick={() => setStep(4)}>
               Continue <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           )}
           {!readOnly && step === 4 && (
-            <Button disabled={busy || !rec.allowed || included.length === 0 || !rates} onClick={commit}>
+            <Button disabled={busy || saving > 0 || !rec.allowed || included.length === 0 || !rates} onClick={commit}>
               Create the estimate
             </Button>
           )}
@@ -426,14 +444,15 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
   );
 }
 
-function GroupRows({ label, rows, decisions, readOnly, busy, canCatalogue, choose, use, onNew }: { label: string; rows: ReviewRow[]; decisions: Record<string, Decision>; readOnly: boolean; busy: boolean; canCatalogue: boolean; choose: (r: ReviewRow, d: Decision) => void; use: (r: ReviewRow, c: Candidate, keepPrice: boolean) => void; onNew: (id: string) => void }) {
+function GroupRows({ label, rows, decisions, readOnly, busy, canCatalogue, choose, changeUnit, use, onNew }: { label: string; rows: ReviewRow[]; decisions: Record<string, Decision>; readOnly: boolean; busy: boolean; canCatalogue: boolean; choose: (r: ReviewRow, d: Decision) => void; changeUnit: (r: ReviewRow, unit: string) => void; use: (r: ReviewRow, c: Candidate, keepPrice: boolean) => void; onNew: (id: string) => void }) {
   return (
     <>
       <tr className="bg-muted/60">
         <th colSpan={7} className="p-2 text-left">{label}</th>
       </tr>
       {rows.map((r) => {
-        const p = r.parsed!;
+        const p = r.parsed;
+        if (!p) return null;
         const d = decisions[r.id] ?? { action: "keep_imported" as const };
         const candidates = (r.match as RowMatch).candidates ?? [];
         const shown = d.candidate ?? candidates[0];
@@ -450,7 +469,7 @@ function GroupRows({ label, rows, decisions, readOnly, busy, canCatalogue, choos
               {p.detail && <p className="text-xs text-muted-foreground">{p.detail}</p>}
               {r.raw.page && <p className="text-xs text-muted-foreground">Page {r.raw.page}</p>}
             </td>
-            <td className="whitespace-nowrap p-2">{p.qty ?? "?"} {p.uom ?? ""}{p.waste_pct ? <span className="block text-xs text-muted-foreground">+{p.waste_pct}% waste</span> : null}</td>
+            <td className="p-2"><div className="flex items-center gap-1"><span>{p.qty == null ? "?" : Number(p.qty.toFixed(5))}</span><select aria-label={`Unit for ${p.description}`} className="h-8 rounded border border-input bg-background px-1 text-xs" disabled={readOnly || busy} value={p.uom ?? ""} onChange={(e) => changeUnit(r, e.target.value)}>{p.uom && !(REVIEW_UNITS as readonly string[]).includes(p.uom) && <option>{p.uom}</option>}{!p.uom && <option value="">Unit</option>}{REVIEW_UNITS.map((u) => <option key={u}>{u}</option>)}</select></div>{d.unitNote && <p className="mt-1 text-xs text-muted-foreground">{d.unitNote}</p>}{p.waste_pct ? <span className="block text-xs text-muted-foreground">+{p.waste_pct}% waste</span> : null}</td>
             <td className="whitespace-nowrap p-2">{p.material_unit_cost == null ? "—" : money(p.material_unit_cost)} / {p.labour_unit_cost == null ? "—" : money(p.labour_unit_cost)}</td>
             <td className="p-2">{p.markup_pct == null ? "—" : `${Math.round(p.markup_pct * 100) / 100}%`}</td>
             <td className="min-w-64 p-2">
@@ -459,12 +478,12 @@ function GroupRows({ label, rows, decisions, readOnly, busy, canCatalogue, choos
               </span>
               {shown && (
                 <>
-                  <p className="mt-1">{shown.name} <span className="text-muted-foreground">· {shown.material_unit_cost == null ? "no price" : money(shown.material_unit_cost)}/{shown.uom}</span></p>
+                  <p className="mt-1">{candidateLabel(shown, p.uom)}</p>
                   {delta?.material && <p className={delta.needs_verification ? "text-xs text-amber-700 dark:text-amber-400" : "text-xs text-muted-foreground"}>Imported is {money(Math.abs(delta.material.delta))}/{delta.uom} {delta.material.delta >= 0 ? "more" : "less"}{delta.needs_verification ? " — check the price" : ""}</p>}
                   {!fits && <p className="text-xs text-destructive">{shown.uom} cannot be converted to {p.uom}</p>}
                   {!readOnly && candidates.length > 1 && (
                     <select aria-label={`Match for ${p.description}`} className={`${select} mt-1 w-full`} value={candKey(shown)} onChange={(e) => { const c = candidates.find((x) => candKey(x) === e.target.value); if (c) choose(r, { ...d, action: d.action === "skip" ? "skip" : "keep_imported", candidate: c }); }}>
-                      {candidates.map((c) => <option key={candKey(c)} value={candKey(c)}>{c.name} ({c.uom})</option>)}
+                      {candidates.map((c) => <option key={candKey(c)} value={candKey(c)}>{candidateLabel(c, p.uom)}</option>)}
                     </select>
                   )}
                 </>

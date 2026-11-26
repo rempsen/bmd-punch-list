@@ -7,7 +7,7 @@ import { DeleteButton } from "@/components/catalogue/fields";
 import { AliasesSection } from "@/components/catalogue/AliasesSection";
 import { Input } from "@/components/ui/input";
 import { centsToInput, saveMaterial, sellsMaterials, type CostCode, type Material, type Supplier } from "@/lib/catalogue/data";
-import { CATEGORIES, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
+import { CATEGORIES, defaultUnit, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
 import type { Uom } from "@/lib/estimating/calc";
 import { errText } from "@/lib/platform/db";
 
@@ -40,9 +40,9 @@ export function MaterialDialog({
     colour: m.colour ?? "",
     sku: m.sku ?? "",
     supplier_id: m.supplier_id ?? "",
-    cost_uom: (m.cost_uom ?? "SF") as Uom,
+    cost_uom: m.cost_uom ?? defaultUnit(m.category ?? "other"),
     price: centsToInput(m.unit_cost_cents ?? null),
-    purchase_uom: (m.purchase_uom ?? "SF") as Uom,
+    purchase_uom: m.purchase_uom ?? defaultUnit(m.category ?? "other"),
     coverage: m.coverage_per_purchase_unit == null ? "" : String(m.coverage_per_purchase_unit),
     coverage_uom: (m.coverage_uom ?? "SF") as Uom,
     pst_applies: m.pst_applies ?? true,
@@ -119,7 +119,7 @@ export function MaterialDialog({
             <Input className="h-11" value={f.name} onChange={(e) => set({ name: e.target.value })} />
           </F>
           <F label="Category">
-            <select className={selectCls} value={f.category} onChange={(e) => set({ category: e.target.value as Category })}>
+            <select className={selectCls} value={f.category} onChange={(e) => { const category = e.target.value as Category; set({ category, ...(!material && category === "carpet_broadloom" ? { cost_uom: "SY" as const, purchase_uom: "SY" as const } : {}) }); }}>
               {CATEGORIES.map((c) => (
                 <option key={c.value} value={c.value}>
                   {c.label}

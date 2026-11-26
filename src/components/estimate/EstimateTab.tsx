@@ -256,12 +256,12 @@ export function EstimateTab({ projectId }: { projectId: string }) {
     const finish = finishes.find((f) => f.id === o.finishId)!;
     // Walls measured in the takeoff are priced with the wall tile assembly: wall install labour and its Schluter question.
     const template = templateForOffer(templates.find((t) => t.id === finish.assembly_template_id) ?? null, o.section, templates);
-    const uom = offerUom(o.measure, template?.driver_uom ?? null);
+    const uom = offerUom(o.measure, template?.driver_uom ?? null, template?.category);
     const qty = offerQty(o.measure, uom);
     // The assembly prices the line when its unit fits what was measured. Otherwise the line goes on unpriced: an unknown cost is not zero.
     // What is measured in the takeoff is flooring unless the takeoff named an area for it.
     const section = o.section === "General" ? "Flooring" : o.section;
-    const base = template && template.driver_uom === uom ? lineFromFinish({ versionId, finish, template, catalogue, qty, section, markupPct, source: "takeoff" }).item : simpleLine({ versionId, kind: "misc", section, description: [finish.tag, finish.description].filter(Boolean).join(" – "), qty, uom, unitCostCents: null, pst: false, markupPct, costCode: null });
+    const base = template && (template.driver_uom === uom || template.category === "carpet_broadloom") ? lineFromFinish({ versionId, finish, template, catalogue, qty, section, markupPct, source: "takeoff" }).item : simpleLine({ versionId, kind: "misc", section, description: [finish.tag, finish.description].filter(Boolean).join(" – "), qty, uom, unitCostCents: null, pst: false, markupPct, costCode: null });
     return { ...base, line: { ...base.line, finish_id: finish.id, source: "takeoff" } };
   };
 
@@ -372,7 +372,8 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         const offers = takeoffOffers(active.lines, takeoffTotals, finishes);
         if (offers.length === 0) return null;
         const qtyText = (o: Offer) => {
-          const uom = offerUom(o.measure, templates.find((t) => t.id === finishes.find((f) => f.id === o.finishId)?.assembly_template_id)?.driver_uom ?? null);
+          const template = templates.find((t) => t.id === finishes.find((f) => f.id === o.finishId)?.assembly_template_id);
+          const uom = offerUom(o.measure, template?.driver_uom ?? null, template?.category);
           return `${offerQty(o.measure, uom).toLocaleString("en-CA")} ${uom}`;
         };
         return (

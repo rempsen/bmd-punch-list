@@ -24,7 +24,10 @@ export const CATEGORIES: { value: Category; label: string }[] = [
 ];
 export const categoryLabel = (c: string) => CATEGORIES.find((x) => x.value === c)?.label ?? c;
 
-export const UOMS: Uom[] = ["SF", "SY", "LF", "EA", "carton", "roll", "pail", "hour", "LS"];
+/** Broadloom is measured and priced in square yards; other categories retain their chosen unit. */
+export const defaultUnit = (category: string, fallback: Uom = "SF"): Uom => category === "carpet_broadloom" ? "SY" : fallback;
+
+export const UOMS: Uom[] = ["SF", "SY", "LF", "EA", "carton", "roll", "bag", "pail", "hour", "LS"];
 
 /** Dollars (as typed or as a number) to cents. Blank, unreadable or negative is unknown: null, never zero. */
 export function parseMoneyCents(v: unknown): number | null {
@@ -43,6 +46,7 @@ const UOM_WORDS: [RegExp, Uom][] = [
   [/^(ctn|carton|cartons|box|bx|boxes|case)$/i, "carton"],
   [/^(roll|rolls|rl)$/i, "roll"],
   [/^(pail|pails|bucket)$/i, "pail"],
+  [/^(bag|bags)$/i, "bag"],
   [/^(hr|hrs|hour|hours)$/i, "hour"],
   [/^(ls|lump\s*sum)$/i, "LS"],
 ];

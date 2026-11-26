@@ -2,6 +2,7 @@ import type { Template } from "@/lib/catalogue/data";
 import { buildComponents, extraQuestion as question, simpleComponent, type CatalogueView, type CatMaterial as CatM, type SnapComponent, type TemplateInput as TplIn } from "./assemble";
 import { ownQty as own, type Uom } from "./calc";
 import type { Finish, LineKind, SaveItem } from "./data";
+import { defaultUnit } from "@/lib/catalogue/logic";
 
 /** Whether a part's waste is in its cost: materials always, labour and plain costs only when paid on the wasted quantity. */
 export const wasteApplies = (c: SnapComponent): boolean => c.kind === "material" || (c.kind === "fixed" && c.pst_applies) || c.on_gross;
@@ -46,7 +47,12 @@ export const setPartCoverage = (components: SnapComponent[], index: number, cove
 
 /** A new estimate line for a finish tag, with its assembly snapshotted from the catalogue as it is now. */
 export function lineFromFinish(a: { versionId: string; finish: Finish; template: Template; catalogue: CatalogueView; qty: number; section: string; markupPct: number; source?: "manual" | "import" | "takeoff" }): { item: SaveItem; issues: string[] } {
-  const { components, issues } = buildComponents({ template: a.template, finishMaterialId: a.finish.catalogue_material_id, catalogue: a.catalogue });
+  const driver = defaultUnit(a.template.category, a.template.driver_uom);
+  const { components: built, issues } = buildComponents({ template: { ...a.template, driver_uom: driver }, finishMaterialId: a.finish.catalogue_material_id, catalogue: a.catalogue });
+  const components = a.template.category === "carpet_broadloom" ? built.map((c) => {
+    if (c.cost_uom !== "SF" || c.coverage_per_purchase_unit != null) return c;
+    return { ...c, cost_uom: "SY" as const, purchase_uom: "SY" as const, unit_cost_cents: c.unit_cost_cents == null ? null : c.unit_cost_cents * 9 };
+  }) : built;
   const main = components.find((c) => c.source === "finish_material");
   return {
     issues,
@@ -58,7 +64,7 @@ export function lineFromFinish(a: { versionId: string; finish: Finish; template:
         kind: "assembly",
         description: [a.finish.tag, a.finish.description ?? main?.label].filter(Boolean).join(" – "),
         driver_qty: a.qty,
-        driver_uom: a.template.driver_uom,
+        driver_uom: driver,
         waste_pct: main?.waste_pct ?? a.template.default_waste_pct,
         markup_pct: a.markupPct,
         cost_code: a.template.cost_code,
@@ -90,7 +96,9 @@ export function windowLine(a: { versionId: string; section: string; type: string
 }
 
 const TAG_CATEGORY: [RegExp, string][] = [
+  [/broadloom/i, "carpet_broadloom"],
   [/^cpt\b|carpet tile/i, "carpet_tile"],
+  [/carpet/i, "carpet_broadloom"],
   [/^lvt\b/i, "lvt"],
   [/^lvp\b/i, "lvp"],
   [/^rb\b|\bbase\b/i, "wall_base"],
