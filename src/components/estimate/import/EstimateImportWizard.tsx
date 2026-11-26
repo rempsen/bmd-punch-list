@@ -16,7 +16,7 @@ import { enqueueFile } from "@/lib/documents/index-queue";
 import { uploadEstimateFile } from "@/lib/estimate-import/upload";
 import { reparseEstimateImport, runEstimateImport } from "@/lib/estimate-import/run.functions";
 import { confirmMatch, matchImportedLines } from "@/lib/estimate-import/match.functions";
-import { commitImportLines, loadReview, saveRowMatch, type ReviewImport, type ReviewRow, type RowMatch } from "@/lib/estimate-import/review-data";
+import { commitImportLines, loadReview, saveImportDecision, saveRowMatch, type ReviewImport, type ReviewRow, type RowMatch } from "@/lib/estimate-import/review-data";
 import { categoryFor, payloadPrice, reconciliation, rowToPayload, type Decision, type GroupStrategy } from "@/lib/estimate-import/commit";
 import { fileTarget } from "@/lib/estimate-import/parse";
 import { rememberTemplate } from "@/lib/estimate-import/templates";
@@ -138,7 +138,7 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
   const choose = (row: ReviewRow, d: Decision) => {
     setDecisions((cur) => ({ ...cur, [row.id]: d }));
     setAck(false);
-    void saveRowMatch(row.id, { ...row.match, decision: d }).catch(() => undefined);
+    void saveImportDecision(row.id, d).catch((e: unknown) => setError(`Could not save the choice for ${row.parsed?.description ?? "a line"}: ${e instanceof Error ? e.message : String(e)}`));
   };
   const applyCandidate = async (row: ReviewRow, c: Candidate, keepPrice: boolean, action: "catalogue" | "new_product" = "catalogue") => {
     if (!row.parsed) return;

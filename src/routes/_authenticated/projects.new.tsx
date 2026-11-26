@@ -416,7 +416,7 @@ function NewProjectPage() {
         )}
 
         {canImport && !internal && (
-          <Section title="Existing estimate">
+          <Section title="Have an existing estimate? Import it">
             <label className="flex items-center gap-3 text-sm">
               <input type="checkbox" checked={importExisting} onChange={(e) => setImportExisting(e.target.checked)} />
               Import an estimate made elsewhere (Excel, CSV or PDF) once the project is created

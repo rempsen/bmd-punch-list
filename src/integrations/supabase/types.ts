@@ -520,6 +520,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          item_key: string | null
           last_used_at: string
           source: string
           uses: number
@@ -532,6 +533,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          item_key?: string | null
           last_used_at?: string
           source?: string
           uses?: number
@@ -544,6 +546,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          item_key?: string | null
           last_used_at?: string
           source?: string
           uses?: number
@@ -6480,6 +6483,10 @@ export type Database = {
       }
       save_estimate_line: { Args: { _p: Json }; Returns: Json }
       save_estimate_lines: { Args: { _items: Json }; Returns: Json }
+      save_import_decision: {
+        Args: { _decision: Json; _row: string }
+        Returns: undefined
+      }
       save_project_takeoff:
         | {
             Args: { _doc: Json; _expected_version: number; _project: string }

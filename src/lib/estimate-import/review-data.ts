@@ -45,3 +45,9 @@ export async function undoImport(importId: string) {
   const { error } = await db.rpc("undo_estimate_import" as never, { _import: importId } as never);
   if (error) throw new Error(error.message);
 }
+
+/** Saves one row's decision the moment it is made, so reopening the import resumes where it was left. */
+export async function saveImportDecision(rowId: string, decision: unknown) {
+  const { error } = await db.rpc("save_import_decision", { _row: rowId, _decision: decision } as never);
+  if (error) throw new Error(error.message);
+}
