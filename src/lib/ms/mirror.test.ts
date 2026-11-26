@@ -232,7 +232,7 @@ describe("processQueue", () => {
     const { db, state } = fakeDb([row({ action: "folder", document_id: null })]);
     await processQueue({ drive: createDrive(g.call), storage, db }, now, { maxItems: 5, maxChunks: 50 });
     const children = [...g.folders.values()].filter((f) => f.parent === state.project.onedrive_folder_id).map((f) => f.name);
-    expect(children).toEqual(["Plans", "Specifications", "Vendor quotes and data sheets", "Quotes sent", "Contract", "Photos", "Other"]);
+    expect(children).toEqual(["Plans", "Specifications", "Vendor quotes and data sheets", "Quotes sent", "Contract", "Photos", "Estimates (imported)", "Other"]);
     expect(state.rows[0]!.status).toBe("done");
   });
 

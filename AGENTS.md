@@ -40,3 +40,7 @@
 ## Estimate import matching
 - `src/lib/estimate-import/match.ts` is pure (normalise, fuzzy score, price delta, AI prompt/parse); `match.server.ts` loads catalogue/aliases and calls the AI; `match.functions.ts` exposes them. Why: the review screen and tests share one rule set, and the AI only orders candidates — prices always come from catalogue rows.
 - Aliases are written only through `confirm_catalogue_alias` (bumps uses on repeat). Why: one row per wording per item.
+
+## Estimate import
+- `src/lib/estimate-import/parse.ts` reads XLSX/CSV/PDF into rows; `commit.ts` turns reviewed rows into estimate lines; `commit_estimate_import` saves them as one version in one transaction and `undo_estimate_import` removes them while nobody has edited them. Why: the review screen, the tests and the database agree on one set of numbers.
+- Kept-imported lines type the file's extended costs onto the line and stay priced by markup; a file's separate materials tax becomes PST on the material part. Why: the lines add up to the file to the cent and still respond to edits; BMD lines carry GST only.

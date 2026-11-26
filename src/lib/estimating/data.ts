@@ -30,6 +30,8 @@ export type EstLine = WsLine & {
   finish_id: string | null;
   kind: LineKind;
   source: "manual" | "import" | "takeoff";
+  /** The imported row this line came from, when it was imported. */
+  import_row_id?: string | null;
   waste_pct: number;
   notes: string | null;
   sort_order: number;

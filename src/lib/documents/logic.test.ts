@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { MAX_BYTES, SECTIONS, checkFile, formatBytes, groupVersions, guessSection, previewKind, safeFileName, storagePath, type DocRow } from "./logic";
 
 describe("sections", () => {
-  test("are the seven filing sections in order", () => {
-    expect(SECTIONS.map((s) => s.value)).toEqual(["plans", "specifications", "vendor", "quotes_sent", "contract", "photos", "other"]);
+  test("are the eight filing sections in order", () => {
+    expect(SECTIONS.map((s) => s.value)).toEqual(["plans", "specifications", "vendor", "quotes_sent", "contract", "photos", "estimates_imported", "other"]);
   });
 });
 

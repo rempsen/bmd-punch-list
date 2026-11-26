@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ImportDialog } from "./ImportDialog";
+import { EstimateImportWizard } from "./import/EstimateImportWizard";
+import { ImportsPopover } from "./import/ImportsPopover";
+import { ImportedBadge } from "./import/ImportedBadge";
 import { ScopeProposals } from "./ScopeProposals";
 import { areasText, lineAreas, useTakeoffAreas, useTakeoffWalls } from "@/lib/takeoff/areas";
 import { edgeText, lineWallEdges, type WallEdges } from "@/lib/takeoff/walls";
@@ -63,6 +65,7 @@ export function EstimateTab({ projectId }: { projectId: string }) {
   const canUnlock = canAny("manage_projects");
   const canSee = canAny("view_pricing");
   const canEdit = canAny("manage_estimates");
+  const canImport = canUnlock && canSee && canEdit;
   const { data: versions = [], isLoading, error } = useEstimate(projectId, canSee);
   const { data: finishes = [] } = useFinishes(projectId, canSee);
   const { data: materials = [] } = useMaterials(canSee);
@@ -266,7 +269,18 @@ export function EstimateTab({ projectId }: { projectId: string }) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center">
         <p className="font-medium">No estimate yet</p>
-        <p className="mt-1 text-sm text-muted-foreground">Start the Base price. Alternates are made later by copying it.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Start the Base price, or import an estimate made elsewhere. Alternates are made later by copying it.</p>
+        {canImport && (
+          <Button className="mr-2 mt-4 h-11" variant="outline" onClick={() => setDialog("import")}>
+            <Upload className="mr-2 h-4 w-4" /> Import estimate
+          </Button>
+        )}
+        {dialog === "import" && <EstimateImportWizard projectId={projectId} catalogue={catalogue} templates={templates} rates={rates} onClose={() => setDialog(null)} onDone={(id) => { setActiveId(id); refresh(); setDialog(null); }} />}
+        {canImport && (
+          <div className="mt-3">
+            <ImportsPopover projectId={projectId} canUndo={canImport} catalogue={catalogue} templates={templates} rates={rates} onChanged={refresh} />
+          </div>
+        )}
         {canEdit && (
           <Button className="mt-4 h-11" disabled={busy} onClick={() => void run(async () => setActiveId(await createVersion(projectId, "")))}>
             <Plus className="mr-2 h-4 w-4" /> Start the estimate
@@ -466,6 +480,12 @@ export function EstimateTab({ projectId }: { projectId: string }) {
         <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
           <VersionName version={active} editable={editable} onSaved={refresh} />
           <div className="ml-auto flex flex-wrap gap-2">
+            {canImport && <ImportsPopover projectId={projectId} canUndo={canImport} catalogue={catalogue} templates={templates} rates={rates} onChanged={refresh} />}
+            {canImport && (
+              <Button variant="outline" className="h-10" onClick={() => setDialog("import")}>
+                <Upload className="mr-1.5 h-4 w-4" /> Import estimate
+              </Button>
+            )}
             {active.lines.some((l) => lineAreas(l, active.lines, takeoffAreas ?? {})) && (
               <Button variant="outline" className="h-10" aria-pressed={byArea} onClick={toggleByArea} title="Show where each base line's LF is: suites, common areas, washrooms">
                 Base by area: {byArea ? "On" : "Off"}
@@ -481,9 +501,6 @@ export function EstimateTab({ projectId }: { projectId: string }) {
                 </Button>
                 <Button variant="outline" className="h-10" onClick={() => setDialog("windows")}>
                   Window schedule
-                </Button>
-                <Button variant="outline" className="h-10" onClick={() => setDialog("import")}>
-                  Import prices
                 </Button>
                 <Button variant="outline" className="h-10" onClick={() => setDialog("paste")}>
                   <ClipboardPaste className="mr-1.5 h-4 w-4" /> Paste quantities
@@ -703,10 +720,14 @@ export function EstimateTab({ projectId }: { projectId: string }) {
       {dialog === "add" && <AddLineDialog version={active} finishes={finishes} templates={templates} catalogue={catalogue} costCodes={costCodes} sections={sections} onClose={() => setDialog(null)} onAdd={(items, note) => save(items, note).then(() => setDialog(null))} />}
       {dialog === "windows" && <WindowScheduleDialog version={active} sections={sections} onClose={() => setDialog(null)} onAdd={(items) => save(items, `${items.length} window types added`).then(() => setDialog(null))} />}
       {dialog === "import" && (
-        <ImportDialog
-          version={active}
+        <EstimateImportWizard
+          projectId={projectId}
+          catalogue={catalogue}
+          templates={templates}
+          rates={rates}
           onClose={() => setDialog(null)}
-          onDone={() => {
+          onDone={(id) => {
+            setActiveId(id);
             refresh();
             setDialog(null);
           }}
@@ -1026,7 +1047,7 @@ function LineRows({
                 ))}
               </span>
             )}
-            {line.source !== "manual" && <span>· from {line.source}</span>}
+            {line.source === "import" ? <ImportedBadge rowId={line.import_row_id} catalogue={catalogue} /> : line.source !== "manual" && <span>· from {line.source}</span>}
             {line.selection !== "required" && <span>· {line.selection === "optional" ? "optional" : `choose one (${line.selection_group ?? "group"})`}</span>}
             {fixed && <span>· selling price set by hand</span>}
             {(priced.unknown || priced.error) && (

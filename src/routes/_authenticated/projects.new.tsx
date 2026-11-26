@@ -19,6 +19,9 @@ import { createJob, createPipelineProject, useBmdStaff, useJobTemplates, useRefr
 import { JOB_TYPES, stageLabel, type ProjectKind, type ProjectStage } from "@/lib/projects/stages";
 import { applyTemplate, parseTasks, templateStages, type FormContact } from "@/lib/projects/templates";
 import { cn } from "@/lib/utils";
+import { EstimateImportWizard } from "@/components/estimate/import/EstimateImportWizard";
+import { catalogueView } from "@/lib/estimating/data";
+import { useLabourRates, useMaterials, useTaxSettings, useTemplates } from "@/lib/catalogue/data";
 
 export const Route = createFileRoute("/_authenticated/projects/new")({
   head: () => ({ meta: [{ title: "New project — BMD Projects" }] }),
@@ -45,6 +48,13 @@ const blank = {
 function NewProjectPage() {
   const { canAny, refreshPermissions } = useAuth();
   const navigate = useNavigate();
+  const canImport = canAny("view_pricing") && canAny("manage_estimates");
+  const [importExisting, setImportExisting] = useState(false);
+  const [importProject, setImportProject] = useState<string | null>(null);
+  const { data: catMaterials = [] } = useMaterials(canImport && importExisting);
+  const { data: catLabour = [] } = useLabourRates(canImport && importExisting);
+  const { data: catTemplates = [] } = useTemplates(canImport && importExisting);
+  const { data: tax } = useTaxSettings(canImport && importExisting);
   const { data: clients = [] } = useClients();
   const { data: staff = [] } = useBmdStaff();
   const refreshClients = useRefreshClients();
@@ -162,7 +172,8 @@ function NewProjectPage() {
       }
       if (failed) toast.error(`${failed} ${failed === 1 ? "file" : "files"} did not upload. Add them again from the Documents tab.`);
       toast.success(`${f.name.trim()} created in ${stageLabel(stage)}`);
-      void navigate({ to: "/projects/$id", params: { id }, search: !internal && files.length ? { tab: "documents" } : {} });
+      if (importExisting && canImport && !internal) setImportProject(id);
+      else void navigate({ to: "/projects/$id", params: { id }, search: !internal && files.length ? { tab: "documents" } : {} });
     } catch (e) {
       toast.error(`Could not create the project: ${errText(e)}`);
     } finally {
@@ -176,6 +187,15 @@ function NewProjectPage() {
 
   return (
     <div>
+      {importProject && (
+        <EstimateImportWizard
+          projectId={importProject}
+          catalogue={catalogueView(catMaterials, catLabour)}
+          templates={catTemplates}
+          rates={tax ? { pstPct: tax.pst_pct } : null}
+          onClose={() => void navigate({ to: "/projects/$id", params: { id: importProject }, search: { tab: "estimate" } })}
+        />
+      )}
       <PageHeader
         title="New project"
         subtitle={internal ? "An internal job is open straight away, so time and visits can be booked against it." : `Starts in ${stageLabel(stage)}. Floors and rooms are set up later, when the job is won.`}
@@ -393,6 +413,15 @@ function NewProjectPage() {
             </ul>
           )}
         </Section>
+        )}
+
+        {canImport && !internal && (
+          <Section title="Existing estimate">
+            <label className="flex items-center gap-3 text-sm">
+              <input type="checkbox" checked={importExisting} onChange={(e) => setImportExisting(e.target.checked)} />
+              Import an estimate made elsewhere (Excel, CSV or PDF) once the project is created
+            </label>
+          </Section>
         )}
 
         <Section title="Notes">

@@ -8,7 +8,7 @@ const SUPABASE_KEY = import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] as string;
 
 export type UploadHandle = {
   /** Resolves when the file is stored and its document row exists. */
-  done: Promise<void>;
+  done: Promise<string>;
   pause: () => void;
   resume: () => void;
 };
@@ -86,6 +86,7 @@ export function uploadDocument(opts: {
     if (error && !(error.code === "23505" && /pkey|storage_path/.test(error.message))) throw new Error(error.message);
     // Read the text for search in the background; the upload is complete whether or not this succeeds.
     void import("./text").then(({ indexDocumentFile }) => indexDocumentFile(documentId, file, file.type || null, file.name));
+    return documentId;
   })();
 
   return {

@@ -1,4 +1,4 @@
-export type DocSection = "plans" | "specifications" | "vendor" | "quotes_sent" | "contract" | "photos" | "other";
+export type DocSection = "plans" | "specifications" | "vendor" | "quotes_sent" | "contract" | "photos" | "estimates_imported" | "other";
 
 export const SECTIONS: { value: DocSection; label: string }[] = [
   { value: "plans", label: "Plans" },
@@ -7,6 +7,7 @@ export const SECTIONS: { value: DocSection; label: string }[] = [
   { value: "quotes_sent", label: "Quotes sent" },
   { value: "contract", label: "Contract" },
   { value: "photos", label: "Photos" },
+  { value: "estimates_imported", label: "Estimates (imported)" },
   { value: "other", label: "Other" },
 ];
 export const sectionLabel = (s: DocSection) => SECTIONS.find((x) => x.value === s)?.label ?? s;
