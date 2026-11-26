@@ -119,9 +119,9 @@ export function parseAddress(text: string): QboAddr {
   const out: QboAddr = {};
   if (parts.length >= 2 && POSTAL.test(parts[parts.length - 1]!)) out.PostalCode = postal(parts.pop()!);
   const last = parts[parts.length - 1] ?? "";
-  const provPostal = last.match(/^([A-Za-z]{2})(?:\s+([A-Z]\d[A-Z]\s?\d[A-Z]\d))?$/i);
+  const provPostal = last.match(/^([A-Za-z]{2})(?:\s+([A-Z]\d[A-Z]\s?[\dO][A-Z][\dO]))?$/i);
   const cityProv = last.match(/^(.*\S)\s+([A-Za-z]{2})$/);
-  if (parts.length >= 3 && provPostal && PROV.test(provPostal[1]!)) {
+  if (parts.length >= 2 && provPostal && PROV.test(provPostal[1]!)) {
     parts.pop();
     out.CountrySubDivisionCode = provPostal[1]!.toUpperCase();
     if (provPostal[2]) out.PostalCode = postal(provPostal[2]);
@@ -142,7 +142,11 @@ export function parseAddress(text: string): QboAddr {
  */
 const addrWords = (a?: QboAddr): Set<string> => {
   if (!a) return new Set();
-  const text = [a.Line1, a.Line2, a.City, provCode(a.CountrySubDivisionCode), (a.PostalCode ?? "").replace(/\s+/g, "")].join(" ").toLowerCase();
+  const text = [a.Line1, a.Line2, a.City, provCode(a.CountrySubDivisionCode), (a.PostalCode ?? "").replace(/\s+/g, "")]
+    .join(" ")
+    .toLowerCase()
+    // a postal code written in two halves anywhere in the text counts as one word ("r3j 0y2" → "r3j0y2")
+    .replace(/\b([a-z]\d[a-z])\s+([\do][a-z][\do])\b/g, "$1$2");
   return new Set(text.split(/[^a-z0-9]+/).filter((w) => w && w !== "canada").map((w) => (PROVINCES[w] ?? w).toLowerCase()));
 };
 const addrText = (a?: QboAddr) => (a ? [a.Line1, a.Line2, [a.City, a.CountrySubDivisionCode].filter(Boolean).join(" "), a.PostalCode].map((s) => (s ?? "").trim()).filter(Boolean).join(", ") : "");

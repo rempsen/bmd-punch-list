@@ -85,6 +85,12 @@ describe("client record over QuickBooks customer", () => {
     expect(keep("504 Boreham Boulevard, Winnipeg, Manitoba, Canada", { Line1: "504 Boreham Boulevard", City: "Winnipeg", CountrySubDivisionCode: "Manitoba" })).toBeNull();
     expect(keep("317 Prospect St, Winnipeg Beach, MB", { Line1: "317 Prospect St", City: "Winnipeg Beach", CountrySubDivisionCode: "Man" })).toBeNull();
   });
+  test("postal codes match however they are spaced, and a city-only address reads", () => {
+    const keep = (bmd: string, q: object) => customerChanges({ name: "X", email: null, phone: null, billing_address: bmd }, { Id: "1", SyncToken: "0", DisplayName: "X", BillAddr: q }).body;
+    expect(keep("10 Hawksley Gate, Niverville, MB R0A OA2", { Line1: "10 Hawksley Gate", City: "Niverville Manitoba", PostalCode: "R0A OA2" })).toBeNull();
+    expect(keep("Winnipeg, MB R3J 0Y2", { City: "Winnipeg MB", PostalCode: "R3J 0Y2" })).toBeNull();
+    expect(parseAddress("Winnipeg, MB R3J 0Y2")).toEqual({ City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R3J 0Y2" });
+  });
   test("a corrected or new address on the client still wins", () => {
     const c = customerChanges({ name: "X", email: null, phone: null, billing_address: "30 Ramsgate Bay, Winnipeg, MB R3H 0N5" }, { Id: "1", SyncToken: "0", DisplayName: "X", BillAddr: { Line1: "30 Ramsgate Bay", City: "Winipeg", CountrySubDivisionCode: "Mb", PostalCode: "R3H 0N5" } });
     expect((c.body as any).BillAddr).toEqual({ Line1: "30 Ramsgate Bay", City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R3H 0N5" });
