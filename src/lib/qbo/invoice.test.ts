@@ -78,6 +78,20 @@ describe("client record over QuickBooks customer", () => {
     const q2 = { ...q, BillAddr: { Line1: "780 Bradford Street", City: "Winnipeg", CountrySubDivisionCode: "Manitoba", PostalCode: "R3H0N5" } };
     expect(customerChanges({ name: "BMD MATERIALS - HOUSE", email: null, phone: null, billing_address: "780 Bradford Street, Winnipeg, MB R3H 0N5" }, q2).body).toBeNull();
   });
+  test("an address the client has less of than QuickBooks is not overwritten (no unit or street dropped)", () => {
+    const keep = (bmd: string, q: object) => customerChanges({ name: "X", email: null, phone: null, billing_address: bmd }, { Id: "1", SyncToken: "0", DisplayName: "X", BillAddr: q }).body;
+    expect(keep("1480 Plessis Road, Winnipeg, MB R2C 5R5", { Line1: "1480 Plessis Road", Line2: "unit 1", City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R2C 5R5" })).toBeNull();
+    expect(keep("P.O. Box 20035, Winnipeg, MB R3K2E5", { Line1: "P.O. Box 20035", Line2: "3310 Portage Avenue", City: "Winnipeg", CountrySubDivisionCode: "Manitoba", PostalCode: "R3K2E5" })).toBeNull();
+    expect(keep("504 Boreham Boulevard, Winnipeg, Manitoba, Canada", { Line1: "504 Boreham Boulevard", City: "Winnipeg", CountrySubDivisionCode: "Manitoba" })).toBeNull();
+    expect(keep("317 Prospect St, Winnipeg Beach, MB", { Line1: "317 Prospect St", City: "Winnipeg Beach", CountrySubDivisionCode: "Man" })).toBeNull();
+  });
+  test("a corrected or new address on the client still wins", () => {
+    const c = customerChanges({ name: "X", email: null, phone: null, billing_address: "30 Ramsgate Bay, Winnipeg, MB R3H 0N5" }, { Id: "1", SyncToken: "0", DisplayName: "X", BillAddr: { Line1: "30 Ramsgate Bay", City: "Winipeg", CountrySubDivisionCode: "Mb", PostalCode: "R3H 0N5" } });
+    expect((c.body as any).BillAddr).toEqual({ Line1: "30 Ramsgate Bay", City: "Winnipeg", CountrySubDivisionCode: "MB", PostalCode: "R3H 0N5" });
+  });
+  test("full province names and a trailing country are understood", () => {
+    expect(parseAddress("504 Boreham Boulevard, Winnipeg, Manitoba, Canada")).toEqual({ Line1: "504 Boreham Boulevard", City: "Winnipeg", CountrySubDivisionCode: "MB" });
+  });
   test("an address that is not in the usual shape goes on the first line", () => {
     expect(parseAddress("Somewhere rural")).toEqual({ Line1: "Somewhere rural" });
   });

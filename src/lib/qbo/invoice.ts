@@ -99,7 +99,7 @@ export type CustomerChange = { field: "Name" | "Email" | "Phone" | "Billing addr
 const PROV = /^(AB|BC|MB|NB|NL|NS|NT|NU|ON|PE|QC|SK|YT)$/i;
 const POSTAL = /^[A-Z]\d[A-Z] ?\d[A-Z]\d$/i;
 
-const PROVINCES: Record<string, string> = { alberta: "AB", "british columbia": "BC", manitoba: "MB", "new brunswick": "NB", "newfoundland and labrador": "NL", "nova scotia": "NS", "northwest territories": "NT", nunavut: "NU", ontario: "ON", "prince edward island": "PE", quebec: "QC", saskatchewan: "SK", yukon: "YT" };
+const PROVINCES: Record<string, string> = { alberta: "AB", "british columbia": "BC", manitoba: "MB", "new brunswick": "NB", "newfoundland and labrador": "NL", "nova scotia": "NS", "northwest territories": "NT", nunavut: "NU", ontario: "ON", "prince edward island": "PE", quebec: "QC", saskatchewan: "SK", yukon: "YT", man: "MB", alta: "AB", sask: "SK", ont: "ON" };
 const provCode = (s: string | undefined) => {
   const t = (s ?? "").trim();
   return PROV.test(t) ? t.toUpperCase() : (PROVINCES[t.toLowerCase()] ?? t);
@@ -112,6 +112,10 @@ const postal = (s: string) => s.toUpperCase().replace(/\s+/g, "").replace(/^(\w{
  */
 export function parseAddress(text: string): QboAddr {
   const parts = text.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length >= 2 && /^canada$/i.test(parts[parts.length - 1]!)) parts.pop();
+  // A province written out in full ("Manitoba") reads as its code.
+  const lastWord = parts[parts.length - 1] ?? "";
+  if (parts.length >= 3 && PROVINCES[lastWord.toLowerCase()]) parts[parts.length - 1] = PROVINCES[lastWord.toLowerCase()]!;
   const out: QboAddr = {};
   if (parts.length >= 2 && POSTAL.test(parts[parts.length - 1]!)) out.PostalCode = postal(parts.pop()!);
   const last = parts[parts.length - 1] ?? "";
@@ -132,8 +136,15 @@ export function parseAddress(text: string): QboAddr {
   return { ...(parts[0] ? { Line1: parts[0] } : {}), ...(parts[1] ? { Line2: parts[1] } : {}), ...out };
 }
 
-/** One address in a form two spellings of it share: province as its code, postal code without the space. */
-const addrKey = (a?: QboAddr) => (a ? [a.Line1, a.Line2, a.City, provCode(a.CountrySubDivisionCode), (a.PostalCode ?? "").replace(/\s+/g, "")].map((x) => (x ?? "").toLowerCase().replace(/[^a-z0-9]/g, "")).join("|") : "");
+/**
+ * The words of an address, in a form two spellings of it share: province as its code, "Canada" left out, postal code
+ * without the space. Used to tell whether the client's address says anything QuickBooks does not.
+ */
+const addrWords = (a?: QboAddr): Set<string> => {
+  if (!a) return new Set();
+  const text = [a.Line1, a.Line2, a.City, provCode(a.CountrySubDivisionCode), (a.PostalCode ?? "").replace(/\s+/g, "")].join(" ").toLowerCase();
+  return new Set(text.split(/[^a-z0-9]+/).filter((w) => w && w !== "canada").map((w) => (PROVINCES[w] ?? w).toLowerCase()));
+};
 const addrText = (a?: QboAddr) => (a ? [a.Line1, a.Line2, [a.City, a.CountrySubDivisionCode].filter(Boolean).join(" "), a.PostalCode].map((s) => (s ?? "").trim()).filter(Boolean).join(", ") : "");
 const squash = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9@.]/g, "");
 const digits = (s: string | null | undefined) => (s ?? "").replace(/\D/g, "");
@@ -157,7 +168,10 @@ export function customerChanges(client: ClientRecord, qbo: QboCustomerRecord): {
     body["PrimaryPhone"] = { FreeFormNumber: phone };
   }
   const addr = (client.billing_address ?? "").trim();
-  if (addr && addrKey(parseAddress(addr)) !== addrKey(qbo.BillAddr)) {
+  // The client wins when its address says something QuickBooks does not (a corrected spelling, a new address). One
+  // that only has less (no unit, no second street line) is left alone, so nothing in QuickBooks is lost.
+  const qWords = addrWords(qbo.BillAddr);
+  if (addr && [...addrWords(parseAddress(addr))].some((w) => !qWords.has(w))) {
     changes.push({ field: "Billing address", from: addrText(qbo.BillAddr) || null, to: addr });
     body["BillAddr"] = parseAddress(addr);
   }
