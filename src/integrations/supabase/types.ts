@@ -1565,33 +1565,70 @@ export type Database = {
       }
       estimate_import_rows: {
         Row: {
-          decision: string
+          commit_snapshot: Json | null
+          created_at: string
+          decision: string | null
+          decision_meta: Json | null
+          estimate_line_id: string | null
+          group_name: string | null
           id: string
           import_id: string
           issue: string | null
+          kind: string | null
+          match: Json
+          parsed: Json | null
           proposed: Json | null
           raw: Json
-          source_ref: string
+          row_no: number | null
+          source_ref: string | null
+          updated_at: string
         }
         Insert: {
-          decision: string
+          commit_snapshot?: Json | null
+          created_at?: string
+          decision?: string | null
+          decision_meta?: Json | null
+          estimate_line_id?: string | null
+          group_name?: string | null
           id?: string
           import_id: string
           issue?: string | null
+          kind?: string | null
+          match?: Json
+          parsed?: Json | null
           proposed?: Json | null
           raw: Json
-          source_ref: string
+          row_no?: number | null
+          source_ref?: string | null
+          updated_at?: string
         }
         Update: {
-          decision?: string
+          commit_snapshot?: Json | null
+          created_at?: string
+          decision?: string | null
+          decision_meta?: Json | null
+          estimate_line_id?: string | null
+          group_name?: string | null
           id?: string
           import_id?: string
           issue?: string | null
+          kind?: string | null
+          match?: Json
+          parsed?: Json | null
           proposed?: Json | null
           raw?: Json
-          source_ref?: string
+          row_no?: number | null
+          source_ref?: string | null
+          updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "estimate_import_rows_estimate_line_id_fkey"
+            columns: ["estimate_line_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_lines"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "estimate_import_rows_import_id_fkey"
             columns: ["import_id"]
@@ -1603,42 +1640,66 @@ export type Database = {
       }
       estimate_imports: {
         Row: {
+          committed_at: string | null
           created_at: string
           created_by: string | null
           document_id: string | null
-          file_name: string
+          estimate_version_id: string | null
+          file_name: string | null
           id: string
-          kind: string
+          kind: string | null
+          mapping: Json
+          options: Json
           project_id: string
           reconciliation: Json
+          source_kind: string | null
           source_totals: Json
           status: string
+          summary: Json
+          template_id: string | null
+          updated_at: string
           version_id: string | null
         }
         Insert: {
+          committed_at?: string | null
           created_at?: string
           created_by?: string | null
           document_id?: string | null
-          file_name: string
+          estimate_version_id?: string | null
+          file_name?: string | null
           id?: string
-          kind: string
+          kind?: string | null
+          mapping?: Json
+          options?: Json
           project_id: string
           reconciliation?: Json
+          source_kind?: string | null
           source_totals?: Json
           status?: string
+          summary?: Json
+          template_id?: string | null
+          updated_at?: string
           version_id?: string | null
         }
         Update: {
+          committed_at?: string | null
           created_at?: string
           created_by?: string | null
           document_id?: string | null
-          file_name?: string
+          estimate_version_id?: string | null
+          file_name?: string | null
           id?: string
-          kind?: string
+          kind?: string | null
+          mapping?: Json
+          options?: Json
           project_id?: string
           reconciliation?: Json
+          source_kind?: string | null
           source_totals?: Json
           status?: string
+          summary?: Json
+          template_id?: string | null
+          updated_at?: string
           version_id?: string | null
         }
         Relationships: [
@@ -1650,10 +1711,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "estimate_imports_estimate_version_id_fkey"
+            columns: ["estimate_version_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_versions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "estimate_imports_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_imports_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "import_templates"
             referencedColumns: ["id"]
           },
           {
@@ -1779,6 +1854,7 @@ export type Database = {
           finish_id: string | null
           fixed_sell_cents: number | null
           id: string
+          import_row_id: string | null
           is_allowance: boolean
           kind: string
           margin_pct: number | null
@@ -1811,6 +1887,7 @@ export type Database = {
           finish_id?: string | null
           fixed_sell_cents?: number | null
           id?: string
+          import_row_id?: string | null
           is_allowance?: boolean
           kind?: string
           margin_pct?: number | null
@@ -1843,6 +1920,7 @@ export type Database = {
           finish_id?: string | null
           fixed_sell_cents?: number | null
           id?: string
+          import_row_id?: string | null
           is_allowance?: boolean
           kind?: string
           margin_pct?: number | null
@@ -1878,6 +1956,13 @@ export type Database = {
             columns: ["finish_id"]
             isOneToOne: false
             referencedRelation: "project_finishes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_lines_import_row_id_fkey"
+            columns: ["import_row_id"]
+            isOneToOne: false
+            referencedRelation: "estimate_import_rows"
             referencedColumns: ["id"]
           },
           {
@@ -1988,6 +2073,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      import_templates: {
+        Row: {
+          created_at: string
+          header_signature: string
+          id: string
+          last_used_at: string | null
+          mapping: Json
+          name: string
+          options: Json
+          updated_at: string
+          uses: number
+        }
+        Insert: {
+          created_at?: string
+          header_signature: string
+          id?: string
+          last_used_at?: string | null
+          mapping?: Json
+          name: string
+          options?: Json
+          updated_at?: string
+          uses?: number
+        }
+        Update: {
+          created_at?: string
+          header_signature?: string
+          id?: string
+          last_used_at?: string | null
+          mapping?: Json
+          name?: string
+          options?: Json
+          updated_at?: string
+          uses?: number
+        }
+        Relationships: []
       }
       inspection_items: {
         Row: {
@@ -6051,6 +6172,16 @@ export type Database = {
       }
       can_read_knowledge: { Args: { _visibility: string }; Returns: boolean }
       can_write_knowledge: { Args: { _visibility: string }; Returns: boolean }
+      commit_estimate_import: {
+        Args: {
+          _ack?: boolean
+          _append?: boolean
+          _import: string
+          _items: Json
+          _sell?: number
+        }
+        Returns: string
+      }
       company_details: {
         Args: never
         Returns: {
@@ -6174,6 +6305,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      import_line_snapshot: { Args: { _line: string }; Returns: Json }
       install_visit_replace_lines: {
         Args: { _lines: Json; _visit: string }
         Returns: undefined
@@ -6508,6 +6640,7 @@ export type Database = {
           id: string
         }[]
       }
+      undo_estimate_import: { Args: { _import: string }; Returns: undefined }
       unlock_estimate_version: {
         Args: { _id: string; _reason: string }
         Returns: undefined
@@ -6574,6 +6707,7 @@ export type Database = {
         | "contract"
         | "photos"
         | "other"
+        | "estimates_imported"
       job_role: "estimator" | "project_lead" | "site_lead" | "other"
       location_type: "room" | "common_area"
       photo_kind: "before" | "after"
@@ -6742,6 +6876,7 @@ export const Constants = {
         "contract",
         "photos",
         "other",
+        "estimates_imported",
       ],
       job_role: ["estimator", "project_lead", "site_lead", "other"],
       location_type: ["room", "common_area"],
