@@ -5,7 +5,7 @@ Import an existing estimate (XLSX, CSV or PDF) into a new or existing project.
 - Faithful numbers first: the imported estimate must add up to the file to the cent.
 - Each line is offered a catalogue match, with the price difference per unit shown.
 - Unmatched lines can become a new catalogue product, which can then be pushed to QuickBooks as an item.
-- Aliases learn from confirmations, so the same wording matches straight away next time.
+- Aliases learn from confirmations, so the same wording matches straight away next time and unmatched counts fall over time.
 
 ## Dan's decisions
 - Approach C: deterministic import plus a review step, with assistance where it helps.
@@ -48,7 +48,7 @@ Upload → Mapping (columns, sheet, PST option) → Lines (match chip with best 
 
 ## Fixture
 `src/lib/estimate-import/__fixtures__/estimate-4811643.csv`; `build-xlsx.ts` builds the workbook (Estimate + identical Full Estimate + Summary with a 7% materials tax line).
-All lines kept imported, PST gross-up **off**: material 18,426.11 · labour 9,727.30 · cost 28,153.41 · sell 38,007.10 (covered by `commit.test.ts`).
+All lines kept imported, PST gross-up **off**: material 18,426.11 · labour 9,727.30 · cost 28,153.41 · sell 38,007.10 (covered by `commit.test.ts`). With the 7% PST gross-up on, the file total is 39,748.37.
 
 ## Root cause of the earlier discrepancy
 The XLSX fixture carries a separate materials-tax line. The parser detected it and, with gross-up on by default, added 7% PST onto material costs, giving cost 29,443.24 / sell 39,748.37. With gross-up off, the totals match the file exactly.
