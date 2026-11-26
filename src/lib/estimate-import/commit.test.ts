@@ -100,3 +100,23 @@ describe("rules", () => {
     expect(() => rowToPayload({ ...row, parsed: { ...row.parsed!, uom: "BUNDLE" } }, { action: "keep_imported" }, ctx())).toThrow(/unit/);
   });
 });
+
+describe("fixture end to end: parse → keep imported → commit payload → versionSummary", () => {
+  test("XLSX with no PST gross-up gives material 18,426.11 / labour 9,727.30 / cost 28,153.41 / sell 38,007.10", async () => {
+    const { versionSummary } = await import("@/lib/estimating/worksheet");
+    const built = buildImport(parseWorkbook(fixtureXlsx(), "xlsx"), { options: { gross_up_pst_pct: null } });
+    expect(built.options.gross_up_pst_pct).toBeNull();
+    const items = built.rows.filter((r) => r.kind === "item").map((r) => rowToPayload(r, { action: "keep_imported" }, ctx(built.options)));
+    const lines = items.map((it, i) => ({
+      ...(it.line as object), id: `l${i}`, section: String(it.line.section), cost_code: null, description: String(it.line.description),
+      selection: "required" as const, selection_group: null, components: it.components ?? [],
+    })) as unknown as Parameters<typeof versionSummary>[0];
+    const s = versionSummary(lines, { pstPct: 7, gstPct: 5, hstPct: 0 });
+    let material = 0, labour = 0;
+    lines.forEach((l) => s.priced[l.id]!.components.forEach((c, j) => { if (l.components[j]!.kind === "labour") labour += c.costCents; else material += c.costCents; }));
+    expect(material).toBe(1842611);
+    expect(labour).toBe(972730);
+    expect(s.costCents).toBe(2815341);
+    expect(s.sellCents).toBe(3800710);
+  });
+});
