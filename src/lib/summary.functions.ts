@@ -81,36 +81,18 @@ Write a clear punch-list summary (under 350 words) in markdown for the site team
 - **Next actions**: 2-4 concrete steps, naming trades or people where the data shows them.
 Formatting: each section title is a '## ' heading; inside Still open each floor is a '### Floor N' heading; every item or fact is its own '- ' bullet starting with bold D-number and room (e.g. '- **D-0013 · Room 201** — ...'). Use the notes to explain what's actually happening on an item. Only use facts from the data. Do not invent items, people or dates.`;
 
-    const { streamText } = await import("ai");
-    const { createOpenAI } = await import("@ai-sdk/openai");
-    const { createLovableAiGatewayRunIdFetch } = await import("./ai-gateway.server");
-    const runIdFetch = createLovableAiGatewayRunIdFetch();
-    const lovable = createOpenAI({
-      baseURL: "https://ai.gateway.lovable.dev/v1",
-      apiKey: key,
-      headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-      fetch: runIdFetch.fetch,
-    });
-
+    // The app's standard: Claude Opus 5.5 or stronger, never a weaker model.
+    const { askStrongModel } = await import("@/lib/ai/model.server");
     try {
-      const result = streamText({
-        model: lovable.responses("openai/gpt-6-astra"),
+      const { text } = await askStrongModel({
         system: "You are a construction project coordinator for BMD Materials, a flooring and tile contractor. Be factual, brief and professional.",
         prompt,
-        providerOptions: {
-          openai: {
-            forceReasoning: true,
-            reasoningEffort: "low",
-            reasoningSummary: "auto",
-            store: false,
-            include: ["reasoning.encrypted_content"],
-          },
-        },
+        maxTokens: 1500,
       });
-      const text = await result.text;
       return { summary: text.trim() || "No summary was produced. Please try again." };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      if (/Opus|switched off/i.test(msg)) throw new Error(msg);
       if (/402|credit/i.test(msg)) throw new Error("AI credits have run out. Add credits in Settings → Plans & credits.");
       if (/429|rate/i.test(msg)) throw new Error("AI is busy right now. Please try again in a minute.");
       throw new Error("Couldn't create the summary. Please try again.");

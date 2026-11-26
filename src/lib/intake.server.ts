@@ -90,29 +90,16 @@ ${rules ? `HOUSE RULES:\n${rules}\n\n` : ""}${jobText}
 ${ex ? `PAST CORRECTIONS (follow these patterns):\n${ex}\n\n` : ""}EMAIL:
 ${text.slice(0, 6000)}`;
 
-  const { streamText, Output } = await import("ai");
-  const { createOpenAI } = await import("@ai-sdk/openai");
-  const { z } = await import("zod");
-  const { createLovableAiGatewayRunIdFetch } = await import("./ai-gateway.server");
-  const lovable = createOpenAI({
-    baseURL: "https://ai.gateway.lovable.dev/v1",
-    apiKey: key,
-    headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
-    fetch: createLovableAiGatewayRunIdFetch().fetch,
-  });
-  const s = z.string().nullable();
-  const result = streamText({
-    model: lovable.responses("openai/gpt-6-astra"),
+  // The app's standard: Claude Opus 5.5 or stronger, never a weaker model.
+  const { askStrongModel } = await import("@/lib/ai/model.server");
+  const { parseIntakeReply } = await import("./intake-parse");
+  const reply = await askStrongModel({
+    system:
+      'Reply with JSON only, no prose: {"job","floor","location","area","material","issue_type","assessment","description","due_date","urgency": string or null, "confidence": {"job","location","material","issue_type": number 0-1}}.',
     prompt,
-    output: Output.object({
-      schema: z.object({
-        job: s, floor: s, location: s, area: s, material: s, issue_type: s, assessment: s, description: s, due_date: s, urgency: s,
-        confidence: z.object({ job: z.number(), location: z.number(), material: z.number(), issue_type: z.number() }),
-      }),
-    }),
-    providerOptions: { openai: { forceReasoning: true, reasoningEffort: "low", store: false, include: ["reasoning.encrypted_content"] } },
+    maxTokens: 1200,
   });
-  return (await result.output) as Parsed;
+  return parseIntakeReply(reply.text);
 }
 
 const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
