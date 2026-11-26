@@ -22,6 +22,7 @@ import {
 } from "@/lib/clients/data";
 import { parseQboCustomers, planClientImport, type ParsedClient } from "@/lib/clients/import";
 import { qboImportClients, qboPullCustomers, qboStatus } from "@/lib/qbo/qbo.functions";
+import { QboCustomerSync } from "@/components/clients/QboCustomerSync";
 
 export const Route = createFileRoute("/_authenticated/clients")({
   head: () => ({ meta: [{ title: "Clients — BMD Projects" }] }),
@@ -39,6 +40,7 @@ function ClientsPage() {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState<Client | "new" | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
 
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -56,7 +58,10 @@ function ClientsPage() {
         subtitle={`${clients.length} ${clients.length === 1 ? "client" : "clients"}`}
         actions={
           canEdit ? (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => setSyncOpen(true)}>
+                Compare with QuickBooks
+              </Button>
               <Button variant="outline" onClick={() => setImportOpen(true)}>
                 <Upload className="mr-2 h-4 w-4" /> Import from QuickBooks
               </Button>
@@ -67,6 +72,7 @@ function ClientsPage() {
           ) : undefined
         }
       />
+      {syncOpen && <QboCustomerSync onClose={() => setSyncOpen(false)} />}
       <div className="space-y-4 p-4 md:p-6">
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search clients…" className="h-11 max-w-md" />
         {error && <p className="text-sm text-destructive">Could not load clients: {errText(error)}</p>}

@@ -32,7 +32,7 @@ export function OpenBookBilling({ projectId }: { projectId: string }) {
     queryKey: ["bills", projectId, "open-book"],
     enabled: canSee,
     queryFn: async () => {
-      const { data, error: e } = await db.from("progress_bills").select("id,number,kind,period_note,lines,gross_cents,holdback_pct,holdback_cents,net_cents,gst_cents,total_cents,status,issued_at,created_at,open_book,bill_date,due_date,terms,client_notes,internal_notes,bill_type,gst_pct").eq("project_id", projectId).order("seq");
+      const { data, error: e } = await db.from("progress_bills").select("id,number,kind,period_note,lines,gross_cents,holdback_pct,holdback_cents,net_cents,gst_cents,total_cents,status,issued_at,created_at,open_book,bill_date,due_date,terms,client_notes,internal_notes,bill_type,gst_pct,qbo_invoice_id").eq("project_id", projectId).order("seq");
       if (e) throw e;
       return ((data ?? []) as Bill[]).map((b) => ({ ...b, holdback_pct: Number(b.holdback_pct) }));
     },
@@ -276,10 +276,11 @@ export function OpenBookBilling({ projectId }: { projectId: string }) {
           canBill={canBill}
           busy={busy}
           onPdf={pdf}
+          onChanged={() => void qc.invalidateQueries({ queryKey: ["bills", projectId] })}
           onStatus={(b, to) => void run(() => db.rpc("set_progress_bill_status", { _id: b.id, _to: to }), to === "issued" ? `${b.number} issued.` : to === "void" ? `${b.number} voided. Its labour and invoices can be billed again.` : "Draft deleted. Its labour and invoices can be billed again.")}
         />
       )}
-      <p className="text-xs text-muted-foreground">Bills are entered in QuickBooks by hand for now. Each bill above lists the figures to enter: labour, materials at supplier invoice, and the markup. The invoice PDF carries the detail.</p>
+      <p className="text-xs text-muted-foreground">An issued bill can be created in QuickBooks as an unsent invoice (QuickBooks draft): its lines go across as they are. The invoice PDF carries the detail.</p>
     </div>
   );
 }

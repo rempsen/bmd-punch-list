@@ -42,7 +42,7 @@ function FixedPriceBilling({ projectId }: { projectId: string }) {
     queryKey: ["bills", projectId],
     enabled: canSee,
     queryFn: async () => {
-      const { data, error: e } = await db.from("progress_bills").select("id,number,kind,period_note,lines,gross_cents,holdback_pct,holdback_cents,net_cents,gst_cents,total_cents,status,issued_at,created_at,bill_date,due_date,terms,client_notes,internal_notes,bill_type,gst_pct").eq("project_id", projectId).order("seq");
+      const { data, error: e } = await db.from("progress_bills").select("id,number,kind,period_note,lines,gross_cents,holdback_pct,holdback_cents,net_cents,gst_cents,total_cents,status,issued_at,created_at,bill_date,due_date,terms,client_notes,internal_notes,bill_type,gst_pct,qbo_invoice_id").eq("project_id", projectId).order("seq");
       if (e) throw e;
       return ((data ?? []) as Bill[]).map((b) => ({ ...b, holdback_pct: Number(b.holdback_pct) }));
     },
@@ -216,10 +216,11 @@ function FixedPriceBilling({ projectId }: { projectId: string }) {
           canBill={canBill}
           busy={busy}
           onPdf={pdf}
+          onChanged={refresh}
           onStatus={(b, to) => void run(() => db.rpc("set_progress_bill_status", { _id: b.id, _to: to }), to === "issued" ? `${b.number} issued.` : to === "void" ? `${b.number} voided.` : "Draft deleted.")}
         />
       )}
-      <p className="text-xs text-muted-foreground">Bills are entered in QuickBooks by hand for now: the invoice PDF carries every figure needed.</p>
+      <p className="text-xs text-muted-foreground">An issued bill can be created in QuickBooks as an unsent invoice (QuickBooks draft). Check it and send it from QuickBooks.</p>
     </div>
   );
 }
