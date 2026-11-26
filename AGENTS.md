@@ -36,3 +36,7 @@
 ## Search indexing
 - Knowledge and project uploads/retries use the shared index queue; Word/Excel/CSV/text extract from stored files on the server, while PDF keeps its browser worker because the established reader is browser-only.
 - Page storage uses existing Knowledge/document page tables and access rules; Office citation labels and extraction errors are metadata rather than separate search stores.
+
+## Estimate import matching
+- `src/lib/estimate-import/match.ts` is pure (normalise, fuzzy score, price delta, AI prompt/parse); `match.server.ts` loads catalogue/aliases and calls the AI; `match.functions.ts` exposes them. Why: the review screen and tests share one rule set, and the AI only orders candidates — prices always come from catalogue rows.
+- Aliases are written only through `confirm_catalogue_alias` (bumps uses on repeat). Why: one row per wording per item.

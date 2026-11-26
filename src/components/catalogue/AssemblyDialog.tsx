@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { CostCodeSelect, F, MoneyInput, UomSelect, selectCls } from "@/components/catalogue/fields";
 import { Button } from "@/components/ui/button";
+import { AliasesSection } from "@/components/catalogue/AliasesSection";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeleteButton } from "@/components/catalogue/fields";
 import { Input } from "@/components/ui/input";
@@ -249,6 +250,7 @@ export function AssemblyDialog({
             </Button>
           </div>
         </fieldset>
+        {template && <AliasesSection target={{ assembly_id: template.id }} canEdit={canEdit} />}
         <DialogFooter>
           {canEdit && template && <DeleteButton kind="assembly" id={template.id} name={template.name} onDeleted={onSaved} />}
           <Button variant="ghost" onClick={onClose}>

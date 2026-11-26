@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/AppShell";
 import { AssemblyDialog } from "@/components/catalogue/AssemblyDialog";
 import { CostCell, CostCodeSelect, DeleteButton, F, MoneyInput, Unknown, UomSelect, selectCls } from "@/components/catalogue/fields";
 import { MaterialDialog } from "@/components/catalogue/MaterialDialog";
+import { aliasTextById, useAllAliases } from "@/lib/catalogue/aliases";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -89,15 +90,17 @@ function CataloguePage() {
     }
   };
 
+  const aliasQ = useAllAliases();
+  const aliasText = useMemo(() => aliasTextById(aliasQ.data ?? []), [aliasQ.data]);
   const shown = useMemo(() => {
     const s = q.trim().toLowerCase();
     return materials.filter(
       (m) =>
         (showInactive || m.active) &&
         (!cat || m.category === cat) &&
-        (!s || `${m.name} ${m.manufacturer ?? ""} ${m.colour ?? ""} ${m.sku ?? ""}`.toLowerCase().includes(s)),
+        (!s || `${m.name} ${m.manufacturer ?? ""} ${m.colour ?? ""} ${m.sku ?? ""} ${aliasText.get(m.id) ?? ""}`.toLowerCase().includes(s)),
     );
-  }, [materials, q, cat, showInactive]);
+  }, [materials, q, cat, showInactive, aliasText]);
   const supplierName = (id: string | null) => suppliers.find((s) => s.id === id)?.name ?? "—";
   const unconfirmed = materials.filter((m) => m.active && !m.uom_confirmed).length + labour.filter((l) => l.active && !l.uom_confirmed).length;
   const unknownCount = materials.filter((m) => m.active && m.unit_cost_cents == null).length + labour.filter((l) => l.active && l.unit_cost_cents == null).length;

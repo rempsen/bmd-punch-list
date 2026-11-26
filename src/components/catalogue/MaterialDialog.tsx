@@ -4,6 +4,7 @@ import { CostCodeSelect, F, MoneyInput, UomSelect, selectCls } from "@/component
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DeleteButton } from "@/components/catalogue/fields";
+import { AliasesSection } from "@/components/catalogue/AliasesSection";
 import { Input } from "@/components/ui/input";
 import { centsToInput, saveMaterial, sellsMaterials, type CostCode, type Material, type Supplier } from "@/lib/catalogue/data";
 import { CATEGORIES, parseMoneyCents, type Category } from "@/lib/catalogue/logic";
@@ -196,6 +197,7 @@ export function MaterialDialog({
             </label>
           )}
         </fieldset>
+        {material && <AliasesSection target={{ catalogue_item_id: material.id }} canEdit={canEdit} />}
         <DialogFooter>
           {canEdit && material && <DeleteButton kind="material" id={material.id} name={material.name} onDeleted={() => onSaved(material.id)} />}
           <Button variant="ghost" onClick={onClose}>

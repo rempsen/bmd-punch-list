@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.17"
-  }
   public: {
     Tables: {
       ai_proposals: {
@@ -510,6 +505,60 @@ export type Database = {
           visit_id?: string
         }
         Relationships: []
+      }
+      catalogue_aliases: {
+        Row: {
+          alias: string
+          alias_norm: string
+          assembly_id: string | null
+          catalogue_item_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          last_used_at: string
+          source: string
+          uses: number
+        }
+        Insert: {
+          alias: string
+          alias_norm: string
+          assembly_id?: string | null
+          catalogue_item_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_used_at?: string
+          source?: string
+          uses?: number
+        }
+        Update: {
+          alias?: string
+          alias_norm?: string
+          assembly_id?: string | null
+          catalogue_item_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_used_at?: string
+          source?: string
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogue_aliases_assembly_id_fkey"
+            columns: ["assembly_id"]
+            isOneToOne: false
+            referencedRelation: "assembly_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalogue_aliases_catalogue_item_id_fkey"
+            columns: ["catalogue_item_id"]
+            isOneToOne: false
+            referencedRelation: "catalogue_materials"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       catalogue_materials: {
         Row: {
@@ -6011,6 +6060,16 @@ export type Database = {
           website: string
         }[]
       }
+      confirm_catalogue_alias: {
+        Args: {
+          _alias: string
+          _alias_norm: string
+          _assembly_id: string
+          _catalogue_item_id: string
+          _source?: string
+        }
+        Returns: string
+      }
       copy_estimate_version: {
         Args: { _description?: string; _from: string; _name: string }
         Returns: string
@@ -6697,3 +6756,4 @@ export const Constants = {
     },
   },
 } as const
+

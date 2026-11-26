@@ -673,6 +673,13 @@
       "when": 1795569671725,
       "tag": "0095_tile_trim_own_quantity",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1795713540242,
+      "tag": "0096_catalogue_aliases",
+      "breakpoints": true
     }
   ]
 }
