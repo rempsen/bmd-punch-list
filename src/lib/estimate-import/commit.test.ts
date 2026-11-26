@@ -120,3 +120,15 @@ describe("fixture end to end: parse → keep imported → commit payload → ver
     expect(s.sellCents).toBe(3800710);
   });
 });
+
+describe("catalogue item at the imported price", () => {
+  test("costs and sells exactly what the file says, even when the catalogue unit differs and labour carries waste", () => {
+    const carpet: CatalogueView = { materials: { c: { id: "c", name: "Carpet", cost_uom: "SF", unit_cost_cents: null, purchase_uom: "SF", coverage_per_purchase_unit: null, coverage_uom: null, pst_applies: true, default_waste_pct: 5 } }, labour: {} };
+    const r = csv.rows.find((x) => x.parsed?.description === "CARPET TO REC ROOM")!;
+    const c = { options: csv.options, category: "Floor", catalogue: carpet, templates: [] };
+    const kept = payloadPrice(rowToPayload(r, { action: "keep_imported" }, c), PST);
+    const linked = payloadPrice(rowToPayload(r, { action: "catalogue", keepPrice: true, candidate: { catalogue_item_id: "c", name: "Carpet", score: 1, uom: "SF", material_unit_cost: null, labour_unit_cost: null, reason: "" } }, c), PST);
+    expect(linked.costCents).toBe(kept.costCents);
+    expect(linked.sellCents).toBe(kept.sellCents);
+  });
+});

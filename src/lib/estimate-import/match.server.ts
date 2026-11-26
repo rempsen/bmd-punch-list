@@ -37,6 +37,9 @@ export async function loadCatalogue(sb: Sb): Promise<{ catalogue: CatalogueEntry
   return { catalogue, aliases: aliases.data ?? [] };
 }
 
+/** One slow AI answer must not hold up the whole file; the line keeps its fuzzy candidates instead. */
+const AI_TIMEOUT_MS = 20_000;
+
 type Ask = (a: { system: string; prompt: string; maxTokens?: number }) => Promise<{ text: string }>;
 
 /** Best-effort AI ranking of the top fuzzy candidates. Returns [] on any failure; ids and reasons only. */
@@ -44,7 +47,9 @@ export async function suggestWithAI(line: ImportedLine, top20: Candidate[], ask?
   if (!top20.length) return [];
   try {
     const fn = ask ?? (await import("@/lib/ai/model.server")).askStrongModel;
-    const res = await fn({ system: AI_MATCH_SYSTEM, prompt: aiMatchPrompt(line, top20), maxTokens: 600 });
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("timed out after 20 s")), AI_TIMEOUT_MS); });
+    const res = await Promise.race([fn({ system: AI_MATCH_SYSTEM, prompt: aiMatchPrompt(line, top20), maxTokens: 600 }), timeout]).finally(() => clearTimeout(timer));
     return parseAiMatch(res.text, top20);
   } catch (e) {
     console.error(`[import-match] AI ranking skipped: ${e instanceof Error ? e.message : String(e)}`);

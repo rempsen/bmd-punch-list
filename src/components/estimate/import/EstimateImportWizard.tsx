@@ -417,7 +417,7 @@ export function EstimateImportWizard({ projectId, importId, catalogue, templates
               const c: Candidate = p.assemblyId
                 ? { assembly_id: p.assemblyId, name: newItem.parsed!.description, score: 1, uom: newItem.parsed!.uom ?? "SF", material_unit_cost: newItem.parsed!.material_unit_cost, labour_unit_cost: newItem.parsed!.labour_unit_cost, reason: "new product" }
                 : { catalogue_item_id: p.materialId, name: newItem.parsed!.description, score: 1, uom: newItem.parsed!.uom ?? "SF", material_unit_cost: newItem.parsed!.material_unit_cost, labour_unit_cost: null, reason: "new product" };
-              choose(newItem, { action: "new_product", candidate: c });
+              choose(newItem, { action: "new_product", candidate: c, keepPrice: true });
             }}
           />
         )}

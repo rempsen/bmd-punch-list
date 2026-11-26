@@ -17,8 +17,16 @@ export const matchImportedLines = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { loadCatalogue, matchWithAI } = await import("./match.server");
     const { catalogue, aliases } = await loadCatalogue(context.supabase);
-    const out = [];
-    for (const l of data.lines) out.push(await matchWithAI(l, catalogue, aliases, { ai: data.ai }));
+    // Weak lines each wait on an AI call; run them a few at a time so a full file finishes well inside the request limit.
+    const out: Awaited<ReturnType<typeof matchWithAI>>[] = new Array(data.lines.length);
+    let next = 0;
+    const worker = async () => {
+      while (next < data.lines.length) {
+        const i = next++;
+        out[i] = await matchWithAI(data.lines[i]!, catalogue, aliases, { ai: data.ai });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(8, data.lines.length) }, worker));
     return out;
   });
 

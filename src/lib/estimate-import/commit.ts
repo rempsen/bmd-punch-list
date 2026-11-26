@@ -122,13 +122,18 @@ export function rowToPayload(row: ParsedRow, decision: Decision, ctx: PayloadCon
     });
     let mat = built[0]!;
     if (decision.keepPrice && p.material_unit_cost != null) {
-      const per = convertPrice(p.material_unit_cost, uom, mat.cost_uom);
-      if (per == null) throw new Error(`${p.description}: cannot convert ${uom} to ${mat.cost_uom}`);
-      mat = { ...mat, unit_cost_cents: cents(per), cost_overridden: true, pst_applies: gross };
+      // The file's own extended material cost, carried on the line's unit, so no unit conversion rounds it.
+      const material = p.material_total ?? (p.total_qty ?? (p.qty ?? 0) * (1 + (waste ?? 0) / 100)) * p.material_unit_cost;
+      const typedMat = typed(m.name, "material", material, qty, uom, gross);
+      mat = { ...mat, unit_cost_cents: typedMat.unit_cost_cents, cost_uom: typedMat.cost_uom, purchase_uom: typedMat.purchase_uom, coverage_per_purchase_unit: null, qty_per_driver: typedMat.qty_per_driver, waste_pct: 0, cost_overridden: true, pst_applies: gross };
     }
-    const components = [mat, ...(importedLabour != null ? [{ ...simpleComponent("Labour (imported)", cents(importedLabour), uom), kind: "labour" as const, cost_overridden: true, sort_order: 2 }] : [])];
+    // Labour stays the file's extended labour (it may include waste the catalogue line would not add).
+    const fileLabour = fileCosts(p).labour;
+    const labourPart = fileLabour != null ? typed("Labour (imported)", "labour", fileLabour, qty, uom, false) : importedLabour != null ? { ...simpleComponent("Labour (imported)", cents(importedLabour), uom), kind: "labour" as const, cost_overridden: true } : null;
+    const components = [mat, ...(labourPart ? [{ ...labourPart, sort_order: 2 }] : [])];
     const item: SaveItem = { line: { ...base, driver_qty: qty, driver_uom: uom, waste_pct: waste }, components };
-    return checked(item, p, rates);
+    checked(item, p, rates);
+    return decision.keepPrice ? keepFileSell(item, fileSell(p, ctx.options), rates) : item;
   }
 
   const tpl = ctx.templates.find((t) => t.id === c!.assembly_id);
@@ -136,13 +141,20 @@ export function rowToPayload(row: ParsedRow, decision: Decision, ctx: PayloadCon
   let driverQty: number;
   try { driverQty = convert(qty, uom, tpl.driver_uom); } catch { throw new Error(`${p.description}: cannot convert ${uom} to ${tpl.driver_uom}`); }
   const { components } = buildComponents({ template: tpl, finishMaterialId: null, catalogue: ctx.catalogue });
-  let override: number | null = null;
   if (decision.keepPrice) {
+    // The file's own extended costs on the file's own unit, so converting units and rounding a per-unit price cannot move the total.
+    // The material part still points at the assembly's catalogue material.
     const { material, labour } = fileCosts(p);
-    const total = (material ?? 0) * (gross ? 1 + (ctx.options.gross_up_pst_pct ?? 0) / 100 : 1) + (labour ?? 0);
-    override = cents(total / driverQty);
+    const linkedMat = components.find((x) => x.kind === "material" && x.catalogue_material_id);
+    const parts = [
+      ...(material != null || labour == null ? [{ ...typed(linkedMat?.label ?? "Material (imported)", "material", material, qty, uom, gross), catalogue_material_id: linkedMat?.catalogue_material_id ?? null }] : []),
+      ...(labour != null ? [typed("Labour (imported)", "labour", labour, qty, uom, false)] : []),
+    ].map((x, i) => ({ ...x, sort_order: i + 1 }));
+    const kept: SaveItem = { line: { ...base, driver_qty: qty, driver_uom: uom, waste_pct: p.waste_pct ?? 0 }, components: parts };
+    checked(kept, p, rates);
+    return keepFileSell(kept, fileSell(p, ctx.options), rates);
   }
-  const item: SaveItem = { line: { ...base, driver_qty: r2(driverQty * 10000) / 10000, driver_uom: tpl.driver_uom, waste_pct: tpl.default_waste_pct, unit_cost_override_cents: override }, components };
+  const item: SaveItem = { line: { ...base, driver_qty: r2(driverQty * 10000) / 10000, driver_uom: tpl.driver_uom, waste_pct: tpl.default_waste_pct, unit_cost_override_cents: null }, components };
   return checked(item, p, rates);
 }
 
